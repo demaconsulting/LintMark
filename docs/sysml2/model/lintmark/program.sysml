@@ -5,7 +5,6 @@ package LintMark {
         doc /* Entry point and execution orchestrator. */
 
         metadata info : SoftwareInfo {
-            description = "Entry point and execution orchestrator.";
             sourceFiles = ("src/DemaConsulting.LintMark/Program.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/ProgramTests.cs");
             designFiles = ("docs/design/lintmark/program.md");

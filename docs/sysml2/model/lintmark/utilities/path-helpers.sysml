@@ -5,7 +5,6 @@ package LintMark {
         doc /* Safe path-combination utility guarding against path-traversal. */
 
         metadata info : SoftwareInfo {
-            description = "Safe path-combination utility guarding against path-traversal.";
             sourceFiles = ("src/DemaConsulting.LintMark/Utilities/PathHelpers.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Utilities/PathHelpersTests.cs");
             designFiles = ("docs/design/lintmark/utilities/path-helpers.md");
