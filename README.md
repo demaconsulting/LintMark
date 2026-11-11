@@ -24,8 +24,16 @@ its outputs, and use them][workflow]
 LintMark currently provides the following (markdown linting and formatting rules are planned but not yet
 implemented):
 
+- **Markdown File Discovery**: Select files by path, directory, or glob pattern (with `!` exclusions);
+  with no arguments every `**/*.md` file under the current directory is used
+- **Markdown Parsing**: Every selected file is read as UTF-8 text with LF or CRLF line endings and parsed;
+  files that cannot be read or parsed are reported as `path:line:col: rule-id message`
+- **Deterministic Parallel Processing**: Files are processed in parallel and reported in a stable order, so
+  output does not depend on scheduling
+- **Check Mode**: `--check` states that files are only checked, never modified (currently the default and only
+  behavior)
 - **Standardized Command-Line Interface**: Context class handling common arguments
-  (`--version`, `--help`, `--silent`, `--validate`, `--results`, `--depth`, `--log`)
+  (`--version`, `--help`, `--silent`, `--validate`, `--results`, `--depth`, `--log`, `--check`)
 - **Self-Validation**: Built-in validation tests with TRX/JUnit output
 - **Multi-Platform Support**: Builds and runs on Windows, Linux, and macOS
 - **Multi-Runtime Support**: Targets .NET 10 and 11
@@ -50,8 +58,23 @@ dotnet tool install -g DemaConsulting.LintMark
 ## Usage
 
 ```bash
-# Default behavior (no arguments) — displays banner and copyright
+# Default behavior (no arguments) — displays the banner, then reads and parses every **/*.md file
+# under the current directory (node_modules and .git folders are skipped)
 lintmark
+
+# Process one file, a directory (every *.md file beneath it), or several of them
+lintmark README.md
+lintmark docs
+lintmark README.md docs
+
+# Process files selected by glob patterns (* and **); quote patterns so the shell does not expand them
+lintmark "docs/**/*.md"
+
+# Exclude files with a leading ! (quote it as well)
+lintmark "docs/**/*.md" "!docs/generated/**"
+
+# Report problems only; never modify a file (this is currently the only behavior)
+lintmark --check docs
 
 # Display version
 lintmark --version
@@ -75,15 +98,35 @@ lintmark --silent --log output.log
 
 ## Command-Line Options
 
+```text
+lintmark [options] [paths...]
+```
+
 | Option                                | Description                                                  |
 | ------------------------------------- | ------------------------------------------------------------ |
+| `paths...`                            | Files, directories, or globs to process; `!pattern` excludes |
+| `--check`                             | Report problems without writing any file (the default)       |
 | `-v`, `--version`                     | Display version information                                  |
 | `-?`, `-h`, `--help`                  | Display help message                                         |
 | `--silent`                            | Suppress console output                                      |
-| `--validate`                          | Run self-validation                                          |
+| `--validate`                          | Run self-validation (cannot be combined with paths)          |
 | `--results <file>`, `--result <file>` | Write results to `.trx` (TRX) or `.xml` (JUnit XML) file.    |
 | `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
 | `--log <file>`                        | Write output to log file                                     |
+
+## Output and Exit Codes
+
+Nothing is written for files that are read and parsed successfully. Each file that cannot be processed is
+reported on standard error, one line per problem, in the form `path:line:col: rule-id message`. Paths are
+relative to the current directory and use `/` separators; lines are ordered by path and then by position.
+
+```text
+docs/broken.md:2:3: file-encoding-error Invalid UTF-8 byte sequence
+missing.md:1:1: file-read-error File not found
+```
+
+The exit code is `0` when every file was processed and `1` when any problem was reported or an argument
+was invalid. A pattern that matches no file is not an error.
 
 ## Error Handling
 
@@ -93,6 +136,8 @@ with a non-zero exit code. For example:
 ```text
 Error: Unsupported argument '--unknown'
 ```
+
+Combining `--validate` with paths or `--check` is also an error.
 
 This behavior enables CI/CD pipelines to detect and surface misconfiguration failures
 automatically.

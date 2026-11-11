@@ -46,25 +46,29 @@ true, calls `PrintHelp` and returns; (4) if `context.Validate` is true, calls
 - *Parameters*: `Context context` — output target.
 - *Returns*: `void`.
 
-**PrintHelp**: Writes the usage synopsis and options table to `context`.
+**PrintHelp**: Writes the usage synopsis (`Usage: lintmark [options] [paths...]`), the description
+of the path arguments (including the `!` exclusion prefix and the `**/*.md` default), and the
+options table (including `--check`) to `context`.
 
 - *Parameters*: `Context context` — output target.
 - *Returns*: `void`.
 
-**RunToolLogic**: Main tool logic entry point; currently writes a short status message to `context`
-stating that markdown linting and formatting are not yet implemented.
+**RunToolLogic**: Main tool logic entry point; creates a `LintMarkEngine` with its default settings
+and calls `Run(context)`, which discovers, parses, and reports on the selected Markdown files.
 
-- *Parameters*: `Context context` — output target.
+- *Parameters*: `Context context` — output target and source of the path arguments.
 - *Returns*: `void`.
 
 ### Error Handling
 
 `Main` handles errors at two levels. Expected errors (`ArgumentException` and
 `InvalidOperationException`) are written to stderr as `"Error: {message}"` and cause exit
-code 1 without a stack trace. Unexpected errors (`Exception`) are written to stderr as
-`"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
+code 1 without a stack trace; this includes the usage error raised by `Context.Create` when
+`--validate` is combined with paths or `--check`. Unexpected errors (`Exception`) are written to
+stderr as `"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
 `Run`, `PrintBanner`, `PrintHelp`, and `RunToolLogic` do not catch exceptions; all errors
-propagate to `Main`.
+propagate to `Main`. Failures of individual files are not exceptions: `LintMarkEngine` reports them
+through `Context.WriteError`, which makes the exit code 1.
 
 ### Dependencies
 
@@ -72,6 +76,8 @@ propagate to `Main`.
   `Context.WriteError` for all output.
 - **Validation** — `Program.Run` calls `Validation.Run(context)` when the `--validate` flag is
   set.
+- **LintMarkEngine** — `RunToolLogic` calls `LintMarkEngine.Run(context)` to process the selected
+  Markdown files.
 
 ### Callers
 

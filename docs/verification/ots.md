@@ -9,6 +9,8 @@ Each OTS item is verified by a combination of:
 
 - The OTS tool's own self-validation suite (where the tool supports `--validate`)
 - Pipeline output assertions performed by FileAssert on documents produced by the tool
+- Integration tests in the dedicated OTS test project `test/OtsSoftwareTests` for libraries that have no
+  self-validation mode (Markdig and FileSystemGlobbing)
 
 Internal OTS tool design is out of scope; only integration and usage evidence is documented.
 
@@ -18,6 +20,8 @@ The following OTS items have verification evidence in this section:
 
 - BuildMark (_buildmark.md_) — build-notes documentation tool
 - FileAssert (_fileassert.md_) — document assertion tool
+- FileSystemGlobbing (_filesystemglobbing.md_) — glob pattern matching library
+- Markdig (_markdig.md_) — Markdown parsing library
 - Pandoc (_pandoc.md_) — Markdown-to-HTML conversion tool
 - ReqStream (_reqstream.md_) — requirements traceability tool
 - ReviewMark (_reviewmark.md_) — file review enforcement tool

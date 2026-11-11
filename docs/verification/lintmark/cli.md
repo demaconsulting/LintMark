@@ -21,6 +21,10 @@ N/A - standard test environment.
 - Invalid arguments produce exit code 1 and an error message.
 - Log files and results files are created at the specified paths when the corresponding flags
   are used.
+- Positional paths flow from `Context.Create` to the engine; an undecodable file gives a diagnostic and
+  exit code 1, and `--check` leaves files unchanged.
+- `--validate` combined with paths is rejected with exit code 1.
+- Concurrent writers to one `Context` produce intact lines and exit code 1.
 
 ### Test Scenarios
 
@@ -85,3 +89,28 @@ at the specified path and exit code is 0. This scenario is tested by
 are passed; the heading depth is set to 2 and exit code is 0, confirming the `--depth` flag is
 correctly parsed and propagated through `Context`. This scenario is tested by
 `CliSubsystem_DepthFlow_ContextAndProgram_AdjustsHeadingDepth`.
+
+**CliSubsystem_PathsFlow_ContextAndProgram_ParsesFilesAndExitsZero**: A valid temporary Markdown file is
+passed as a positional argument together with `--silent` and `--log` through `Context.Create` and
+`Program.Run`; `Context.Paths` holds the file, the real engine processes it, the log contains no
+diagnostic, and exit code is 0. This scenario is tested by
+`CliSubsystem_PathsFlow_ContextAndProgram_ParsesFilesAndExitsZero`.
+
+**CliSubsystem_PathsFlow_UnreadableFile_ReportsDiagnosticAndExitsNonZero**: A file that is not valid UTF-8
+is passed as a positional argument with `--silent` and `--log`; the log contains the diagnostic
+`bad.md:1:2: file-encoding-error Invalid UTF-8 byte sequence` and exit code is 1. This scenario is tested by
+`CliSubsystem_PathsFlow_UnreadableFile_ReportsDiagnosticAndExitsNonZero`.
+
+**CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged**: `--check` and a file path are passed;
+`Context.Check` is true, exit code is 0, and the file's bytes and last-write time are unchanged. This
+scenario is tested by `CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged`.
+
+**CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero**: `["--validate", "docs"]` is
+passed to `Program.Main`; exit code is 1 and the error stream contains an error message naming
+`--validate`. This scenario is tested by
+`CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero`.
+
+**CliSubsystem_OutputFlow_ConcurrentWriters_KeepsLinesIntactAndSetsExitCode**: Many threads write lines and
+errors to one silent `Context` with a log file; all 200 lines are present and intact in the log and exit
+code is 1. This scenario is tested by
+`CliSubsystem_OutputFlow_ConcurrentWriters_KeepsLinesIntactAndSetsExitCode`.

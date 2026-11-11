@@ -42,6 +42,8 @@ sections:
           - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
           - Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException
           - Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException
+          - Context_Create_DashedUnknownToken_ThrowsArgumentException
+          - Context_Create_EmptyArgument_ThrowsArgumentException
 
       - id: LintMark-Context-ConsoleOutput
         title: The Context class shall write output to the console unless the silent flag is set.
@@ -95,3 +97,53 @@ sections:
           compliance workflows.
         tests:
           - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
+
+      - id: LintMark-Context-Paths
+        title: >-
+          The Context class shall expose every argument that does not start with a dash as a positional
+          path, in the order given, and shall reject every other unrecognized argument.
+        justification: |
+          Positional arguments select the files to process. Treating only dash-leading tokens as
+          options keeps file names, directories, globs, and `!` exclusions usable as given, while
+          mistyped options are still reported instead of being taken for file names.
+        tests:
+          - Context_Create_PositionalPaths_SetsPathsInOrder
+          - Context_Create_NoPaths_PathsEmpty
+          - Context_Create_PathsMixedWithFlags_ParsesBoth
+          - Context_Create_HelpOrVersionWithPaths_DoesNotThrow
+          - Context_Create_DashedUnknownToken_ThrowsArgumentException
+          - Context_Create_EmptyArgument_ThrowsArgumentException
+
+      - id: LintMark-Context-Check
+        title: The Context class shall expose whether the `--check` flag was specified.
+        justification: |
+          The flag states that files must only be checked. Exposing it lets the tool logic honor the
+          request now and when file-modifying modes exist.
+        tests:
+          - Context_Create_CheckFlag_SetsCheckTrue
+
+      - id: LintMark-Context-ValidateExclusive
+        title: >-
+          The Context class shall reject `--validate` combined with positional paths or `--check` before
+          opening any log file.
+        justification: |
+          Self-validation does not process files, so such a combination is a usage error. Failing
+          before the log file is opened avoids leaving a stray file behind for a command that never
+          runs.
+        tests:
+          - Context_Create_ValidateWithPaths_ThrowsArgumentException
+          - Context_Create_ValidateWithCheck_ThrowsArgumentException
+          - Context_Create_ValidateWithPaths_DoesNotCreateLogFile
+          - Context_Create_ValidateWithItsOwnOptions_DoesNotThrow
+
+      - id: LintMark-Context-ThreadSafeOutput
+        title: >-
+          The Context class shall serialize concurrent calls that write output or record errors so that
+          lines stay intact on the console and in the log file and no error is lost.
+        justification: |
+          The shared output channels are written from a tool that processes files in parallel.
+          Serializing the writes protects against interleaved lines, torn console color changes, and
+          a lost error flag.
+        tests:
+          - Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact
+          - Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact

@@ -504,6 +504,240 @@ public class ContextTests
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => Context.Create(["--log", invalidLogPath]));
     }
+
+    /// <summary>
+    ///     Test creating a context with positional arguments sets the paths in the order given.
+    /// </summary>
+    [Fact]
+    public void Context_Create_PositionalPaths_SetsPathsInOrder()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["docs/**/*.md", "README.md", "!docs/generated/**"]);
+
+        // Assert: paths are kept in order, including the exclude pattern, and no flag is set
+        Assert.Equal(["docs/**/*.md", "README.md", "!docs/generated/**"], context.Paths);
+        Assert.False(context.Check);
+        Assert.False(context.Validate);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test creating a context without positional arguments leaves the paths empty.
+    /// </summary>
+    [Fact]
+    public void Context_Create_NoPaths_PathsEmpty()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--silent"]);
+
+        // Assert: no paths
+        Assert.Empty(context.Paths);
+    }
+
+    /// <summary>
+    ///     Test creating a context with the check flag.
+    /// </summary>
+    [Fact]
+    public void Context_Create_CheckFlag_SetsCheckTrue()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--check"]);
+
+        // Assert: check is set, nothing else changes
+        Assert.True(context.Check);
+        Assert.Empty(context.Paths);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that paths can be mixed with flags in any order and that option values are not mistaken for paths.
+    /// </summary>
+    [Fact]
+    public void Context_Create_PathsMixedWithFlags_ParsesBoth()
+    {
+        // Arrange: a log file whose name must not be taken as a path
+        var logFile = Path.Combine(Path.GetTempPath(), $"context_paths_{Guid.NewGuid()}.log");
+        try
+        {
+            // Act: execute the operation being tested
+            using var context = Context.Create(["a.md", "--silent", "--log", logFile, "--check", "b.md"]);
+
+            // Assert: only the positional arguments are paths
+            Assert.Equal(["a.md", "b.md"], context.Paths);
+            Assert.True(context.Silent);
+            Assert.True(context.Check);
+        }
+        finally
+        {
+            if (File.Exists(logFile))
+            {
+                File.Delete(logFile);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that version and help may be combined with paths (they take priority in the program).
+    /// </summary>
+    [Fact]
+    public void Context_Create_HelpOrVersionWithPaths_DoesNotThrow()
+    {
+        // Act: execute the operation being tested
+        using var help = Context.Create(["--help", "a.md"]);
+        using var version = Context.Create(["a.md", "--version", "--check"]);
+
+        // Assert: both are accepted
+        Assert.True(help.Help);
+        Assert.True(version.Version);
+        Assert.Equal(["a.md"], version.Paths);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with paths is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithPaths_ThrowsArgumentException()
+    {
+        // Act & Assert: the combination is rejected with a message naming the flag
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "docs"]));
+        Assert.Contains("--validate", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with the check flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithCheck_ThrowsArgumentException()
+    {
+        // Act & Assert: the combination is rejected
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--check", "--validate"]));
+        Assert.Contains("--check", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that the exclusivity check happens before a log file is created.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithPaths_DoesNotCreateLogFile()
+    {
+        // Arrange: a log path that does not exist yet
+        var logFile = Path.Combine(Path.GetTempPath(), $"context_exclusive_{Guid.NewGuid()}.log");
+
+        // Act & Assert: the usage error is raised and the log file is never created
+        Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--log", logFile, "a.md"]));
+        Assert.False(File.Exists(logFile));
+    }
+
+    /// <summary>
+    ///     Test that validate still combines with its own options.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithItsOwnOptions_DoesNotThrow()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--validate", "--silent", "--depth", "2", "--results", "out.trx"]);
+
+        // Assert: parsed as before
+        Assert.True(context.Validate);
+        Assert.Equal(2, context.HeadingDepth);
+        Assert.Empty(context.Paths);
+    }
+
+    /// <summary>
+    ///     Test that a lone dash and other unknown dashed tokens are still unsupported arguments rather than paths.
+    /// </summary>
+    [Theory]
+    [InlineData("-")]
+    [InlineData("-x")]
+    [InlineData("--unknown")]
+    public void Context_Create_DashedUnknownToken_ThrowsArgumentException(string token)
+    {
+        // Act & Assert: not a path
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create([token]));
+        Assert.Contains(token, exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that an empty positional argument is rejected rather than treated as a path.
+    /// </summary>
+    [Fact]
+    public void Context_Create_EmptyArgument_ThrowsArgumentException()
+    {
+        // Act & Assert: an empty token is unsupported
+        Assert.Throws<ArgumentException>(() => Context.Create([string.Empty]));
+    }
+
+    /// <summary>
+    ///     Test that concurrent error writers produce intact lines in the log file and set the exit code.
+    /// </summary>
+    [Fact]
+    public void Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact()
+    {
+        // Arrange: a log file and many long lines
+        var logFile = Path.Combine(Path.GetTempPath(), $"context_concurrent_err_{Guid.NewGuid()}.log");
+        try
+        {
+            int exitCode;
+            using (var context = Context.Create(["--silent", "--log", logFile]))
+            {
+                // Act: write from many threads at once
+                Parallel.For(0, 400, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
+                    context.WriteError($"error-{i}-{new string('x', 300)}"));
+                exitCode = context.ExitCode;
+            }
+
+            // Assert: every line is present exactly once and intact
+            var lines = File.ReadAllLines(logFile);
+            Assert.Equal(1, exitCode);
+            Assert.Equal(400, lines.Length);
+            Assert.Equal(
+                Enumerable.Range(0, 400).Select(i => $"error-{i}-{new string('x', 300)}").Order(StringComparer.Ordinal).ToList(),
+                lines.Order(StringComparer.Ordinal).ToList());
+        }
+        finally
+        {
+            if (File.Exists(logFile))
+            {
+                File.Delete(logFile);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that concurrent line writers produce intact lines in the log file and leave the exit code at zero.
+    /// </summary>
+    [Fact]
+    public void Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact()
+    {
+        // Arrange: a log file and many long lines
+        var logFile = Path.Combine(Path.GetTempPath(), $"context_concurrent_line_{Guid.NewGuid()}.log");
+        try
+        {
+            int exitCode;
+            using (var context = Context.Create(["--silent", "--log", logFile]))
+            {
+                // Act: write from many threads at once
+                Parallel.For(0, 400, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
+                    context.WriteLine($"line-{i}-{new string('y', 300)}"));
+                exitCode = context.ExitCode;
+            }
+
+            // Assert: every line is present exactly once and intact; no error was recorded
+            var lines = File.ReadAllLines(logFile);
+            Assert.Equal(0, exitCode);
+            Assert.Equal(400, lines.Length);
+            Assert.Equal(
+                Enumerable.Range(0, 400).Select(i => $"line-{i}-{new string('y', 300)}").Order(StringComparer.Ordinal).ToList(),
+                lines.Order(StringComparer.Ordinal).ToList());
+        }
+        finally
+        {
+            if (File.Exists(logFile))
+            {
+                File.Delete(logFile);
+            }
+        }
+    }
 }
 
 

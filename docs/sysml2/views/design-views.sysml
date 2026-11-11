@@ -23,4 +23,12 @@ package LintMark {
     view UtilitiesView {
         expose UtilitiesSubsystem;
     }
+
+    view DocumentView {
+        expose DocumentSubsystem;
+    }
+
+    view EngineView {
+        expose EngineSubsystem;
+    }
 }

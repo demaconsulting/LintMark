@@ -269,5 +269,73 @@ public class ProgramTests
             Console.SetOut(originalOut);
         }
     }
+
+    /// <summary>
+    ///     Test that Run with help flag lists the paths argument and the check option.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithHelpFlag_ListsCheckOptionAndPaths()
+    {
+        // Arrange: setup test conditions
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var context = Context.Create(["--help"]);
+
+            // Act: execute the operation being tested
+            Program.Run(context);
+
+            // Assert: verify expected behavior
+            var output = outWriter.ToString();
+            Assert.Contains("[paths...]", output);
+            Assert.Contains("--check", output);
+            Assert.Contains("**/*.md", output);
+            Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run with a path argument runs the engine on that file.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithPathArgument_RunsEngine()
+    {
+        // Arrange: a valid file and an invalid file; capture the error stream
+        using var directory = new TemporaryDirectory();
+        var good = directory.WriteFile("good.md");
+        var bad = directory.WriteBytes("bad.md", [0xFF]);
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        try
+        {
+            using var outWriter = new StringWriter();
+            using var errorWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            Console.SetError(errorWriter);
+            using var cleanContext = Context.Create([good]);
+            using var failingContext = Context.Create([bad]);
+
+            // Act: execute the operation being tested
+            Program.Run(cleanContext);
+            Program.Run(failingContext);
+
+            // Assert: the valid file is clean; the invalid file is reported and sets the exit code
+            Assert.Equal(0, cleanContext.ExitCode);
+            Assert.Equal(1, failingContext.ExitCode);
+            Assert.Contains("file-encoding-error", errorWriter.ToString());
+            Assert.DoesNotContain("not yet implemented", outWriter.ToString());
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+    }
 }
 

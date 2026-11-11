@@ -25,6 +25,10 @@ combinations. Temporary files and directories are created and cleaned up within 
 - Exit code non-zero is returned for all invalid argument combinations.
 - Results files are created at the specified paths when `--results` is used with `--validate`.
 - Silent mode (`--silent`) produces empty combined output.
+- Files named by path, directory, or glob are read and parsed; files that cannot be read or decoded are
+  reported as `path:line:col: rule-id message` with exit code 1 and valid files produce no output.
+- Failures are reported in path order, and `--check` leaves files byte-identical.
+- `--validate` combined with paths or `--check` is rejected with exit code 1 and without running validation.
 
 ## Test Scenarios
 
@@ -85,3 +89,54 @@ path and the tool exits with code 0. This scenario is tested by
 flag is combined with `--results <path>.bad` (unsupported extension); the tool exits with a
 non-zero code and no file is created at the specified path. This scenario is tested by
 `LintMark_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero`.
+
+**LintMark_HelpFlag_Provided_ListsPathsAndCheckOption**: The `--help` flag is passed; the combined output
+contains `[paths...]` and `--check` and the exit code is 0. This scenario is tested by
+`LintMark_HelpFlag_Provided_ListsPathsAndCheckOption`.
+
+**LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess**: A valid Markdown file in a temporary directory is
+passed as the only argument; the exit code is 0 and no rule identifier appears in the output. This scenario
+is tested by `LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess`.
+
+**LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError**: A file with an invalid UTF-8
+byte on its second line is passed; the exit code is 1 and the output contains
+`bad.md:2:3: file-encoding-error Invalid UTF-8 byte sequence`. This scenario is tested by
+`LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError`.
+
+**LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError**: A path that does not exist is
+passed; the exit code is 1 and the output contains `missing.md:1:1: file-read-error File not found`. This
+scenario is tested by `LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError`.
+
+**LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt**: A directory with a valid file, a nested invalid
+Markdown file, and an invalid non-Markdown file is passed; the exit code is 1, only the nested Markdown
+file is reported, and the non-Markdown file is never read. This scenario is tested by
+`LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt`.
+
+**LintMark_GlobAndExclude_Provided_SkipsExcludedFiles**: An absolute glob and an absolute `!` exclusion are
+passed so that an invalid file lies under the excluded directory; the exit code is 0 and the excluded file
+is not reported. This scenario is tested by `LintMark_GlobAndExclude_Provided_SkipsExcludedFiles`.
+
+**LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder**: Three invalid files are passed in
+non-sorted order; the exit code is 1 and the diagnostics appear in path order. This scenario is tested by
+`LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder`.
+
+**LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess**: A file containing front matter,
+suppression comments, a reference definition, a footnote, a table, and an unclosed fence is passed; the
+exit code is 0 and nothing is reported. This scenario is tested by
+`LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess`.
+
+**LintMark_RepositoryDocumentation_Provided_ReturnsSuccess**: The repository's `docs` directory and
+`README.md` are passed; every file is read and parsed, the exit code is 0, and nothing is reported. This
+scenario is tested by `LintMark_RepositoryDocumentation_Provided_ReturnsSuccess`.
+
+**LintMark_CheckFlag_Provided_LintsWithoutWriting**: `--check` is passed with a valid file with CRLF line
+endings and no final newline; the exit code is 0 and the file's bytes and last-write time are unchanged.
+This scenario is tested by `LintMark_CheckFlag_Provided_LintsWithoutWriting`.
+
+**LintMark_ValidateWithPaths_Combined_ReturnsError**: `--validate` is combined with a path; the exit code
+is 1, the output contains an error naming `--validate`, and validation does not run. This scenario is tested
+by `LintMark_ValidateWithPaths_Combined_ReturnsError`.
+
+**LintMark_ValidateWithCheck_Combined_ReturnsError**: `--validate` is combined with `--check`; the exit code
+is 1 and the output contains an error. This scenario is tested by
+`LintMark_ValidateWithCheck_Combined_ReturnsError`.

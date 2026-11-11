@@ -23,6 +23,8 @@ OTS items:
 
 - **BuildMark**: integration and usage design.
 - **FileAssert**: integration and usage design.
+- **FileSystemGlobbing**: integration and usage design.
+- **Markdig**: integration and usage design.
 - **Pandoc**: integration and usage design.
 - **ReqStream**: integration and usage design.
 - **ReviewMark**: integration and usage design.
@@ -43,9 +45,11 @@ The following topics are out of scope:
 The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the diagram
 below by SysML2Tools as part of the build pipeline. AI agents should query the SysML2 model
 directly (see the `sysml2tools-query` skill) rather than parsing this diagram or the prose
-elsewhere in this document. The model captures the shipped system's runtime composition only;
-the OTS items listed in Scope above are build-time/pipeline tooling, documented separately
-(see `docs/design/ots.md`) rather than modeled as SysML2 parts.
+elsewhere in this document. The model captures the shipped system's runtime composition only:
+the local software items and the OTS libraries the shipped tool consumes (Markdig and
+FileSystemGlobbing, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS items listed in
+Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
+rather than modeled as SysML2 parts.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -61,8 +65,13 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
 - **src/** - source files and projects
   - **DemaConsulting.LintMark/** - main application source
     - **Cli/** - command-line interface subsystem
+    - **Document/** - document loading and parsing subsystem
+    - **Engine/** - file discovery and parallel processing subsystem
     - **SelfTest/** - self-validation subsystem
     - **Utilities/** - shared utilities subsystem
+- **test/** - test projects (not covered by design documents)
+  - **DemaConsulting.LintMark.Tests/** - unit, subsystem, and system tests for the local items
+  - **OtsSoftwareTests/** - integration tests for the OTS libraries
 
 ## Document Conventions
 
@@ -89,6 +98,7 @@ OTS items have integration/usage design documentation parallel to system folders
 - Requirements: `docs/reqstream/ots/{ots-name}.yaml`
 - Design: `docs/design/ots/{ots-name}.md`
 - Verification: `docs/verification/ots/{ots-name}.md`
+- Tests (when no other evidence exists): `test/OtsSoftwareTests/{OtsName}Tests.cs` (PascalCase for C#)
 
 Review-sets: defined in `.reviewmark.yaml`
 

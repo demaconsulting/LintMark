@@ -50,6 +50,8 @@
   <!-- Runtime Dependencies -->
   <ItemGroup>
     <PackageReference Include="DemaConsulting.TestResults" Version="1.10.0" />
+    <PackageReference Include="Markdig" Version="1.6.0" />
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="11.0.0" />
   </ItemGroup>
 
   <!-- Build Tool Dependencies -->

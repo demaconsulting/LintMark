@@ -1,0 +1,36 @@
+---
+# FileSystemGlobbing OTS Software Requirements
+#
+# Requirements for the Microsoft.Extensions.FileSystemGlobbing library functionality that LintMark
+# relies on to expand glob patterns.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: FileSystemGlobbing Requirements
+        requirements:
+          - id: LintMark-OTS-FileSystemGlobbing-Match
+            title: >-
+              FileSystemGlobbing shall match files against include and exclude patterns using the `*` and `**`
+              wildcards, both on the file system and on in-memory path lists.
+            justification: |
+              LintMark expands the glob arguments of the command line into files and applies built-in
+              and user exclusions. The tests confirm the library's wildcard, exclusion, and
+              no-match behavior that the expansion depends on.
+            tags: [ots]
+            tests:
+              - FileSystemGlobbing_Matcher_RecursiveInclude_MatchesNestedFiles
+              - FileSystemGlobbing_Matcher_Exclude_RemovesMatches
+              - FileSystemGlobbing_Matcher_DirectoryExcludeAnyDepth_RemovesRootAndNestedDirectories
+              - FileSystemGlobbing_Matcher_NoMatches_ReturnsEmpty
+              - FileSystemGlobbing_Matcher_InMemoryMatch_AppliesIncludeAndExclude
+              - FileSystemGlobbing_Matcher_Wildcards_StarMatchesWithinSegment
+
+          - id: LintMark-OTS-FileSystemGlobbing-CaseSensitivity
+            title: FileSystemGlobbing shall let the caller choose whether pattern matching is case-sensitive.
+            justification: |
+              File-name case rules differ between platforms. LintMark selects the comparison that
+              matches the platform, so the library must honor the comparison it is given.
+            tags: [ots]
+            tests:
+              - FileSystemGlobbing_Matcher_CaseSensitivityMode_ControlsMatching

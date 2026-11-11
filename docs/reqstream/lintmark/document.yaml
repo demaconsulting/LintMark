@@ -1,0 +1,105 @@
+---
+# Document Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Document subsystem
+# - The Document subsystem spans SourceDocument.cs, DocumentParser.cs, SuppressionMap.cs and
+#   ReferenceIndex.cs (loading, parsing, suppression directives and reference definitions)
+# - Subsystem requirements describe how a Markdown file becomes a trustworthy in-memory model
+
+sections:
+  - title: Document Subsystem Requirements
+    requirements:
+      - id: LintMark-Document-Load
+        title: >-
+          The Document subsystem shall load a Markdown file as line-ending-normalized text together with
+          everything needed to write it back byte for byte, and shall reject content it cannot represent
+          faithfully.
+        justification: |
+          Every later check and rewrite works on one canonical text form. Recording the original
+          encoding, byte order mark, and line terminators allows a file to be restored exactly, and
+          refusing damaged or ambiguous input prevents a rewrite from silently changing a file.
+        children:
+          - LintMark-SourceDocument-Normalize
+          - LintMark-SourceDocument-MajorityEnding
+          - LintMark-SourceDocument-Encoding
+          - LintMark-SourceDocument-LoneCr
+          - LintMark-SourceDocument-Positions
+          - LintMark-SourceDocument-ToDisk
+        tests:
+          - DocumentSubsystem_LineEndingVariants_RepositoryMarkdown_IdenticalBlocksAndRoundTrip
+
+      - id: LintMark-Document-Parse
+        title: >-
+          The Document subsystem shall parse Markdown into a source-ordered list of blocks whose source
+          ranges are exact, non-overlapping where they are not nested, and identical for LF, CRLF, and
+          mixed line endings.
+        justification: |
+          Linting and formatting need to know exactly which characters belong to which construct.
+          The underlying parser has known inaccuracies in its block ranges, so the subsystem must
+          deliver corrected ranges, and the result must not depend on the file's line-ending style.
+        children:
+          - LintMark-DocumentParser-Parse
+          - LintMark-DocumentParser-SourceOrder
+          - LintMark-DocumentParser-TablesAndFrontMatter
+          - LintMark-DocumentParser-UnclosedFence
+          - LintMark-DocumentParser-TrailingNewline
+          - LintMark-DocumentParser-UnreferencedFootnote
+          - LintMark-DocumentParser-NormalizedLineEndings
+          - LintMark-DocumentParser-LazyLines
+          - LintMark-DocumentParser-ParagraphLines
+          - LintMark-DocumentParser-Offsets
+        tests:
+          - DocumentSubsystem_SpanTiling_RepositoryMarkdownLf_HasNoViolations
+          - DocumentSubsystem_SpanTiling_RepositoryMarkdownCrLf_HasNoViolations
+          - DocumentSubsystem_SpanTiling_RepositoryMarkdownMixed_HasNoViolations
+          - DocumentSubsystem_LineEndingVariants_RepositoryMarkdown_IdenticalBlocksAndRoundTrip
+          - DocumentSubsystem_SyntheticNesting_ContainerChainsLf_HaveNoSpanViolations
+          - DocumentSubsystem_SyntheticNesting_ContainerChainsCrLf_HaveNoSpanViolations
+          - DocumentSubsystem_SyntheticNesting_ParagraphLines_ContentAndLazinessMatchFixture
+
+      - id: LintMark-Document-ConcurrentParse
+        title: >-
+          The Document subsystem shall allow many documents to be parsed at the same time with results
+          identical to sequential parsing.
+        justification: |
+          Files are processed in parallel to keep large documentation sets fast. Parsing must not
+          share mutable state between documents, otherwise concurrent runs could produce different
+          results from sequential ones.
+        children:
+          - LintMark-DocumentParser-ThreadSafe
+        tests:
+          - DocumentSubsystem_ConcurrentParse_RepositoryMarkdown_MatchesSequential
+
+      - id: LintMark-Document-Suppressions
+        title: >-
+          The Document subsystem shall determine, from the suppression comments in a document, which rules
+          are suppressed at which positions.
+        justification: |
+          Authors disable rules for exceptional passages with comments. Linting and formatting must
+          honor those comments exactly as written, and must find them in the same parse that
+          produced the document model.
+        children:
+          - LintMark-SuppressionMap-Directives
+          - LintMark-SuppressionMap-Regions
+          - LintMark-SuppressionMap-LineScopes
+          - LintMark-SuppressionMap-PrettierIgnore
+          - LintMark-SuppressionMap-RuleMatching
+          - LintMark-SuppressionMap-IgnoresCode
+        tests:
+          - DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults
+
+      - id: LintMark-Document-References
+        title: >-
+          The Document subsystem shall provide the link reference definitions of a document with their
+          labels, destinations, titles, and positions, and resolve references by label the way Markdown
+          does.
+        justification: |
+          Reference-style links resolve through definitions. Rules about links, and rewrites that
+          move definitions, need an accurate and complete list of them.
+        children:
+          - LintMark-ReferenceIndex-Definitions
+          - LintMark-ReferenceIndex-Lookup
+          - LintMark-ReferenceIndex-ExcludesFootnotes
+        tests:
+          - DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults

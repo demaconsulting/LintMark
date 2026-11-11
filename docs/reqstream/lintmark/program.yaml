@@ -25,6 +25,7 @@ sections:
           - Program_Run_WithHelpFlag_DisplaysUsageInformation
           - Program_Run_WithShortHelpFlag_DisplaysUsage
           - Program_Run_WithQuestionMarkFlag_DisplaysUsage
+          - Program_Run_WithHelpFlag_ListsCheckOptionAndPaths
 
       - id: LintMark-Program-Validate
         title: The Program class shall support --validate flag to invoke the self-validation framework.
@@ -33,6 +34,18 @@ sections:
           in the deployment environment.
         tests:
           - Program_Run_WithValidateFlag_RunsValidation
+
+      - id: LintMark-Program-Lint
+        title: >-
+          The Program class shall process the selected Markdown files, and report their failures through the
+          context, when no version, help, or validate flag is given.
+        justification: |
+          Processing Markdown files is the primary purpose of the tool, so the entry point must
+          dispatch to it by default. Failures must reach the user through the same output channels and
+          exit code as every other error.
+        tests:
+          - Program_Run_WithPathArgument_RunsEngine
+          - Program_Run_NoArguments_DisplaysDefaultBehavior
 
       - id: LintMark-Program-ExitCode
         title: The Program class shall return a non-zero exit code on failure.

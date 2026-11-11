@@ -23,8 +23,22 @@ namespace DemaConsulting.LintMark.Cli;
 /// <summary>
 ///     Context class that handles command-line arguments and program output.
 /// </summary>
+/// <remarks>
+///     <para>
+///         Argument properties are immutable after <see cref="Create"/>. Output (<see cref="WriteLine"/>,
+///         <see cref="WriteError"/>), the error flag behind <see cref="ExitCode"/> and <see cref="Dispose"/>
+///         are guarded by one lock, so a context may be written from several threads without
+///         interleaving lines on the console or in the log file. The lock is a defensive measure: the
+///         engine itself reports results from a single thread after its workers have finished.
+///     </para>
+/// </remarks>
 internal sealed class Context : IDisposable
 {
+    /// <summary>
+    ///     Guards console output, log file output, the error flag and disposal.
+    /// </summary>
+    private readonly Lock _outputLock = new();
+
     /// <summary>
     ///     Log file stream writer (if logging is enabled).
     /// </summary>
@@ -56,6 +70,20 @@ internal sealed class Context : IDisposable
     public bool Validate { get; private init; }
 
     /// <summary>
+    ///     Gets a value indicating whether the check flag was specified.
+    /// </summary>
+    /// <remarks>
+    ///     Check mode reports problems without writing any file. It is the default behavior, so the
+    ///     flag is currently an explicit statement of the default and never changes processing.
+    /// </remarks>
+    public bool Check { get; private init; }
+
+    /// <summary>
+    ///     Gets the positional path arguments (files, directories, globs and <c>!</c> excludes) in the order given.
+    /// </summary>
+    public IReadOnlyList<string> Paths { get; private init; } = [];
+
+    /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
     public string? ResultsFile { get; private init; }
@@ -68,7 +96,16 @@ internal sealed class Context : IDisposable
     /// <summary>
     ///     Gets the proposed exit code for the application (0 for success, 1 for errors).
     /// </summary>
-    public int ExitCode => _hasErrors ? 1 : 0;
+    public int ExitCode
+    {
+        get
+        {
+            lock (_outputLock)
+            {
+                return _hasErrors ? 1 : 0;
+            }
+        }
+    }
 
     /// <summary>
     ///     Private constructor - use Create factory method instead.
@@ -82,7 +119,9 @@ internal sealed class Context : IDisposable
     /// </summary>
     /// <param name="args">Command-line arguments.</param>
     /// <returns>A new Context instance.</returns>
-    /// <exception cref="ArgumentException">Thrown when arguments are invalid.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths or <c>--check</c>.
+    /// </exception>
     /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
     public static Context Create(string[] args)
     {
@@ -92,12 +131,20 @@ internal sealed class Context : IDisposable
         var parser = new ArgumentParser();
         parser.ParseArguments(args);
 
+        // Self-validation is a separate mode: lint arguments would be silently ignored, so reject them
+        if (parser.Validate && (parser.Check || parser.Paths.Count > 0))
+        {
+            throw new ArgumentException("--validate cannot be combined with paths or --check", nameof(args));
+        }
+
         var result = new Context
         {
             Version = parser.Version,
             Help = parser.Help,
             Silent = parser.Silent,
             Validate = parser.Validate,
+            Check = parser.Check,
+            Paths = parser.Paths,
             ResultsFile = parser.ResultsFile,
             HeadingDepth = parser.HeadingDepth
         };
@@ -156,6 +203,16 @@ internal sealed class Context : IDisposable
         ///     Gets a value indicating whether the validate flag was specified.
         /// </summary>
         public bool Validate { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the check flag was specified.
+        /// </summary>
+        public bool Check { get; private set; }
+
+        /// <summary>
+        ///     Gets the positional path arguments in the order given.
+        /// </summary>
+        public List<string> Paths { get; } = [];
 
         /// <summary>
         ///     Gets the log file path.
@@ -219,6 +276,10 @@ internal sealed class Context : IDisposable
                     Validate = true;
                     return index;
 
+                case "--check":
+                    Check = true;
+                    return index;
+
                 case "--log":
                     LogFile = GetRequiredStringArgument(arg, args, index, "a filename argument");
                     return index + 1;
@@ -233,6 +294,14 @@ internal sealed class Context : IDisposable
                     return index + 1;
 
                 default:
+                    // Anything that does not start with a dash is a path (file, directory, glob or ! exclude);
+                    // every other dashed token (including a lone dash) is an unsupported option
+                    if (arg.Length > 0 && arg[0] != '-')
+                    {
+                        Paths.Add(arg);
+                        return index;
+                    }
+
                     throw new ArgumentException($"Unsupported argument '{arg}'", nameof(args));
             }
         }
@@ -287,14 +356,18 @@ internal sealed class Context : IDisposable
     /// </remarks>
     public void WriteLine(string message)
     {
-        // Write to console unless silent mode is enabled
-        if (!Silent)
+        // Serialize so concurrent callers cannot interleave lines on the console or in the log
+        lock (_outputLock)
         {
-            Console.WriteLine(message);
-        }
+            // Write to console unless silent mode is enabled
+            if (!Silent)
+            {
+                Console.WriteLine(message);
+            }
 
-        // Write to log file if logging is enabled
-        _logWriter?.WriteLine(message);
+            // Write to log file if logging is enabled
+            _logWriter?.WriteLine(message);
+        }
     }
 
     /// <summary>
@@ -309,20 +382,24 @@ internal sealed class Context : IDisposable
     /// </remarks>
     public void WriteError(string message)
     {
-        // Mark that we have encountered errors
-        _hasErrors = true;
-
-        // Write to error console unless silent mode is enabled
-        if (!Silent)
+        // Serialize so concurrent callers cannot interleave lines or tear the console color changes
+        lock (_outputLock)
         {
-            var previousColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.Error.WriteLine(message);
-            Console.ForegroundColor = previousColor;
-        }
+            // Mark that we have encountered errors
+            _hasErrors = true;
 
-        // Write to log file if logging is enabled
-        _logWriter?.WriteLine(message);
+            // Write to error console unless silent mode is enabled
+            if (!Silent)
+            {
+                var previousColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine(message);
+                Console.ForegroundColor = previousColor;
+            }
+
+            // Write to log file if logging is enabled
+            _logWriter?.WriteLine(message);
+        }
     }
 
     /// <summary>
@@ -330,8 +407,11 @@ internal sealed class Context : IDisposable
     /// </summary>
     public void Dispose()
     {
-        // Close and dispose the log file writer if it exists
-        _logWriter?.Dispose();
-        _logWriter = null;
+        // Close and dispose the log file writer if it exists (not while another thread is writing to it)
+        lock (_outputLock)
+        {
+            _logWriter?.Dispose();
+            _logWriter = null;
+        }
     }
 }

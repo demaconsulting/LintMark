@@ -1,0 +1,83 @@
+---
+# Engine Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Engine subsystem
+# - The Engine subsystem spans FileDiscovery.cs and LintMarkEngine.cs (selecting files, processing
+#   them in parallel and reporting failures)
+# - Subsystem requirements describe the externally visible file-selection and reporting behavior
+
+sections:
+  - title: Engine Subsystem Requirements
+    requirements:
+      - id: LintMark-Engine-Discovery
+        title: >-
+          The Engine subsystem shall expand path, directory, glob, and exclusion arguments into the distinct
+          set of Markdown files to process, using every Markdown file under the current directory when no
+          selection is given.
+        justification: |
+          Users select files in the way that suits them: by name, by folder, or by pattern, with
+          exceptions. A file named by several arguments must be processed once, and a selection that
+          matches nothing must not be an error.
+        children:
+          - LintMark-FileDiscovery-Expand
+          - LintMark-FileDiscovery-MissingPath
+          - LintMark-FileDiscovery-Default
+          - LintMark-FileDiscovery-Exclude
+          - LintMark-FileDiscovery-DefaultExcludes
+          - LintMark-FileDiscovery-DistinctSorted
+          - LintMark-FileDiscovery-CaseRules
+          - LintMark-FileDiscovery-InvalidPattern
+        tests:
+          - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+          - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
+          - EngineSubsystem_ExcludePattern_SkipsExcludedFiles
+          - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce
+
+      - id: LintMark-Engine-Processing
+        title: >-
+          The Engine subsystem shall read and parse every selected file, several at a time, without a
+          problem in one file preventing the others from being processed.
+        justification: |
+          Large documentation sets are processed in parallel to keep the tool fast. Independent
+          files must stay independent so that one broken file never hides the state of the rest.
+        children:
+          - LintMark-LintMarkEngine-ParseEach
+          - LintMark-LintMarkEngine-Parallel
+        tests:
+          - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+          - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+          - EngineSubsystem_ParallelAndSequential_ProduceIdenticalOutput
+
+      - id: LintMark-Engine-FailureReport
+        title: >-
+          The Engine subsystem shall report each file that cannot be read, decoded, or parsed on its own line
+          as `path:line:col: rule-id message`, with a path relative to the current directory using forward
+          slashes, and shall set a non-zero exit status, while writing nothing for files that are processed
+          successfully.
+        justification: |
+          A single, regular line format can be read by people, editors, and build systems alike.
+          Relative paths with one separator style make output reproducible across platforms and
+          machines. Silence on success keeps logs short.
+        children:
+          - LintMark-LintMarkEngine-ReadFailure
+          - LintMark-LintMarkEngine-DecodeFailure
+          - LintMark-LintMarkEngine-ParseFailure
+          - LintMark-LintMarkEngine-FailureFormat
+          - LintMark-LintMarkEngine-ExitStatus
+        tests:
+          - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+          - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
+
+      - id: LintMark-Engine-DeterministicOrder
+        title: >-
+          The Engine subsystem shall report failures ordered by path and then by position, independent of the
+          order of the arguments, the number of files processed at once, and the order in which files finish.
+        justification: |
+          Reproducible output is required for comparing runs, for stable build logs, and for tests.
+          Scheduling must never be visible to the user.
+        children:
+          - LintMark-LintMarkEngine-OrderedResults
+        tests:
+          - EngineSubsystem_ParallelAndSequential_ProduceIdenticalOutput
+          - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce

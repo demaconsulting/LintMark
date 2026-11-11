@@ -5,9 +5,11 @@ items used by the LintMark.
 
 ## Scope
 
-OTS items are third-party tools and libraries consumed by the project. This document covers the
-integration pattern and usage design for each item. The internal design of OTS items is out of
-scope; only how this project integrates and uses each item is documented.
+OTS items are third-party tools and libraries consumed by the project: build and documentation
+tooling used by the pipeline, and runtime libraries (Markdig and FileSystemGlobbing) that are part of
+the shipped tool. This document covers the integration pattern and usage design for each item. The
+internal design of OTS items is out of scope; only how this project integrates and uses each item is
+documented.
 
 ## OTS Items
 
@@ -15,6 +17,8 @@ The following OTS items have integration design documentation:
 
 - BuildMark (_buildmark.md_) — build-notes documentation tool
 - FileAssert (_fileassert.md_) — document assertion tool
+- FileSystemGlobbing (_filesystemglobbing.md_) — glob pattern matching library (runtime)
+- Markdig (_markdig.md_) — Markdown parsing library (runtime)
 - Pandoc (_pandoc.md_) — Markdown-to-HTML conversion tool
 - ReqStream (_reqstream.md_) — requirements traceability tool
 - ReviewMark (_reviewmark.md_) — file review enforcement tool

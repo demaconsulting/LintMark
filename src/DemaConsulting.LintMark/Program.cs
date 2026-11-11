@@ -20,6 +20,7 @@
 
 using System.Reflection;
 using DemaConsulting.LintMark.Cli;
+using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.SelfTest;
 
 namespace DemaConsulting.LintMark;
@@ -151,11 +152,17 @@ internal static class Program
     /// <param name="context">The context for output.</param>
     private static void PrintHelp(Context context)
     {
-        context.WriteLine("Usage: lintmark [options]");
+        context.WriteLine("Usage: lintmark [options] [paths...]");
+        context.WriteLine("");
+        context.WriteLine("Paths:");
+        context.WriteLine("  paths...                   Files, directories, or globs of Markdown files to process;");
+        context.WriteLine("                             prefix a pattern with ! to exclude matches");
+        context.WriteLine("                             (default: **/*.md under the current directory)");
         context.WriteLine("");
         context.WriteLine("Options:");
         context.WriteLine("  -v, --version              Display version information");
         context.WriteLine("  -?, -h, --help             Display this help message");
+        context.WriteLine("  --check                    Report problems without writing any file (default)");
         context.WriteLine("  --silent                   Suppress console output");
         context.WriteLine("  --validate                 Run self-validation");
         context.WriteLine("  --results <file>           Write validation results to file (.trx or .xml)");
@@ -164,12 +171,15 @@ internal static class Program
     }
 
     /// <summary>
-    ///     Runs the main tool logic.
+    ///     Runs the main tool logic: discovers the selected Markdown files, parses each and reports failures.
     /// </summary>
     /// <param name="context">The context containing command line arguments and program state.</param>
+    /// <remarks>
+    ///     Failures are reported through <see cref="Context.WriteError"/>, so the exit code is 1 when any
+    ///     file cannot be read or parsed. Linting and formatting rules are not yet implemented.
+    /// </remarks>
     private static void RunToolLogic(Context context)
     {
-        context.WriteLine("LintMark - Markdown linting and formatting");
-        context.WriteLine("Markdown linting and formatting are not yet implemented.");
+        new LintMarkEngine().Run(context);
     }
 }

@@ -1,0 +1,95 @@
+---
+# Software Unit Requirements for the SuppressionMap Class
+#
+# The SuppressionMap class interprets suppression comments (HTML comments that disable and
+# enable rules) and answers which rules are suppressed at a given position.
+
+sections:
+  - title: SuppressionMap Unit Requirements
+    requirements:
+      - id: LintMark-SuppressionMap-Directives
+        title: >-
+          The SuppressionMap class shall recognize the lintmark and markdownlint disable, enable,
+          disable-line, disable-next-line, disable-file, capture, and restore comments, and the prettier-ignore
+          comments, found as block-level or inline HTML comments, and shall ignore every other comment.
+        justification: |
+          Authors already use these comments with other Markdown tools. Honoring the same comment
+          vocabulary lets existing documents work unchanged, while unrelated comments must never
+          suppress anything.
+        tests:
+          - SuppressionMap_Build_NoDirectives_SuppressesNothing
+          - SuppressionMap_Build_UnknownDirectives_AreIgnored
+          - SuppressionMap_IsSuppressed_InlineComment_IsDirective
+          - SuppressionMap_Build_InlinePrettierComment_IsIgnored
+          - SuppressionMap_Build_NullArguments_Throw
+
+      - id: LintMark-SuppressionMap-Regions
+        title: >-
+          The SuppressionMap class shall suppress rules from a disable comment up to the matching enable
+          comment, or to the end of the file when none follows, and shall return to a captured state when a
+          restore comment follows a capture comment.
+        justification: |
+          Disabling a rule for a stretch of a document is the most common use of suppression comments.
+          An unterminated disable must not silently end, and capture and restore let a document
+          bracket a region without knowing what was disabled before it.
+        tests:
+          - SuppressionMap_IsSuppressed_DisableEnableRegion_CoversTextBetween
+          - SuppressionMap_IsSuppressed_UnterminatedDisable_RunsToEndOfFile
+          - SuppressionMap_IsSuppressed_CaptureRestore_ReturnsToCapturedState
+          - SuppressionMap_IsSuppressed_RestoreWithoutCapture_IsIgnored
+
+      - id: LintMark-SuppressionMap-LineScopes
+        title: >-
+          The SuppressionMap class shall suppress rules on the comment's own line for a disable-line comment,
+          on the following line for a disable-next-line comment, and in the whole file for a disable-file
+          comment.
+        justification: |
+          Single-line exceptions and whole-file exceptions are common alternatives to regions. Each
+          must cover exactly the lines their names promise, so that nothing near the exception is
+          accidentally exempted.
+        tests:
+          - SuppressionMap_IsSuppressed_DisableLine_CoversOwnLineOnly
+          - SuppressionMap_IsSuppressed_DisableNextLine_CoversFollowingLineOnly
+          - SuppressionMap_Build_DisableNextLineOnLastLine_ProducesNoRange
+          - SuppressionMap_IsSuppressed_DisableFile_CoversWholeFile
+
+      - id: LintMark-SuppressionMap-PrettierIgnore
+        title: >-
+          The SuppressionMap class shall suppress all rules for the whole block that follows a prettier-ignore
+          comment and for everything between prettier-ignore-start and prettier-ignore-end comments, up to
+          the end of the file when no end comment follows.
+        justification: |
+          Prettier's ignore comments apply to blocks, not lines. Authors who protect a table or a list
+          with them expect the entire construct, however many lines it has, to be left alone.
+        tests:
+          - SuppressionMap_IsSuppressed_PrettierIgnore_CoversNextBlock
+          - SuppressionMap_IsSuppressed_PrettierIgnoreBeforeList_CoversWholeList
+          - SuppressionMap_IsSuppressed_PrettierIgnoreStartEnd_CoversRegion
+          - SuppressionMap_IsSuppressed_UnterminatedPrettierStart_RunsToEndOfFile
+
+      - id: LintMark-SuppressionMap-RuleMatching
+        title: >-
+          The SuppressionMap class shall limit a directive to the rules it lists, track overlapping regions of
+          different rules independently, compare rule identifiers ignoring case after resolving aliases, and
+          answer whether a rule is suppressed at a position or anywhere within a range.
+        justification: |
+          Directives may name one or several rules, or none to mean all of them. Regions for
+          different rules overlap in practice, and rules are commonly known by more than one name or
+          capitalization. Block-level consumers need to ask about a range rather than a point.
+        tests:
+          - SuppressionMap_IsSuppressed_DisableWithRules_SuppressesOnlyListedRules
+          - SuppressionMap_IsSuppressed_EnableWithRules_ReEnablesOnlyListedRules
+          - SuppressionMap_IsSuppressed_OverlappingRuleRegions_TrackedIndependently
+          - SuppressionMap_Build_AliasResolver_ResolvesAliases
+          - SuppressionMap_IsSuppressedRange_BlockIntersectingRegion_IsSuppressed
+          - SuppressionMap_Ranges_AreSortedByStart
+
+      - id: LintMark-SuppressionMap-IgnoresCode
+        title: >-
+          The SuppressionMap class shall not treat comment-like text inside code blocks, code spans, or front
+          matter as a directive.
+        justification: |
+          Documentation about suppression comments quotes them in code. Quoted examples must not
+          change how the surrounding document is checked.
+        tests:
+          - SuppressionMap_Build_CommentsInCodeAndFrontMatter_AreIgnored

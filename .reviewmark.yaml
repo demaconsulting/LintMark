@@ -68,6 +68,7 @@ reviews:
       - "docs/verification/introduction.md"
       - "docs/verification/lintmark.md"
       - "test/**/IntegrationTests.cs"
+      - "test/**/TemporaryDirectory.cs"
 
   - id: LintMark-Design
     title: Review of LintMark architectural and design consistency
@@ -126,6 +127,124 @@ reviews:
       - "docs/verification/lintmark/cli/context.md"
       - "src/**/Cli/Context.cs"
       - "test/**/Cli/ContextTests.cs"
+
+  # LintMark - Document
+  - id: LintMark-Document
+    title: Review of LintMark Document subsystem architecture and interfaces
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/document.yaml"
+      - "docs/design/lintmark/document.md"
+      - "docs/verification/lintmark/document.md"
+      - "test/**/Document/DocumentSubsystemTests.cs"
+      - "test/**/Document/SpanTilingAssertions.cs"
+      - "test/**/Document/SyntheticDocuments.cs"
+      - "test/**/Document/RepositoryMarkdownFiles.cs"
+
+  - id: LintMark-Document-SourceDocument
+    title: Review of LintMark SourceDocument unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/source-document.yaml"
+      - "docs/design/lintmark/document/source-document.md"
+      - "docs/verification/lintmark/document/source-document.md"
+      - "src/**/Document/SourceDocument.cs"
+      - "src/**/Document/SourceDocumentException.cs"
+      - "src/**/Document/LineEnding.cs"
+      - "src/**/Document/LineEndingInfo.cs"
+      - "test/**/Document/SourceDocumentTests.cs"
+
+  - id: LintMark-Document-DocumentParser
+    title: Review of LintMark DocumentParser unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/document-parser.yaml"
+      - "docs/design/lintmark/document/document-parser.md"
+      - "docs/verification/lintmark/document/document-parser.md"
+      - "src/**/Document/DocumentParser.cs"
+      - "src/**/Document/ParsedDocument.cs"
+      - "src/**/Document/BlockInfo.cs"
+      - "test/**/Document/DocumentParserTests.cs"
+
+  - id: LintMark-Document-SuppressionMap
+    title: Review of LintMark SuppressionMap unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/suppression-map.yaml"
+      - "docs/design/lintmark/document/suppression-map.md"
+      - "docs/verification/lintmark/document/suppression-map.md"
+      - "src/**/Document/SuppressionMap.cs"
+      - "src/**/Document/SuppressionRange.cs"
+      - "test/**/Document/SuppressionMapTests.cs"
+
+  - id: LintMark-Document-ReferenceIndex
+    title: Review of LintMark ReferenceIndex unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/reference-index.yaml"
+      - "docs/design/lintmark/document/reference-index.md"
+      - "docs/verification/lintmark/document/reference-index.md"
+      - "src/**/Document/ReferenceIndex.cs"
+      - "test/**/Document/ReferenceIndexTests.cs"
+
+  # LintMark - Engine
+  - id: LintMark-Engine
+    title: Review of LintMark Engine subsystem architecture and interfaces
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine.yaml"
+      - "docs/design/lintmark/engine.md"
+      - "docs/verification/lintmark/engine.md"
+      - "test/**/Engine/EngineSubsystemTests.cs"
+
+  - id: LintMark-Engine-FileDiscovery
+    title: Review of LintMark FileDiscovery unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/engine.md
+      - docs/reqstream/lintmark/engine.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine/file-discovery.yaml"
+      - "docs/design/lintmark/engine/file-discovery.md"
+      - "docs/verification/lintmark/engine/file-discovery.md"
+      - "src/**/Engine/FileDiscovery.cs"
+      - "test/**/Engine/FileDiscoveryTests.cs"
+
+  - id: LintMark-Engine-LintMarkEngine
+    title: Review of LintMark LintMarkEngine unit implementation
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/engine.md
+      - docs/reqstream/lintmark/engine.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine/lint-mark-engine.yaml"
+      - "docs/design/lintmark/engine/lint-mark-engine.md"
+      - "docs/verification/lintmark/engine/lint-mark-engine.md"
+      - "src/**/Engine/LintMarkEngine.cs"
+      - "src/**/Engine/FileResult.cs"
+      - "test/**/Engine/LintMarkEngineTests.cs"
 
   # LintMark - SelfTest
   - id: LintMark-SelfTest
@@ -193,6 +312,22 @@ reviews:
       - "docs/reqstream/ots/fileassert.yaml"
       - "docs/design/ots/fileassert.md"
       - "docs/verification/ots/fileassert.md"
+
+  - id: OTS-FileSystemGlobbing
+    title: Review of FileSystemGlobbing OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/filesystemglobbing.yaml"
+      - "docs/design/ots/filesystemglobbing.md"
+      - "docs/verification/ots/filesystemglobbing.md"
+      - "test/OtsSoftwareTests/FileSystemGlobbingTests.cs"
+
+  - id: OTS-Markdig
+    title: Review of Markdig OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/markdig.yaml"
+      - "docs/design/ots/markdig.md"
+      - "docs/verification/ots/markdig.md"
+      - "test/OtsSoftwareTests/MarkdigTests.cs"
 
   - id: OTS-Pandoc
     title: Review of Pandoc OTS verification evidence

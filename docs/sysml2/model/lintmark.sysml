@@ -20,7 +20,11 @@ package LintMark {
 
         part program : Program;
         part cli : CliSubsystem;
+        part document : DocumentSubsystem;
+        part engine : EngineSubsystem;
         part selfTest : SelfTestSubsystem;
         part utilities : UtilitiesSubsystem;
+        part markdig : Markdig;
+        part fileSystemGlobbing : FileSystemGlobbing;
     }
 }

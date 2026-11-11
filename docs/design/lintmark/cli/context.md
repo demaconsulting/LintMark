@@ -5,16 +5,19 @@
 #### Purpose
 
 `Context` handles command-line argument parsing and program output for one tool invocation. Its
-single responsibility is to parse the argument list, expose the parsed flags as read-only
-properties, own the two output channels (console and log file), and derive the exit code from
-whether any errors were reported.
+single responsibility is to parse the argument list, expose the parsed flags and positional paths as
+read-only properties, own the two output channels (console and log file), and derive the exit code
+from whether any errors were reported. Its output members are safe to call from several threads.
 
 #### Data Model
+
+**_outputLock**: `System.Threading.Lock` — Guards console output, log file output, the error flag,
+and disposal so that concurrent callers never interleave lines.
 
 **_logWriter**: `StreamWriter?` — Log file writer; `null` when logging is not active.
 
 **_hasErrors**: `bool` — Set to `true` on the first `WriteError` call; once set, cannot return
-to `false` within the same invocation.
+to `false` within the same invocation. Always read and written under `_outputLock`.
 
 **Version**: `bool` — `true` when `-v` or `--version` was present in the argument list.
 
@@ -24,13 +27,20 @@ to `false` within the same invocation.
 
 **Validate**: `bool` — `true` when `--validate` was present in the argument list.
 
+**Check**: `bool` — `true` when `--check` was present in the argument list. In this phase it is an
+explicit statement of the default behavior and does not change processing.
+
+**Paths**: `IReadOnlyList<string>` — The positional arguments (files, directories, globs, and
+`!` exclusions) in the order given; empty when none were supplied.
+
 **ResultsFile**: `string?` — Path supplied after `--results` or `--result`, or `null` if
 neither flag was present.
 
 **HeadingDepth**: `int` — Heading depth for markdown output; valid range 1–6, default 1;
 supplied via `--depth`.
 
-**ExitCode**: `int` (derived) — Returns 1 if `_hasErrors` is true; returns 0 otherwise.
+**ExitCode**: `int` (derived) — Returns 1 if `_hasErrors` is true; returns 0 otherwise. The flag
+is read under `_outputLock`.
 
 #### Key Methods
 
@@ -42,9 +52,14 @@ supplied via `--depth`.
 - *Postconditions*: All flag properties reflect the parsed argument state; the log file is open
   if `--log` was supplied.
 
-Delegates to the private `ArgumentParser` helper to parse flags, then opens the log file by
-calling `OpenLogFile` if `--log` was present. Throws `ArgumentException` for unknown or
-malformed arguments; throws `InvalidOperationException` if the log file cannot be opened.
+Delegates to the private `ArgumentParser` helper to parse flags, then rejects `--validate` combined
+with `--check` or with any path, and only then opens the log file by calling `OpenLogFile` if
+`--log` was present. The parser treats a token that does not start with a dash as a positional
+path. Every other token (including a lone `-` and the empty string) that is not a recognized
+option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together
+with paths; the dispatcher then ignores the paths. Throws `ArgumentException` for unknown or
+malformed arguments and for the `--validate` combination; throws `InvalidOperationException` if
+the log file cannot be opened.
 
 **WriteLine**: Writes a message to standard output and to the log file.
 
@@ -52,6 +67,8 @@ malformed arguments; throws `InvalidOperationException` if the log file cannot b
 - *Returns*: `void`.
 - *Preconditions*: None.
 - *Postconditions*: Message is on stdout (unless `Silent`) and in the log file (if open).
+
+Holds `_outputLock` while writing, so concurrent calls produce whole lines in some order.
 
 **WriteError**: Writes an error message, sets the error state, and records to the log file.
 
@@ -61,6 +78,9 @@ malformed arguments; throws `InvalidOperationException` if the log file cannot b
 - *Postconditions*: `_hasErrors` is true; message is on stderr in red (unless `Silent`) and in
   the log file (if open).
 
+Holds `_outputLock` for the error flag, the console color change, the console write, and the log
+write, so concurrent calls neither interleave lines nor tear the color change.
+
 **Dispose**: Disposes the log file writer.
 
 - *Parameters*: None.
@@ -69,12 +89,16 @@ malformed arguments; throws `InvalidOperationException` if the log file cannot b
 - *Postconditions*: `_logWriter` is disposed and set to null; any buffered log content is
   flushed.
 
+Takes `_outputLock` so the writer is never disposed while another thread is writing to it.
+
 #### Error Handling
 
-`Create` throws `ArgumentException` ("Unsupported argument '{arg}'") for any unrecognized flag
-or missing required value. It throws `InvalidOperationException`
-("Failed to open log file '{path}': {detail}") when the `--log` file cannot be opened. Both
-exceptions propagate to `Program.Main`.
+`Create` throws `ArgumentException` ("Unsupported argument '{arg}'") for any unrecognized
+dash-leading argument or missing required value, and
+("--validate cannot be combined with paths or --check") for the self-validation conflict. It throws
+`InvalidOperationException` ("Failed to open log file '{path}': {detail}") when the `--log` file
+cannot be opened. Both exceptions propagate to `Program.Main`, which reports them as
+`Error: {message}`.
 
 `WriteLine` and `WriteError` do not throw; they write to whichever output channels are
 available.
@@ -83,10 +107,11 @@ available.
 
 #### Dependencies
 
-- **.NET BCL** — `Console`, `StreamWriter`, and `Path` are the only dependencies. No other
-  tool units are used.
+- **.NET BCL** — `Console`, `StreamWriter`, `Path`, and `System.Threading.Lock` are the only
+  dependencies. No other tool units are used.
 
 #### Callers
 
 - **Program** — creates `Context` via `Context.Create` and calls `WriteLine` and `WriteError`.
 - **Validation** — receives `Context` from `Program` and calls `WriteLine` and `WriteError`.
+- **LintMarkEngine** — reads `Paths` and reports failures with `WriteError`.

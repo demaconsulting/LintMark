@@ -17,6 +17,8 @@ N/A - standard test environment.
 - Exit code 0 is returned for all valid flag combinations.
 - Exit code 1 is returned when invalid arguments are supplied to `Program.Main`.
 - `Program.Version` returns a non-empty, non-null string.
+- With a path argument, `Program.Run` processes the file with the real engine and reports failures through
+  the context (exit code 1).
 
 ### Test Scenarios
 
@@ -36,7 +38,8 @@ self-validation suite is invoked and completes successfully. This scenario is te
 
 **Program_Run_NoArguments_DisplaysDefaultBehavior**: `Program.Run` is called with an empty
 argument array; the output contains the tool name and copyright notice and exit code is 0.
-This scenario is tested by `Program_Run_NoArguments_DisplaysDefaultBehavior`.
+The default pattern is applied to the test process's current directory. This scenario is tested by
+`Program_Run_NoArguments_DisplaysDefaultBehavior`.
 
 **Program_Version_ReturnsNonEmptyString**: The `Program.Version` static property is read; the
 returned string is non-empty and non-null, confirming the version is resolvable from the
@@ -58,3 +61,13 @@ tested by `Program_Run_WithShortHelpFlag_DisplaysUsage`.
 **Program_Run_WithQuestionMarkFlag_DisplaysUsage**: `Program.Run` is called with a context from
 `["-?"]`; the output contains "Usage:" and "Options:" and exit code is 0. This scenario is
 tested by `Program_Run_WithQuestionMarkFlag_DisplaysUsage`.
+
+**Program_Run_WithHelpFlag_ListsCheckOptionAndPaths**: `Program.Run` is called with a context from
+`["--help"]`; the output contains `[paths...]`, `--check`, and the default pattern `**/*.md`, and exit code
+is 0. This scenario is tested by `Program_Run_WithHelpFlag_ListsCheckOptionAndPaths`.
+
+**Program_Run_WithPathArgument_RunsEngine**: `Program.Run` is called with a context for a valid file and
+another context for an undecodable file; the first leaves the exit code 0, the second makes it 1 and
+writes `file-encoding-error` to the error stream, and the old "not yet implemented" text no longer appears.
+Real files and the real engine are used. This scenario is tested by
+`Program_Run_WithPathArgument_RunsEngine`.

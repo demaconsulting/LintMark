@@ -35,6 +35,7 @@ sections:
           - LintMark-Cli-Help
         tests:
           - LintMark_HelpFlag_Provided_OutputsUsageInformation
+          - LintMark_HelpFlag_Provided_ListsPathsAndCheckOption
 
       - id: LintMark-System-Validate
         title: The tool shall execute self-validation tests when the validate flag is provided.
@@ -162,3 +163,76 @@ sections:
           - LintMark-Cli-ResultAlias
         tests:
           - LintMark_ResultAlias_LegacyFlag_WritesResultsFile
+
+      - id: LintMark-System-LintFiles
+        title: >-
+          The tool shall select the Markdown files named by path, directory, glob, and exclusion arguments
+          (every Markdown file under the current directory when none are given), read and parse each one, and
+          report every file that cannot be read or parsed as `path:line:col: rule-id message` with a non-zero
+          exit code.
+        tags: [system]
+        justification: |
+          Reading and understanding Markdown files is the foundation of linting and formatting them.
+          Users need to point the tool at individual files, whole folders, or patterns, and to be told
+          precisely which file cannot be processed and why, without a failure in one file hiding the
+          results for the others. A parse and report capability that is correct for the repository's own
+          documentation is the prerequisite for every later lint rule and formatting feature.
+        children:
+          - LintMark-Program-Lint
+          - LintMark-Cli-Paths
+          - LintMark-Engine-Discovery
+          - LintMark-Engine-Processing
+          - LintMark-Engine-FailureReport
+          - LintMark-Document-Load
+          - LintMark-Document-Parse
+          - LintMark-Document-Suppressions
+          - LintMark-Document-References
+        tests:
+          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
+          - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
+          - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
+          - LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt
+          - LintMark_GlobAndExclude_Provided_SkipsExcludedFiles
+          - LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess
+          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
+
+      - id: LintMark-System-Check
+        title: The tool shall accept a check option that reports problems without modifying any file.
+        tags: [system]
+        justification: |
+          CI/CD pipelines and pre-commit hooks need a mode that can only observe files. Accepting the
+          option explicitly lets scripts state that intent today and keeps their command lines valid
+          when file-modifying modes are added later.
+        children:
+          - LintMark-Cli-Check
+        tests:
+          - LintMark_CheckFlag_Provided_LintsWithoutWriting
+
+      - id: LintMark-System-DeterministicOutput
+        title: >-
+          The tool shall produce the same output and exit code for the same inputs regardless of how many
+          files are processed concurrently or in what order the arguments are given.
+        tags: [system]
+        justification: |
+          Files are processed in parallel for speed, but build logs, code review comments, and
+          automated comparisons depend on reproducible output. Reports must therefore never depend on
+          scheduling or on the order in which paths were typed.
+        children:
+          - LintMark-Engine-DeterministicOrder
+          - LintMark-Cli-ThreadSafeOutput
+          - LintMark-Document-ConcurrentParse
+        tests:
+          - LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder
+
+      - id: LintMark-System-ValidateExclusive
+        title: The tool shall reject the validate option combined with paths or the check option with an error.
+        tags: [system]
+        justification: |
+          Self-validation is a separate mode of operation. Silently ignoring file arguments while
+          reporting a successful validation could give users the false impression that their files
+          were checked.
+        children:
+          - LintMark-Cli-ValidateExclusive
+        tests:
+          - LintMark_ValidateWithPaths_Combined_ReturnsError
+          - LintMark_ValidateWithCheck_Combined_ReturnsError

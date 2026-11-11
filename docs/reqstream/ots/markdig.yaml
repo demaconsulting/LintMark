@@ -1,0 +1,46 @@
+---
+# Markdig OTS Software Requirements
+#
+# Requirements for the Markdig Markdown parsing library functionality that LintMark relies on.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: Markdig Requirements
+        requirements:
+          - id: LintMark-OTS-Markdig-Spans
+            title: Markdig shall report the exact source range of every block and inline element it parses.
+            justification: |
+              LintMark reports positions and rewrites text by source range, so it depends on the parser
+              to say precisely where each construct starts and ends. The tests also record the
+              documented range inaccuracies (unclosed fences and trailing newlines) that the Document
+              subsystem compensates for, so that a library update that changes them is noticed.
+            tags: [ots]
+            tests:
+              - Markdig_SourceSpans_BlocksAndInlines_AreSourceAccurate
+              - Markdig_LinkReferenceDefinitions_ExposeLabelUrlTitleAndSpan
+              - Markdig_UnclosedFence_SpanCoversOnlyOpeningLine
+              - Markdig_ListSpan_IncludesTrailingNewline
+
+          - id: LintMark-OTS-Markdig-Extensions
+            title: >-
+              Markdig shall recognize pipe tables, grid tables, YAML front matter, footnotes, task lists,
+              automatic links, strikethrough, alert blocks, math blocks, and HTML comments when the matching
+              extensions are enabled.
+            justification: |
+              LintMark parses every document with a fixed set of Markdown extensions. The tests
+              confirm that the library recognizes each construct the tool depends on.
+            tags: [ots]
+            tests:
+              - Markdig_Pipeline_RequiredExtensions_RecognizedBlocks
+              - Markdig_PipeTables_GfmRules_EscapedPipeInCodeSpanStaysInCell
+              - Markdig_HtmlComments_BlockAndInline_AreRecognized
+
+          - id: LintMark-OTS-Markdig-Concurrency
+            title: Markdig shall allow one built pipeline to parse documents on many threads at the same time.
+            justification: |
+              LintMark builds its parser pipeline once and shares it between the threads that process
+              files in parallel. Parsing must give identical results under concurrency.
+            tags: [ots]
+            tests:
+              - Markdig_SharedPipeline_ParallelParse_IdenticalResults

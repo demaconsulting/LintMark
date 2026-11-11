@@ -18,6 +18,10 @@ N/A - standard test environment.
 - `ArgumentException` is thrown for all unknown or malformed arguments.
 - `ExitCode` is 1 after `WriteError` is called and 0 otherwise.
 - Silent mode suppresses console output but does not affect the log file.
+- Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
+  arguments, are rejected.
+- `--validate` combined with paths or `--check` is rejected before any log file is created.
+- Concurrent writers never interleave lines and never lose the error state.
 
 #### Test Scenarios
 
@@ -135,3 +139,51 @@ scenario is tested by `Context_WriteError_WritesToLogFile`.
 `Context.Create` is called with `["--log", "/invalid/\x00path.log"]`; an
 `InvalidOperationException` is thrown because the log file cannot be opened. This
 scenario is tested by `Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException`.
+
+**Context_Create_PositionalPaths_SetsPathsInOrder**: `Context.Create` is called with several non-dash
+arguments, including a `!` exclusion pattern; `Paths` holds them in the order given and no flag is set. This
+scenario is tested by `Context_Create_PositionalPaths_SetsPathsInOrder`.
+
+**Context_Create_NoPaths_PathsEmpty**: `Context.Create` is called without positional arguments; `Paths` is
+empty. This scenario is tested by `Context_Create_NoPaths_PathsEmpty`.
+
+**Context_Create_CheckFlag_SetsCheckTrue**: `Context.Create` is called with `["--check"]`; `Check` is true
+and no other flag changes. This scenario is tested by `Context_Create_CheckFlag_SetsCheckTrue`.
+
+**Context_Create_PathsMixedWithFlags_ParsesBoth**: Paths and options (including a `--log` value that must
+not be taken as a path) are interleaved; only the positional arguments appear in `Paths` and the options are
+parsed. This scenario is tested by `Context_Create_PathsMixedWithFlags_ParsesBoth`.
+
+**Context_Create_HelpOrVersionWithPaths_DoesNotThrow**: `--help` and `--version` combined with paths are
+accepted. This scenario is tested by `Context_Create_HelpOrVersionWithPaths_DoesNotThrow`.
+
+**Context_Create_ValidateWithPaths_ThrowsArgumentException**: `--validate` combined with a path throws an
+`ArgumentException` whose message names the flag. This scenario is tested by
+`Context_Create_ValidateWithPaths_ThrowsArgumentException`.
+
+**Context_Create_ValidateWithCheck_ThrowsArgumentException**: `--validate` combined with `--check` throws an
+`ArgumentException`. This scenario is tested by `Context_Create_ValidateWithCheck_ThrowsArgumentException`.
+
+**Context_Create_ValidateWithPaths_DoesNotCreateLogFile**: The `--validate` conflict is combined with a
+`--log` path that does not yet exist; the error is raised and the log file is never created. This scenario
+is tested by `Context_Create_ValidateWithPaths_DoesNotCreateLogFile`.
+
+**Context_Create_ValidateWithItsOwnOptions_DoesNotThrow**: `--validate` combined with its own options
+(`--results`, `--depth`, `--silent`) is parsed as before. This scenario is tested by
+`Context_Create_ValidateWithItsOwnOptions_DoesNotThrow`.
+
+**Context_Create_DashedUnknownToken_ThrowsArgumentException**: `Context.Create` is called with `-`, `-x`,
+and `--unknown`; each throws an `ArgumentException` (a dash-leading token is never a path). This scenario is
+tested by `Context_Create_DashedUnknownToken_ThrowsArgumentException`.
+
+**Context_Create_EmptyArgument_ThrowsArgumentException**: `Context.Create` is called with an empty string;
+an `ArgumentException` is thrown. This scenario is tested by
+`Context_Create_EmptyArgument_ThrowsArgumentException`.
+
+**Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact**: Many threads call `WriteError` with long
+lines at the same time; every line appears exactly once and intact in the log file and exit code is 1. This
+scenario is tested by `Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact`.
+
+**Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact**: Many threads call `WriteLine` with long lines
+at the same time; every line appears exactly once and intact in the log file and no error is recorded. This
+scenario is tested by `Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact`.
