@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect x="14" y="16" width="935" height="495" rx="28" fill="#d5dce6"/>
+  <rect x="10" y="10" width="935" height="495" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+  <g transform="translate(30,30)">
+    <rect x="170" y="0" width="520" height="60" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="430" y="27" font-size="16" font-family="Consolas, monospace" font-weight="600" fill="#92400e" text-anchor="middle">TODO: your-tool (Program)</text>
+    <text x="430" y="47" font-size="13" fill="#92400e" text-anchor="middle">Replace with the tool command name and a one-line purpose</text>
+    <line x1="430" y1="64" x2="430" y2="100" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="442" y="86" font-size="12" fill="#334155">TODO: describe the entry point</text>
+
+    <rect x="170" y="104" width="520" height="248" rx="14" fill="#f8fafc" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 5"/>
+    <text x="186" y="126" font-size="14" font-weight="600" fill="#2563eb">TODO: DemaConsulting.YourTool</text>
+
+    <rect x="190" y="136" width="480" height="48" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="430" y="157" font-size="16" font-weight="600" fill="#166534" text-anchor="middle">TODO: Cli</text>
+    <text x="430" y="175" font-size="12" fill="#166534" text-anchor="middle">Replace with argument parsing and command routing</text>
+
+    <g font-size="11" fill="#5b21b6" text-anchor="middle">
+      <rect x="190" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+      <text x="266" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem A</text>
+      <text x="266" y="242">Replace with a main</text>
+      <text x="266" y="256">subsystem and its role</text>
+      <rect x="353" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+      <text x="429" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem B</text>
+      <text x="429" y="242">Replace with a main</text>
+      <text x="429" y="256">subsystem and its role</text>
+      <rect x="516" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+      <text x="592" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem C</text>
+      <text x="592" y="242">Replace with a main</text>
+      <text x="592" y="256">subsystem and its role</text>
+    </g>
+
+    <g font-size="11" fill="#1e40af" text-anchor="middle">
+      <rect x="190" y="276" width="236" height="60" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+      <text x="308" y="302" font-size="14" font-weight="600" fill="#1e3a8a">TODO: Support unit</text>
+      <text x="308" y="322">Replace with a supporting unit</text>
+      <rect x="436" y="276" width="233" height="60" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+      <text x="552" y="302" font-size="14" font-weight="600" fill="#1e3a8a">TODO: Support unit</text>
+      <text x="552" y="322">Replace with a supporting unit</text>
+    </g>
+
+    <line x1="430" y1="356" x2="430" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="442" y="372" font-size="12" fill="#334155">TODO: built on</text>
+
+    <g text-anchor="middle">
+      <rect x="170" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+      <text x="253" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
+      <text x="253" y="430" font-size="12" fill="#475569">Replace with a library</text>
+      <rect x="347" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+      <text x="430" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
+      <text x="430" y="430" font-size="12" fill="#475569">Replace with a library</text>
+      <rect x="524" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+      <text x="607" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
+      <text x="607" y="430" font-size="12" fill="#475569">Replace with a library</text>
+    </g>
+
+    <text x="70" y="181" font-size="13" font-weight="600" fill="#475569" text-anchor="middle">Inputs</text>
+    <rect x="0" y="195" width="140" height="66" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+    <text x="70" y="222" font-size="15" font-weight="600" fill="#334155" text-anchor="middle">TODO: Inputs</text>
+    <text x="70" y="243" font-size="12" fill="#475569" text-anchor="middle">Replace with real inputs</text>
+    <line x1="144" y1="228" x2="166" y2="228" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="720" y="163" width="165" height="130" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="802" y="189" font-size="16" font-weight="600" fill="#166534" text-anchor="middle">Outputs</text>
+    <g font-size="13" fill="#14532d" text-anchor="middle">
+      <rect x="734" y="201" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
+      <text x="802" y="219">TODO: Output 1</text>
+      <rect x="734" y="231" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
+      <text x="802" y="249">TODO: Output 2</text>
+      <rect x="734" y="261" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
+      <text x="802" y="279">TODO: Output 3</text>
+    </g>
+    <line x1="694" y1="228" x2="716" y2="228" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  </g>
+</svg>

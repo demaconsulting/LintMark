@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1076" height="340" viewBox="0 0 1076 340" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <!-- Transparent canvas; a white rounded card keeps the diagram readable in light and dark themes -->
+  <rect x="14" y="16" width="1050" height="318" rx="28" fill="#d5dce6"/>
+  <rect x="10" y="10" width="1050" height="318" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+  <g transform="translate(30,34)">
+    <!-- Step 1: prepare inputs -->
+    <rect x="0" y="0" width="230" height="242" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="115" y="30" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">1. Prepare inputs</text>
+    <rect x="14" y="46" width="202" height="54" rx="6" fill="#ffffff" stroke="#2563eb"/>
+    <text x="115" y="68" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">TODO: input file</text>
+    <text x="115" y="88" font-size="12" fill="#1e40af" text-anchor="middle">Replace with the main input</text>
+    <rect x="14" y="110" width="202" height="54" rx="6" fill="#ffffff" stroke="#2563eb"/>
+    <text x="115" y="132" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">TODO: configuration</text>
+    <text x="115" y="152" font-size="12" fill="#1e40af" text-anchor="middle">Replace with settings or options</text>
+    <rect x="14" y="174" width="202" height="54" rx="6" fill="#ffffff" stroke="#2563eb"/>
+    <text x="115" y="196" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">TODO: other input</text>
+    <text x="115" y="216" font-size="12" fill="#1e40af" text-anchor="middle">Replace or remove this box</text>
+
+    <line x1="234" y1="121" x2="256" y2="121" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Step 2: run the tool -->
+    <rect x="260" y="0" width="230" height="242" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="375" y="30" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">2. Run the tool</text>
+    <rect x="274" y="46" width="202" height="54" rx="6" fill="#ffffff" stroke="#d97706"/>
+    <text x="375" y="68" font-size="14" font-weight="600" font-family="Consolas, monospace" fill="#92400e" text-anchor="middle">TODO: your-tool</text>
+    <text x="375" y="88" font-size="12" fill="#92400e" text-anchor="middle">Replace with the command</text>
+    <rect x="274" y="110" width="202" height="54" rx="6" fill="#ffffff" stroke="#d97706"/>
+    <text x="375" y="132" font-size="14" font-weight="600" fill="#92400e" text-anchor="middle">TODO: key options</text>
+    <text x="375" y="152" font-size="12" fill="#92400e" text-anchor="middle">Replace with the main flags</text>
+    <rect x="274" y="174" width="202" height="54" rx="6" fill="#ffffff" stroke="#d97706"/>
+    <text x="375" y="196" font-size="14" font-weight="600" fill="#92400e" text-anchor="middle">TODO: where it runs</text>
+    <text x="375" y="216" font-size="12" fill="#92400e" text-anchor="middle">e.g. locally or in a CI pipeline</text>
+
+    <line x1="494" y1="121" x2="516" y2="121" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Step 3: get outputs -->
+    <rect x="520" y="0" width="230" height="242" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="635" y="30" font-size="16" font-weight="600" fill="#5b21b6" text-anchor="middle">3. Get outputs</text>
+    <rect x="534" y="46" width="202" height="54" rx="6" fill="#ffffff" stroke="#7c3aed"/>
+    <text x="635" y="68" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">TODO: main output</text>
+    <text x="635" y="88" font-size="12" fill="#5b21b6" text-anchor="middle">Replace with the primary result</text>
+    <rect x="534" y="110" width="202" height="54" rx="6" fill="#ffffff" stroke="#7c3aed"/>
+    <text x="635" y="132" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">TODO: other output</text>
+    <text x="635" y="152" font-size="12" fill="#5b21b6" text-anchor="middle">Replace or remove this box</text>
+    <rect x="534" y="174" width="202" height="54" rx="6" fill="#ffffff" stroke="#7c3aed"/>
+    <text x="635" y="196" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">TODO: exit code</text>
+    <text x="635" y="216" font-size="12" fill="#5b21b6" text-anchor="middle">Replace with what it signals</text>
+
+    <line x1="754" y1="121" x2="776" y2="121" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Step 4: use them -->
+    <rect x="780" y="0" width="230" height="242" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="895" y="30" font-size="16" font-weight="600" fill="#166534" text-anchor="middle">4. Use them</text>
+    <rect x="794" y="46" width="202" height="54" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="895" y="68" font-size="14" font-weight="600" fill="#14532d" text-anchor="middle">TODO: first use</text>
+    <text x="895" y="88" font-size="12" fill="#166534" text-anchor="middle">e.g. a CI quality gate</text>
+    <rect x="794" y="110" width="202" height="54" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="895" y="132" font-size="14" font-weight="600" fill="#14532d" text-anchor="middle">TODO: second use</text>
+    <text x="895" y="152" font-size="12" fill="#166534" text-anchor="middle">e.g. compliance evidence</text>
+    <rect x="794" y="174" width="202" height="54" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="895" y="196" font-size="14" font-weight="600" fill="#14532d" text-anchor="middle">TODO: third use</text>
+    <text x="895" y="216" font-size="12" fill="#166534" text-anchor="middle">Replace or remove this box</text>
+
+    <text x="505" y="274" font-size="13" font-style="italic" fill="#475569" text-anchor="middle">Need tool qualification evidence? Run your-tool --validate --results validation-results.trx</text>
+  </g>
+</svg>
