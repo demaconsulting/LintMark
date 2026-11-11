@@ -1,11 +1,11 @@
 # Introduction
 
-This document contains the requirements for the Template DotNet Tool project.
+This document contains the requirements for the LintMark project.
 
 ## Purpose
 
-Template DotNet Tool is a reference implementation demonstrating best practices for DEMA Consulting
-.NET command-line tools. It provides a standardized approach to command-line argument parsing,
+LintMark is a .NET tool from DEMA Consulting for linting and optionally reformatting markdown files into
+a preferred format. It provides a standardized approach to command-line argument parsing,
 self-validation, and comprehensive documentation generation.
 
 ## Scope
@@ -24,7 +24,7 @@ This requirements document covers:
 
 This document is intended for:
 
-- Software developers working on Template DotNet Tool
+- Software developers working on LintMark
 - Quality assurance teams validating requirements
 - Project stakeholders reviewing project scope
 - Users understanding the tool's capabilities

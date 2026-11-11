@@ -1,13 +1,14 @@
 ---
-title: Template DotNet Tool User Guide
-subtitle: A .NET Reference Implementation for CLI Tools
+title: LintMark User Guide
+subtitle: Markdown linting and formatting
 author: DEMA Consulting
-description: A .NET Reference Implementation for CLI Tools
+description: Markdown linting and formatting
 lang: en-US
 keywords:
-  - Template DotNet Tool
+  - LintMark
   - .NET
   - Command-Line Tool
   - Documentation
-  - Best Practices
+  - Markdown
+  - Linting
 ---

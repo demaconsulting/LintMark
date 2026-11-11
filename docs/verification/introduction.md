@@ -1,11 +1,11 @@
 # Introduction
 
-This document provides the verification design for the Template DotNet Tool, a .NET command-line
-application demonstrating best practices for DEMA Consulting DotNet Tools.
+This document provides the verification design for the LintMark, a .NET command-line
+tool from DEMA Consulting for markdown linting and formatting.
 
 ## Purpose
 
-The purpose of this document is to describe how each requirement for the Template DotNet Tool is
+The purpose of this document is to describe how each requirement for the LintMark is
 verified. For every software item — system, subsystem, and unit — this document names the
 verification approach, identifies the test scenarios (including boundary conditions and error
 paths), describes what is mocked or stubbed, and maps each requirement to at least one named
@@ -17,7 +17,7 @@ This document covers the verification design for the following software items:
 
 **Local items:**
 
-- **TemplateDotNetTool** — system, subsystem, and unit verification:
+- **LintMark** — system, subsystem, and unit verification:
   - **Program** — entry point and execution orchestrator
   - **Cli** subsystem
     - **Context** — argument parser and I/O owner
@@ -54,7 +54,7 @@ The test folder structure mirrors the source subsystem breakdown:
 
 ```text
 test/
-└── DemaConsulting.TemplateDotNetTool.Tests/  — unit and integration tests
+└── DemaConsulting.LintMark.Tests/  — unit and integration tests
 ```
 
 ## Companion Artifact Structure
@@ -76,5 +76,5 @@ Review-sets: defined in `.reviewmark.yaml`
 
 ## References
 
-- Template DotNet Tool Software Design Document
-- Template DotNet Tool releases (<https://github.com/demaconsulting/TemplateDotNetTool/releases>)
+- LintMark Software Design Document
+- LintMark releases (<https://github.com/demaconsulting/LintMark/releases>)

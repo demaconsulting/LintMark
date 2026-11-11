@@ -1,24 +1,24 @@
 ---
 resource-path:
   - docs/verification
-  - docs/verification/template-dot-net-tool
-  - docs/verification/template-dot-net-tool/cli
-  - docs/verification/template-dot-net-tool/self-test
-  - docs/verification/template-dot-net-tool/utilities
+  - docs/verification/lintmark
+  - docs/verification/lintmark/cli
+  - docs/verification/lintmark/self-test
+  - docs/verification/lintmark/utilities
   - docs/verification/ots
   - docs/template
 
 input-files:
   - docs/verification/title.txt
   - docs/verification/introduction.md
-  - docs/verification/template-dot-net-tool.md
-  - docs/verification/template-dot-net-tool/program.md
-  - docs/verification/template-dot-net-tool/cli.md
-  - docs/verification/template-dot-net-tool/cli/context.md
-  - docs/verification/template-dot-net-tool/self-test.md
-  - docs/verification/template-dot-net-tool/self-test/validation.md
-  - docs/verification/template-dot-net-tool/utilities.md
-  - docs/verification/template-dot-net-tool/utilities/path-helpers.md
+  - docs/verification/lintmark.md
+  - docs/verification/lintmark/program.md
+  - docs/verification/lintmark/cli.md
+  - docs/verification/lintmark/cli/context.md
+  - docs/verification/lintmark/self-test.md
+  - docs/verification/lintmark/self-test/validation.md
+  - docs/verification/lintmark/utilities.md
+  - docs/verification/lintmark/utilities/path-helpers.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

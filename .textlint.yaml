@@ -15,7 +15,6 @@ language: en
 # The files to spell-check
 files:
   - "**/*.{md,yaml,yml,json,cs,cpp,hpp,h,txt}"
-
 # Matches cspell, which also checks hidden paths such as .github/ and .*.yaml
 enableGlobDot: true
 
@@ -32,7 +31,7 @@ words:
   - slnx
   - snupkg
   - sonarscanner
-  - templatetool
+  - lintmark
   - thirdparty
   - unidirectionality
   - venv

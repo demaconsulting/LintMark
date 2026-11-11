@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Tool Software Design Document
-subtitle: A .NET Reference Implementation for CLI Tools
+title: LintMark Software Design Document
+subtitle: Markdown linting and formatting
 author: DEMA Consulting
-description: Detailed design document for the Template DotNet Tool
+description: Detailed design document for the LintMark
 lang: en-US
 keywords:
-  - Template DotNet Tool
+  - LintMark
   - .NET
   - Command-Line Tool
   - Design

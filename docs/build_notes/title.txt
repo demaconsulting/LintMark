@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Tool
+title: LintMark
 subtitle: Build Notes
 author: DEMA Consulting
-description: Build notes for the Template DotNet Tool reference implementation
+description: Build notes for LintMark
 lang: en-US
 keywords:
-  - Template DotNet Tool
+  - LintMark
   - Build Notes
   - Release Notes
   - C#

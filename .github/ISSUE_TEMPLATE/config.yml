@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📚 Documentation
-    url: https://github.com/demaconsulting/TemplateDotNetTool
-    about: Read the documentation for TemplateDotNetTool
+    url: https://github.com/demaconsulting/LintMark
+    about: Read the documentation for LintMark
   - name: 💬 Discussions
-    url: https://github.com/demaconsulting/TemplateDotNetTool/discussions
+    url: https://github.com/demaconsulting/LintMark/discussions
     about: Ask questions and discuss with the community

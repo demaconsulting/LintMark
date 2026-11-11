@@ -1,4 +1,4 @@
-# Template DotNet Tool
+# LintMark
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
@@ -9,7 +9,8 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-DEMA Consulting template project for DotNet Tools, demonstrating best practices for building command-line tools with .NET.
+LintMark is a .NET tool, distributed as a NuGet tool package, for linting and optionally reformatting markdown files
+into a preferred format, with optional tweaks via a .lintmark.yaml configuration file.
 
 The diagram below is a placeholder workflow diagram: replace its TODO boxes (in `docs/images/workflow.svg`,
 then re-render `docs/images/workflow.png`) to show how users prepare inputs, run your tool, get its outputs,
@@ -20,7 +21,8 @@ its outputs, and use them][workflow]
 
 ## Features
 
-This template demonstrates:
+LintMark currently provides the following (markdown linting and formatting rules are planned but not yet
+implemented):
 
 - **Standardized Command-Line Interface**: Context class handling common arguments
   (`--version`, `--help`, `--silent`, `--validate`, `--results`, `--depth`, `--log`)
@@ -42,33 +44,33 @@ This template demonstrates:
 Install the tool globally using the .NET CLI:
 
 ```bash
-dotnet tool install -g DemaConsulting.TemplateDotNetTool
+dotnet tool install -g DemaConsulting.LintMark
 ```
 
 ## Usage
 
 ```bash
 # Default behavior (no arguments) — displays banner and copyright
-templatetool
+lintmark
 
 # Display version
-templatetool --version
+lintmark --version
 
 # Display help
-templatetool --help
+lintmark --help
 
 # Run self-validation
-templatetool --validate
+lintmark --validate
 
 # Save validation results (--result is an accepted alias for --results)
-templatetool --validate --results results.trx
-templatetool --validate --result results.xml
+lintmark --validate --results results.trx
+lintmark --validate --result results.xml
 
 # Set heading depth for embedded validation output
-templatetool --validate --depth 2
+lintmark --validate --depth 2
 
 # Silent mode with logging
-templatetool --silent --log output.log
+lintmark --silent --log output.log
 ```
 
 ## Command-Line Options
@@ -100,7 +102,7 @@ automatically.
 Running self-validation produces a report containing the following information:
 
 ```text
-# DEMA Consulting Template DotNet Tool
+# DEMA Consulting LintMark
 
 | Information         | Value                                              |
 | :------------------ | :------------------------------------------------- |
@@ -110,8 +112,8 @@ Running self-validation produces a report containing the following information:
 | DotNet Runtime      | <dotnet-runtime-version>                           |
 | Time Stamp          | <timestamp> UTC                                    |
 
-✓ TemplateTool_VersionDisplay - Passed
-✓ TemplateTool_HelpDisplay - Passed
+✓ LintMark_VersionDisplay - Passed
+✓ LintMark_HelpDisplay - Passed
 
 Total Tests: 2
 Passed: 2
@@ -120,15 +122,15 @@ Failed: 0
 
 Each test in the report proves:
 
-- **`TemplateTool_VersionDisplay`** - `--version` outputs a valid version string.
-- **`TemplateTool_HelpDisplay`** - `--help` outputs usage and options information.
+- **`LintMark_VersionDisplay`** - `--version` outputs a valid version string.
+- **`LintMark_HelpDisplay`** - `--help` outputs usage and options information.
 
 Use `--depth <#>` to control the heading level of the validation output (default: `1`).
 This is useful when embedding validation output into a larger markdown document:
 
 ```bash
 # Embed validation at heading level 2
-templatetool --validate --depth 2
+lintmark --validate --depth 2
 ```
 
 See the [User Guide][link-guide] for more details on the self-validation tests.
@@ -148,7 +150,7 @@ Generated documentation includes:
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/demaconsulting/TemplateDotNetTool/blob/main/CONTRIBUTING.md) for
+See [CONTRIBUTING.md](https://github.com/demaconsulting/LintMark/blob/main/CONTRIBUTING.md) for
 guidelines on reporting bugs, suggesting features, and submitting pull requests.
 
 ## License
@@ -158,24 +160,24 @@ Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][lin
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
 
 <!-- Badge References -->
-[workflow]: https://raw.githubusercontent.com/demaconsulting/TemplateDotNetTool/main/docs/images/workflow.png
-[badge-forks]: https://img.shields.io/github/forks/demaconsulting/TemplateDotNetTool?style=plastic
-[badge-stars]: https://img.shields.io/github/stars/demaconsulting/TemplateDotNetTool?style=plastic
-[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/TemplateDotNetTool?style=plastic
-[badge-license]: https://img.shields.io/github/license/demaconsulting/TemplateDotNetTool?style=plastic
-[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/TemplateDotNetTool/build_on_push.yaml?style=plastic
-[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetTool&metric=alert_status
-[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetTool&metric=security_rating
-[badge-nuget]: https://img.shields.io/nuget/v/DemaConsulting.TemplateDotNetTool?style=plastic
+[workflow]: https://raw.githubusercontent.com/demaconsulting/LintMark/main/docs/images/workflow.png
+[badge-forks]: https://img.shields.io/github/forks/demaconsulting/LintMark?style=plastic
+[badge-stars]: https://img.shields.io/github/stars/demaconsulting/LintMark?style=plastic
+[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/LintMark?style=plastic
+[badge-license]: https://img.shields.io/github/license/demaconsulting/LintMark?style=plastic
+[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/LintMark/build_on_push.yaml?style=plastic
+[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_LintMark&metric=alert_status
+[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_LintMark&metric=security_rating
+[badge-nuget]: https://img.shields.io/nuget/v/DemaConsulting.LintMark?style=plastic
 
 <!-- Link References -->
-[link-forks]: https://github.com/demaconsulting/TemplateDotNetTool/network/members
-[link-stars]: https://github.com/demaconsulting/TemplateDotNetTool/stargazers
-[link-contributors]: https://github.com/demaconsulting/TemplateDotNetTool/graphs/contributors
-[link-license]: https://github.com/demaconsulting/TemplateDotNetTool/blob/main/LICENSE
-[link-build]: https://github.com/demaconsulting/TemplateDotNetTool/actions/workflows/build_on_push.yaml
-[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetTool
-[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetTool
-[link-nuget]: https://www.nuget.org/packages/DemaConsulting.TemplateDotNetTool
-[link-guide]: https://github.com/demaconsulting/TemplateDotNetTool/blob/main/docs/user_guide/introduction.md
+[link-forks]: https://github.com/demaconsulting/LintMark/network/members
+[link-stars]: https://github.com/demaconsulting/LintMark/stargazers
+[link-contributors]: https://github.com/demaconsulting/LintMark/graphs/contributors
+[link-license]: https://github.com/demaconsulting/LintMark/blob/main/LICENSE
+[link-build]: https://github.com/demaconsulting/LintMark/actions/workflows/build_on_push.yaml
+[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_LintMark
+[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_LintMark
+[link-nuget]: https://www.nuget.org/packages/DemaConsulting.LintMark
+[link-guide]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/introduction.md
 [link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance

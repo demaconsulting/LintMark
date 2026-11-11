@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Tool Review Report
-subtitle: File Review Report for the Template DotNet Tool
+title: LintMark Review Report
+subtitle: File Review Report for the LintMark
 author: DEMA Consulting
-description: File Review Report for the Template DotNet Tool
+description: File Review Report for the LintMark
 lang: en-US
 keywords:
-  - Template DotNet Tool
+  - LintMark
   - Review Report
   - File Reviews
   - .NET

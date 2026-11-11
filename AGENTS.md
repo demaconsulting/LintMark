@@ -1,21 +1,14 @@
 # Project Overview
 
-> **Downstream customization required**: Replace the `TODO` values below with
-> values specific to the target repository. These values are the canonical source
-> for project-wide template placeholders used throughout the repository.
-
-- **project-name**: TODO — repository/project name (e.g., `ReqStream`)
-- **organization**: TODO — organization name for document authorship (e.g., `DEMA Consulting`)
-- **project-tagline**: TODO — document subtitle; 4–8 words, noun phrase, no period
-  (e.g., `Requirements traceability for .NET projects`)
-- **description**: TODO — full project description, may be multiple sentences
-- **languages**: TODO — programming languages used (e.g., `C#`, `C++`)
-- **technologies**: TODO — key technologies and frameworks (e.g., `.NET`, `CMake`)
+- **project-name**: LintMark
+- **organization**: DEMA Consulting
+- **project-tagline**: Markdown linting and formatting
+- **description**: LintMark is a .NET tool, distributed as a NuGet tool package, for linting and optionally
+  reformatting markdown files into a preferred format, with optional tweaks via a .lintmark.yaml configuration file.
+- **languages**: C#
+- **technologies**: .NET
 
 # Project Structure
-
-> **Downstream customization required**: Replace `{project}` and
-> `{test-project}` with the actual source and test project folder names.
 
 ```text
 ├── docs/
@@ -31,9 +24,9 @@
 │   ├── user_guide/
 │   └── verification/
 ├── src/
-│   └── {project}/
+│   └── DemaConsulting.LintMark/
 └── test/
-    └── {test-project}/
+    └── DemaConsulting.LintMark.Tests/
 ```
 
 # Language and Spelling (ALL Agents)

@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Tool Verification Design Document
-subtitle: A .NET Reference Implementation for CLI Tools
+title: LintMark Verification Design Document
+subtitle: Markdown linting and formatting
 author: DEMA Consulting
-description: Verification design document for the Template DotNet Tool
+description: Verification design document for the LintMark
 lang: en-US
 keywords:
-  - Template DotNet Tool
+  - LintMark
   - .NET
   - Command-Line Tool
   - Verification
