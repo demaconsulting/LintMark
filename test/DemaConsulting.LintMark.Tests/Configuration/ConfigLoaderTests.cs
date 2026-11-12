@@ -487,13 +487,21 @@ public class ConfigLoaderTests
         directory.WriteFile("conf/custom.yaml", "line-length: 84\n");
 
         // Act: create the loader with a relative path (using backslashes) while that directory is current
+        // (the current directory is read back because some platforms report a symbolic-link-resolved spelling)
         ConfigLoader? loader = null;
-        InDirectory(directory.FullPath, () => loader = ConfigLoader.ForFile("conf\\custom.yaml"));
+        var current = string.Empty;
+        InDirectory(
+            directory.FullPath,
+            () =>
+            {
+                current = Directory.GetCurrentDirectory();
+                loader = ConfigLoader.ForFile("conf\\custom.yaml");
+            });
 
         // Assert: the file was found and is reported by its full path
         var result = loader!.Load("anything.md");
         Assert.Equal(84, result.Config!.LineLength);
-        Assert.Equal(directory.PathOf("conf/custom.yaml"), result.SourcePath);
+        Assert.Equal(Path.Combine(current, "conf", "custom.yaml"), result.SourcePath);
     }
 
     /// <summary>
