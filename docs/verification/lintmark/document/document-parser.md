@@ -35,6 +35,15 @@ N/A - standard test environment.
 - A link reference definition reports its enclosing container, and the paragraph or setext heading that follows
   a definition does not overlap it.
 - A footnote whose body ends with an indented HTML block ends with that block, so no block lies outside its parent.
+- A dropped footnote ends before a block that starts on its marker line (a definition or another footnote
+  marker) and before a definition that follows it behind a container prefix, so no two blocks overlap; a
+  referenced footnote keeps such a definition as a child.
+- A definition whose next-line title is rejected ends at its destination and the paragraph with the text does
+  not overlap it; a valid title (including an empty one) is kept.
+- A valid grid table next to such a footnote stays a grid table (no spurious fallback).
+- A line that looks like a grid table row but is not a valid grid table leaves blocks that do not overlap and
+  lie inside their parents; a valid grid table is still a grid table; a document with a valid and an invalid
+  grid table is read without grid tables (the deliberate fallback of the design).
 - A very large document is parsed within a generous time bound (a check against quadratic behavior).
 - Concurrent calls give identical results.
 - Invalid arguments are rejected with the documented exception.
@@ -124,8 +133,47 @@ character of the block, the block is a child at the next depth, and the span-til
 **Parse populates suppressions and references**: A document with a suppression comment and a link reference
 definition produces a suppression map and a reference index that contain them.
 
+**Dropped footnote followed by a definition in a container does not overlap it**: A footnote that nothing refers
+to, followed on the next line by a definition behind a list marker, a quote marker, or an indent (including a
+definition after a nested list that the footnote swallows), gives two `UnreferencedFootnote` blocks, each with
+its own range, and the nesting check reports no violation.
+
+**Dropped footnote with a definition on its marker line ends before it**: A footnote that nothing refers to (or
+that repeats a label), with a definition behind its marker on the same line (also after a tab, with no gap,
+behind an indent, with the destination on the next line, and in several footnotes in a row), gives the footnote
+as its marker only and the definition as a following block with its own range; a marker followed only by another
+marker without a destination stays one block. The same documents as CRLF bytes give the same blocks.
+
+**Dropped footnote before another footnote marker gives two blocks**: `[^m]: [^n]: x` gives two top-level
+`UnreferencedFootnote` blocks, `[^m]:` and `[^n]: x`, and the nesting check reports no violation. When a
+paragraph refers to the outer label, the inner definition is a child of the footnote one level deeper.
+
+**Definition with a rejected next-line title ends at its destination**: A definition followed by a line that
+starts like a title and has text after it (at top level, in a quote, in a list item, and for a footnote-shaped
+definition) ends at its destination, the text is a paragraph that does not overlap it, and a valid or empty
+title is kept in the definition.
+
+**Valid grid table beside such a footnote is kept**: A valid grid table followed by a dropped footnote with a
+definition on its marker line gives a `GridTable`, the footnote, and the definition.
+
+**Fallback document with such a footnote nests**: A document with a valid and an invalid grid table (read
+without grid tables) and a dropped footnote with a definition on its marker line gives the footnote as its
+marker, the definition after it, and the nesting check reports no violation.
+
+**Invalid grid table leaves paragraphs and headings that do not overlap**: A grid-table-looking line directly
+after a paragraph, before a heading, inside a block quote, and inside a list item is read as ordinary text; the
+exact blocks are listed and the nesting check reports no violation.
+
+**Valid grid table is still a grid table**: A document with only a valid grid table has exactly one `GridTable`
+block (a regression guard for the fallback).
+
+**Document with a valid and an invalid grid table is read without grid tables**: A valid grid table followed
+by a grid-table-looking line that is not valid reports no `GridTable` block, and the blocks nest. This
+documents the deliberate cost of the fallback.
+
 **Concurrent calls give identical results**: Several different documents (with lists, quotes, footnotes,
-definitions in containers, an unclosed fence, and tables) are parsed on many threads; each result equals the
+definitions in containers, an unclosed fence, tables, a document that takes the grid table fallback, and a valid
+grid table next to a dropped footnote that holds a definition) are parsed on many threads; each result equals the
 sequential result of its document.
 
 ##### Boundary conditions

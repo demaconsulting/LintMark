@@ -52,11 +52,16 @@ namespace DemaConsulting.LintMark.Document;
 ///         their depth and parent are resolved from containment; a footnote definition's range is
 ///         extended back to its <c>[^label]:</c> marker; footnote definitions that the parser produces
 ///         no node for (no reference, a repeated label) or reports as link reference definitions (inside
-///         a quote or list item) are reported as <see cref="BlockKind.UnreferencedFootnote"/>; a paragraph
+///         a quote or list item) are reported as <see cref="BlockKind.UnreferencedFootnote"/>, and a dropped
+///         footnote ends before a definition that the parser kept from inside it; a link reference definition
+///         ends at its destination when the parser rejected a title on the next line; a paragraph
 ///         that begins with definitions starts after them; parsing always uses LF-normalized text
 ///         (guaranteed by <see cref="SourceDocument"/>); lazy continuation lines are flagged by
 ///         <see cref="GetLines"/>; paragraph lines are rebuilt from the source text by
-///         <see cref="GetLines"/> because the parser releases them.
+///         <see cref="GetLines"/> because the parser releases them; a grid table that turns out to be
+///         invalid leaves blocks that do not nest, in which case the document is parsed again without
+///         grid tables (a deliberate fallback; a document with a valid and an invalid grid table is
+///         therefore read without grid tables).
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless apart from the immutable pipeline; each call works on its
@@ -98,7 +103,16 @@ internal static partial class DocumentParser
     ///     (breaks whitespace equivalence), advanced extensions (unpredictable parse changes) and
     ///     column width inference for pipe tables (would make compact/aligned rewrites non-equivalent).
     /// </remarks>
-    internal static MarkdownPipeline Pipeline { get; } = CreatePipeline();
+    internal static MarkdownPipeline Pipeline { get; } = CreatePipeline(gridTables: true);
+
+    /// <summary>
+    ///     Gets the pipeline used when the grid table parser has damaged the block structure.
+    /// </summary>
+    /// <remarks>
+    ///     Identical to <see cref="Pipeline"/> except that grid tables are not recognized, so a line that
+    ///     looks like a grid table row is read as ordinary Markdown.
+    /// </remarks>
+    private static MarkdownPipeline PipelineWithoutGridTables { get; } = CreatePipeline(gridTables: false);
 
     /// <summary>
     ///     Parses a document.
@@ -118,6 +132,16 @@ internal static partial class DocumentParser
         // Parse LF-normalized text with the fixed pipeline, then derive the corrected views
         var ast = Markdown.Parse(source.Text, Pipeline);
         var blocks = new Flattener(source).Flatten(ast);
+
+        // The grid table parser mishandles a table that turns out to be invalid; when the blocks do not
+        // nest, parse again without it (silent in Phase 1: a document with a valid and an invalid grid
+        // table is then read without grid tables)
+        if (!NestsCorrectly(blocks))
+        {
+            ast = Markdown.Parse(source.Text, PipelineWithoutGridTables);
+            blocks = new Flattener(source).Flatten(ast);
+        }
+
         var suppressions = SuppressionMap.Build(source, blocks, ast);
         var references = ReferenceIndex.Build(source, blocks);
         return new ParsedDocument(source, ast, blocks, suppressions, references);
@@ -267,19 +291,70 @@ internal static partial class DocumentParser
     /// <summary>
     ///     Builds the fixed Markdown pipeline.
     /// </summary>
+    /// <param name="gridTables">Whether the grid table extension is enabled.</param>
     /// <returns>The immutable pipeline.</returns>
-    private static MarkdownPipeline CreatePipeline() => new MarkdownPipelineBuilder()
-        .UsePreciseSourceLocation()
-        .UseYamlFrontMatter()
-        .UsePipeTables(new PipeTableOptions { UseGfmRules = true })
-        .UseGridTables()
-        .UseFootnotes()
-        .UseTaskLists()
-        .UseAutoLinks()
-        .UseEmphasisExtras(EmphasisExtraOptions.Strikethrough)
-        .UseAlertBlocks()
-        .UseMathematics()
-        .Build();
+    private static MarkdownPipeline CreatePipeline(bool gridTables)
+    {
+        var builder = new MarkdownPipelineBuilder()
+            .UsePreciseSourceLocation()
+            .UseYamlFrontMatter()
+            .UsePipeTables(new PipeTableOptions { UseGfmRules = true });
+        if (gridTables)
+        {
+            builder.UseGridTables();
+        }
+
+        return builder
+            .UseFootnotes()
+            .UseTaskLists()
+            .UseAutoLinks()
+            .UseEmphasisExtras(EmphasisExtraOptions.Strikethrough)
+            .UseAlertBlocks()
+            .UseMathematics()
+            .Build();
+    }
+
+    /// <summary>
+    ///     Determines whether the blocks nest: siblings do not overlap and every block lies inside its parent.
+    /// </summary>
+    /// <param name="blocks">The blocks in source order (start, then depth).</param>
+    /// <returns><see langword="true"/> when the innermost open block of every block is its parent and contains it.</returns>
+    /// <remarks>
+    ///     A dropped footnote has no node, so it can never be the parent of a block: a block that starts inside
+    ///     one fails the check. The flattener prevents this (a dropped footnote ends before every block that
+    ///     starts on its marker line and never shares a character with a block on another line), which leaves
+    ///     the grid table parser's damage as the cause of a failure.
+    /// </remarks>
+    private static bool NestsCorrectly(List<BlockInfo> blocks)
+    {
+        // Sweep in source order with the stack of blocks that are still open: the innermost open block must be the parent
+        var open = new Stack<BlockInfo>();
+        foreach (var block in blocks)
+        {
+            while (open.Count > 0 && open.Peek().EndInclusive < block.Start)
+            {
+                open.Pop();
+            }
+
+            if (open.Count == 0)
+            {
+                if (block.Parent != null)
+                {
+                    return false;
+                }
+            }
+            else if (open.Peek().Node is not { } parent
+                || !ReferenceEquals(parent, block.Parent)
+                || block.EndInclusive > open.Peek().EndInclusive)
+            {
+                return false;
+            }
+
+            open.Push(block);
+        }
+
+        return true;
+    }
 
     /// <summary>
     ///     Finds, for each line, the start of the first inline element that starts on it.
@@ -584,6 +659,12 @@ internal static partial class DocumentParser
             var start = Math.Clamp(block.Span.Start, 0, Math.Max(0, text.Length - 1));
             var end = Math.Clamp(block.Span.End, start, Math.Max(0, text.Length - 1));
 
+            // A definition's span runs through a next-line title that the parser rejected (text follows it on its line)
+            if (block is LinkReferenceDefinition definition)
+            {
+                end = Math.Clamp(DefinitionEnd(definition), start, end);
+            }
+
             // A footnote's parser span starts after its marker; the block starts at the marker
             if (block is Footnote footnote)
             {
@@ -606,6 +687,23 @@ internal static partial class DocumentParser
             _effectiveEnds[block] = end;
             _blocks.Add(new BlockInfo(block, kind, start, end, depth, parent));
         }
+
+        /// <summary>
+        ///     Gets the last offset of a link reference definition.
+        /// </summary>
+        /// <param name="definition">The definition.</param>
+        /// <returns>
+        ///     The end of the parser's span, or the end of the destination when the parser rejected a title on the
+        ///     next line (because text follows the title on its line) but still kept it in the span.
+        /// </returns>
+        /// <remarks>
+        ///     A definition without a title has an empty title span and a rejected title leaves the title text
+        ///     null, whereas an empty title (<c>""</c>) is an empty string, so the two cannot be confused.
+        /// </remarks>
+        private static int DefinitionEnd(LinkReferenceDefinition definition) =>
+            definition.Title is null && definition.TitleSpan.End >= definition.TitleSpan.Start
+                ? Math.Min(definition.Span.End, definition.UrlSpan.End)
+                : definition.Span.End;
 
         /// <summary>
         ///     Extends the end of every container to the end of its last emitted child.
@@ -689,7 +787,7 @@ internal static partial class DocumentParser
             for (var i = 0; i < _definitions.Count; i++)
             {
                 var start = Math.Clamp(_definitions[i].Span.Start, 0, limit);
-                ranges.Add((start, Math.Clamp(_definitions[i].Span.End, start, limit), i));
+                ranges.Add((start, Math.Clamp(DefinitionEnd(_definitions[i]), start, limit), i));
             }
 
             ranges.Sort(static (a, b) => a.Start.CompareTo(b.Start));
@@ -867,7 +965,7 @@ internal static partial class DocumentParser
                     continue;
                 }
 
-                found.Add(new BlockInfo(null, BlockKind.UnreferencedFootnote, markerStart, FindDefinitionEnd(line), 0, null));
+                found.Add(new BlockInfo(null, BlockKind.UnreferencedFootnote, markerStart, FindDefinitionEnd(line, markerStart), 0, null));
             }
 
             _blocks.AddRange(found);
@@ -894,16 +992,48 @@ internal static partial class DocumentParser
         ///     Finds the last character of an unreferenced footnote definition.
         /// </summary>
         /// <param name="line">Zero-based index of the line holding the marker.</param>
+        /// <param name="markerStart">The offset of the marker's opening bracket.</param>
         /// <returns>
-        ///     The offset of the last character: the end of the marker line, extended over following
-        ///     lines that are not covered by any block and do not start another definition (the parser
-        ///     drops continuation lines and indented paragraphs together with the definition). After a
-        ///     blank line only an indented line continues the definition.
+        ///     The offset of the last character. When a block starts behind the marker on the marker line (a
+        ///     definition that the parser kept from inside the dropped footnote), the last non-blank character
+        ///     before that block, which is at least the opening bracket of the marker. Otherwise the end of the
+        ///     marker line, extended over following lines that share no character with any block and do not
+        ///     start another definition (the parser drops continuation lines and indented paragraphs together
+        ///     with the definition). After a blank line only an indented line continues the definition.
         /// </returns>
-        private int FindDefinitionEnd(int line)
+        /// <remarks>
+        ///     <para>
+        ///         The range never shares a character with a block that exists already, so the footnote and that
+        ///         block are siblings. The marker line is clipped at the first block that starts on it, and the
+        ///         whole of every other line is tested, not only its first character: a definition that the
+        ///         parser kept can start behind a quote marker, list marker or indent, so its first character
+        ///         is not the first character of the line.
+        ///     </para>
+        ///     <para>
+        ///         A block that starts on the marker line ends the footnote there and nothing after it is
+        ///         attributed to the footnote: the text that the parser swallowed after such a definition can lie
+        ///         outside every block.
+        ///     </para>
+        /// </remarks>
+        private int FindDefinitionEnd(int line, int markerStart)
         {
             var text = _source.Text;
-            var end = LineBounds(line).End - 1;
+            var lineLast = LineBounds(line).End - 1;
+
+            // A block that starts behind the marker on its own line is a definition the parser kept inside the dropped
+            // footnote: the footnote ends before it, without the blanks between them
+            if (_anyBlockCoverage.FirstStartIn(markerStart + 1, lineLast) is { } blockStart)
+            {
+                var clipped = blockStart - 1;
+                while (clipped > markerStart && text[clipped] is ' ' or '\t')
+                {
+                    clipped--;
+                }
+
+                return clipped;
+            }
+
+            var end = lineLast;
             var afterBlank = false;
             for (var next = line + 1; next < _source.LineStarts.Count; next++)
             {
@@ -915,7 +1045,7 @@ internal static partial class DocumentParser
                 }
 
                 var indented = text[start] == '\t' || (lineEnd - start >= 4 && text.AsSpan(start, 4).SequenceEqual("    "));
-                if (IsInsideAnyBlock(start) || MatchDefinition(next) is not null || (afterBlank && !indented))
+                if (OverlapsAnyBlock(start, lineEnd - 1) || MatchDefinition(next) is not null || (afterBlank && !indented))
                 {
                     break;
                 }
@@ -947,11 +1077,12 @@ internal static partial class DocumentParser
         private bool IsCoveredByLeafOrFootnote(int offset) => _leafOrFootnoteCoverage.Contains(offset);
 
         /// <summary>
-        ///     Determines whether an offset lies inside any block.
+        ///     Determines whether a range shares at least one character with any block.
         /// </summary>
-        /// <param name="offset">The offset.</param>
-        /// <returns><see langword="true"/> when a block covers the offset.</returns>
-        private bool IsInsideAnyBlock(int offset) => _anyBlockCoverage.Contains(offset);
+        /// <param name="start">Inclusive start of the range.</param>
+        /// <param name="end">Inclusive end of the range.</param>
+        /// <returns><see langword="true"/> when a block covers any offset of the range.</returns>
+        private bool OverlapsAnyBlock(int start, int end) => _anyBlockCoverage.Overlaps(start, end);
 
         /// <summary>
         ///     Determines whether a kind is a leaf (not a container) block.
@@ -1040,6 +1171,31 @@ internal static partial class DocumentParser
                 // The last range that starts at or before the offset carries the largest end of all candidates
                 var last = LowerBound(_starts, offset + 1) - 1;
                 return last >= 0 && _maxEnds[last] >= offset;
+            }
+
+            /// <summary>
+            ///     Determines whether any of the ranges shares at least one offset with a range.
+            /// </summary>
+            /// <param name="start">Inclusive start of the range.</param>
+            /// <param name="end">Inclusive end of the range.</param>
+            /// <returns><see langword="true"/> when an indexed range intersects the range.</returns>
+            public bool Overlaps(int start, int end)
+            {
+                // The last range that starts at or before the end carries the largest end of all candidates
+                var last = LowerBound(_starts, end + 1) - 1;
+                return last >= 0 && _maxEnds[last] >= start;
+            }
+
+            /// <summary>
+            ///     Finds the smallest start of an indexed range that lies inside a range.
+            /// </summary>
+            /// <param name="start">Inclusive start of the range.</param>
+            /// <param name="end">Inclusive end of the range.</param>
+            /// <returns>The smallest start from <paramref name="start"/> to <paramref name="end"/>, or <see langword="null"/> when none lies there.</returns>
+            public int? FirstStartIn(int start, int end)
+            {
+                var first = LowerBound(_starts, start);
+                return first < _starts.Length && _starts[first] <= end ? _starts[first] : null;
             }
         }
     }

@@ -35,6 +35,16 @@ namespace DemaConsulting.LintMark.Tests;
 public class DocumentSubsystemTests
 {
     /// <summary>
+    ///     The seed of the generated adversarial documents (fixed, so every run checks the same documents).
+    /// </summary>
+    private const uint RandomSeed = 20260511;
+
+    /// <summary>
+    ///     The number of generated adversarial documents per family.
+    /// </summary>
+    private const int RandomDocumentsPerFamily = 1500;
+
+    /// <summary>
     ///     The three line-ending variants a corpus file is tested in.
     /// </summary>
     private enum Variant
@@ -317,6 +327,115 @@ public class DocumentSubsystemTests
 
         // Assert: no violations
         Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
+    }
+
+    /// <summary>
+    ///     Escapes control characters of a generated document for a readable failure message.
+    /// </summary>
+    /// <param name="text">The document text.</param>
+    /// <returns>The escaped text.</returns>
+    private static string Escape(string text) =>
+        text.Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal).Replace("\t", "\\t", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Parses the random documents and collects nesting violations.
+    /// </summary>
+    /// <param name="variant">The line-ending variant the documents are parsed in.</param>
+    /// <returns>The number of documents checked and all violations, each followed by the escaped document.</returns>
+    private static (int Documents, List<string> Violations) CheckRandomDocuments(Variant variant)
+    {
+        var violations = new List<string>();
+        var count = 0;
+        foreach (var fixture in RandomDocuments.Generate(RandomSeed, RandomDocumentsPerFamily))
+        {
+            count++;
+            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, variant)));
+            violations.AddRange(SpanTilingAssertions.CheckNesting(document).Select(v => $"{v} in \"{Escape(fixture.Text)}\""));
+        }
+
+        return (count, violations);
+    }
+
+    /// <summary>
+    ///     Test that the blocks of randomly generated adversarial documents nest without overlap (LF).
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_RandomDocuments_Lf_BlocksNestWithoutOverlap()
+    {
+        // Arrange / Act: parse the generated documents with LF line endings and collect nesting violations
+        var (documents, violations) = CheckRandomDocuments(Variant.Lf);
+
+        // Assert: every document was checked and no sibling overlap or parent violation was found
+        Assert.Equal(RandomDocuments.FamilyCount * RandomDocumentsPerFamily, documents);
+        Assert.True(violations.Count == 0, $"{violations.Count} violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations.Take(10))}");
+    }
+
+    /// <summary>
+    ///     Test that the blocks of randomly generated adversarial documents nest without overlap when given as CRLF bytes.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_RandomDocuments_CrLf_BlocksNestWithoutOverlap()
+    {
+        // Arrange / Act: parse the generated documents from CRLF bytes and collect nesting violations
+        var (documents, violations) = CheckRandomDocuments(Variant.CrLf);
+
+        // Assert: every document was checked and no sibling overlap or parent violation was found
+        Assert.Equal(RandomDocuments.FamilyCount * RandomDocumentsPerFamily, documents);
+        Assert.True(violations.Count == 0, $"{violations.Count} violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations.Take(10))}");
+    }
+
+    /// <summary>
+    ///     Parses the random documents that hold valid grid tables and collects nesting violations and lost grid tables.
+    /// </summary>
+    /// <param name="variant">The line-ending variant the documents are parsed in.</param>
+    /// <returns>The number of documents checked and all problems, each followed by the escaped document.</returns>
+    private static (int Documents, List<string> Problems) CheckValidGridTableDocuments(Variant variant)
+    {
+        var problems = new List<string>();
+        var count = 0;
+        foreach (var (fixture, tables) in RandomDocuments.GenerateWithValidGridTables(RandomSeed, RandomDocumentsPerFamily))
+        {
+            count++;
+            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, variant)));
+            problems.AddRange(SpanTilingAssertions.CheckNesting(document).Select(v => $"{v} in \"{Escape(fixture.Text)}\""));
+
+            // Every table is valid, so none may be lost to the fallback that reads a document without grid tables
+            var actual = document.Blocks.Count(b => b.Kind == BlockKind.GridTable);
+            if (actual != tables)
+            {
+                problems.Add($"{fixture.Name}: {actual} grid tables instead of {tables} in \"{Escape(fixture.Text)}\"");
+            }
+        }
+
+        return (count, problems);
+    }
+
+    /// <summary>
+    ///     Test that valid grid tables next to dropped footnotes that hold definitions stay grid tables and the blocks nest (LF).
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_RandomDocumentsWithValidGridTables_Lf_KeepGridTablesAndNest()
+    {
+        // Arrange / Act: parse the generated documents with LF line endings
+        var (documents, problems) = CheckValidGridTableDocuments(Variant.Lf);
+
+        // Assert: every document was checked, every grid table was kept and the blocks nest
+        Assert.Equal(RandomDocumentsPerFamily, documents);
+        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
+    }
+
+    /// <summary>
+    ///     Test that valid grid tables next to dropped footnotes that hold definitions stay grid tables and the blocks nest when given as CRLF bytes.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_RandomDocumentsWithValidGridTables_CrLf_KeepGridTablesAndNest()
+    {
+        // Arrange / Act: parse the generated documents from CRLF bytes
+        var (documents, problems) = CheckValidGridTableDocuments(Variant.CrLf);
+
+        // Assert: every document was checked, every grid table was kept and the blocks nest
+        Assert.Equal(RandomDocumentsPerFamily, documents);
+        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
     }
 
     /// <summary>

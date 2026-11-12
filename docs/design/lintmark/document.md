@@ -71,12 +71,22 @@ that all three views describe the same parse.
 Block ranges produced by the parser are not trustworthy as they are, and `DocumentParser` compensates for the
 behaviors listed by name in *DocumentParser Design* (*Parser Behaviors Compensated*): unclosed fences, trailing
 line feeds, synthetic group nodes, definitions reported at the document root, dropped and misplaced footnote
-definitions, containers that end before their last child, paragraphs that overlap definitions, the difference
-between LF and CRLF in multi-line code spans,
-lazy continuation lines, and released paragraph lines. The result is a block list in which siblings never
-overlap, every block lies inside its parent, and no document text is left unaccounted for outside the block
-ranges other than whitespace and container prefixes (quote markers and list markers). The span-tiling tests of
-the subsystem check exactly these properties.
+definitions, containers that end before their last child, invalid grid tables, paragraphs that overlap
+definitions, definitions whose range includes a rejected title, the difference between LF and CRLF in
+multi-line code spans, lazy continuation lines, and released paragraph lines. The result is a block list in
+which siblings never overlap and every block lies inside its parent. This holds by construction for the ranges
+the unit computes itself, by validation (with the grid table fallback) for the parser's own ranges, and is
+checked by a randomized adversarial test; it is not proven for arbitrary input. For the
+repository corpus and the generated fixtures, no document text is additionally left unaccounted for outside the
+block ranges other than whitespace and container prefixes (quote markers and list markers); this is not
+claimed for arbitrary input (text that the parser swallows after a dropped footnote can lie outside every
+block). The span-tiling tests of the subsystem check these properties, and a randomized adversarial test checks
+the nesting properties.
+
+One compensation is a deliberate behavior and not only a range correction: when the blocks do not nest, the
+document is parsed once more without grid tables, so a document that contains both a valid and an invalid grid
+table is read without grid tables. The fallback is silent in Phase 1. It is a response to any failure of the
+nesting check; the grid table parser is the only known cause.
 
 The `SuppressionMap` and `ReferenceIndex` units consume the `BlockInfo` and `BlockKind` types that are
 declared with `DocumentParser`, while the parser builds both of them. This is a cycle of types only: the

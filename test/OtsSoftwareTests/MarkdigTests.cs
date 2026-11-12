@@ -188,6 +188,62 @@ public class MarkdigTests
     }
 
     /// <summary>
+    ///     Documents that a definition whose title on the next line is rejected (text follows it) keeps the title in its span.
+    /// </summary>
+    [Fact]
+    public void Markdig_LinkReferenceDefinition_RejectedNextLineTitle_SpanStillCoversTitle()
+    {
+        // Arrange: a definition followed by a line that starts like a title but has text after it, one with an empty title and one without a title
+        const string rejectedText = "[a]: /u\n\"t\" x\n";
+        const string emptyText = "[a]: /u\n\"\"\n";
+        const string noneText = "[a]: /u\n";
+
+        // Act: parse
+        var rejected = ParseDefinition(rejectedText);
+        var empty = ParseDefinition(emptyText);
+        var none = ParseDefinition(noneText);
+
+        // Assert: the rejected title is null but still inside the span; an empty title is an empty string; no title has an empty title span
+        Assert.Null(rejected.Title);
+        Assert.True(rejected.TitleSpan.End >= rejected.TitleSpan.Start);
+        Assert.Equal("/u", rejectedText.Substring(rejected.UrlSpan.Start, rejected.UrlSpan.Length));
+        Assert.Equal("[a]: /u\n\"t\"", rejectedText.Substring(rejected.Span.Start, rejected.Span.Length));
+        Assert.Equal(string.Empty, empty.Title);
+        Assert.Equal("[a]: /u\n\"\"", emptyText.Substring(empty.Span.Start, empty.Span.Length));
+        Assert.Null(none.Title);
+        Assert.True(none.TitleSpan.End < none.TitleSpan.Start);
+    }
+
+    /// <summary>
+    ///     Documents that a definition inside a footnote that the parser drops stays a link reference definition.
+    /// </summary>
+    [Fact]
+    public void Markdig_DroppedFootnote_DefinitionOnMarkerLine_DefinitionSurvives()
+    {
+        // Arrange: a footnote definition that nothing refers to, with a definition behind its marker
+        const string text = "[^1]: [a]: /u\n";
+
+        // Act: parse
+        var document = Markdown.Parse(text, CreatePipeline());
+
+        // Assert: there is no footnote block, but the definition with label "a" exists with its own span
+        Assert.Empty(document.Descendants<Footnote>());
+        var group = document.OfType<LinkReferenceDefinitionGroup>().Single();
+        var definition = Assert.Single(group.OfType<LinkReferenceDefinition>(), d => d is not FootnoteLinkReferenceDefinition);
+        Assert.Equal("a", definition.Label);
+        Assert.Equal("[a]: /u", text.Substring(definition.Span.Start, definition.Span.Length));
+    }
+
+    /// <summary>
+    ///     Parses a document and gets its only definition that is not the synthetic definition of a footnote label.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <returns>The definition.</returns>
+    private static LinkReferenceDefinition ParseDefinition(string text) =>
+        Markdown.Parse(text, CreatePipeline()).OfType<LinkReferenceDefinitionGroup>().Single()
+            .OfType<LinkReferenceDefinition>().Single(d => d is not FootnoteLinkReferenceDefinition);
+
+    /// <summary>
     ///     Validates that HTML comments are exposed as comment-typed HTML blocks and as inline HTML with exact spans.
     /// </summary>
     [Fact]

@@ -144,6 +144,7 @@ reviews:
       - "test/**/Document/SpanTilingAssertions.cs"
       - "test/**/Document/SyntheticDocument.cs"
       - "test/**/Document/SyntheticDocuments.cs"
+      - "test/**/Document/RandomDocuments.cs"
       - "test/**/Document/RepositoryMarkdownFiles.cs"
 
   - id: LintMark-Document-SourceDocument

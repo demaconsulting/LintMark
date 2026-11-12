@@ -25,6 +25,18 @@ Markdown. No mocking is used. Four kinds of evidence are produced:
 - **Workflow and contracts**: documents built from bytes show that invalid content is rejected with its
   position, that block offsets convert to line and column, that the whole dialect is recognized, and that
   suppression comments and link reference definitions are resolved consistently with the block list.
+- **Randomized adversarial documents**: a fixed seed (20260511) generates 10500 documents in seven families
+  (footnote-heavy mixtures of quotes, lists, and look-alike definitions; footnote definitions with children of
+  every kind; look-alike definitions at assorted indents inside a quote or list; a broad mixture of block
+  constructs that includes lines that look like grid table rows; footnote markers followed on the same line by
+  a definition or another marker, in quotes and lists; a mixture rich in such lines; and definitions followed
+  by lines that start like a title), each parsed from LF and from CRLF bytes. A further 1500 documents of valid
+  grid tables and such same-line shapes must keep every grid table. The documents are checked for the nesting
+  properties only (valid and ordered spans, disjoint siblings, any two blocks disjoint or nested, the innermost
+  enclosing block is the parent, consistent parentage and depth). The tiling properties about text between
+  blocks are **not** applied
+  to these documents: adversarial input legitimately leaves text between blocks (for example text that the
+  parser swallows after a dropped footnote), and that is outside the guarantee.
 
 The "tiling" properties checked by the assertions are the ones a span-patching formatter depends on: block
 ranges are valid and ordered; siblings are disjoint; every block lies inside its parent; a block with no
@@ -33,10 +45,12 @@ that parent; only container prefix text (quote markers and list markers) and whi
 its first line, with the footnote marker allowed only before the first child of a footnote; a block ends at
 the end of a line; list items start on their marker and setext headings end on their underline; footnote
 definitions start on their marker; and every character outside the block ranges is whitespace or container
-prefix text. There is no exception for unclosed fences or footnote labels: both are covered by block ranges.
+prefix text. For the repository corpus and the generated fixtures there is no exception for unclosed fences or
+footnote labels: both are covered by block ranges.
 
-The support helpers `SpanTilingAssertions` (the tiling checks), `SyntheticDocuments` (the generated documents),
-and `RepositoryMarkdownFiles` (corpus discovery) are test-support code and have no requirements of their own.
+The support helpers `SpanTilingAssertions` (the tiling and nesting checks), `SyntheticDocuments` (the generated
+documents), `RandomDocuments` (the randomized adversarial documents), and `RepositoryMarkdownFiles` (corpus
+discovery) are test-support code and have no requirements of their own.
 The tab-indented container chains are the one place where the generated fixtures are only partly asserted: a
 tab stop can leave too little indentation for an inner item, which makes a continuation line genuinely lazy,
 or turn a quote marker into literal text. For those chains the lines of a generated paragraph are compared at
@@ -54,6 +68,8 @@ skipping it, so coverage cannot be lost silently. Otherwise the standard test en
 - All subsystem tests pass with zero failures on every supported runtime and platform.
 - No tiling violation is reported for any repository file in any of the three line-ending variants, or for any
   synthetic nesting or footnote document.
+- No sibling overlap or parent violation is reported for any generated adversarial document, in LF or CRLF, and
+  every grid table of the valid grid table documents is kept.
 - The normalized text and block structure of the LF, CRLF, and mixed variants of every file are identical (also for
   a code span that ends a line), and
   `ToBytes` restores the original bytes for LF and CRLF.
@@ -122,6 +138,11 @@ reported.
 
 **Footnote and definition documents tile correctly in CRLF**: The same documents given as CRLF bytes are parsed
 and no violation is reported.
+
+**Random adversarial documents nest without overlap in LF and CRLF**: The 10500 generated documents are parsed
+from LF bytes and, in a second test, from CRLF bytes; the number of documents is as expected and the nesting
+checks report no violation. In addition 1500 documents with valid grid tables are parsed in both variants and
+keep all their grid tables (no spurious fallback). The failure message names the escaped document.
 
 The other boundary values (unterminated regions, empty input, repeated labels, tab stops) are verified by the
 unit verification designs of the units.

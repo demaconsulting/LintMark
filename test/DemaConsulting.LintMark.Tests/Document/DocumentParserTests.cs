@@ -520,6 +520,225 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that a dropped footnote definition ends before a definition behind a container prefix, so the two blocks do not overlap.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expectedFirst">The text expected for the first unreferenced footnote.</param>
+    /// <param name="expectedSecond">The text expected for the second unreferenced footnote.</param>
+    [Theory]
+    [InlineData("[^n]: one\n- [^m]: two\n", "[^n]: one", "[^m]: two")]
+    [InlineData("[^n]: one\n  > [^m]: two\n", "[^n]: one", "[^m]: two")]
+    [InlineData("[^n]: one\n> [^m]: two\n", "[^n]: one", "[^m]: two")]
+    [InlineData("[^n]: one\n1. - [^m]: two\n", "[^n]: one", "[^m]: two")]
+    [InlineData("   [^n]: one\n- -     code\n    [^m]: two\n", "[^n]: one\n- -     code", "[^m]: two")]
+    public void DocumentParser_Parse_UnreferencedFootnoteBeforeDefinitionInContainer_BlocksDoNotOverlap(string text, string expectedFirst, string expectedSecond)
+    {
+        // Arrange / Act: parse a footnote nothing refers to followed by a definition that starts behind a container prefix
+        var document = Parse(text);
+
+        // Assert: both definitions are reported with their own range and nothing overlaps
+        var footnotes = document.Blocks.Where(b => b.Kind == BlockKind.UnreferencedFootnote).Select(b => TextOf(document, b)).ToList();
+        Assert.Equal([expectedFirst, expectedSecond], footnotes);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a dropped footnote ends before a definition behind its marker on the same line, and that nothing overlaps.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expected">The expected blocks, each as the kind, a colon and the text of its span.</param>
+    [Theory]
+    [InlineData("[^1]: [a]: http://x\n", new[] { "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: http://x" })]
+    [InlineData("[^1]:\t[a]: /u\n", new[] { "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: /u" })]
+    [InlineData("[^1]:[a]: /u\n", new[] { "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: /u" })]
+    [InlineData("  [^1]: [a]: /u \"t\"\n    more\n", new[] { "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: /u \"t\"" })]
+    [InlineData("[^m]: [l]:\n    /u\n  > [!NOTE]\n", new[] { "UnreferencedFootnote:[^m]:", "LinkReferenceDefinition:[l]:\n    /u" })]
+    [InlineData("[^1]: [a]: /u\n\n[^2]: [b]: /v\n", new[] { "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: /u", "UnreferencedFootnote:[^2]:", "LinkReferenceDefinition:[b]: /v" })]
+    [InlineData("[^1]: x\n[^2]: [a]: /u\n", new[] { "UnreferencedFootnote:[^1]: x", "UnreferencedFootnote:[^2]:", "LinkReferenceDefinition:[a]: /u" })]
+    [InlineData("T[^1].\n\n[^1]: x\n\n[^1]: [a]: /u\n", new[] { "Paragraph:T[^1].", "Footnote:[^1]: x", "Paragraph:x", "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: /u" })]
+    [InlineData("[^1]: [^2]: x\n[^3]: [a]: /u\n", new[] { "UnreferencedFootnote:[^1]:", "UnreferencedFootnote:[^2]: x", "UnreferencedFootnote:[^3]:", "LinkReferenceDefinition:[a]: /u" })]
+    [InlineData("[^m]: [^n]:\n", new[] { "UnreferencedFootnote:[^m]: [^n]:" })]
+    public void DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_FootnoteEndsBeforeDefinition(string text, string[] expected)
+    {
+        // Arrange / Act: parse a footnote that nothing refers to (or that repeats a label) with a definition behind its marker
+        var document = Parse(text);
+
+        // Assert: the footnote is only its marker (or the whole line when nothing follows it), the definition keeps its own range after it, and nothing overlaps
+        Assert.Equal(expected, document.Blocks.Select(b => $"{b.Kind}:{TextOf(document, b)}"));
+        Assert.All(
+            document.Blocks.Where(b => b.Kind == BlockKind.UnreferencedFootnote && b.Node == null),
+            footnote => Assert.StartsWith("[^", TextOf(document, footnote), StringComparison.Ordinal));
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that CRLF bytes give the same blocks as LF text for a dropped footnote with a definition on its marker line.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks()
+    {
+        // Arrange / Act: parse the document from LF text and from CRLF bytes
+        const string text = "[^1]: [a]: http://x\n\n[^2]: [l]:\n    /u\n";
+        var lf = Parse(text);
+        var crlf = DocumentParser.Parse(SourceDocument.Create("t.md", Encoding.UTF8.GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))));
+
+        // Assert: the block lists are equal and nest
+        Assert.Equal(SummarizeWithDepth(lf), SummarizeWithDepth(crlf));
+        Assert.Equal(4, crlf.Blocks.Count);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(crlf));
+    }
+
+    /// <summary>
+    ///     Test that a dropped footnote whose body starts with another footnote marker gives two sibling blocks.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_DroppedFootnoteBeforeFootnoteMarkerOnSameLine_BothAreReportedWithoutOverlap()
+    {
+        // Arrange / Act: parse a dropped footnote whose body starts with another footnote-shaped definition
+        var document = Parse("[^m]: [^n]: x\n");
+
+        // Assert: the outer footnote is its marker, the inner one (a definition the parser kept) follows it, and both are top-level siblings
+        Assert.Equal(2, document.Blocks.Count);
+        Assert.All(document.Blocks, b => Assert.Equal(BlockKind.UnreferencedFootnote, b.Kind));
+        Assert.All(document.Blocks, b => Assert.Null(b.Parent));
+        Assert.Equal((0, 4), (document.Blocks[0].Start, document.Blocks[0].EndInclusive));
+        Assert.Equal((6, 12), (document.Blocks[1].Start, document.Blocks[1].EndInclusive));
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a definition behind the marker of a footnote that a paragraph refers to is a child of that footnote.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expectedChildKind">The expected kind of the child, by name.</param>
+    /// <param name="expectedChild">The expected text of the child.</param>
+    // BlockKind is internal and the test class is public: the kind is passed by name
+    [Theory]
+    [InlineData("T[^1].\n\n[^1]: [a]: /u\n", "LinkReferenceDefinition", "[a]: /u")]
+    [InlineData("T[^m].\n\n[^m]: [^n]: x\n", "UnreferencedFootnote", "[^n]: x")]
+    public void DocumentParser_Parse_ReferencedFootnoteBeforeDefinitionOnSameLine_DefinitionIsChild(string text, string expectedChildKind, string expectedChild)
+    {
+        // Arrange / Act: parse a footnote that a paragraph refers to, with a definition behind its marker
+        var document = Parse(text);
+
+        // Assert: the definition is a child of the footnote, one level deeper, and nothing overlaps
+        var footnote = Single(document, BlockKind.Footnote);
+        var child = Assert.Single(document.Blocks, b => b.Parent == footnote.Node);
+        Assert.Equal(expectedChildKind, child.Kind.ToString());
+        Assert.Equal(expectedChild, TextOf(document, child));
+        Assert.Equal(footnote.Depth + 1, child.Depth);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a valid grid table next to a dropped footnote with a definition on its marker line stays a grid table.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_ValidGridTableAndDroppedFootnoteBeforeDefinition_KeepsGridTable()
+    {
+        // Arrange / Act: parse a valid grid table followed by a dropped footnote with a definition behind its marker
+        var document = Parse("+---+---+\n| a | b |\n+---+---+\n\n[^1]: [a]: http://x\n");
+
+        // Assert: the grid table is still a grid table (the document was not read again without grid tables) and the blocks nest
+        Assert.Equal(
+            new[] { "GridTable:+---+---+\n| a | b |\n+---+---+", "UnreferencedFootnote:[^1]:", "LinkReferenceDefinition:[a]: http://x" },
+            document.Blocks.Select(b => $"{b.Kind}:{TextOf(document, b)}"));
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a document that is read without grid tables still nests with a dropped footnote that has a definition on its marker line.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_InvalidGridTableAndDroppedFootnoteBeforeDefinition_BlocksNest()
+    {
+        // Arrange / Act: parse a valid and an invalid grid table (the fallback) and a dropped footnote with a definition behind its marker
+        var document = Parse("+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n\n[^1]: [a]: http://x\n");
+
+        // Assert: the document was read without grid tables, the footnote ends before its definition, and the blocks nest
+        Assert.DoesNotContain(document.Blocks, b => b.Kind == BlockKind.GridTable);
+        var kinds = document.Blocks.Where(b => b.Kind is BlockKind.UnreferencedFootnote or BlockKind.LinkReferenceDefinition).Select(b => TextOf(document, b));
+        Assert.Equal(["[^1]:", "[a]: http://x"], kinds);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a definition ends at its destination when the title on the next line is rejected, and keeps a valid title.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expected">The expected blocks, each as the kind, a colon and the text of its span.</param>
+    [Theory]
+    [InlineData("[a]: /u\n\"t\" x\n", new[] { "LinkReferenceDefinition:[a]: /u", "Paragraph:\"t\" x" })]
+    [InlineData("[a]: /u\n(t) x\ny\n", new[] { "LinkReferenceDefinition:[a]: /u", "Paragraph:(t) x\ny" })]
+    [InlineData("> [a]: /u\n> \"t\" x\n", new[] { "BlockQuote:> [a]: /u\n> \"t\" x", "LinkReferenceDefinition:[a]: /u", "Paragraph:\"t\" x" })]
+    [InlineData("- [a]: /u\n  (t) x\n", new[] { "List:- [a]: /u\n  (t) x", "ListItem:- [a]: /u\n  (t) x", "LinkReferenceDefinition:[a]: /u", "Paragraph:(t) x" })]
+    [InlineData("- [^n]: [^n]:\n  (t) x\n", new[] { "List:- [^n]: [^n]:\n  (t) x", "ListItem:- [^n]: [^n]:\n  (t) x", "UnreferencedFootnote:[^n]: [^n]:", "Paragraph:(t) x" })]
+    [InlineData("[a]: /u\n\"t\"\n", new[] { "LinkReferenceDefinition:[a]: /u\n\"t\"" })]
+    [InlineData("[a]: /u\n\"\"\n", new[] { "LinkReferenceDefinition:[a]: /u\n\"\"" })]
+    public void DocumentParser_Parse_DefinitionWithRejectedNextLineTitle_EndsAtDestination(string text, string[] expected)
+    {
+        // Arrange / Act: parse a definition followed by a line that starts like a title but has text after it (and valid titles for contrast)
+        var document = Parse(text);
+
+        // Assert: the definition ends at its destination unless its title is valid, the text is a paragraph, and nothing overlaps
+        Assert.Equal(expected, document.Blocks.Select(b => $"{b.Kind}:{TextOf(document, b)}"));
+        var definitions = document.Blocks.Where(b => b.Kind is BlockKind.LinkReferenceDefinition or BlockKind.UnreferencedFootnote).ToList();
+        Assert.All(
+            document.Blocks.Where(b => b.Kind == BlockKind.Paragraph),
+            paragraph => Assert.DoesNotContain(definitions, d => d.Start <= paragraph.EndInclusive && paragraph.Start <= d.EndInclusive));
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a line that looks like a grid table row but is not a valid grid table leaves blocks that nest.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expected">The expected blocks, each as the kind, a colon and the text of its span.</param>
+    [Theory]
+    [InlineData("para\n+---+---+\n", new[] { "Paragraph:para\n+---+---+" })]
+    [InlineData("+---+---+\n# head\n", new[] { "Paragraph:+---+---+", "Heading:# head" })]
+    [InlineData("> quote\n+---+---+\n> more\n", new[] { "BlockQuote:> quote\n+---+---+\n> more", "Paragraph:quote\n+---+---+\n> more" })]
+    [InlineData("- item\n+---+---+\n- next\n", new[] { "List:- item\n+---+---+\n- next", "ListItem:- item\n+---+---+", "Paragraph:item\n+---+---+", "ListItem:- next", "Paragraph:next" })]
+    public void DocumentParser_Parse_InvalidGridTable_BlocksDoNotOverlap(string text, string[] expected)
+    {
+        // Arrange / Act: parse a document whose grid-table-looking line is not a valid grid table
+        var document = Parse(text);
+
+        // Assert: the line is read as ordinary text and the blocks nest
+        Assert.Equal(expected, document.Blocks.Select(b => $"{b.Kind}:{TextOf(document, b)}"));
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a document with only a valid grid table still has a grid table block.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_ValidGridTableOnly_IsGridTable()
+    {
+        // Arrange / Act: parse a valid grid table
+        var document = Parse("+---+---+\n| a | b |\n+---+---+\n");
+
+        // Assert: it is exactly one grid table
+        var block = Assert.Single(document.Blocks);
+        Assert.Equal(BlockKind.GridTable, block.Kind);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a document with a valid and an invalid grid table is read without grid tables.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_ValidAndInvalidGridTable_ReadsWithoutGridTables()
+    {
+        // Arrange / Act: parse a valid grid table followed by a grid-table-looking line that is not valid
+        var document = Parse("+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n");
+
+        // Assert: the valid table is read as ordinary text too, and the blocks nest
+        Assert.DoesNotContain(document.Blocks, b => b.Kind == BlockKind.GridTable);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
     ///     Test that a link reference definition inside a block quote reports the quote as its parent and the next depth.
     /// </summary>
     [Fact]
@@ -1034,9 +1253,17 @@ public class DocumentParserTests
             "T[^n] [a].\n\n[^n]: Note\n    more\n\n[^n]: repeated\n\n[^u]: unused\n\n[a]: http://x\ntext\n",
             "> [a]: http://x\n> text\n>\n> - [b]: http://y\n>   item\n",
             "- item\n\n  $$\n  math\n- next\n\n1. [^q]: note\n",
-            "| a | b |\n|---|---|\n| 1 | 2 |\n\n+---+\n| x |\n+---+\n"
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\n+---+\n| x |\n+---+\n",
+
+            // A valid and an invalid grid table (takes the grid table fallback), and a valid grid table next to a dropped footnote with a definition on its marker line
+            "+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n\n[^1]: [a]: http://x\n",
+            "+---+---+\n| a | b |\n+---+---+\n\n[^1]: [a]: http://x\n\n[^m]: [^n]: x\n"
         ];
         var expected = texts.Select(t => SummarizeWithDepth(Parse(t))).ToList();
+
+        // The two documents differ in the fallback: the first loses its grid table, the second keeps it
+        Assert.DoesNotContain(Parse(texts[5]).Blocks, b => b.Kind == BlockKind.GridTable);
+        Assert.Contains(Parse(texts[6]).Blocks, b => b.Kind == BlockKind.GridTable);
 
         // Act: parse every document many times concurrently
         var results = new List<(BlockKind Kind, int Depth, string Text)>[texts.Length * 32];

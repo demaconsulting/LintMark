@@ -86,13 +86,13 @@ sections:
               The Document subsystem shall report each block-level construct of a Markdown file (headings,
               paragraphs, code, math, HTML, thematic breaks, quotes, lists, tables, front matter, link
               reference definitions, and footnote definitions) as a block with its kind, exact source range,
-              nesting depth, and enclosing block, listed in source order and identical for LF, CRLF, and mixed
-              line endings.
+              nesting depth, and enclosing block, listed in source order, with sibling blocks never overlapping
+              and every block lying inside its enclosing block, identical for LF, CRLF, and mixed line endings.
             justification: |
               Linting and formatting need to know exactly which characters belong to which construct and
               where that construct sits in the document. The result must not depend on the file's
-              line-ending style, and no text may be left unaccounted for, because a rewrite could
-              otherwise delete it.
+              line-ending style, and ranges must never overlap or escape their parent, because a rewrite
+              patches ranges in place and overlapping ranges would corrupt the text.
             children:
               - LintMark-Document-DocumentParser-BlockKinds
               - LintMark-Document-DocumentParser-SourceOrder
@@ -114,6 +114,10 @@ sections:
               - DocumentSubsystem_SyntheticDefinitionsAndFootnotes_Lf_HaveNoSpanViolations
               - DocumentSubsystem_SyntheticDefinitionsAndFootnotes_CrLf_HaveNoSpanViolations
               - DocumentSubsystem_SyntheticNesting_DefinitionDepthAndParent_MatchContainerChain
+              - DocumentSubsystem_RandomDocuments_Lf_BlocksNestWithoutOverlap
+              - DocumentSubsystem_RandomDocuments_CrLf_BlocksNestWithoutOverlap
+              - DocumentSubsystem_RandomDocumentsWithValidGridTables_Lf_KeepGridTablesAndNest
+              - DocumentSubsystem_RandomDocumentsWithValidGridTables_CrLf_KeepGridTablesAndNest
 
           - id: LintMark-Document-Dialect
             title: >-

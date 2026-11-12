@@ -28,6 +28,7 @@ sections:
                   - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
                   - DocumentParser_Parse_PipeTable_IsTableWithGfmCells
                   - DocumentParser_Parse_GridTable_IsGridTable
+                  - DocumentParser_Parse_ValidGridTableOnly_IsGridTable
                   - DocumentParser_Parse_FrontMatter_IsFrontMatterBlock
                   - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
 
@@ -65,6 +66,16 @@ sections:
                   - DocumentParser_Parse_DefinitionInContainerFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
                   - DocumentParser_Parse_DefinitionFollowedByLiteralGreaterThan_ParagraphKeepsTheCharacter
                   - DocumentParser_Parse_FootnoteFollowedByIndentedHtmlBlock_FootnoteContainsHtmlBlock
+                  - DocumentParser_Parse_UnreferencedFootnoteBeforeDefinitionInContainer_BlocksDoNotOverlap
+                  - DocumentParser_Parse_InvalidGridTable_BlocksDoNotOverlap
+                  - DocumentParser_Parse_ValidAndInvalidGridTable_ReadsWithoutGridTables
+                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_FootnoteEndsBeforeDefinition
+                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks
+                  - DocumentParser_Parse_DroppedFootnoteBeforeFootnoteMarkerOnSameLine_BothAreReportedWithoutOverlap
+                  - DocumentParser_Parse_ReferencedFootnoteBeforeDefinitionOnSameLine_DefinitionIsChild
+                  - DocumentParser_Parse_ValidGridTableAndDroppedFootnoteBeforeDefinition_KeepsGridTable
+                  - DocumentParser_Parse_InvalidGridTableAndDroppedFootnoteBeforeDefinition_BlocksNest
+                  - DocumentParser_Parse_DefinitionWithRejectedNextLineTitle_EndsAtDestination
 
               - id: LintMark-Document-DocumentParser-NestingDepth
                 title: >-
@@ -113,6 +124,11 @@ sections:
                   - DocumentParser_Parse_AdjacentUnreferencedFootnotes_AreBothReported
                   - DocumentParser_Parse_FootnoteDefinitionInBlockQuote_IsFootnoteNotLinkDefinition
                   - DocumentParser_Parse_FootnoteDefinitionInListItem_IsFootnoteNotLinkDefinition
+                  - DocumentParser_Parse_UnreferencedFootnoteBeforeDefinitionInContainer_BlocksDoNotOverlap
+                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_FootnoteEndsBeforeDefinition
+                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks
+                  - DocumentParser_Parse_DroppedFootnoteBeforeFootnoteMarkerOnSameLine_BothAreReportedWithoutOverlap
+                  - DocumentParser_Parse_ReferencedFootnoteBeforeDefinitionOnSameLine_DefinitionIsChild
 
               - id: LintMark-Document-DocumentParser-FootnoteLookalikes
                 title: >-
@@ -138,6 +154,7 @@ sections:
                   - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
                   - DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent
                   - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionWithRejectedNextLineTitle_EndsAtDestination
 
               - id: LintMark-Document-DocumentParser-InlineConstructs
                 title: >-

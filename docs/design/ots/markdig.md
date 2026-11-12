@@ -28,6 +28,18 @@ is a widely used, actively maintained .NET parser with a CommonMark-compliant co
 Not used: automatic heading identifiers, generic attributes, the advanced extension bundle, trivia tracking,
 and rendering to HTML.
 
+Grid table behavior: Markdig's grid table parser mishandles a line that looks like a grid table row but is not
+a valid grid table (it rebuilds a paragraph without a proper start, parses the following line twice, and can
+attach the paragraph to the wrong parent). `DocumentParser` therefore validates the blocks of every parse and,
+when they do not nest, parses the text once more with a second private pipeline that has no grid tables. A
+document with both a valid and an invalid grid table is thus read without grid tables; this is deliberate and
+silent in Phase 1.
+
+Definition and footnote span behavior: a link reference definition whose title on the next line is rejected (text
+follows it) keeps the title in its span, with a null title, and a definition inside a footnote that the parser
+drops (no reference) stays a link reference definition. `DocumentParser` ends such a definition at its
+destination and ends the dropped footnote before it.
+
 ### Integration Pattern
 
 Markdig is consumed as a NuGet package reference of the main project. `DocumentParser` builds one immutable

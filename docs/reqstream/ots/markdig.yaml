@@ -25,6 +25,8 @@ sections:
               - Markdig_LinkReferenceDefinitions_ExposeLabelUrlTitleAndSpan
               - Markdig_UnclosedFence_SpanCoversOnlyOpeningLine
               - Markdig_ListSpan_IncludesTrailingNewline
+              - Markdig_LinkReferenceDefinition_RejectedNextLineTitle_SpanStillCoversTitle
+              - Markdig_DroppedFootnote_DefinitionOnMarkerLine_DefinitionSurvives
 
           - id: LintMark-OTS-Markdig-Extensions
             title: >-

@@ -136,6 +136,107 @@ internal static class SpanTilingAssertions
     }
 
     /// <summary>
+    ///     Checks only the nesting properties of a parsed document: spans are valid and ordered, siblings
+    ///     are disjoint, every block lies inside its parent and parentage and depth are consistent. Any two
+    ///     blocks are disjoint or nested.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <returns>One message per violation, formatted <c>path:line:col: description</c>; empty when the document passes.</returns>
+    /// <remarks>
+    ///     Unlike <see cref="Check"/> this does not require that all source text is accounted for: adversarial
+    ///     documents (text that looks like a footnote, invalid tables) legitimately leave text between blocks.
+    /// </remarks>
+    public static IReadOnlyList<string> CheckNesting(ParsedDocument document)
+    {
+        var violations = new List<string>();
+        var source = document.Source;
+        var text = source.Text;
+        void Fail(int offset, string description)
+        {
+            var (line, column) = source.PositionOf(Math.Clamp(offset, 0, text.Length));
+            violations.Add($"{source.Path}:{line}:{column}: {description}");
+        }
+
+        // Spans must be valid before anything else can be checked
+        var valid = new List<BlockInfo>();
+        foreach (var block in document.Blocks)
+        {
+            if (block.Start < 0 || block.EndInclusive < block.Start || block.EndInclusive >= text.Length)
+            {
+                Fail(block.Start, $"{block.Kind}: invalid span [{block.Start}..{block.EndInclusive}]");
+            }
+            else
+            {
+                valid.Add(block);
+            }
+        }
+
+        // Blocks must be listed in source order, an enclosing block before the blocks it encloses
+        for (var i = 1; i < valid.Count; i++)
+        {
+            if (valid[i].Start < valid[i - 1].Start || (valid[i].Start == valid[i - 1].Start && valid[i].Depth < valid[i - 1].Depth))
+            {
+                Fail(valid[i].Start, $"{valid[i].Kind}: blocks are not in source order");
+            }
+        }
+
+        var byNode = new Dictionary<Block, BlockInfo>(ReferenceEqualityComparer.Instance);
+        foreach (var block in valid.Where(b => b.Node != null))
+        {
+            byNode[block.Node!] = block;
+        }
+
+        foreach (var block in valid)
+        {
+            CheckContainment(block, byNode, Fail);
+            CheckParentage(block, valid, byNode, Fail);
+        }
+
+        // Siblings (blocks with the same parent) must be disjoint
+        foreach (var group in valid.GroupBy(b => b.Parent, ReferenceEqualityComparer.Instance as IEqualityComparer<Block?>))
+        {
+            BlockInfo? previous = null;
+            foreach (var kid in group.OrderBy(b => b.Start).ThenBy(b => b.Depth))
+            {
+                if (previous != null && kid.Start <= previous.EndInclusive)
+                {
+                    Fail(kid.Start, $"{previous.Kind}/{kid.Kind}: siblings overlap");
+                }
+
+                previous = kid;
+            }
+        }
+
+        // Any two blocks are disjoint or nested, and the innermost block that is open at a block is its parent
+        // (this also catches a block that starts inside a block without a node, which can never be its parent)
+        var open = new Stack<BlockInfo>();
+        foreach (var block in valid)
+        {
+            while (open.Count > 0 && open.Peek().EndInclusive < block.Start)
+            {
+                open.Pop();
+            }
+
+            if (open.Count > 0 && block.EndInclusive > open.Peek().EndInclusive)
+            {
+                Fail(block.Start, $"{open.Peek().Kind}/{block.Kind}: blocks overlap without nesting");
+            }
+            else if (open.Count > 0 && (open.Peek().Node is null || !ReferenceEquals(open.Peek().Node, block.Parent)))
+            {
+                Fail(block.Start, $"{block.Kind}: lies inside {open.Peek().Kind}, which is not its parent");
+            }
+            else if (open.Count == 0 && block.Parent != null)
+            {
+                Fail(block.Start, $"{block.Kind}: has a parent but lies inside no block");
+            }
+
+            open.Push(block);
+        }
+
+        return violations;
+    }
+
+    /// <summary>
     ///     Checks that a block without a parent is top level and lies in no container, and that a block with a parent is one level deeper than it.
     /// </summary>
     /// <param name="block">The block.</param>
