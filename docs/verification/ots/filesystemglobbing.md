@@ -18,7 +18,7 @@ the LintMark project. The tests use a temporary directory tree and in-memory pat
 
 ### Test Scenarios
 
-#### FileSystemGlobbing_Matcher_RecursiveInclude_MatchesNestedFiles
+#### Recursive include matches files at every depth
 
 **Scenario**: A `**` include is executed against a directory tree.
 
@@ -26,7 +26,7 @@ the LintMark project. The tests use a temporary directory tree and in-memory pat
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_Exclude_RemovesMatches
+#### Exclude removes the files it matches
 
 **Scenario**: An include and an exclude pattern are executed against a tree.
 
@@ -34,7 +34,7 @@ the LintMark project. The tests use a temporary directory tree and in-memory pat
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_DirectoryExcludeAnyDepth_RemovesRootAndNestedDirectories
+#### Directory exclude removes the directory at every depth
 
 **Scenario**: An exclude of the form `**/name/**` is executed against a tree with the directory at the root
 and nested.
@@ -43,7 +43,7 @@ and nested.
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_NoMatches_ReturnsEmpty
+#### Pattern without matches gives an empty result
 
 **Scenario**: A pattern that matches nothing is executed.
 
@@ -51,7 +51,7 @@ and nested.
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_InMemoryMatch_AppliesIncludeAndExclude
+#### In-memory path list is matched with include and exclude
 
 **Scenario**: A matcher is applied to an in-memory list of relative paths.
 
@@ -59,7 +59,7 @@ and nested.
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_Wildcards_StarMatchesWithinSegment
+#### Star matches within one path segment only
 
 **Scenario**: A single-segment `*` pattern is applied to nested files.
 
@@ -67,7 +67,7 @@ and nested.
 
 **Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
-#### FileSystemGlobbing_Matcher_CaseSensitivityMode_ControlsMatching
+#### Case sensitivity follows the matcher setting
 
 **Scenario**: The same pattern is executed with case-sensitive and case-insensitive comparison.
 

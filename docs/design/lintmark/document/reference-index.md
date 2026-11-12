@@ -18,8 +18,11 @@ already collapsed); `NormalizedLabel` has whitespace collapsed and the case fold
 matching; `Start` and `EndInclusive` are offsets of the definition's own range; `Line` is 1-based.
 
 Definitions come from the definition blocks' own ranges, never from the parser's group shells or tree
-order (quirk Q-3), so positions are exact and in source order. Footnote definitions, referenced or not,
-are not link reference definitions and are excluded.
+order, so positions are exact and in source order. Definitions inside block quotes and list items are
+included. Footnote definitions are not link reference definitions and are excluded wherever they stand:
+referenced, unreferenced, repeated, or inside a quote or list item (the parser reads a footnote definition
+inside a quote or list item as a link reference definition with a label that begins with `^`, but
+`DocumentParser` classifies it as a footnote, so it never reaches this unit as a link definition).
 
 #### Key Methods
 
@@ -50,8 +53,9 @@ string. The index is immutable after `Build`.
 
 - **SourceDocument** — line numbers.
 - **Markdig** — the `LinkReferenceDefinition` block type.
-- `BlockInfo` and `BlockKind` — plain value types that the `DocumentParser` unit declares and produces.
-  They are inputs only, so there is no call back into the parser and no dependency cycle.
+- `BlockInfo` and `BlockKind` — plain value types that the `DocumentParser` unit declares and produces. They
+  are inputs only: this unit never calls the parser, so the dependency is a cycle of types (the parser builds
+  this unit and this unit reads the parser's types) but not of behavior.
 
 #### Callers
 

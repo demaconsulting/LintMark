@@ -2,13 +2,16 @@
 
 #### Verification Approach
 
-`LintMarkEngine` is verified with unit tests in `LintMarkEngineTests.cs`. Real temporary files, the real
-`FileDiscovery`, `SourceDocument`, and `DocumentParser`, and a real `Context` writing to a log file are used
-for the normal scenarios. Two constructor seams isolate behavior that cannot be provoked reliably otherwise:
-the `documentParser` seam makes the parser throw for chosen files (parse failure for one file only), and the
-`fileProcessor` seam delays chosen files so that completion order is the reverse of input order (ordered
-reporting). Determinism is verified by comparing a run with one worker and a run with many workers over many
-generated files, some of them failing.
+`LintMarkEngine` is verified with unit tests in `LintMarkEngineTests.cs`. Real temporary files (the
+`TemporaryDirectory` test helper), the real `FileDiscovery`, `SourceDocument`, and `DocumentParser`, and a real
+`Context` writing to a log file are used for the normal scenarios; the run helper `Execute` makes the temporary
+directory the current directory, runs the engine, and returns the exit code and the lines written. Constructor
+seams isolate behavior that cannot be provoked reliably otherwise: the `documentParser` seam makes the parser
+throw for chosen files (parse failure for one file only), and the `fileProcessor` seam replaces the per-file work
+to delay chosen files so that completion order is the reverse of input order (ordered reporting), to make files
+wait for one another (proof that files really run at the same time), and to count how many run at once.
+Determinism is verified by comparing a run with one worker and a run with many workers over many generated
+files, some of them failing.
 
 #### Test Environment
 
@@ -21,77 +24,71 @@ console output run in the sequential test collection.
 - Valid files and empty selections produce no output and exit code 0.
 - Missing files, directories given as files, invalid UTF-8, UTF-16, bare carriage returns, and parser failures
   are reported with the documented rule identifier, position, and message, and exit code 1.
+- A failure in one file never prevents the other files from being processed.
 - Results and output are ordered by path and then by position, whatever the input order, the degree of
   parallelism, or the completion order.
-- Constructor arguments are validated.
+- Files run at the same time when parallelism allows it, and never when it is limited to one.
+- Invalid constructor and method arguments are rejected.
 
 #### Test Scenarios
 
-**LintMarkEngine_Process_ValidFiles_ReturnsNoFailures**: Valid files give results with empty failure lists.
-Tested by `LintMarkEngine_Process_ValidFiles_ReturnsNoFailures`.
+##### Normal operation
 
-**LintMarkEngine_Process_InvalidUtf8_ReportsEncodingError**: A file with invalid UTF-8 gives a
-`file-encoding-error` at the position of the byte. Tested by
-`LintMarkEngine_Process_InvalidUtf8_ReportsEncodingError`.
+**Valid files give no failures**: Valid files give results with empty failure lists.
 
-**LintMarkEngine_Process_LoneCr_ReportsLineEndingError**: A file with a bare carriage return gives a
-`file-line-ending-error`. Tested by `LintMarkEngine_Process_LoneCr_ReportsLineEndingError`.
+**Empty file list gives an empty result**: Processing no files returns no results.
 
-**LintMarkEngine_Process_Utf16File_ReportsEncodingError**: A UTF-16 file gives a `file-encoding-error` at
-1:1. Tested by `LintMarkEngine_Process_Utf16File_ReportsEncodingError`.
+**Input order does not change the result order**: Shuffling the input gives the same result order.
 
-**LintMarkEngine_Process_MissingFile_ReportsReadError**: A missing file gives a `file-read-error` at 1:1 with
-the message `File not found`. Tested by `LintMarkEngine_Process_MissingFile_ReportsReadError`.
+**Results stay path-sorted when later files finish first**: With the completion order inverted by the file
+processor seam, the results are still sorted by path.
 
-**LintMarkEngine_Process_DirectoryAsFile_ReportsReadError**: A directory passed as a file gives a
-`file-read-error`. Tested by `LintMarkEngine_Process_DirectoryAsFile_ReportsReadError`.
+**Files run at the same time when workers are available**: With four workers, files that wait for one another
+complete without timing out and at least two are in flight together.
 
-**LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly**: A parser that throws for one file
-gives a `file-parse-error` naming the exception type for that file, and the other files are unaffected.
-Tested by `LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly`.
+**Parallel and sequential runs of a large set give identical results**: Over at least 200 generated files,
+including failing ones, one worker and many workers give identical results.
 
-**LintMarkEngine_Process_NoFiles_ReturnsEmpty**: An empty file list gives an empty result. Tested by
-`LintMarkEngine_Process_NoFiles_ReturnsEmpty`.
+**Clean run writes nothing and exits with zero**: A run over valid files writes no line and leaves the exit code
+at 0.
 
-**LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder**: Shuffling the input does not change the
-result order. Tested by `LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder`.
+**Failures are written as formatted lines in path order**: Failures are written as
+`path:line:col: rule-id message` with relative paths, in path order, and the exit code is 1.
 
-**LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted**: With completion order inverted by
-the file processor seam, results are still sorted by path. Tested by
-`LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted`.
+**Glob without matches writes nothing and exits with zero**: A glob that selects no file is not an error.
 
-**LintMarkEngine_Process_ParallelismOne_RunsSequentially**: A limit of one never runs two files at once.
-Tested by `LintMarkEngine_Process_ParallelismOne_RunsSequentially`.
+**Check option behaves like the default**: With `--check` the output and exit code equal those of the default.
 
-**LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults**: Over at least 200 generated
-files, including failing ones, one worker and many workers give identical results. Tested by
-`LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults`.
+**Several failures of one file are ordered by position**: They are written ordered by line, column, and rule
+identifier.
 
-**LintMarkEngine_Constructor_ParallelismBelowOne_ThrowsArgumentOutOfRangeException**: A limit below one is
-rejected. Tested by `LintMarkEngine_Constructor_ParallelismBelowOne_ThrowsArgumentOutOfRangeException`.
+##### Boundary conditions
 
-**LintMarkEngine_RunAndProcess_NullArguments_Throw**: Null arguments to `Run` and `Process` are rejected.
-Tested by `LintMarkEngine_RunAndProcess_NullArguments_Throw`.
+**One worker never runs two files at once**: A limit of one gives a maximum concurrency of one.
 
-**LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero**: A clean run writes nothing and the exit code is
-0. Tested by `LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero`.
+**Missing explicit file is reported with its relative path**: A file named on the command line that does not
+exist is reported as a read failure.
 
-**LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder**: Failures are written as
-`path:line:col: rule-id message` with relative paths, in path order, and the exit code is 1. Tested by
-`LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder`.
+##### Error handling
 
-**LintMarkEngine_Run_MissingExplicitFile_ReportsReadError**: A missing file named on the command line is
-reported as a read failure. Tested by `LintMarkEngine_Run_MissingExplicitFile_ReportsReadError`.
+**Invalid UTF-8 is reported as an encoding error**: A file with invalid UTF-8 gives a `file-encoding-error` at
+the position of the first bad byte.
 
-**LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero**: A glob without matches writes nothing
-and the exit code is 0. Tested by `LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero`.
+**Bare carriage return is reported as a line-ending error**: A file with a bare carriage return gives a
+`file-line-ending-error` at its position.
 
-**LintMarkEngine_Run_CheckFlag_BehavesLikeDefault**: With `--check` the output and exit code equal those of
-the default. Tested by `LintMarkEngine_Run_CheckFlag_BehavesLikeDefault`.
+**UTF-16 file is reported as an encoding error**: A UTF-16 file gives a `file-encoding-error` at 1:1.
 
-**LintMarkEngine_Run_ParserFailure_ReportsParseError**: A parser failure is written as a `file-parse-error`
-line. Tested by `LintMarkEngine_Run_ParserFailure_ReportsParseError`.
+**Missing file is reported as a read error**: A missing file gives a `file-read-error` at 1:1 with the message
+`File not found`.
 
-**LintMarkEngine_Run_MultipleFailuresInFile_AreOrderedByPosition**: Several failures of one file are written
-ordered by line, column, and rule identifier. Tested by
-`LintMarkEngine_Run_MultipleFailuresInFile_AreOrderedByPosition`.
+**Directory given as a file is reported as a read error**: A path that cannot be read as a file gives a
+`file-read-error`.
+
+**Parser exception is reported for that file only**: A parser that throws for one file gives a
+`file-parse-error` naming the exception type for that file, and the other files are unaffected; the same failure
+is written as a `file-parse-error` line by `Run`.
+
+**Degree of parallelism below one is rejected**: The constructor throws `ArgumentOutOfRangeException`.
+
+**Null arguments are rejected**: Null arguments to `Run` and `Process` throw `ArgumentNullException`.

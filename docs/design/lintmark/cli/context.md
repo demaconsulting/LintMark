@@ -94,7 +94,9 @@ Takes `_outputLock` so the writer is never disposed while another thread is writ
 #### Error Handling
 
 `Create` throws `ArgumentException` ("Unsupported argument '{arg}'") for any unrecognized
-dash-leading argument or missing required value, and
+dash-leading argument (including a lone `-`) and for an empty argument (the message is then
+"Unsupported argument ''"; an empty string is never a path), ("{arg} requires {description}") for an
+option whose required value is missing or not an accepted integer, and
 ("--validate cannot be combined with paths or --check") for the self-validation conflict. It throws
 `InvalidOperationException` ("Failed to open log file '{path}': {detail}") when the `--log` file
 cannot be opened. Both exceptions propagate to `Program.Main`, which reports them as

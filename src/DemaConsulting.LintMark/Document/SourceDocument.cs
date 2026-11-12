@@ -29,7 +29,7 @@ namespace DemaConsulting.LintMark.Document;
 /// <remarks>
 ///     <para>
 ///         The Markdown parser renders multi-line code spans differently for LF and CRLF input
-///         (spike quirk Q-4), so all parsing and offset arithmetic is done on LF-normalized
+///         (the CRLF code-span difference), so all parsing and offset arithmetic is done on LF-normalized
 ///         <see cref="Text"/> and the original terminators are only recorded (as counts) so they can be
 ///         restored on write. Mixed files are supported; a bare carriage return is rejected rather than
 ///         silently rewritten.

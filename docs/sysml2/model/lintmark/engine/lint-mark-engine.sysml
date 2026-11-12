@@ -8,7 +8,8 @@ package LintMark {
             description = "Discovers the selected files, processes them in parallel and reports failures in a deterministic order (also documents the FileResult and FileFailure supporting types).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Engine/LintMarkEngine.cs",
-                "src/DemaConsulting.LintMark/Engine/FileResult.cs");
+                "src/DemaConsulting.LintMark/Engine/FileResult.cs",
+                "src/DemaConsulting.LintMark/Engine/FileFailure.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineTests.cs");
             designFiles = ("docs/design/lintmark/engine/lint-mark-engine.md");
             verificationFiles = ("docs/verification/lintmark/engine/lint-mark-engine.md");

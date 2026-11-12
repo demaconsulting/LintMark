@@ -20,81 +20,75 @@ N/A - standard test environment.
   identifier and position.
 - A UTF-8 byte order mark is preserved and restored; a file without one gets none.
 - Unchanged text written back in the original terminator style reproduces the original bytes.
+- Positions are 1-based, count UTF-16 code units, and convert back to the same offsets.
 
 #### Test Scenarios
 
-**SourceDocument_Create_LfOnly_KeepsTextAndCountsLf**: A file with LF terminators keeps its text and
-counts only LF terminators. Tested by `SourceDocument_Create_LfOnly_KeepsTextAndCountsLf`.
+##### Normal operation
 
-**SourceDocument_Create_CrLf_NormalizesToLfAndCountsCrLf**: A CRLF file is normalized to LF and counts CRLF
-terminators. Tested by `SourceDocument_Create_CrLf_NormalizesToLfAndCountsCrLf`.
+**LF file keeps its text and counts LF terminators**: A file with LF terminators keeps its text and counts only
+LF terminators.
 
-**SourceDocument_Create_MixedEndings_IsMixedAndMajorityResolved**: A file with both terminators reports
-`IsMixed` and resolves the majority style. Tested by
-`SourceDocument_Create_MixedEndings_IsMixedAndMajorityResolved`.
+**CRLF file is normalized to LF**: A CRLF file gets LF text and counts CRLF terminators.
 
-**SourceDocument_MajorityLineEnding_Tie_IsLf**: Equal counts resolve to LF. Tested by
-`SourceDocument_MajorityLineEnding_Tie_IsLf`.
+**Mixed terminators are detected and the majority is resolved**: A file with both terminators reports `IsMixed`
+and resolves the majority style.
 
-**SourceDocument_MajorityLineEnding_NoTerminators_IsLf**: A file without terminators resolves to LF.
-Tested by `SourceDocument_MajorityLineEnding_NoTerminators_IsLf`.
+**Final newline is detected**: `HasFinalNewline` is true only when the text ends with a terminator.
 
-**SourceDocument_Create_EmptyFile_HasSingleEmptyLine**: An empty file has one empty line and no final
-newline. Tested by `SourceDocument_Create_EmptyFile_HasSingleEmptyLine`.
+**UTF-8 byte order mark is stripped and remembered**: The mark is removed from the text, `HasBom` is true, and
+the encoding emits it again.
 
-**SourceDocument_Create_FinalNewline_IsDetected**: `HasFinalNewline` is true only when the text ends with a
-terminator. Tested by `SourceDocument_Create_FinalNewline_IsDetected`.
+**File without a byte order mark gets none**: Writing a file that had no mark adds none.
 
-**SourceDocument_Create_Utf8Bom_IsStrippedAndPreserved**: A UTF-8 byte order mark is removed from the text,
-`HasBom` is true, and the encoding emits it again. Tested by
-`SourceDocument_Create_Utf8Bom_IsStrippedAndPreserved`.
+**FromText normalizes like Create**: Text given to `FromText` is normalized and validated exactly as bytes given
+to `Create`.
 
-**SourceDocument_Create_NoBom_WritesNoBom**: A file without a byte order mark gets none when written.
-Tested by `SourceDocument_Create_NoBom_WritesNoBom`.
+**Line table records every line**: `LineStarts` holds the start of every line, including the empty line after a
+final newline.
 
-**SourceDocument_Create_Utf16Bom_ThrowsEncodingError**: A UTF-16 byte order mark raises a
-`file-encoding-error` at 1:1. Tested by `SourceDocument_Create_Utf16Bom_ThrowsEncodingError`.
+**Offsets and positions convert both ways**: `OffsetOf` is the inverse of `PositionOf` for every offset.
 
-**SourceDocument_Create_InvalidUtf8_ThrowsWithPosition**: An invalid byte raises a `file-encoding-error`
-at the line and column of the byte. Tested by `SourceDocument_Create_InvalidUtf8_ThrowsWithPosition`.
+**Slice returns the requested characters**: `Slice` returns the characters of the requested range of the
+normalized text.
 
-**SourceDocument_Create_LoneCr_ThrowsLineEndingErrorWithPosition**: A bare carriage return raises a
-`file-line-ending-error` at its position. Tested by
-`SourceDocument_Create_LoneCr_ThrowsLineEndingErrorWithPosition`.
+**LF file is restored byte for byte**: An LF file written back with LF reproduces its bytes.
 
-**SourceDocument_FromText_TrailingCr_ThrowsLineEndingError**: A carriage return at the very end of the text
-is a bare carriage return. Tested by `SourceDocument_FromText_TrailingCr_ThrowsLineEndingError`.
+**CRLF file is restored byte for byte**: A CRLF file written back with CRLF reproduces its bytes.
 
-**SourceDocument_FromText_Crlf_NormalizesLikeCreate**: `FromText` normalizes exactly like `Create`. Tested
-by `SourceDocument_FromText_Crlf_NormalizesLikeCreate`.
+**File with byte order mark and CRLF is restored byte for byte**: Both the mark and the terminators are
+reproduced.
 
-**SourceDocument_Create_NullPath_ThrowsArgumentNullException**: A null path is rejected. Tested by
-`SourceDocument_Create_NullPath_ThrowsArgumentNullException`.
+**Normalized text is converted to the requested terminator style**: The static `ToDisk` produces LF or CRLF text
+as requested.
 
-**SourceDocument_LineStarts_RecordEveryLine**: The line table has the start of every line, including the
-empty line after a final newline. Tested by `SourceDocument_LineStarts_RecordEveryLine`.
+##### Boundary conditions
 
-**SourceDocument_PositionOf_TabsAndSurrogates_CountsUtf16UnitsWithTabAsOne**: Columns count UTF-16 code
-units (a surrogate pair is two) and a tab is one. Tested by
-`SourceDocument_PositionOf_TabsAndSurrogates_CountsUtf16UnitsWithTabAsOne`.
+**Equal LF and CRLF counts resolve to LF**: A tie gives `Lf` as the majority style.
 
-**SourceDocument_OffsetOf_RoundTripsWithPositionOf**: `OffsetOf` is the inverse of `PositionOf` for every
-offset. Tested by `SourceDocument_OffsetOf_RoundTripsWithPositionOf`.
+**File without terminators resolves to LF**: The majority style of a file with no terminator is `Lf`.
 
-**SourceDocument_PositionAndOffset_OutOfRange_Throw**: Offsets, lines, and columns outside the document raise
-`ArgumentOutOfRangeException`. Tested by `SourceDocument_PositionAndOffset_OutOfRange_Throw`.
+**Empty file has a single empty line**: An empty file is a valid document with one empty line and no final
+newline.
 
-**SourceDocument_Slice_ReturnsRequestedCharacters**: `Slice` returns the requested characters. Tested by
-`SourceDocument_Slice_ReturnsRequestedCharacters`.
+**Columns count UTF-16 code units and a tab counts as one**: A surrogate pair counts as two columns and a tab as
+one; positions are 1-based.
 
-**SourceDocument_ToBytes_Lf_RestoresOriginalBytes**: An LF file written back with LF reproduces its bytes.
-Tested by `SourceDocument_ToBytes_Lf_RestoresOriginalBytes`.
+**Carriage return at the very end of the text is a bare carriage return**: `FromText` rejects it as a line-ending
+failure.
 
-**SourceDocument_ToBytes_CrLf_RestoresOriginalBytes**: A CRLF file written back with CRLF reproduces its
-bytes. Tested by `SourceDocument_ToBytes_CrLf_RestoresOriginalBytes`.
+##### Error handling
 
-**SourceDocument_ToBytes_BomAndCrLf_RestoresOriginalBytes**: A file with a byte order mark and CRLF
-terminators is restored byte for byte. Tested by `SourceDocument_ToBytes_BomAndCrLf_RestoresOriginalBytes`.
+**UTF-16 byte order mark is an encoding failure**: A UTF-16 mark raises `file-encoding-error` at line 1,
+column 1.
 
-**SourceDocument_ToDisk_Target_ConvertsLineEndings**: The static `ToDisk` converts normalized text to the
-requested terminator style. Tested by `SourceDocument_ToDisk_Target_ConvertsLineEndings`.
+**Invalid UTF-8 is reported at the first bad byte**: The failure is `file-encoding-error` with the line and column
+of the byte.
+
+**Bare carriage return is reported with its position**: The failure is `file-line-ending-error` at the line and
+column of the carriage return.
+
+**Null path is rejected**: `Create` and `FromText` throw `ArgumentNullException` for null arguments.
+
+**Positions outside the document are rejected**: Offsets, lines, and columns outside the document raise
+`ArgumentOutOfRangeException`.

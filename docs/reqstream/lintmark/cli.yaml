@@ -7,183 +7,185 @@
 # - Subsystem requirements describe the externally visible command-line interface behavior
 
 sections:
-  - title: Cli Subsystem Requirements
-    requirements:
-      - id: LintMark-Cli-ArgumentParsing
-        title: The Cli subsystem shall accept command-line arguments and expose the parsed flag state to callers.
-        justification: |
-          Provides a standardized approach to command-line argument parsing across all
-          DEMA Consulting DotNet Tools. The Context class encapsulates all parsed flags
-          so that the rest of the tool has a single, consistent entry point for reading
-          CLI arguments.
-        children:
-          - LintMark-Context-ArgumentParsing
-        tests:
-          - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag
-          - CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits
+  - title: LintMark Requirements
+    sections:
+      - title: Cli Requirements
+        requirements:
+          - id: LintMark-Cli-ArgumentParsing
+            title: The Cli subsystem shall accept command-line arguments and expose the parsed flag state to callers.
+            justification: |
+              Provides a standardized approach to command-line argument parsing across all
+              DEMA Consulting DotNet Tools. The Context class encapsulates all parsed flags
+              so that the rest of the tool has a single, consistent entry point for reading
+              CLI arguments.
+            children:
+              - LintMark-Cli-Context-ArgumentParsing
+            tests:
+              - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag
+              - CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits
 
-      - id: LintMark-Cli-OutputChannels
-        title: >-
-          The Cli subsystem shall expose output channels (standard output and
-          error) so that callers can produce output without direct console
-          access.
-        justification: |
-          Decoupling output production from direct Console access enables testability
-          and flexible output routing (console, log file, or both) without requiring
-          callers to manage I/O directly.
-        children:
-          - LintMark-Context-ConsoleOutput
-        tests:
-          - CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput
-          - CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr
+          - id: LintMark-Cli-OutputChannels
+            title: >-
+              The Cli subsystem shall expose output channels (standard output and
+              error) so that callers can produce output without direct console
+              access.
+            justification: |
+              Decoupling output production from direct Console access enables testability
+              and flexible output routing (console, log file, or both) without requiring
+              callers to manage I/O directly.
+            children:
+              - LintMark-Cli-Context-ConsoleOutput
+            tests:
+              - CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput
+              - CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr
 
-      - id: LintMark-Cli-Version
-        title: The Cli subsystem shall support -v and --version flags to signal version display.
-        justification: |
-          Users need to quickly identify the version of the tool they are using for
-          troubleshooting and compatibility verification.
-        tests:
-          - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits
-          - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits_WithShortVFlag
+          - id: LintMark-Cli-Version
+            title: The Cli subsystem shall support -v and --version flags to signal version display.
+            justification: |
+              Users need to quickly identify the version of the tool they are using for
+              troubleshooting and compatibility verification.
+            tests:
+              - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits
+              - CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits_WithShortVFlag
 
-      - id: LintMark-Cli-Help
-        title: The Cli subsystem shall support -?, -h, and --help flags to signal help display.
-        justification: |
-          Users need access to command-line usage documentation without requiring
-          external resources.
-        tests:
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag
-          - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag
+          - id: LintMark-Cli-Help
+            title: The Cli subsystem shall support -?, -h, and --help flags to signal help display.
+            justification: |
+              Users need access to command-line usage documentation without requiring
+              external resources.
+            tests:
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag
+              - CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag
 
-      - id: LintMark-Cli-Silent
-        title: The Cli subsystem shall support --silent flag to suppress console output.
-        justification: |
-          Enables automated scripts and CI/CD pipelines to run the tool without
-          cluttering output logs.
-        children:
-          - LintMark-Context-Silent
-        tests:
-          - CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput
+          - id: LintMark-Cli-Silent
+            title: The Cli subsystem shall support --silent flag to suppress console output.
+            justification: |
+              Enables automated scripts and CI/CD pipelines to run the tool without
+              cluttering output logs.
+            children:
+              - LintMark-Cli-Context-Silent
+            tests:
+              - CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput
 
-      - id: LintMark-Cli-Validate
-        title: The Cli subsystem shall support --validate flag to signal self-validation.
-        justification: |
-          Provides a built-in mechanism to verify the tool is functioning correctly
-          in the deployment environment.
-        tests:
-          - CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits
+          - id: LintMark-Cli-Validate
+            title: The Cli subsystem shall support --validate flag to signal self-validation.
+            justification: |
+              Provides a built-in mechanism to verify the tool is functioning correctly
+              in the deployment environment.
+            tests:
+              - CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits
 
-      - id: LintMark-Cli-Results
-        title: The Cli subsystem shall support --results flag to specify a test results output file.
-        justification: |
-          Enables integration with CI/CD systems that expect standard test result formats.
-        tests:
-          - CliSubsystem_ResultsFlow_ContextAndProgram_WritesResultsFile
+          - id: LintMark-Cli-Results
+            title: The Cli subsystem shall support --results flag to specify a test results output file.
+            justification: |
+              Enables integration with CI/CD systems that expect standard test result formats.
+            tests:
+              - CliSubsystem_ResultsFlow_ContextAndProgram_WritesResultsFile
 
-      - id: LintMark-Cli-Depth
-        title: The Cli subsystem shall support --depth flag to control the heading depth of markdown output.
-        justification: |
-          Enables validation output to be embedded within larger markdown documents at
-          the appropriate heading level, supporting documentation workflows that combine
-          multiple reports.
-        tests:
-          - CliSubsystem_DepthFlow_ContextAndProgram_AdjustsHeadingDepth
+          - id: LintMark-Cli-Depth
+            title: The Cli subsystem shall support --depth flag to control the heading depth of markdown output.
+            justification: |
+              Enables validation output to be embedded within larger markdown documents at
+              the appropriate heading level, supporting documentation workflows that combine
+              multiple reports.
+            tests:
+              - CliSubsystem_DepthFlow_ContextAndProgram_AdjustsHeadingDepth
 
-      - id: LintMark-Cli-Log
-        title: The Cli subsystem shall support --log flag to write output to a log file.
-        justification: |
-          Provides persistent logging for debugging and audit trails.
-        children:
-          - LintMark-Context-LogOutput
-          - LintMark-Context-LogFailure
-        tests:
-          - CliSubsystem_LogFlow_ContextAndProgram_WritesLogFile
+          - id: LintMark-Cli-Log
+            title: The Cli subsystem shall support --log flag to write output to a log file.
+            justification: |
+              Provides persistent logging for debugging and audit trails.
+            children:
+              - LintMark-Cli-Context-LogOutput
+              - LintMark-Cli-Context-LogFailure
+            tests:
+              - CliSubsystem_LogFlow_ContextAndProgram_WritesLogFile
 
-      - id: LintMark-Cli-ErrorOutput
-        title: The Cli subsystem shall write error messages to stderr.
-        justification: |
-          Error messages must be written to stderr so they remain visible to the user
-          without polluting stdout, which consumers may pipe or redirect for data capture.
-        children:
-          - LintMark-Context-ErrorOutput
-        tests:
-          - CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr
+          - id: LintMark-Cli-ErrorOutput
+            title: The Cli subsystem shall write error messages to stderr.
+            justification: |
+              Error messages must be written to stderr so they remain visible to the user
+              without polluting stdout, which consumers may pipe or redirect for data capture.
+            children:
+              - LintMark-Cli-Context-ErrorOutput
+            tests:
+              - CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr
 
-      - id: LintMark-Cli-InvalidArgs
-        title: The Cli subsystem shall reject unknown or malformed command-line arguments with a descriptive error.
-        justification: |
-          Providing clear feedback for invalid arguments helps users quickly correct
-          mistakes and prevents silent misconfiguration.
-        children:
-          - LintMark-Context-InvalidArgs
-        tests:
-          - CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero
+          - id: LintMark-Cli-InvalidArgs
+            title: The Cli subsystem shall reject unknown or malformed command-line arguments with a descriptive error.
+            justification: |
+              Providing clear feedback for invalid arguments helps users quickly correct
+              mistakes and prevents silent misconfiguration.
+            children:
+              - LintMark-Cli-Context-InvalidArgs
+            tests:
+              - CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero
 
-      - id: LintMark-Cli-ExitCode
-        title: The Cli subsystem shall return a non-zero exit code on failure.
-        justification: |
-          Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
-          programmatically via the process exit code.
-        children:
-          - LintMark-Context-ExitCode
-        tests:
-          - CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero
+          - id: LintMark-Cli-ExitCode
+            title: The Cli subsystem shall return a non-zero exit code on failure.
+            justification: |
+              Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
+              programmatically via the process exit code.
+            children:
+              - LintMark-Cli-Context-ExitCode
+            tests:
+              - CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero
 
-      - id: LintMark-Cli-ResultAlias
-        title: The Cli subsystem shall accept `--result` as a legacy alias for `--results` when parsing arguments.
-        justification: |
-          Backward compatibility with scripts that use the earlier `--result` spelling
-          prevents breakage when upgrading to newer tool versions.
-        tests:
-          - CliSubsystem_ResultAliasFlow_ContextAndProgram_WritesResultsFile
+          - id: LintMark-Cli-ResultAlias
+            title: The Cli subsystem shall accept `--result` as a legacy alias for `--results` when parsing arguments.
+            justification: |
+              Backward compatibility with scripts that use the earlier `--result` spelling
+              prevents breakage when upgrading to newer tool versions.
+            tests:
+              - CliSubsystem_ResultAliasFlow_ContextAndProgram_WritesResultsFile
 
-      - id: LintMark-Cli-Paths
-        title: >-
-          The Cli subsystem shall accept positional arguments as the paths, directories, globs, and exclusions
-          that select the Markdown files to process, and shall pass them to the tool logic in the order given.
-        justification: |
-          Users select the files to process on the command line. Distinguishing positional paths from
-          options in one place gives every other subsystem a single, consistent view of the selection.
-        children:
-          - LintMark-Context-Paths
-        tests:
-          - CliSubsystem_PathsFlow_ContextAndProgram_ParsesFilesAndExitsZero
-          - CliSubsystem_PathsFlow_UnreadableFile_ReportsDiagnosticAndExitsNonZero
+          - id: LintMark-Cli-Paths
+            title: >-
+              The Cli subsystem shall accept positional arguments as the paths, directories, glob patterns, and
+              exclusions that select the Markdown files to process.
+            justification: |
+              Users select the files to process on the command line. Distinguishing positional paths from
+              options in one place gives every other subsystem a single, consistent view of the selection.
+            children:
+              - LintMark-Cli-Context-Paths
+            tests:
+              - CliSubsystem_PathsFlow_ContextAndProgram_ParsesFilesAndExitsZero
+              - CliSubsystem_PathsFlow_UnreadableFile_ReportsDiagnosticAndExitsNonZero
 
-      - id: LintMark-Cli-Check
-        title: The Cli subsystem shall support the `--check` flag to request reporting without modifying files.
-        justification: |
-          Pipelines and hooks need to state explicitly that they only want problems reported. The flag
-          must be parsed and passed on so that it keeps working when file-modifying modes are added.
-        children:
-          - LintMark-Context-Check
-        tests:
-          - CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged
+          - id: LintMark-Cli-Check
+            title: The Cli subsystem shall support the `--check` flag to request reporting without modifying files.
+            justification: |
+              Pipelines and hooks need to state explicitly that they only want problems reported. The flag
+              must be accepted so that it keeps working when file-modifying modes are added.
+            children:
+              - LintMark-Cli-Context-Check
+            tests:
+              - CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged
 
-      - id: LintMark-Cli-ValidateExclusive
-        title: The Cli subsystem shall reject `--validate` combined with positional paths or `--check`.
-        justification: |
-          Self-validation ignores file arguments, so accepting them would silently discard part of
-          the command line. Rejecting the combination as a usage error prevents a misleading
-          success.
-        children:
-          - LintMark-Context-ValidateExclusive
-        tests:
-          - CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero
+          - id: LintMark-Cli-ValidateExclusive
+            title: The Cli subsystem shall reject `--validate` combined with positional paths or `--check`.
+            justification: |
+              Self-validation ignores file arguments, so accepting them would silently discard part of
+              the command line. Rejecting the combination as a usage error prevents a misleading
+              success.
+            children:
+              - LintMark-Cli-Context-ValidateExclusive
+            tests:
+              - CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero
 
-      - id: LintMark-Cli-ThreadSafeOutput
-        title: >-
-          The Cli subsystem shall keep output lines intact and the exit code correct when output is written
-          from several threads at once.
-        justification: |
-          Files are processed in parallel. Even though results are reported from one thread today,
-          the shared output channels must stay correct if any caller writes concurrently, so that
-          console and log output are never garbled and an error is never lost.
-        children:
-          - LintMark-Context-ThreadSafeOutput
-        tests:
-          - CliSubsystem_OutputFlow_ConcurrentWriters_KeepsLinesIntactAndSetsExitCode
+          - id: LintMark-Cli-ThreadSafeOutput
+            title: >-
+              The Cli subsystem shall keep output lines intact and the exit code correct when output is written
+              from several threads at once.
+            justification: |
+              Files are processed in parallel, and callers may report from any thread. The shared
+              output channels must stay correct under concurrent use, so that console and log output
+              are never garbled and an error is never lost.
+            children:
+              - LintMark-Cli-Context-ThreadSafeOutput
+            tests:
+              - CliSubsystem_OutputFlow_ConcurrentWriters_KeepsLinesIntactAndSetsExitCode

@@ -1,149 +1,172 @@
 ---
 # Software Unit Requirements for the DocumentParser Class
 #
-# The DocumentParser class parses a loaded document with LintMark's fixed Markdown dialect and
-# delivers a flattened, source-ordered block list with corrected source ranges.
+# The DocumentParser class turns a loaded document into a source-ordered list of blocks, using one fixed
+# Markdown dialect.
 
 sections:
-  - title: DocumentParser Unit Requirements
-    requirements:
-      - id: LintMark-DocumentParser-Parse
-        title: >-
-          The DocumentParser class shall parse a document with a fixed Markdown dialect (pipe tables, grid
-          tables, YAML front matter, footnotes, task lists, automatic links, strikethrough, alerts, and math) and
-          classify its blocks by kind, nesting depth, and parent, together with its suppression directives and
-          link reference definitions.
-        justification: |
-          The meaning of a document must not depend on configuration or on which extensions a user
-          has enabled. One fixed dialect makes every later rule and rewrite reproducible, and a
-          classified block list is the common input of all of them.
-        children:
-          - LintMark-OTS-Markdig-Spans
-          - LintMark-OTS-Markdig-Extensions
-        tests:
-          - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
-          - DocumentParser_Parse_EmptyDocument_ReturnsNoBlocks
-          - DocumentParser_Parse_NullSource_ThrowsArgumentNullException
-          - DocumentParser_Parse_NestedContainers_ReportsDepthAndParents
-          - DocumentParser_Parse_VariousBlocks_AreClassified
-          - DocumentParser_Parse_InlineExtensions_AreRecognized
-          - DocumentParser_Parse_Headings_HaveNoAutoIdentifiers
-          - DocumentParser_Parse_CommentsAndDefinitions_PopulatesSuppressionsAndReferences
+  - title: LintMark Requirements
+    sections:
+      - title: Document Requirements
+        sections:
+          - title: DocumentParser Requirements
+            requirements:
+              - id: LintMark-Document-DocumentParser-BlockKinds
+                title: >-
+                  The DocumentParser class shall classify each block of a document as a heading, paragraph,
+                  fenced code block, unclosed fenced code block, indented code block, math block, HTML block,
+                  thematic break, block quote (including alerts), list, list item, pipe table, grid table, YAML
+                  front matter, link reference definition, or footnote definition.
+                justification: |
+                  Pipe tables, grid tables, and front matter follow their own layout rules, and quotes, lists,
+                  and code each need different handling. Treating them all as paragraphs would make rules
+                  report or rewrite their contents incorrectly, so every later rule starts from the kind of
+                  each block.
+                children:
+                  - LintMark-OTS-Markdig-Extensions
+                tests:
+                  - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
+                  - DocumentParser_Parse_PipeTable_IsTableWithGfmCells
+                  - DocumentParser_Parse_GridTable_IsGridTable
+                  - DocumentParser_Parse_FrontMatter_IsFrontMatterBlock
+                  - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
 
-      - id: LintMark-DocumentParser-SourceOrder
-        title: >-
-          The DocumentParser class shall list blocks in source order, enclosing blocks before the blocks they
-          contain, without synthetic grouping blocks or blocks without source text.
-        justification: |
-          Consumers walk the list from top to bottom as a reader would. Synthetic nodes that have no
-          source text would otherwise appear as phantom constructs.
-        tests:
-          - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
-          - DocumentParser_Parse_NestedContainers_ReportsDepthAndParents
-          - DocumentParser_Parse_ReferenceAndFootnoteGroups_Q3_SourceOrderedNoShells
+              - id: LintMark-Document-DocumentParser-SourceOrder
+                title: >-
+                  The DocumentParser class shall list blocks in source order, with enclosing blocks before the
+                  blocks they contain.
+                justification: |
+                  Consumers walk the list from top to bottom as a reader would, and expect every block to
+                  stand for text that is actually written in the document.
+                tests:
+                  - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
+                  - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
 
-      - id: LintMark-DocumentParser-TablesAndFrontMatter
-        title: >-
-          The DocumentParser class shall distinguish pipe tables, grid tables, and YAML front matter from
-          other blocks.
-        justification: |
-          These constructs follow their own layout rules. Treating them as paragraphs would make rules
-          report or rewrite their contents incorrectly.
-        tests:
-          - DocumentParser_Parse_PipeTable_IsTableWithGfmCells
-          - DocumentParser_Parse_GridTable_IsGridTable
-          - DocumentParser_Parse_FrontMatter_IsFrontMatterBlock
+              - id: LintMark-Document-DocumentParser-ExactRanges
+                title: >-
+                  The DocumentParser class shall report for each block the range from its first to its last
+                  visible character, never including a line terminator, so that no block overlaps a block
+                  that is not nested in it.
+                justification: |
+                  Blocks are compared, reported, and rewritten by range. A range that includes a trailing
+                  line terminator, or that overlaps a neighbor, would claim text that belongs to another
+                  construct and make a rewrite change the wrong characters.
+                children:
+                  - LintMark-OTS-Markdig-Spans
+                tests:
+                  - DocumentParser_Parse_ListFollowedByBlankLine_EndsOnLastVisibleCharacter
+                  - DocumentParser_Parse_IndentedCodeFollowedByBlankLine_EndsOnLastVisibleCharacter
+                  - DocumentParser_Parse_Tabs_ListCodeAndTextSpansAreExact
+                  - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
+                  - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionInBlockQuoteFollowedByText_ParagraphDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionInContainerFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionFollowedByLiteralGreaterThan_ParagraphKeepsTheCharacter
 
-      - id: LintMark-DocumentParser-UnclosedFence
-        title: >-
-          The DocumentParser class shall report a fenced code block without a closing fence as such, covering
-          everything up to the end of its enclosing container or the end of the file.
-        justification: |
-          Everything after an opening fence is code until it is closed. If only the opening line were
-          covered, the rest of the code would be mistaken for prose and a rewrite could damage it.
-        tests:
-          - DocumentParser_Parse_UnclosedFence_Q1_EffectiveSpanReachesEnd
-          - DocumentParser_Parse_UnclosedFenceInQuote_Q1_EndsWithParent
+              - id: LintMark-Document-DocumentParser-NestingDepth
+                title: >-
+                  The DocumentParser class shall report the nesting depth and the enclosing block of every block,
+                  including link reference definitions and footnote definitions inside block quotes and list
+                  items.
+                justification: |
+                  Rules and rewrites treat a construct differently depending on where it sits, for example a
+                  definition inside a quote must stay inside that quote. The position in the document
+                  structure must therefore be correct for every kind of block.
+                tests:
+                  - DocumentParser_Parse_NestedContainers_ReportsDepthAndParents
+                  - DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent
+                  - DocumentParser_Parse_DefinitionInListItem_ReportsDepthAndParent
+                  - DocumentParser_Parse_DefinitionInNestedContainers_ReportsDepthAndParent
+                  - DocumentParser_Parse_FootnoteDefinitionInListItem_ReportsDepthAndParent
 
-      - id: LintMark-DocumentParser-TrailingNewline
-        title: >-
-          The DocumentParser class shall end every block on its last visible character, never on a line
-          terminator.
-        justification: |
-          Blocks are compared, reported, and rewritten by range. A range that includes a trailing
-          newline would claim part of the next line and make adjacent blocks appear to overlap.
-        tests:
-          - DocumentParser_Parse_ListTrailingNewline_Q2_EffectiveEndTrimmed
-          - DocumentParser_Parse_IndentedCodeTrailingNewline_Q2_EffectiveEndTrimmed
+              - id: LintMark-Document-DocumentParser-UnclosedCode
+                title: >-
+                  The DocumentParser class shall report a fenced code block or math block that has no closing
+                  delimiter as an unclosed fenced code block extending to the end of its enclosing container, or
+                  to the end of the document at top level.
+                justification: |
+                  Everything after an opening fence is code until it is closed. If only the opening line were
+                  covered, the rest of the code would be mistaken for prose and a rewrite could damage it.
+                tests:
+                  - DocumentParser_Parse_UnclosedFence_ExtendsToEndOfDocument
+                  - DocumentParser_Parse_UnclosedFenceInQuote_EndsWithQuote
+                  - DocumentParser_Parse_UnclosedFenceInListItem_EndsWithListItem
+                  - DocumentParser_Parse_UnclosedMathBlock_ExtendsToEndOfDocument
+                  - DocumentParser_Parse_UnclosedMathBlockInListItem_EndsWithListItem
 
-      - id: LintMark-DocumentParser-UnreferencedFootnote
-        title: >-
-          The DocumentParser class shall report footnote definitions that no text refers to, without
-          reporting footnote-like text inside other blocks.
-        justification: |
-          A footnote definition is document content even when nothing refers to it. The underlying
-          parser silently drops such definitions, so a rewrite would delete the author's text.
-        tests:
-          - DocumentParser_Parse_UnreferencedFootnote_Q3_DetectedByScan
-          - DocumentParser_Parse_FootnoteLikeLineInCode_Q3_IsNotReported
+              - id: LintMark-Document-DocumentParser-FootnoteDefinitions
+                title: >-
+                  The DocumentParser class shall report every footnote definition of a document as a block that
+                  starts at its `[^label]:` marker, whether or not text refers to it, whether or not its label
+                  is repeated, and whether it stands at top level or inside a block quote or list item.
+                justification: |
+                  A footnote definition is document content even when nothing refers to it or when its label
+                  is mistakenly repeated. If it were not reported, a rewrite would delete the author's text,
+                  and a footnote must never be mistaken for a link reference definition.
+                tests:
+                  - DocumentParser_Parse_UnreferencedFootnote_IsReportedWithItsRange
+                  - DocumentParser_Parse_ReferencedFootnote_RangeIncludesLabelMarker
+                  - DocumentParser_Parse_DuplicateFootnoteDefinition_SecondIsReported
+                  - DocumentParser_Parse_AdjacentUnreferencedFootnotes_AreBothReported
+                  - DocumentParser_Parse_FootnoteDefinitionInBlockQuote_IsFootnoteNotLinkDefinition
+                  - DocumentParser_Parse_FootnoteDefinitionInListItem_IsFootnoteNotLinkDefinition
 
-      - id: LintMark-DocumentParser-NormalizedLineEndings
-        title: >-
-          The DocumentParser class shall produce the same block structure for a document regardless of whether
-          it was written with LF or CRLF line endings.
-        justification: |
-          Line-ending style is not content. The underlying parser renders multi-line code spans
-          differently for CRLF input, so the document must be parsed in its normalized form.
-        tests:
-          - DocumentParser_Parse_CrLfCodeSpan_Q4_ParsesLfNormalizedText
+              - id: LintMark-Document-DocumentParser-FootnoteLookalikes
+                title: >-
+                  The DocumentParser class shall not report text that only looks like a footnote definition,
+                  such as a line inside code or an indented line inside a footnote, as a footnote definition.
+                justification: |
+                  Code samples and footnote bodies may contain text shaped like a definition marker. Reporting
+                  it as a definition would split the surrounding block, and a rewrite could then change text
+                  that belongs to the code or to the footnote.
+                tests:
+                  - DocumentParser_Parse_FootnoteLikeTextInCode_IsNotReported
+                  - DocumentParser_Parse_IndentedFootnoteLikeLineInFootnote_IsNotReportedAsDefinition
 
-      - id: LintMark-DocumentParser-LazyLines
-        title: >-
-          The DocumentParser class shall identify which continuation lines of a paragraph or heading are lazy,
-          meaning they omit the prefix of their enclosing block quote or list item.
-        justification: |
-          A lazy line belongs to the paragraph although it lacks the container prefix. Rewriting it
-          like a normal line could move it out of its container and change the document's meaning.
-        tests:
-          - DocumentParser_GetLines_LazyContinuation_Q5_FlagsLazyLines
-          - DocumentParser_GetLines_LazySetextLookalike_Q5_IsParagraphTextAndLazy
+              - id: LintMark-Document-DocumentParser-ReferenceDefinitions
+                title: >-
+                  The DocumentParser class shall report each link reference definition as its own block with its
+                  own range, wherever it appears in the document.
+                justification: |
+                  Rules about reference-style links and rewrites that move definitions need to find each
+                  definition and its exact extent, including definitions that stand next to other text or
+                  inside other blocks.
+                tests:
+                  - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
+                  - DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent
+                  - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
 
-      - id: LintMark-DocumentParser-ParagraphLines
-        title: >-
-          The DocumentParser class shall give, for each line of a paragraph or heading, the exact range of its
-          content after any block quote, list, or footnote prefix, and the prefix that continuation lines
-          would carry.
-        justification: |
-          Wrapping and reflowing text requires the text of each line without its container markers,
-          and the container prefix to put back in front of re-wrapped lines.
-        tests:
-          - DocumentParser_GetLines_ParagraphLines_Q8_RebuiltFromSpan
-          - DocumentParser_GetLines_NestedContainers_R4_ContentStartIsFirstInline
-          - DocumentParser_GetLines_MultiLineCodeSpan_R4_FallsBackToPrefixStripping
-          - DocumentParser_GetLines_TabIndentedContinuation_ContentStartAfterTab
-          - DocumentParser_GetContinuationPrefix_R5_BlanksMarkers
-          - DocumentParser_GetLines_SetextHeading_ReturnsTextAndUnderlineLines
-          - DocumentParser_GetLines_NullArguments_Throw
+              - id: LintMark-Document-DocumentParser-InlineConstructs
+                title: >-
+                  The DocumentParser class shall recognize task list items, automatic links, strikethrough, and
+                  math in the text of a document.
+                justification: |
+                  Documents use these constructs, and later rules must treat them as what they are instead of
+                  as plain characters.
+                children:
+                  - LintMark-OTS-Markdig-Extensions
+                tests:
+                  - DocumentParser_Parse_InlineConstructs_AreRecognized
 
-      - id: LintMark-DocumentParser-Offsets
-        title: >-
-          The DocumentParser class shall report block ranges as offsets into the document text without its
-          byte order mark, exact for tab-indented content.
-        justification: |
-          Reported positions and rewrites refer to the text as the author sees it. A hidden byte order
-          mark or tab expansion would shift every position by an unpredictable amount.
-        tests:
-          - DocumentParser_Parse_Bom_OffsetsExcludeByteOrderMark
-          - DocumentParser_Parse_Tabs_ListCodeAndTextSpansAreExact
+              - id: LintMark-Document-DocumentParser-NoGeneratedContent
+                title: >-
+                  The DocumentParser class shall not add identifiers, attributes, or definitions that are not
+                  written in the document.
+                justification: |
+                  Content that is not in the file would be reported to the author or written into the file by
+                  a rewrite, and the meaning of a document must not depend on options the user cannot see.
+                tests:
+                  - DocumentParser_Parse_Headings_HaveNoAutoIdentifiers
 
-      - id: LintMark-DocumentParser-ThreadSafe
-        title: >-
-          The DocumentParser class shall allow concurrent calls for different documents and produce for each
-          the same result as a sequential call.
-        justification: |
-          Files are parsed in parallel. A shared mutable parser state would make results depend on
-          scheduling.
-        children:
-          - LintMark-OTS-Markdig-Concurrency
-        tests:
-          - DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks
+              - id: LintMark-Document-DocumentParser-ThreadSafe
+                title: >-
+                  The DocumentParser class shall allow concurrent calls for different documents and produce for
+                  each the same result as a sequential call.
+                justification: |
+                  Files are parsed in parallel. Results that depended on how the calls interleave would make
+                  the output differ from run to run.
+                children:
+                  - LintMark-OTS-Markdig-Concurrency
+                tests:
+                  - DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks

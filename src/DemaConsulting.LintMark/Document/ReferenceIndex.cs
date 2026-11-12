@@ -25,32 +25,14 @@ using Markdig.Syntax;
 namespace DemaConsulting.LintMark.Document;
 
 /// <summary>
-///     One link reference definition (<c>[label]: url "title"</c>).
-/// </summary>
-/// <param name="Label">The label as the parser reports it (case kept, internal whitespace already collapsed).</param>
-/// <param name="NormalizedLabel">The label with whitespace collapsed and case folded, used for matching.</param>
-/// <param name="Url">The link destination.</param>
-/// <param name="Title">The optional title, or <see langword="null"/>.</param>
-/// <param name="Start">Offset of the first character of the definition.</param>
-/// <param name="EndInclusive">Offset of the last character of the definition.</param>
-/// <param name="Line">1-based line of the definition.</param>
-internal sealed record ReferenceDefinition(
-    string Label,
-    string NormalizedLabel,
-    string Url,
-    string? Title,
-    int Start,
-    int EndInclusive,
-    int Line);
-
-/// <summary>
 ///     Index of the link reference definitions in a document.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Definitions are taken from the definition blocks' own spans, never from the parser's
-///         group shells or tree order (quirk Q-3), so positions are exact and in source order. Footnote
-///         definitions are not link reference definitions and are excluded.
+///         group shells or tree order, so positions are exact and in source order. Definitions inside
+///         block quotes and list items are included. Footnote definitions are not link reference
+///         definitions and are excluded, wherever they stand.
 ///     </para>
 ///     <para>
 ///         Matching follows CommonMark: labels are compared after collapsing internal whitespace and

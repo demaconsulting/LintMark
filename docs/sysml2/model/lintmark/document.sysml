@@ -10,6 +10,7 @@ package LintMark {
                 "test/DemaConsulting.LintMark.Tests/Document/DocumentSubsystemTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Document/SpanTilingAssertions.cs",
                 "test/DemaConsulting.LintMark.Tests/Document/SyntheticDocuments.cs",
+                "test/DemaConsulting.LintMark.Tests/Document/SyntheticDocument.cs",
                 "test/DemaConsulting.LintMark.Tests/Document/RepositoryMarkdownFiles.cs");
             designFiles = ("docs/design/lintmark/document.md");
             verificationFiles = ("docs/verification/lintmark/document.md");

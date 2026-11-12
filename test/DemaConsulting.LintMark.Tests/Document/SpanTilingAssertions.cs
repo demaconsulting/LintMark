@@ -20,6 +20,7 @@
 
 using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
+using Markdig.Extensions.Footnotes;
 using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Tests;
@@ -31,8 +32,11 @@ namespace DemaConsulting.LintMark.Tests;
 ///     "Tiling" is the meaningful reading of "re-emitting every block's span reproduces the file":
 ///     the effective block spans must be valid, ordered, contained in their parents and must account
 ///     for all source text, i.e. every character outside the spans is whitespace (top level) or
-///     container prefix text (quote markers, list markers, footnote labels) inside containers.
-///     These are the properties a span-patching formatter depends on.
+///     container prefix text (quote markers, list markers) inside containers. A footnote's own range
+///     includes its <c>[^label]:</c> marker, so the marker is never an uncovered gap; it only appears
+///     as prefix text before the first child of a footnote. Parentage is checked too: a block without a
+///     parent is top level and lies in no container, and a block with a parent is exactly one level
+///     deeper than that parent. These are the properties a span-patching formatter depends on.
 /// </remarks>
 internal static class SpanTilingAssertions
 {
@@ -45,19 +49,31 @@ internal static class SpanTilingAssertions
     ///     Text allowed before a block on its first line: container markers and whitespace.
     /// </summary>
     private static readonly Regex PrefixRegex = new(
+        @"^(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])[ \t]))*[ \t]*$", RegexOptions.CultureInvariant, RegexTimeout);
+
+    /// <summary>
+    ///     Text allowed before a child of a footnote on its first line: the footnote's own marker, as well as container markers and whitespace.
+    /// </summary>
+    private static readonly Regex FootnoteChildPrefixRegex = new(
         @"^(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])[ \t]|\[\^[^\]\s]+\]:))*[ \t]*$", RegexOptions.CultureInvariant, RegexTimeout);
 
     /// <summary>
     ///     Text allowed between the children of a container (and before the first / after the last).
     /// </summary>
     private static readonly Regex GapRegex = new(
+        @"^(?:[ \t\r\n>]|[-+*]|\d{1,9}[.)]|\[![A-Za-z]+\])*$", RegexOptions.CultureInvariant, RegexTimeout);
+
+    /// <summary>
+    ///     Text allowed between the children of a footnote: the gap text plus the footnote's own marker before its first child.
+    /// </summary>
+    private static readonly Regex FootnoteGapRegex = new(
         @"^(?:[ \t\r\n>]|[-+*]|\d{1,9}[.)]|\[\^[^\]\s]+\]:|\[![A-Za-z]+\])*$", RegexOptions.CultureInvariant, RegexTimeout);
 
     /// <summary>
-    ///     Text allowed between top-level blocks: whitespace and footnote labels.
+    ///     Text allowed between top-level blocks: whitespace only.
     /// </summary>
     private static readonly Regex RootGapRegex = new(
-        @"^(?:\s|\[\^[^\]\s]+\]:)*$", RegexOptions.CultureInvariant, RegexTimeout);
+        @"^\s*$", RegexOptions.CultureInvariant, RegexTimeout);
 
     /// <summary>
     ///     A list item must start with its marker.
@@ -112,10 +128,51 @@ internal static class SpanTilingAssertions
             CheckStartAndEnd(source, block, Fail);
             CheckMarkers(text, block, Fail);
             CheckContainment(block, byNode, Fail);
+            CheckParentage(block, valid, byNode, Fail);
         }
 
         CheckSiblingsAndGaps(source, valid, byNode, Fail);
         return violations;
+    }
+
+    /// <summary>
+    ///     Checks that a block without a parent is top level and lies in no container, and that a block with a parent is one level deeper than it.
+    /// </summary>
+    /// <param name="block">The block.</param>
+    /// <param name="blocks">All valid blocks.</param>
+    /// <param name="byNode">Blocks by parser node.</param>
+    /// <param name="fail">Reports a violation.</param>
+    private static void CheckParentage(BlockInfo block, List<BlockInfo> blocks, Dictionary<Block, BlockInfo> byNode, Action<int, string> fail)
+    {
+        if (block.Parent != null)
+        {
+            if (!byNode.TryGetValue(block.Parent, out var parent))
+            {
+                fail(block.Start, $"{block.Kind}: parent is not a block of the document");
+            }
+            else if (block.Depth != parent.Depth + 1)
+            {
+                fail(block.Start, $"{block.Kind}: depth {block.Depth} but parent {parent.Kind} has depth {parent.Depth}");
+            }
+
+            return;
+        }
+
+        // Top level: depth zero, and no container at the same or a shallower level may contain the block
+        // (a container deeper than the block is its own child, e.g. the item of a one-item list)
+        if (block.Depth != 0)
+        {
+            fail(block.Start, $"{block.Kind}: has no parent but depth {block.Depth}");
+        }
+
+        var container = blocks.FirstOrDefault(other => !ReferenceEquals(other, block)
+            && other.Depth <= block.Depth
+            && other.Kind is BlockKind.BlockQuote or BlockKind.List or BlockKind.ListItem or BlockKind.Footnote
+            && other.Start <= block.Start && block.EndInclusive <= other.EndInclusive);
+        if (container != null)
+        {
+            fail(block.Start, $"{block.Kind}: has no parent but lies inside {container.Kind} [{container.Start}..{container.EndInclusive}]");
+        }
     }
 
     /// <summary>
@@ -129,7 +186,10 @@ internal static class SpanTilingAssertions
         var text = source.Text;
         var lineStart = source.LineStarts[source.PositionOf(block.Start).Line - 1];
         var prefix = text[lineStart..block.Start];
-        if (block.Kind != BlockKind.FrontMatter && !PrefixRegex.IsMatch(prefix))
+
+        // The marker of a footnote precedes only the first child of that footnote
+        var prefixRegex = block.Parent is Footnote ? FootnoteChildPrefixRegex : PrefixRegex;
+        if (block.Kind != BlockKind.FrontMatter && !prefixRegex.IsMatch(prefix))
         {
             fail(block.Start, $"{block.Kind}: unexpected text before block start \"{Escape(prefix)}\"");
         }
@@ -201,7 +261,11 @@ internal static class SpanTilingAssertions
         {
             var isRoot = group.Key == null;
             var parent = isRoot ? null : byNode.GetValueOrDefault(group.Key!);
-            var gapRegex = isRoot ? RootGapRegex : GapRegex;
+            var gapRegex = parent?.Kind == BlockKind.Footnote ? FootnoteGapRegex : GapRegex;
+            if (isRoot)
+            {
+                gapRegex = RootGapRegex;
+            }
             var position = parent?.Start ?? 0;
             var end = parent != null ? parent.EndInclusive + 1 : text.Length;
             var parentName = parent?.Kind.ToString() ?? "Document";

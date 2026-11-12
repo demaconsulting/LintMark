@@ -132,7 +132,7 @@ public class MarkdigTests
     }
 
     /// <summary>
-    ///     Documents the unclosed fence quirk (Q-1): the block span covers only the opening line.
+    ///     Documents that the span of an unclosed fenced code block covers only its opening line.
     /// </summary>
     [Fact]
     public void Markdig_UnclosedFence_SpanCoversOnlyOpeningLine()
@@ -150,7 +150,7 @@ public class MarkdigTests
     }
 
     /// <summary>
-    ///     Documents the list span quirk (Q-2): a list followed by a blank line includes the trailing newline.
+    ///     Documents that the span of a list followed by a blank line includes the trailing line feed.
     /// </summary>
     [Fact]
     public void Markdig_ListSpan_IncludesTrailingNewline()
@@ -167,7 +167,7 @@ public class MarkdigTests
     }
 
     /// <summary>
-    ///     Documents the shell quirk (Q-3): reference definitions are grouped in a shell block with their own definition blocks.
+    ///     Documents that link reference definitions are grouped in a shell block that holds the definition blocks with their own spans.
     /// </summary>
     [Fact]
     public void Markdig_LinkReferenceDefinitions_ExposeLabelUrlTitleAndSpan()

@@ -23,21 +23,10 @@ using System.Text;
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
-///     A generated Markdown document made of a chain of containers around a known body.
-/// </summary>
-/// <param name="Name">Unique name encoding the chain, body and laziness (for failure messages).</param>
-/// <param name="Chain">The container chain as letters: Q quote, L bullet, O ordered, N two-digit ordered, T tab-indented bullet.</param>
-/// <param name="Text">The LF document text.</param>
-/// <param name="Lazy">Whether continuation lines omit their container prefixes (lazy continuation).</param>
-/// <param name="ParagraphLines">
-///     The body lines when the body is a plain multi-line paragraph, otherwise <see langword="null"/>.
-/// </param>
-internal sealed record SyntheticDocument(string Name, string Chain, string Text, bool Lazy, IReadOnlyList<string>? ParagraphLines);
-
-/// <summary>
 ///     Generates container-nesting fixtures: every chain of up to three containers from a fixed
 ///     set (quote, bullet, ordered, two-digit ordered, tab-indented bullet) around a set of leaf
-///     bodies, in explicit-prefix and lazy form.
+///     bodies (including link reference definitions, footnote definitions and a paragraph or setext heading after
+///     definitions), in explicit-prefix and lazy form, plus top-level footnote and definition documents.
 /// </summary>
 /// <remarks>
 ///     The generator is deterministic and pure; it is the source of the span-tiling fixtures that
@@ -73,13 +62,39 @@ internal static class SyntheticDocuments
         ("inline-multiline", ["`code", "span` text [lin", "k](http://x \"t\") **bo", "ld**"]),
         ("html", ["<div>", "x", "</div>"]),
         ("quote-then-para", ["text", "> inner quote", "> more"]),
-        ("list-then-para", ["intro", "- inner a", "  cont", "- inner b"])
+        ("list-then-para", ["intro", "- inner a", "  cont", "- inner b"]),
+        ("definition", ["[ref]: http://example.com \"T\""]),
+        ("definition+text", ["[ref]: http://example.com", "text after"]),
+        ("definitions+text", ["[a]: http://a.example", "[b]: http://b.example \"B\"", "text after", "more"]),
+        ("definition+setext", ["[ref]: http://example.com", "Setext heading", "=============="]),
+        ("footnote-def", ["[^n]: note"])
     ];
 
     /// <summary>
     ///     Names of the bodies that consist of one multi-line paragraph.
     /// </summary>
     private static readonly HashSet<string> ParagraphBodies = ["para3", "lazy"];
+
+    /// <summary>
+    ///     Top-level documents with footnotes and definitions: name and text.
+    /// </summary>
+    private static readonly (string Name, string Text)[] FootnoteTexts =
+    [
+        ("referenced", "Text[^n].\n\n[^n]: Note\n"),
+        ("unreferenced", "Text.\n\n[^n]: Note\n"),
+        ("duplicate", "T[^n].\n\n[^n]: one\n\n[^n]: two\n"),
+        ("duplicate-other-case", "T[^N].\n\n[^N]: one\n\n[^n]: two\n"),
+        ("duplicate-adjacent", "[^n]: one\n[^n]: two\n"),
+        ("multi-paragraph", "T[^n].\n\n[^n]: first\n    second\n\n    para two\n\nAfter.\n"),
+        ("lazy-continuation", "T[^n].\n\n[^n]: first\nsecond\n"),
+        ("content-on-next-line", "T[^n].\n\n[^n]:\n    Note\n"),
+        ("indented-marker", "T[^n].\n\n   [^n]: Note\n"),
+        ("definitions-inside-and-after", "T[^n] [a].\n\n[^n]: x\n\n    [a]: http://y\n\n[a]: http://z\ntext\n"),
+        ("then-quote-and-list", "T[^n].\n\n[^n]: x\n\n> quoted\n\n- item\n"),
+        ("indented-lookalike", "T[^n].\n\n[^n]: one\n\n    [^n]: two\n"),
+        ("code-lookalike", "```\n[^n]: code\n```\n\nText[^n].\n\n[^n]: Note\n"),
+        ("definition-then-footnote", "T[^n] [a].\n\n[a]: http://x\ntext\n\n[^n]: Note\n")
+    ];
 
     /// <summary>
     ///     Generates all fixtures.
@@ -107,6 +122,20 @@ internal static class SyntheticDocuments
             }
         }
     }
+
+    /// <summary>
+    ///     Generates the top-level footnote and definition fixtures (no container chain).
+    /// </summary>
+    /// <returns>The fixtures, in a stable order; <see cref="SyntheticDocument.Chain"/> is empty.</returns>
+    public static IEnumerable<SyntheticDocument> GenerateFootnoteDocuments() =>
+        FootnoteTexts.Select(f => new SyntheticDocument($"synth-footnote:{f.Name}", string.Empty, f.Text, false, null));
+
+    /// <summary>
+    ///     Gets the depth that a leaf body has inside a container chain.
+    /// </summary>
+    /// <param name="chain">The chain letters (Q quote; L, O, N and T list items).</param>
+    /// <returns>One level per quote and two per list (the list and its item).</returns>
+    public static int BodyDepth(string chain) => chain.Sum(static c => c == 'Q' ? 1 : 2);
 
     /// <summary>
     ///     Enumerates every container chain of length one to three.

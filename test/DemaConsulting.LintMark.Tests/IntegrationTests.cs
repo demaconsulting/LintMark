@@ -526,6 +526,50 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that naming a third-party folder, or a pattern inside it, skips its files.
+    /// </summary>
+    [Fact]
+    public void LintMark_ThirdPartyFolderProvided_SkipsItsFiles()
+    {
+        // Arrange: undecodable files inside node_modules and .git
+        using var directory = new TemporaryDirectory();
+        directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
+        directory.WriteBytes(".git/bad.md", [0xFF]);
+        var root = directory.FullPath.Replace('\\', '/');
+
+        // Act: run the tool with each folder and with a glob inside one of them
+        var nodeModulesExit = Runner.Run(out var nodeModules, "dotnet", _dllPath, directory.PathOf("node_modules"));
+        var gitExit = Runner.Run(out var git, "dotnet", _dllPath, directory.PathOf(".git"));
+        var globExit = Runner.Run(out var glob, "dotnet", _dllPath, root + "/node_modules/**/*.md");
+
+        // Assert: nothing is read, so nothing is reported
+        Assert.Equal(0, nodeModulesExit);
+        Assert.DoesNotContain("bad.md", nodeModules);
+        Assert.Equal(0, gitExit);
+        Assert.DoesNotContain("bad.md", git);
+        Assert.Equal(0, globExit);
+        Assert.DoesNotContain("bad.md", glob);
+    }
+
+    /// <summary>
+    ///     Test that a file inside a third-party folder is processed when it is named explicitly.
+    /// </summary>
+    [Fact]
+    public void LintMark_ExplicitFileInThirdPartyFolder_IsProcessed()
+    {
+        // Arrange: an undecodable file inside node_modules
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
+
+        // Act: run the tool with the file itself
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: the file is read and its failure reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("bad.md:1:1: file-encoding-error", output);
+    }
+
+    /// <summary>
     ///     Test that a file containing suppression comments, reference definitions and every extension parses successfully.
     /// </summary>
     [Fact]

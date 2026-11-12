@@ -8,7 +8,7 @@
 #   published dotnet DLL end-to-end
 
 sections:
-  - title: System-Level Requirements
+  - title: LintMark Requirements
     requirements:
       - id: LintMark-System-Version
         title: The tool shall display version information when the version flag is provided.
@@ -164,45 +164,91 @@ sections:
         tests:
           - LintMark_ResultAlias_LegacyFlag_WritesResultsFile
 
-      - id: LintMark-System-LintFiles
+      - id: LintMark-System-SelectFiles
         title: >-
-          The tool shall select the Markdown files named by path, directory, glob, and exclusion arguments
-          (every Markdown file under the current directory when none are given), read and parse each one, and
-          report every file that cannot be read or parsed as `path:line:col: rule-id message` with a non-zero
-          exit code.
+          The tool shall select the Markdown files to process from the paths, directories, glob patterns, and
+          exclusions given on the command line, and from the current directory when none is given.
         tags: [system]
         justification: |
-          Reading and understanding Markdown files is the foundation of linting and formatting them.
-          Users need to point the tool at individual files, whole folders, or patterns, and to be told
-          precisely which file cannot be processed and why, without a failure in one file hiding the
-          results for the others. A parse and report capability that is correct for the repository's own
-          documentation is the prerequisite for every later lint rule and formatting feature.
+          Users need to point the tool at individual files, whole folders, or patterns, and to leave
+          some files out. Markdown that belongs to third-party packages or to version control is not
+          the user's own and must not be processed unless the user names the file deliberately.
         children:
-          - LintMark-Program-Lint
           - LintMark-Cli-Paths
           - LintMark-Engine-Discovery
+          - LintMark-Engine-ThirdPartyFolders
+        tests:
+          - LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt
+          - LintMark_GlobAndExclude_Provided_SkipsExcludedFiles
+          - LintMark_ThirdPartyFolderProvided_SkipsItsFiles
+          - LintMark_ExplicitFileInThirdPartyFolder_IsProcessed
+
+      - id: LintMark-System-ParseFiles
+        title: >-
+          The tool shall read and understand every selected Markdown file, including its suppression comments
+          and link reference definitions, without reporting a problem for valid content.
+        tags: [system]
+        justification: |
+          Reading and understanding Markdown files faithfully, so that a file can later be rewritten
+          without being altered, is the foundation of linting and formatting them. A capability that is
+          correct for the repository's own documentation is the prerequisite for every later lint rule
+          and formatting feature, and a problem in one file must not stop the others from being read.
+        children:
+          - LintMark-Program-Lint
           - LintMark-Engine-Processing
-          - LintMark-Engine-FailureReport
           - LintMark-Document-Load
-          - LintMark-Document-Parse
+          - LintMark-Document-WriteBack
+          - LintMark-Document-LineEndingStyle
+          - LintMark-Document-Blocks
+          - LintMark-Document-Dialect
           - LintMark-Document-Suppressions
           - LintMark-Document-References
+          - LintMark-Document-ReferenceLookup
+        tests:
+          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
+          - LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess
+          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
+
+      - id: LintMark-System-ReportFailures
+        title: >-
+          The tool shall report each file that cannot be read or decoded, and only such files, on its own
+          line as `path:line:col: rule-id message`.
+        tags: [system]
+        justification: |
+          Users and build pipelines need to be told precisely which file cannot be processed and why,
+          in a regular format that editors and scripts can read. Silence for good files keeps logs
+          short.
+        children:
+          - LintMark-Engine-FailureReport
+          - LintMark-Engine-SilentOnSuccess
+          - LintMark-Document-InvalidContent
+          - LintMark-Document-Positions
+        tests:
+          - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
+          - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
+
+      - id: LintMark-System-FailureExitStatus
+        title: >-
+          The tool shall exit with a non-zero status when any file cannot be read or decoded, and with zero
+          when every file is processed successfully.
+        tags: [system]
+        justification: |
+          Build pipelines and scripts act on the exit status without reading the output, so it must
+          distinguish a clean run from a run with failures.
+        children:
+          - LintMark-Engine-FailureExitStatus
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
-          - LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt
-          - LintMark_GlobAndExclude_Provided_SkipsExcludedFiles
-          - LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess
-          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
 
       - id: LintMark-System-Check
         title: The tool shall accept a check option that reports problems without modifying any file.
         tags: [system]
         justification: |
           CI/CD pipelines and pre-commit hooks need a mode that can only observe files. Accepting the
-          option explicitly lets scripts state that intent today and keeps their command lines valid
-          when file-modifying modes are added later.
+          option explicitly lets scripts state that intent and keeps their command lines valid when
+          file-modifying modes are added.
         children:
           - LintMark-Cli-Check
         tests:
@@ -214,9 +260,8 @@ sections:
           files are processed concurrently or in what order the arguments are given.
         tags: [system]
         justification: |
-          Files are processed in parallel for speed, but build logs, code review comments, and
-          automated comparisons depend on reproducible output. Reports must therefore never depend on
-          scheduling or on the order in which paths were typed.
+          Build logs, code review comments, and automated comparisons depend on reproducible output.
+          Reports must therefore never depend on scheduling or on the order in which paths were typed.
         children:
           - LintMark-Engine-DeterministicOrder
           - LintMark-Cli-ThreadSafeOutput

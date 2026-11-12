@@ -21,6 +21,9 @@ is a widely used, actively maintained .NET parser with a CommonMark-compliant co
 - Inline types used to locate content: inline HTML (comments), line breaks, and the inline tree of
   paragraphs and headings
 - Link reference definitions with label, destination, title, and range
+- Footnote definitions with their own range and label span, the group nodes that wrap definitions, and the fact
+  that a math block is a kind of fenced code block (so an unclosed math block is recognized like an unclosed
+  fence)
 
 Not used: automatic heading identifiers, generic attributes, the advanced extension bundle, trivia tracking,
 and rendering to HTML.

@@ -3,10 +3,12 @@
 #### Verification Approach
 
 `FileDiscovery` is verified with unit tests in `FileDiscoveryTests.cs`. The real FileSystemGlobbing library
-and a real temporary directory tree are used (a shared tree containing top-level and nested Markdown files,
-a non-Markdown file, a `generated` folder, and files below `node_modules` and `.git`). Tests call `Discover`
-with controlled arguments and compare the result with the expected sorted full paths. No mocking is used
-because the unit's behavior is its interaction with the file system.
+and a real temporary directory tree (the `TemporaryDirectory` test helper) are used. Most tests share a tree
+that contains top-level and nested Markdown files, a non-Markdown file, a `generated` folder, and files below
+`node_modules` and `.git`; the tests for third-party folders build their own trees, including one whose base
+directory lies inside `node_modules`. Tests call `Discover` with controlled arguments and compare the result with
+the expected sorted full paths. No mocking is used because the unit's behavior is its interaction with the
+file system.
 
 #### Test Environment
 
@@ -19,74 +21,94 @@ the platform's comparison rule, so the tests pass on case-sensitive and case-ins
 - Files, directories, relative, parent-relative, absolute, and backslash globs select the documented files.
 - Missing literal paths pass through; patterns without matches return an empty list without error.
 - Exclusions (relative, absolute, directory name, explicit file) remove the files they match.
-- Built-in excludes apply to directory, glob, and default expansion but not to explicit files.
+- Directory, glob, and default expansion never select a file from a `node_modules` or `.git` folder: not when
+  the folder is found beneath the searched directory, and not when the argument names the folder or a glob
+  starts inside it.
+- A file named explicitly is selected even inside such a folder, and a base directory that itself lies inside
+  such a folder still finds its own files, while a root that climbs out of it into or beside a third-party
+  folder selects nothing.
 - The result is distinct, sorted, and independent of argument order.
+- Blank and null arguments are rejected.
 
 #### Test Scenarios
 
-**FileDiscovery_Discover_ExistingFile_ReturnsFullPath**: An existing file argument returns its full path.
-Tested by `FileDiscovery_Discover_ExistingFile_ReturnsFullPath`.
+##### Normal operation
 
-**FileDiscovery_Discover_ExplicitFile_IsNotSubjectToDefaultExcludesOrExtension**: A non-Markdown file and a
-file below `node_modules`, named explicitly, are returned. Tested by
-`FileDiscovery_Discover_ExplicitFile_IsNotSubjectToDefaultExcludesOrExtension`.
+**Existing file is returned as its full path**: An existing file argument returns its full path.
 
-**FileDiscovery_Discover_Directory_ReturnsMarkdownFilesBeneathIt**: A directory argument returns its
-Markdown files at every depth. Tested by `FileDiscovery_Discover_Directory_ReturnsMarkdownFilesBeneathIt`.
+**Explicit file is exempt from the extension and the third-party exclusion**: A non-Markdown file and a file
+below `node_modules`, each named explicitly, are returned.
 
-**FileDiscovery_Discover_RecursiveGlob_ReturnsMatchingFiles**: `docs/**/*.md` returns the matches below
-`docs`. Tested by `FileDiscovery_Discover_RecursiveGlob_ReturnsMatchingFiles`.
+**Directory selects its Markdown files at every depth**: A directory argument returns the `*.md` files beneath
+it.
 
-**FileDiscovery_Discover_SingleSegmentGlob_DoesNotDescend**: `*.md` returns only top-level files. Tested by
-`FileDiscovery_Discover_SingleSegmentGlob_DoesNotDescend`.
+**Recursive glob selects nested files**: `docs/**/*.md` returns the matches below `docs` and ignores other
+extensions.
 
-**FileDiscovery_Discover_BackslashGlob_IsAccepted**: A glob written with backslashes works. Tested by
-`FileDiscovery_Discover_BackslashGlob_IsAccepted`.
+**Single-segment glob does not descend**: `*.md` returns only top-level files.
 
-**FileDiscovery_Discover_AbsoluteGlob_ReturnsMatchingFiles**: An absolute glob returns the matches. Tested by
-`FileDiscovery_Discover_AbsoluteGlob_ReturnsMatchingFiles`.
+**Glob written with backslashes is accepted**: Backslash separators give the same result as slashes.
 
-**FileDiscovery_Discover_ParentRelativeGlob_ReturnsMatchingFiles**: A glob starting with `..` relative to the
-base directory returns the matches. Tested by `FileDiscovery_Discover_ParentRelativeGlob_ReturnsMatchingFiles`.
+**Absolute glob is resolved from its wildcard-free prefix**: An absolute glob returns the matches.
 
-**FileDiscovery_Discover_NoArguments_UsesDefaultPatternAndAppliesBuiltInExcludes**: No arguments select every
-Markdown file under the base directory except below `node_modules` and `.git`. Tested by
-`FileDiscovery_Discover_NoArguments_UsesDefaultPatternAndAppliesBuiltInExcludes`.
+**Parent-relative glob is resolved against the base directory**: A glob that starts with `..` returns the matches.
 
-**FileDiscovery_Discover_DirectoryAndGlob_SkipNodeModulesAndGit**: Directory and glob expansion skip
-`node_modules` and `.git`. Tested by `FileDiscovery_Discover_DirectoryAndGlob_SkipNodeModulesAndGit`.
+**No arguments select the default pattern minus third-party folders**: No arguments select every Markdown file
+under the base directory except below `node_modules` and `.git`.
 
-**FileDiscovery_Discover_ExcludeGlob_RemovesMatches**: A `!` glob removes the files it matches from a
-directory selection. Tested by `FileDiscovery_Discover_ExcludeGlob_RemovesMatches`.
+**Directory and glob expansion skip third-party folders beneath the root**: The files below `node_modules` and
+`.git` found under a searched directory are not selected.
 
-**FileDiscovery_Discover_ExcludeDirectoryName_RemovesEverythingBeneath**: A list with only `!docs/generated`
-selects the default set minus everything beneath that directory. Tested by
-`FileDiscovery_Discover_ExcludeDirectoryName_RemovesEverythingBeneath`.
+**Exclusion glob removes the files it matches**: A `!` glob removes files from a directory selection.
 
-**FileDiscovery_Discover_AbsoluteExclude_RemovesMatches**: An absolute `!` pattern removes matches. Tested by
-`FileDiscovery_Discover_AbsoluteExclude_RemovesMatches`.
+**Excluding a directory name removes everything beneath it**: A list with only `!docs/generated` selects the
+default set minus everything beneath that directory.
 
-**FileDiscovery_Discover_ExcludeMatchingExplicitFile_RemovesIt**: A `!` pattern removes a file that was
-named explicitly. Tested by `FileDiscovery_Discover_ExcludeMatchingExplicitFile_RemovesIt`.
+**Absolute exclusion removes matches**: An absolute `!` pattern removes the files it matches.
 
-**FileDiscovery_Discover_MissingLiteralPath_PassesThrough**: A literal path that does not exist is returned
-as a full path. Tested by `FileDiscovery_Discover_MissingLiteralPath_PassesThrough`.
+**Exclusion also removes an explicitly named file**: A `!` pattern removes a file that was named explicitly.
 
-**FileDiscovery_Discover_GlobWithoutMatches_ReturnsEmpty**: A glob without matches returns an empty list.
-Tested by `FileDiscovery_Discover_GlobWithoutMatches_ReturnsEmpty`.
+**Overlapping arguments give each file once**: A file selected by several arguments is returned once.
 
-**FileDiscovery_Discover_OverlappingArguments_ReturnsDistinctFiles**: A file selected by several arguments is
-returned once. Tested by `FileDiscovery_Discover_OverlappingArguments_ReturnsDistinctFiles`.
+**Argument order does not change the result**: Reordering the arguments gives the same sorted result.
 
-**FileDiscovery_Discover_ArgumentOrder_DoesNotAffectSortedResult**: Reordering the arguments does not change
-the result. Tested by `FileDiscovery_Discover_ArgumentOrder_DoesNotAffectSortedResult`.
+**A third-party folder named together with a file inside it selects only the file**: The arguments
+`node_modules` and `node_modules/pkg/readme.md` select only the file.
 
-**FileDiscovery_Discover_GlobCase_FollowsPlatformComparison**: A glob that differs in letter case matches
-only on platforms with case-insensitive comparison. Tested by
-`FileDiscovery_Discover_GlobCase_FollowsPlatformComparison`.
+##### Boundary conditions
 
-**FileDiscovery_Discover_BlankPattern_ThrowsArgumentException**: Empty, whitespace, and lone `!` arguments
-raise `ArgumentException` (theory). Tested by `FileDiscovery_Discover_BlankPattern_ThrowsArgumentException`.
+**Directory argument naming a third-party folder selects nothing**: The arguments `node_modules` and `.git`
+each select nothing.
 
-**FileDiscovery_Discover_NullArguments_ThrowArgumentNullException**: Null arguments are rejected. Tested by
-`FileDiscovery_Discover_NullArguments_ThrowArgumentNullException`.
+**Nested third-party folder selects nothing**: The argument `docs/node_modules` selects nothing.
+
+**Absolute path to a third-party folder selects nothing**: An absolute argument naming `node_modules` or `.git`
+selects nothing.
+
+**Glob rooted in a third-party folder selects nothing**: Globs whose wildcard-free prefix is or lies inside such
+a folder select nothing: `node_modules/*/*.md`, `node_modules/**/*.md`, `node_modules/**`,
+`node_modules/pkg/*.md`, `.git/**`, `.git/*.md`, `docs/node_modules/**`, `docs/node_modules/**/*.md`, and
+`node_modules\**\*.md`.
+
+**Base directory inside a third-party folder still finds its own files**: With the base directory
+`node_modules/pkg`, no argument, `.`, and `**/*.md` select the files of that directory, a subdirectory argument
+selects its files, and a `node_modules` folder beneath the base directory is still skipped.
+
+**Climbing out of a base directory inside a third-party folder selects nothing**: With the base directory
+`node_modules/pkg`, the arguments `..`, `../other` (a sibling package), and `../**/*.md` select nothing, while
+`../..` selects the Markdown files of the project folder above `node_modules` and skips `node_modules`.
+
+**Glob case follows the platform**: A glob that differs in letter case matches only on platforms with
+case-insensitive comparison.
+
+**Glob without matches returns an empty list**: A glob that matches nothing, or whose directory does not exist,
+returns nothing and is not an error.
+
+##### Error handling
+
+**Missing literal path passes through**: A literal path that does not exist is returned as a full path, so that
+reading it reports the problem.
+
+**Blank patterns are rejected**: Empty, whitespace-only, and lone `!` arguments throw `ArgumentException`.
+
+**Null arguments are rejected**: Null arguments throw `ArgumentNullException`.

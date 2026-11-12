@@ -118,20 +118,63 @@ public class ReferenceIndexTests
     }
 
     /// <summary>
-    ///     Test that definitions inside containers are indexed with exact spans.
+    ///     Test that a definition inside a block quote is indexed with its exact range, label and line.
     /// </summary>
     [Fact]
     public void ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed()
     {
         // Arrange: a definition inside a block quote
-        const string text = "> [q]: http://q\n\nOutside.\n";
+        const string text = "> [q]: http://q \"Quote\"\n\nOutside.\n";
 
         // Act: parse
         var definitions = Parse(text).References.Definitions;
 
-        // Assert: found with its own span
+        // Assert: found with its own span, label, destination, title and line
         var definition = Assert.Single(definitions);
-        Assert.Equal("[q]: http://q", text.Substring(definition.Start, definition.EndInclusive - definition.Start + 1));
+        Assert.Equal("[q]: http://q \"Quote\"", text.Substring(definition.Start, definition.EndInclusive - definition.Start + 1));
+        Assert.Equal("q", definition.Label);
+        Assert.Equal("http://q", definition.Url);
+        Assert.Equal("Quote", definition.Title);
+        Assert.Equal(1, definition.Line);
+    }
+
+    /// <summary>
+    ///     Test that a definition inside a list item is indexed with its exact range, label and line.
+    /// </summary>
+    [Fact]
+    public void ReferenceIndex_Build_DefinitionInListItem_IsIndexed()
+    {
+        // Arrange: a definition on the second line, inside a list item
+        const string text = "Intro.\n\n- [l]: http://l\n- item\n";
+
+        // Act: parse
+        var definitions = Parse(text).References.Definitions;
+
+        // Assert: found with its own span, label, destination and line
+        var definition = Assert.Single(definitions);
+        Assert.Equal("[l]: http://l", text.Substring(definition.Start, definition.EndInclusive - definition.Start + 1));
+        Assert.Equal("l", definition.Label);
+        Assert.Equal("http://l", definition.Url);
+        Assert.Equal(3, definition.Line);
+    }
+
+    /// <summary>
+    ///     Test that definitions in top-level, quoted, listed and nested positions are all indexed in source order.
+    /// </summary>
+    [Fact]
+    public void ReferenceIndex_Build_DefinitionInNestedContainers_IsIndexedInSourceOrder()
+    {
+        // Arrange: a top-level, a quoted, a listed and a quote-list-nested definition, mixed with a link
+        const string text = "[a]: http://a\n\n> [b]: http://b\n\n- [c]: http://c\n\n> - [d]: http://d\n>   [e]: http://e\n\nUse [e].\n";
+
+        // Act: parse and look up
+        var document = Parse(text);
+
+        // Assert: five definitions in source order and each one is found by its label
+        Assert.Equal(["a", "b", "c", "d", "e"], document.References.Definitions.Select(d => d.Label).ToList());
+        Assert.Equal([1, 3, 5, 7, 8], document.References.Definitions.Select(d => d.Line).ToList());
+        Assert.True(document.References.TryGet("D", out var d));
+        Assert.Equal("http://d", d.Url);
     }
 
     /// <summary>
@@ -148,6 +191,37 @@ public class ReferenceIndexTests
 
         // Assert: only the link definition is indexed
         Assert.Equal(["a"], labels);
+    }
+
+    /// <summary>
+    ///     Test that a footnote definition inside a block quote is not indexed as a link reference definition.
+    /// </summary>
+    [Fact]
+    public void ReferenceIndex_Build_FootnoteDefinitionInBlockQuote_IsExcluded()
+    {
+        // Arrange: a footnote definition in a quote next to a real definition in the same quote
+        var document = Parse("> [^q]: note\n>\n> [a]: http://x\n");
+
+        // Act: read the definitions
+        var labels = document.References.Definitions.Select(d => d.Label).ToList();
+
+        // Assert: only the link definition is indexed, and the footnote label cannot be looked up
+        Assert.Equal(["a"], labels);
+        Assert.False(document.References.TryGet("^q", out _));
+    }
+
+    /// <summary>
+    ///     Test that a footnote definition inside a list item is not indexed as a link reference definition.
+    /// </summary>
+    [Fact]
+    public void ReferenceIndex_Build_FootnoteDefinitionInListItem_IsExcluded()
+    {
+        // Arrange: a footnote definition in a list item
+        var document = Parse("- [^n]: Note\n- b\n");
+
+        // Act / Assert: nothing is indexed
+        Assert.Empty(document.References.Definitions);
+        Assert.False(document.References.TryGet("^n", out _));
     }
 
     /// <summary>

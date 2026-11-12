@@ -21,18 +21,6 @@
 namespace DemaConsulting.LintMark.Engine;
 
 /// <summary>
-///     One failure to read or parse a file.
-/// </summary>
-/// <param name="RuleId">Kebab-case rule identifier the failure is reported under.</param>
-/// <param name="Line">1-based line (1 when unknown).</param>
-/// <param name="Column">1-based column (1 when unknown).</param>
-/// <param name="Message">Single-line description without the file path.</param>
-/// <remarks>
-///     Deliberately minimal: later phases replace this with a full diagnostic model.
-/// </remarks>
-internal sealed record FileFailure(string RuleId, int Line, int Column, string Message);
-
-/// <summary>
 ///     The outcome of processing one file.
 /// </summary>
 /// <param name="Path">The path of the file as it was given to the engine.</param>

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Extensions.EmphasisExtras;
@@ -33,7 +34,7 @@ namespace DemaConsulting.LintMark.Document;
 /// <summary>
 ///     Parses a <see cref="SourceDocument"/> with LintMark's fixed Markdown pipeline and turns the
 ///     parser's tree into a flattened, filtered, source-ordered block list that compensates for the
-///     parser's known quirks.
+///     parser's known peculiarities.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -43,14 +44,18 @@ namespace DemaConsulting.LintMark.Document;
 ///         LF-normalized text and the parser's trivia tracking is never used.
 ///     </para>
 ///     <para>
-///         Quirks compensated here (identifiers from the Phase 0 spike): Q-1 an unclosed fenced
-///         code block is recorded as <see cref="BlockKind.UnclosedFence"/> with an effective span running
-///         to the end of its parent; Q-2 effective block ends never include a trailing newline; Q-3
-///         reference-definition/footnote group shells and empty-span nodes are dropped, the remaining
-///         nodes are sorted by position, and footnote definitions without a reference (which the parser
-///         drops) are found by a line scan; Q-4 parsing always uses LF-normalized text (guaranteed by
-///         <see cref="SourceDocument"/>); Q-5 lazy continuation lines are flagged by
-///         <see cref="GetLines"/>; Q-8 paragraph lines are rebuilt from the source text by
+///         Parser behaviors compensated here: an unclosed fenced code or math block is recorded as
+///         <see cref="BlockKind.UnclosedFence"/> with an effective span running to the end of its
+///         parent; effective block ends never include a trailing line feed; reference-definition and
+///         footnote group shells and empty-span nodes are dropped and the remaining nodes are sorted by
+///         position; link reference definitions are reported at the document root by the parser, so
+///         their depth and parent are resolved from containment; a footnote definition's range is
+///         extended back to its <c>[^label]:</c> marker; footnote definitions that the parser produces
+///         no node for (no reference, a repeated label) or reports as link reference definitions (inside
+///         a quote or list item) are reported as <see cref="BlockKind.UnreferencedFootnote"/>; a paragraph
+///         that begins with definitions starts after them; parsing always uses LF-normalized text
+///         (guaranteed by <see cref="SourceDocument"/>); lazy continuation lines are flagged by
+///         <see cref="GetLines"/>; paragraph lines are rebuilt from the source text by
 ///         <see cref="GetLines"/> because the parser releases them.
 ///     </para>
 ///     <para>
@@ -69,6 +74,21 @@ internal static partial class DocumentParser
         RegexOptions.CultureInvariant,
         matchTimeoutMilliseconds: 1000)]
     private static partial Regex FootnoteDefinitionRegex();
+
+    /// <summary>
+    ///     Matches a footnote marker (<c>[^label]:</c> plus optional blanks) at the end of a text.
+    /// </summary>
+    /// <returns>The compiled expression.</returns>
+    [GeneratedRegex(
+        @"\[\^[^\]\s]+\]:[ \t]*$",
+        RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    private static partial Regex FootnoteMarkerSuffixRegex();
+
+    /// <summary>
+    ///     The indentation that continues a footnote body (four spaces).
+    /// </summary>
+    private const string FootnoteBodyIndent = "    ";
 
     /// <summary>
     ///     Gets the fixed Markdown pipeline.
@@ -95,7 +115,7 @@ internal static partial class DocumentParser
         // Validate input
         ArgumentNullException.ThrowIfNull(source);
 
-        // Parse LF-normalized text with the fixed pipeline, then derive the quirk-corrected views
+        // Parse LF-normalized text with the fixed pipeline, then derive the corrected views
         var ast = Markdown.Parse(source.Text, Pipeline);
         var blocks = new Flattener(source).Flatten(ast);
         var suppressions = SuppressionMap.Build(source, blocks, ast);
@@ -110,19 +130,27 @@ internal static partial class DocumentParser
     /// <param name="leaf">A paragraph or heading block from <paramref name="document"/>. Must not be null.</param>
     /// <returns>One entry per source line, in order.</returns>
     /// <remarks>
-    ///     The parser releases paragraph lines after parsing (Q-8), so they are rebuilt from the
+    ///     The parser releases paragraph lines after parsing, so they are rebuilt from the
     ///     source text. The content start of a continuation line is the start of the first inline element
     ///     on that line, which is exact; only lines that begin inside a multi-line construct (code span,
     ///     link) or that carry no inline (a setext underline) fall back to stripping one quote marker per
     ///     enclosing block quote and then whitespace. Each continuation line is flagged lazy when its
-    ///     container prefix is shorter than the first line's (Q-5).
+    ///     container prefix is shorter than the one the container requires (see
+    ///     <see cref="GetContinuationPrefix"/>). The kind and range of <paramref name="leaf"/> are
+    ///     validated; that it is one of the blocks of <paramref name="document"/> is a precondition that
+    ///     is not verified (checking would cost a search of the block list on every call).
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
+    ///     inside the text of <paramref name="document"/>.
+    /// </exception>
     public static IReadOnlyList<LeafLine> GetLines(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
+        ValidateLeaf(document, leaf);
 
         var source = document.Source;
         var text = source.Text;
@@ -160,31 +188,81 @@ internal static partial class DocumentParser
     ///     Gets the prefix that every continuation line of a leaf block would carry if it were not lazy.
     /// </summary>
     /// <param name="document">The parsed document the block belongs to. Must not be null.</param>
-    /// <param name="leaf">A block from <paramref name="document"/>. Must not be null.</param>
+    /// <param name="leaf">A paragraph or heading block from <paramref name="document"/>. Must not be null.</param>
     /// <returns>
     ///     The text before the block on its first line with every character other than <c>&gt;</c>,
     ///     space and tab replaced by a space (so <c>- </c> becomes two spaces and <c>&gt; 1. </c> becomes
-    ///     <c>&gt;    </c>).
+    ///     <c>&gt;    </c>). When the text before the block ends with a footnote marker
+    ///     (<c>[^label]:</c>), the marker is replaced by the four-space indent that a footnote body
+    ///     requires, not by the width of the marker.
     /// </returns>
+    /// <remarks>
+    ///     Same preconditions as <see cref="GetLines"/>.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
+    ///     inside the text of <paramref name="document"/>.
+    /// </exception>
     public static string GetContinuationPrefix(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
+        ValidateLeaf(document, leaf);
 
-        // Blank out list markers, numbers and footnote labels but keep quote markers and whitespace
+        // Take the text before the block on its first line
         var source = document.Source;
         var lineStart = source.LineStarts[source.PositionOf(leaf.Start).Line - 1];
-        var prefix = source.Text.AsSpan(lineStart, leaf.Start - lineStart);
-        return string.Create(prefix.Length, prefix.ToString(), static (buffer, original) =>
+        var prefix = source.Text[lineStart..leaf.Start];
+
+        // A footnote body is indented by four spaces whatever the width of its marker
+        var marker = FootnoteMarkerSuffixRegex().Match(prefix);
+        if (marker.Success)
+        {
+            var before = prefix[..marker.Index];
+            return (before.AsSpan().IsWhiteSpace() ? string.Empty : BlankMarkers(before)) + FootnoteBodyIndent;
+        }
+
+        return BlankMarkers(prefix);
+    }
+
+    /// <summary>
+    ///     Checks the preconditions shared by <see cref="GetLines"/> and <see cref="GetContinuationPrefix"/>.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="leaf">The block to check.</param>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when the block is not a paragraph or heading or its range is outside the document text.
+    /// </exception>
+    private static void ValidateLeaf(ParsedDocument document, BlockInfo leaf)
+    {
+        if (leaf.Kind is not (BlockKind.Paragraph or BlockKind.Heading))
+        {
+            throw new ArgumentException($"The block must be a paragraph or heading, not {leaf.Kind}.", nameof(leaf));
+        }
+
+        if (leaf.Start < 0 || leaf.Start > leaf.EndInclusive || leaf.EndInclusive >= document.Source.Text.Length)
+        {
+            throw new ArgumentException(
+                $"The block range [{leaf.Start}..{leaf.EndInclusive}] is outside the document text.",
+                nameof(leaf));
+        }
+    }
+
+    /// <summary>
+    ///     Replaces every character other than quote markers and whitespace with a space.
+    /// </summary>
+    /// <param name="prefix">The text before a block on its first line.</param>
+    /// <returns>The blanked text (same length).</returns>
+    private static string BlankMarkers(string prefix) =>
+        string.Create(prefix.Length, prefix, static (buffer, original) =>
         {
             for (var i = 0; i < original.Length; i++)
             {
                 buffer[i] = original[i] is '>' or ' ' or '\t' ? original[i] : ' ';
             }
         });
-    }
 
     /// <summary>
     ///     Builds the fixed Markdown pipeline.
@@ -336,7 +414,7 @@ internal static partial class DocumentParser
     /// <returns>The prefix without the optional spaces.</returns>
     private static string RemoveOptionalQuoteSpaces(string prefix)
     {
-        var builder = new System.Text.StringBuilder(prefix.Length);
+        var builder = new StringBuilder(prefix.Length);
         var skipNext = false;
         foreach (var c in prefix)
         {
@@ -400,6 +478,11 @@ internal static partial class DocumentParser
         private readonly Dictionary<Block, int> _effectiveEnds = new(ReferenceEqualityComparer.Instance);
 
         /// <summary>
+        ///     The link reference definitions found by the walk, resolved once every container is known.
+        /// </summary>
+        private readonly List<LinkReferenceDefinition> _definitions = [];
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="Flattener"/> class.
         /// </summary>
         /// <param name="source">The source document.</param>
@@ -415,8 +498,11 @@ internal static partial class DocumentParser
         /// <returns>The blocks sorted by start offset (parents before children).</returns>
         public List<BlockInfo> Flatten(MarkdownDocument ast)
         {
-            // Walk the tree (R-1), then add the footnotes the parser dropped (Q-3)
+            // Walk the tree, add the definitions (their containers are only known now), correct the
+            // paragraphs that begin with definitions, then add the footnotes the parser dropped
             Walk(ast, parent: null, depth: 0);
+            AddDefinitions();
+            TrimParagraphsAfterDefinitions();
             AddUnreferencedFootnotes();
 
             // Sort by position; at the same position the shallower (enclosing) block comes first
@@ -440,16 +526,11 @@ internal static partial class DocumentParser
 
                 switch (child)
                 {
-                    // Reference definition groups are shells with garbage spans; their definitions carry the real spans
+                    // Reference definition groups are shells with garbage spans; their definitions carry the real
+                    // spans but are kept at document root by the parser, so they are resolved later
                     case LinkReferenceDefinitionGroup group:
-                        foreach (var definition in group.OfType<LinkReferenceDefinition>())
-                        {
-                            if (definition is not FootnoteLinkReferenceDefinition && definition.Span.End >= definition.Span.Start)
-                            {
-                                Add(definition, parent, depth);
-                            }
-                        }
-
+                        _definitions.AddRange(group.OfType<LinkReferenceDefinition>().Where(
+                            static d => d is not FootnoteLinkReferenceDefinition && d.Span.End >= d.Span.Start));
                         break;
 
                     // Footnote groups are shells too; their footnotes belong to the group's parent
@@ -492,14 +573,20 @@ internal static partial class DocumentParser
             var start = Math.Clamp(block.Span.Start, 0, Math.Max(0, text.Length - 1));
             var end = Math.Clamp(block.Span.End, start, Math.Max(0, text.Length - 1));
 
-            // Q-1: an unclosed fence extends to the end of its parent container (or the end of the file)
+            // A footnote's parser span starts after its marker; the block starts at the marker
+            if (block is Footnote footnote)
+            {
+                start = FindFootnoteMarkerStart(footnote, start);
+            }
+
+            // An unclosed fence extends to the end of its parent container (or the end of the file)
             if (kind == BlockKind.UnclosedFence)
             {
                 var parentEnd = parent != null && _effectiveEnds.TryGetValue(parent, out var effective) ? effective : text.Length - 1;
                 end = Math.Max(end, parentEnd);
             }
 
-            // Q-2: spans of lists, items and indented code may swallow the trailing newline; never trust it
+            // Spans of lists, items and indented code may swallow the trailing newline; never trust it
             while (end > start && text[end] == '\n')
             {
                 end--;
@@ -507,6 +594,115 @@ internal static partial class DocumentParser
 
             _effectiveEnds[block] = end;
             _blocks.Add(new BlockInfo(block, kind, start, end, depth, parent));
+        }
+
+        /// <summary>
+        ///     Finds the start of the <c>[^label]:</c> marker of a footnote.
+        /// </summary>
+        /// <param name="footnote">The parser's footnote block.</param>
+        /// <param name="spanStart">The start of the footnote's own span (after the marker).</param>
+        /// <returns>The offset of the marker's opening bracket, or <paramref name="spanStart"/> when it cannot be found.</returns>
+        /// <remarks>
+        ///     The parser reports the span of the label (inside the brackets); the bracket precedes it.
+        ///     The result is validated against the text so a wrong span can never move the block.
+        /// </remarks>
+        private int FindFootnoteMarkerStart(Footnote footnote, int spanStart)
+        {
+            var text = _source.Text;
+            var bracket = footnote.LabelSpan.Start - 1;
+            return bracket >= 0 && bracket < spanStart && text[bracket] == '[' ? bracket : spanStart;
+        }
+
+        /// <summary>
+        ///     Adds the link reference definitions, resolving the depth and parent of each from containment.
+        /// </summary>
+        /// <remarks>
+        ///     The parser keeps every definition in a group at the document root even when the definition
+        ///     stands inside a quote or list item, but the definition's range lies inside the container's
+        ///     range. The parent is therefore the innermost block quote, list, list item or footnote that
+        ///     contains the definition; top level when none does.
+        /// </remarks>
+        private void AddDefinitions()
+        {
+            // Containers are all emitted by now; only they can be parents
+            var containers = _blocks
+                .Where(static b => b.Node != null && b.Kind is BlockKind.BlockQuote or BlockKind.List or BlockKind.ListItem or BlockKind.Footnote)
+                .ToList();
+            foreach (var definition in _definitions)
+            {
+                // The effective range of a definition is its own span (it is never a container)
+                var start = Math.Clamp(definition.Span.Start, 0, Math.Max(0, _source.Text.Length - 1));
+                var end = Math.Clamp(definition.Span.End, start, Math.Max(0, _source.Text.Length - 1));
+                var owner = containers
+                    .Where(c => c.Start <= start && end <= c.EndInclusive)
+                    .MaxBy(static c => c.Depth);
+                Add(definition, owner?.Node, owner is null ? 0 : owner.Depth + 1);
+            }
+        }
+
+        /// <summary>
+        ///     Moves the start of every paragraph or heading that begins with link reference definitions to the text after them.
+        /// </summary>
+        /// <remarks>
+        ///     The parser keeps the definitions at the start of the paragraph (or setext heading) that
+        ///     follows them, so that block's range overlaps the definition blocks. The block keeps its
+        ///     parser node. The container prefix of the first text line (whitespace and as many block
+        ///     quote markers as enclosing quotes) is stepped over; a further <c>&gt;</c> is content.
+        /// </remarks>
+        private void TrimParagraphsAfterDefinitions()
+        {
+            var text = _source.Text;
+            var definitions = _blocks.Where(static b => b.Node is LinkReferenceDefinition).ToList();
+            if (definitions.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _blocks.Count; i++)
+            {
+                var paragraph = _blocks[i];
+                if (paragraph.Kind is not (BlockKind.Paragraph or BlockKind.Heading))
+                {
+                    continue;
+                }
+
+                // The paragraph's real text starts at the line after its last definition (past the container prefix)
+                var lastEnd = definitions
+                    .Where(d => d.Start >= paragraph.Start && d.EndInclusive <= paragraph.EndInclusive)
+                    .Select(static d => d.EndInclusive)
+                    .DefaultIfEmpty(-1)
+                    .Max();
+                var newline = lastEnd < 0 ? -1 : text.IndexOf('\n', lastEnd);
+                if (newline < 0)
+                {
+                    continue;
+                }
+
+                // Step over whitespace and at most one marker per enclosing block quote; any later '>' is text
+                var quotes = CountQuoteAncestors(paragraph);
+                var start = newline + 1;
+                while (start < paragraph.EndInclusive)
+                {
+                    if (text[start] is ' ' or '\t')
+                    {
+                        start++;
+                    }
+                    else if (text[start] == '>' && quotes > 0)
+                    {
+                        quotes--;
+                        start++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                if (start <= paragraph.EndInclusive)
+                {
+                    _blocks[i] = paragraph with { Start = start };
+                }
+            }
         }
 
         /// <summary>
@@ -531,13 +727,21 @@ internal static partial class DocumentParser
             ListItemBlock => BlockKind.ListItem,
             Table => block.Span.Start < text.Length && text[block.Span.Start] == '+' ? BlockKind.GridTable : BlockKind.Table,
             Footnote => BlockKind.Footnote,
+
+            // Inside a quote or list item the parser reads a footnote definition as a link reference definition
+            LinkReferenceDefinition { Label: ['^', _, ..] label } when !label.Any(char.IsWhiteSpace) => BlockKind.UnreferencedFootnote,
             LinkReferenceDefinition => BlockKind.LinkReferenceDefinition,
             _ => BlockKind.Other
         };
 
         /// <summary>
-        ///     Adds a block for every footnote definition that has no reference (the parser produces no node for it).
+        ///     Adds a block for every footnote definition that no block covers (the parser produces no node for it).
         /// </summary>
+        /// <remarks>
+        ///     The parser drops a footnote definition that nothing references and a definition that repeats
+        ///     an earlier label. Detection does not compare labels: a definition marker that lies neither
+        ///     inside a leaf block nor inside a footnote block is not covered and gets a block.
+        /// </remarks>
         private void AddUnreferencedFootnotes()
         {
             // Cheap exit for the overwhelmingly common case
@@ -547,30 +751,19 @@ internal static partial class DocumentParser
                 return;
             }
 
-            // Referenced footnotes exist as blocks; compare labels
-            var referenced = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var block in _blocks)
-            {
-                // The parser's label keeps the caret of the [^label] syntax
-                if (block.Node is Footnote { Label: { } label })
-                {
-                    referenced.Add(label.TrimStart('^'));
-                }
-            }
-
             var found = new List<BlockInfo>();
             var lineStarts = _source.LineStarts;
             for (var line = 0; line < lineStarts.Count; line++)
             {
                 var match = MatchDefinition(line);
-                if (match is null || referenced.Contains(match.Groups["label"].Value))
+                if (match is null)
                 {
                     continue;
                 }
 
                 // The marker must sit in a gap: a definition-looking line inside a leaf block is just text
                 var markerStart = lineStarts[line] + match.Groups["indent"].Length;
-                if (IsInsideLeaf(markerStart))
+                if (IsCoveredByLeafOrFootnote(markerStart))
                 {
                     continue;
                 }
@@ -648,11 +841,12 @@ internal static partial class DocumentParser
         }
 
         /// <summary>
-        ///     Determines whether an offset lies inside a leaf (non-container) block.
+        ///     Determines whether an offset lies inside a leaf (non-container) block or a footnote block.
         /// </summary>
         /// <param name="offset">The offset.</param>
-        /// <returns><see langword="true"/> when a leaf block covers the offset.</returns>
-        private bool IsInsideLeaf(int offset) => _blocks.Any(b => IsLeaf(b.Kind) && b.Start <= offset && offset <= b.EndInclusive);
+        /// <returns><see langword="true"/> when such a block covers the offset.</returns>
+        private bool IsCoveredByLeafOrFootnote(int offset) =>
+            _blocks.Any(b => (IsLeaf(b.Kind) || b.Kind == BlockKind.Footnote) && b.Start <= offset && offset <= b.EndInclusive);
 
         /// <summary>
         ///     Determines whether an offset lies inside any block.

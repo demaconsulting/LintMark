@@ -31,6 +31,11 @@ produces a trailing empty line that starts at `Text.Length`; an empty file has o
 `Lf` (a tie, or a file without terminators, is `Lf`). `LineEnding` is an enum with the values `Lf` and
 `CrLf`.
 
+`Text` is LF-normalized for a reason beyond convenience: the Markdown parser renders multi-line code spans
+differently for LF and CRLF input (the *CRLF code-span difference* in *DocumentParser Design*), so every
+parse and every offset works on the normalized text, and the original terminators are only counted so that
+they can be restored on write.
+
 Invariants: the instance is fully immutable; `Text` contains no `\r`; `LineStarts` is strictly increasing
 and starts with 0.
 

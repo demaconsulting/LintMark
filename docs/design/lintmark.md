@@ -57,7 +57,9 @@ a list of Markdown files. It then processes the files in parallel: each worker r
 a `SourceDocument` (decoding and line-ending normalization) and passes it to `DocumentParser` from
 the `Document` subsystem, which parses it with the Markdig library and also produces the
 `SuppressionMap` and `ReferenceIndex` of the document. After all workers have finished, the engine
-sorts the results and writes the failures to the `Context` from a single thread.
+sorts the results and writes the failures to the `Context` from a single thread. The diagram shows
+calls: `SuppressionMap` and `ReferenceIndex` also read the `BlockInfo` and `BlockKind` types declared with
+`DocumentParser`, a cycle of types only (see *Document Design*).
 
 Linting rules, formatting, and configuration are not part of this phase: the tool currently
 reads and parses files and reports the files it cannot process.
@@ -75,10 +77,11 @@ reads and parses files and reports the files it cannot process.
   it), or a glob pattern using `*` and `**` (either path separator; relative, parent-relative, or
   absolute). A pattern starting with `!` excludes the files it matches. With no path argument,
   `**/*.md` under the current directory is used; a list of only exclusions removes files from
-  that default. Directory, glob, and default expansion never select files below `node_modules` or
-  `.git` directories, while a file named explicitly is always accepted (unless a `!` pattern
-  excludes it). A pattern that matches nothing is not an error. `--check` is an explicit
-  statement of the default behavior (nothing is ever written in this phase). `--validate`
+  that default. Directory, glob, and default expansion never select files from `node_modules` or
+  `.git` folders, whether the folder is found beneath the searched directory or is named by an argument
+  (or by the leading, wildcard-free part of a glob); only a file named explicitly is accepted from such a
+  folder (unless a `!` pattern excludes it). A pattern that matches nothing is not an error. `--check` is an
+  explicit statement of the default behavior (nothing is ever written in this phase). `--validate`
   combined with a path or `--check` is rejected. Returns exit code 0 for success and 1 for
   failures.
 - *Constraints*: Unknown dash-leading arguments (including a lone `-` and an empty argument) cause

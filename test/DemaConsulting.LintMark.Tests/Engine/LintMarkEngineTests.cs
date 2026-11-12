@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Globalization;
 using System.Text;
 using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Document;
@@ -238,7 +239,7 @@ public class LintMarkEngineTests
         var completion = new List<string>();
         var engine = new LintMarkEngine(8, path =>
         {
-            var index = int.Parse(path[4..5], System.Globalization.CultureInfo.InvariantCulture);
+            var index = int.Parse(path[4..5], CultureInfo.InvariantCulture);
             if (index < 7)
             {
                 finished[index + 1].Wait(TimeSpan.FromSeconds(2));
@@ -260,6 +261,46 @@ public class LintMarkEngineTests
         Assert.Equal(files, results.Select(r => r.Path).ToList());
         Assert.Equal(8, completion.Count);
         Assert.All(finished, e => e.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that workers really run files at the same time when parallelism allows it.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ManyWorkers_RunFilesConcurrently()
+    {
+        // Arrange: a processor in which the first two files to start wait (bounded) for each other;
+        // if the engine ran files one at a time the first one would time out
+        using var gate = new ManualResetEventSlim(false);
+        var arrivals = 0;
+        var timeouts = 0;
+        var current = 0;
+        var maximum = 0;
+        var engine = new LintMarkEngine(4, path =>
+        {
+            var now = Interlocked.Increment(ref current);
+            InterlockedMax(ref maximum, now);
+            if (Interlocked.Increment(ref arrivals) >= 2)
+            {
+                gate.Set();
+            }
+
+            if (!gate.Wait(TimeSpan.FromSeconds(30)))
+            {
+                Interlocked.Increment(ref timeouts);
+            }
+
+            Interlocked.Decrement(ref current);
+            return new FileResult(path, []);
+        });
+
+        // Act: process several files
+        var results = engine.Process(Enumerable.Range(0, 8).Select(i => $"f{i}.md").ToArray());
+
+        // Assert: nobody timed out, at least two files were in flight together, and every file has a result
+        Assert.Equal(0, timeouts);
+        Assert.True(maximum >= 2, $"maximum concurrency was {maximum}");
+        Assert.Equal(8, results.Count);
     }
 
     /// <summary>

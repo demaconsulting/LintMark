@@ -229,6 +229,191 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
+    ///     Test that a directory argument naming <c>node_modules</c> selects nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_NodeModulesDirectoryArgument_ReturnsNothing()
+    {
+        // Arrange: a tree whose node_modules holds files at several depths
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+        directory.WriteFile("node_modules/pkg/sub/deep.md");
+
+        // Act: name the folder, a folder inside it, and the folder with a trailing separator
+        var folder = FileDiscovery.Discover(["node_modules"], directory.FullPath);
+        var inside = FileDiscovery.Discover(["node_modules/pkg"], directory.FullPath);
+        var trailing = FileDiscovery.Discover(["./node_modules/"], directory.FullPath);
+
+        // Assert: nothing is selected from any of them
+        Assert.Empty(folder);
+        Assert.Empty(inside);
+        Assert.Empty(trailing);
+    }
+
+    /// <summary>
+    ///     Test that a directory argument naming <c>.git</c> selects nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_GitDirectoryArgument_ReturnsNothing()
+    {
+        // Arrange: a tree whose .git holds files at several depths
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+        directory.WriteFile(".git/hooks/h.md");
+
+        // Act: name the folder and a folder inside it
+        var folder = FileDiscovery.Discover([".git"], directory.FullPath);
+        var inside = FileDiscovery.Discover([".git/hooks"], directory.FullPath);
+
+        // Assert: nothing is selected
+        Assert.Empty(folder);
+        Assert.Empty(inside);
+    }
+
+    /// <summary>
+    ///     Test that a directory argument naming a nested <c>node_modules</c> folder selects nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_NestedNodeModulesDirectoryArgument_ReturnsNothing()
+    {
+        // Arrange: a tree with a node_modules folder below docs
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+        directory.WriteFile("docs/node_modules/x.md");
+
+        // Act: name the nested folder, and docs itself
+        var nested = FileDiscovery.Discover(["docs/node_modules"], directory.FullPath);
+        var parent = FileDiscovery.Discover(["docs"], directory.FullPath);
+
+        // Assert: the nested folder selects nothing and docs still excludes it
+        Assert.Empty(nested);
+        Assert.Equal(Expected(directory, "docs/guide.md", "docs/deep/more.md", "docs/generated/api.md"), parent);
+    }
+
+    /// <summary>
+    ///     Test that a glob whose wildcard-free prefix is, or lies inside, an excluded folder selects nothing.
+    /// </summary>
+    /// <param name="pattern">The glob.</param>
+    [Theory]
+    [InlineData("node_modules/*/*.md")]
+    [InlineData("node_modules/**/*.md")]
+    [InlineData("node_modules/**")]
+    [InlineData("node_modules/pkg/*.md")]
+    [InlineData(".git/**")]
+    [InlineData(".git/*.md")]
+    [InlineData("docs/node_modules/**")]
+    [InlineData("docs/node_modules/**/*.md")]
+    [InlineData(@"node_modules\**\*.md")]
+    public void FileDiscovery_Discover_GlobRootedInNodeModules_ReturnsNothing(string pattern)
+    {
+        // Arrange: a tree with excluded folders at the top and below docs
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+        directory.WriteFile("node_modules/pkg/sub/deep.md");
+        directory.WriteFile(".git/hooks/h.md");
+        directory.WriteFile("docs/node_modules/x.md");
+
+        // Act: discover
+        var files = FileDiscovery.Discover([pattern], directory.FullPath);
+
+        // Assert: nothing is selected
+        Assert.Empty(files);
+    }
+
+    /// <summary>
+    ///     Test that an absolute directory argument naming <c>node_modules</c> or <c>.git</c> selects nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_AbsoluteNodeModulesDirectory_ReturnsNothing()
+    {
+        // Arrange: a tree and an unrelated base directory
+        using var directory = new TemporaryDirectory();
+        using var elsewhere = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name the excluded folders by absolute path, and by absolute glob
+        var nodeModules = FileDiscovery.Discover([directory.PathOf("node_modules")], elsewhere.FullPath);
+        var git = FileDiscovery.Discover([directory.PathOf(".git")], elsewhere.FullPath);
+        var glob = FileDiscovery.Discover([directory.PathOf("node_modules").Replace('\\', '/') + "/**/*.md"], elsewhere.FullPath);
+
+        // Assert: nothing is selected
+        Assert.Empty(nodeModules);
+        Assert.Empty(git);
+        Assert.Empty(glob);
+    }
+
+    /// <summary>
+    ///     Test that naming a third-party folder together with a file inside it selects only the file.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryAndExplicitFileInNodeModules_ReturnsOnlyTheFile()
+    {
+        // Arrange: a tree with several files in node_modules
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+        directory.WriteFile("node_modules/pkg/sub/deep.md");
+
+        // Act: name the folder and one file inside it
+        var files = FileDiscovery.Discover(["node_modules", "node_modules/pkg/readme.md"], directory.FullPath);
+
+        // Assert: only the explicitly named file
+        Assert.Equal(Expected(directory, "node_modules/pkg/readme.md"), files);
+    }
+
+    /// <summary>
+    ///     Test that a base directory that itself lies inside <c>node_modules</c> still finds its own files.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_BaseDirectoryInsideNodeModules_StillFindsItsFiles()
+    {
+        // Arrange: the tool runs from inside a package folder below node_modules
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("node_modules/pkg/readme.md");
+        directory.WriteFile("node_modules/pkg/sub/deep.md");
+        directory.WriteFile("node_modules/pkg/node_modules/inner/skipped.md");
+        var baseDirectory = directory.PathOf("node_modules/pkg");
+
+        // Act: discover with no arguments, the current directory, a glob and a subdirectory
+        var none = FileDiscovery.Discover([], baseDirectory);
+        var dot = FileDiscovery.Discover(["."], baseDirectory);
+        var glob = FileDiscovery.Discover(["**/*.md"], baseDirectory);
+        var sub = FileDiscovery.Discover(["sub"], baseDirectory);
+
+        // Assert: its own files are found; a node_modules folder below the base directory is still skipped
+        var all = Expected(directory, "node_modules/pkg/readme.md", "node_modules/pkg/sub/deep.md");
+        Assert.Equal(all, none);
+        Assert.Equal(all, dot);
+        Assert.Equal(all, glob);
+        Assert.Equal(Expected(directory, "node_modules/pkg/sub/deep.md"), sub);
+    }
+
+    /// <summary>
+    ///     Test that a root reached by climbing out of a base directory inside <c>node_modules</c> is judged on its full path.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_ParentOfBaseDirectoryInsideNodeModules_ReturnsNothing()
+    {
+        // Arrange: the tool runs from inside a package folder; its parent and a sibling are inside node_modules too
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("node_modules/pkg/readme.md");
+        directory.WriteFile("node_modules/other/readme.md");
+        directory.WriteFile("top.md");
+        var baseDirectory = directory.PathOf("node_modules/pkg");
+
+        // Act: name the node_modules folder, a sibling and a glob in the node_modules folder with parent segments, and the project root
+        var parent = FileDiscovery.Discover([".."], baseDirectory);
+        var sibling = FileDiscovery.Discover(["../other"], baseDirectory);
+        var glob = FileDiscovery.Discover(["../**/*.md"], baseDirectory);
+        var projectRoot = FileDiscovery.Discover(["../.."], baseDirectory);
+
+        // Assert: nothing is selected inside node_modules; the project root still selects its own non-third-party files
+        Assert.Empty(parent);
+        Assert.Empty(sibling);
+        Assert.Empty(glob);
+        Assert.Equal(Expected(directory, "top.md"), projectRoot);
+    }
+
+    /// <summary>
     ///     Test that an exclude pattern removes matches from an include.
     /// </summary>
     [Fact]

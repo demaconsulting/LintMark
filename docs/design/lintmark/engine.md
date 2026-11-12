@@ -61,3 +61,8 @@ the parser fail). They are not user options. The degree of parallelism is also n
 
 In this phase nothing is ever written to a file, so the `--check` option is accepted and behaves exactly
 like the default.
+
+Files from `node_modules` and `.git` folders belong to other parties and are never selected by a directory,
+glob, or default expansion, including when such a folder is itself the argument or the root of a glob. The
+rule lives in `FileDiscovery`; only a file that is named explicitly reaches the engine from such a folder,
+and the engine processes it like any other.

@@ -4,9 +4,10 @@
 
 System-level verification uses end-to-end integration tests that invoke the tool as a real
 process via the `Runner.Run` helper in `IntegrationTests.cs`. Each test exercises the full
-stack — argument parsing, dispatch, execution, and output — and validates both exit code and
-combined console output. The tests treat the tool as a black box and assert only on observable
-outputs; no internal implementation details are assumed.
+stack — argument parsing, dispatch, file selection, parsing, reporting, and output — and validates both exit
+code and combined console output. The tests treat the tool as a black box and assert only on observable
+outputs; no internal implementation details are assumed. Tests that process files create them in a
+temporary directory (the `TemporaryDirectory` test helper) and pass their paths as arguments.
 
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made
@@ -27,116 +28,96 @@ combinations. Temporary files and directories are created and cleaned up within 
 - Silent mode (`--silent`) produces empty combined output.
 - Files named by path, directory, or glob are read and parsed; files that cannot be read or decoded are
   reported as `path:line:col: rule-id message` with exit code 1 and valid files produce no output.
+- Files from `node_modules` and `.git` folders are processed only when named explicitly.
 - Failures are reported in path order, and `--check` leaves files byte-identical.
 - `--validate` combined with paths or `--check` is rejected with exit code 1 and without running validation.
 
 ## Test Scenarios
 
-**LintMark_VersionFlag_Provided_OutputsVersion**: The `--version` flag is passed as
-the sole argument; the tool outputs the version string and exits with code 0. This scenario is
-tested by `LintMark_VersionFlag_Provided_OutputsVersion`.
+### Normal operation
 
-**LintMark_HelpFlag_Provided_OutputsUsageInformation**: The `--help` flag is passed
-as the sole argument; the combined output contains "Usage" and "Options" and the tool exits
-with code 0. This scenario is tested by
-`LintMark_HelpFlag_Provided_OutputsUsageInformation`.
+**Version flag outputs the version**: The `--version` flag is passed as the sole argument; the tool outputs the
+version string and exits with code 0.
 
-**LintMark_ValidateFlag_Provided_RunsValidation**: The `--validate` flag is passed as
-the sole argument; the combined output contains "Total Tests:" and the tool exits with code 0,
-confirming the self-validation suite runs and completes successfully. This scenario is tested by
-`LintMark_ValidateFlag_Provided_RunsValidation`.
+**Help flag outputs usage information**: The `--help` flag is passed as the sole argument; the combined output
+contains "Usage" and "Options" and the tool exits with code 0.
 
-**LintMark_ValidateWithTrxResults_Requested_GeneratesTrxFile**: The `--validate` flag
-is combined with `--results <path>.trx`; a TRX file containing a `<TestRun` XML element is
-created at the specified path and the tool exits with code 0. This scenario is tested by
-`LintMark_ValidateWithTrxResults_Requested_GeneratesTrxFile`.
+**Help lists the path arguments and the check option**: The `--help` output contains `[paths...]` and
+`--check`, and the exit code is 0.
 
-**LintMark_ValidateWithXmlResults_Requested_GeneratesJUnitFile**: The `--validate` flag
-is combined with `--results <path>.xml`; a JUnit XML file containing a `<testsuites` XML element
-is created at the specified path and the tool exits with code 0. This scenario is tested by
-`LintMark_ValidateWithXmlResults_Requested_GeneratesJUnitFile`.
+**Validate flag runs the self-validation**: The `--validate` flag is passed as the sole argument; the combined
+output contains "Total Tests:" and the tool exits with code 0.
 
-**LintMark_SilentFlag_Provided_SuppressesOutput**: The `--version` and `--silent`
-flags are passed together; the combined output is empty or whitespace-only while the tool exits
-with code 0, confirming silent mode suppresses all console output. This scenario is tested by
-`LintMark_SilentFlag_Provided_SuppressesOutput`.
+**Validation results are written as TRX**: `--validate` combined with `--results <path>.trx` creates a file that
+contains a `<TestRun` element, and the tool exits with code 0.
 
-**LintMark_LogFlag_Provided_WritesOutputToFile**: The `--log <path>` flag is passed
-pointing to a temporary file; the tool exits with code 0 and the log file is created containing
-output that also appears in the combined console output. This scenario is tested by
-`LintMark_LogFlag_Provided_WritesOutputToFile`.
+**Validation results are written as JUnit XML**: `--validate` combined with `--results <path>.xml` creates a file
+that contains a `<testsuites` element, and the tool exits with code 0.
 
-**LintMark_UnknownArgument_Provided_ReturnsError**: An unrecognized argument
-(`--unknown`) is passed; the tool exits with a non-zero code and the combined output contains
-an error message identifying the unknown argument. This scenario is tested by
-`LintMark_UnknownArgument_Provided_ReturnsError`.
+**Legacy result alias writes the results file**: `--validate` combined with `--result <path>.trx` creates a TRX
+file, and the tool exits with code 0.
 
-**LintMark_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel**: The `--validate`
-flag is combined with `--depth 3`; the combined output contains `###` (heading at depth 3) and
-the tool exits with code 0. This scenario is tested by
-`LintMark_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel`.
+**Depth option sets the heading level of the validation output**: `--validate` combined with `--depth 3` gives
+output that contains `###`, and the tool exits with code 0.
 
-**LintMark_NoArguments_Invoked_DisplaysBanner**: The tool is invoked with no
-arguments; the combined output contains the tool name and copyright notice and the exit code is
-0. This scenario is tested by `LintMark_NoArguments_Invoked_DisplaysBanner`.
+**Silent flag suppresses output**: `--version` and `--silent` together give empty or whitespace-only combined
+output, and the tool exits with code 0.
 
-**LintMark_ResultAlias_LegacyFlag_WritesResultsFile**: The `--validate` flag is
-combined with `--result <path>.trx` (the legacy alias); a TRX file is created at the specified
-path and the tool exits with code 0. This scenario is tested by
-`LintMark_ResultAlias_LegacyFlag_WritesResultsFile`.
+**Log flag writes the output to a file**: `--log <path>` creates the file, and it contains output that also
+appears in the combined console output.
 
-**LintMark_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero**: The `--validate`
-flag is combined with `--results <path>.bad` (unsupported extension); the tool exits with a
-non-zero code and no file is created at the specified path. This scenario is tested by
-`LintMark_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero`.
+**Invocation without arguments displays the banner**: The combined output contains the tool name and the
+copyright notice, and the exit code is 0.
 
-**LintMark_HelpFlag_Provided_ListsPathsAndCheckOption**: The `--help` flag is passed; the combined output
-contains `[paths...]` and `--check` and the exit code is 0. This scenario is tested by
-`LintMark_HelpFlag_Provided_ListsPathsAndCheckOption`.
+**Valid Markdown file is processed without output**: A valid file in a temporary directory is passed as the only
+argument; the exit code is 0 and no rule identifier appears in the output.
 
-**LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess**: A valid Markdown file in a temporary directory is
-passed as the only argument; the exit code is 0 and no rule identifier appears in the output. This scenario
-is tested by `LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess`.
+**Directory selects every Markdown file beneath it**: A directory with a valid file, a nested invalid Markdown
+file, and an invalid non-Markdown file is passed; the exit code is 1, only the nested Markdown file is
+reported, and the non-Markdown file is never read.
 
-**LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError**: A file with an invalid UTF-8
-byte on its second line is passed; the exit code is 1 and the output contains
-`bad.md:2:3: file-encoding-error Invalid UTF-8 byte sequence`. This scenario is tested by
-`LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError`.
+**Explicit file inside a third-party folder is processed**: An undecodable file under `node_modules/pkg` that is
+named on the command line is read; the exit code is 1 and the output contains
+`bad.md:1:1: file-encoding-error`.
 
-**LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError**: A path that does not exist is
-passed; the exit code is 1 and the output contains `missing.md:1:1: file-read-error File not found`. This
-scenario is tested by `LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError`.
+**File with every supported construct is processed without output**: A file that contains front matter,
+suppression comments, a reference definition, a footnote, a table, and an unclosed fence is passed; the exit
+code is 0 and nothing is reported.
 
-**LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt**: A directory with a valid file, a nested invalid
-Markdown file, and an invalid non-Markdown file is passed; the exit code is 1, only the nested Markdown
-file is reported, and the non-Markdown file is never read. This scenario is tested by
-`LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt`.
+**Repository documentation is processed without output**: The repository's `docs` directory and `README.md` are
+passed; every file is read and parsed, the exit code is 0, and nothing is reported.
 
-**LintMark_GlobAndExclude_Provided_SkipsExcludedFiles**: An absolute glob and an absolute `!` exclusion are
-passed so that an invalid file lies under the excluded directory; the exit code is 0 and the excluded file
-is not reported. This scenario is tested by `LintMark_GlobAndExclude_Provided_SkipsExcludedFiles`.
+**Check flag lints without writing**: `--check` is passed with a valid file that has CRLF line endings and no
+final newline; the exit code is 0 and the file's bytes and last-write time are unchanged.
 
-**LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder**: Three invalid files are passed in
-non-sorted order; the exit code is 1 and the diagnostics appear in path order. This scenario is tested by
-`LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder`.
+### Boundary conditions
 
-**LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess**: A file containing front matter,
-suppression comments, a reference definition, a footnote, a table, and an unclosed fence is passed; the
-exit code is 0 and nothing is reported. This scenario is tested by
-`LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess`.
+**Glob and exclusion skip the excluded files**: An absolute glob and an absolute `!` exclusion are passed so
+that an invalid file lies under the excluded directory; the exit code is 0 and the excluded file is not
+reported.
 
-**LintMark_RepositoryDocumentation_Provided_ReturnsSuccess**: The repository's `docs` directory and
-`README.md` are passed; every file is read and parsed, the exit code is 0, and nothing is reported. This
-scenario is tested by `LintMark_RepositoryDocumentation_Provided_ReturnsSuccess`.
+**Third-party folder named as an argument selects nothing**: The folders `node_modules` and `.git`, each with an
+undecodable file, are passed, and so is an absolute glob inside `node_modules`; nothing is reported and the exit
+code is 0 in each case.
 
-**LintMark_CheckFlag_Provided_LintsWithoutWriting**: `--check` is passed with a valid file with CRLF line
-endings and no final newline; the exit code is 0 and the file's bytes and last-write time are unchanged.
-This scenario is tested by `LintMark_CheckFlag_Provided_LintsWithoutWriting`.
+**Several failing files are reported in path order**: Three invalid files are passed in non-sorted order; the exit
+code is 1 and the diagnostics appear in path order.
 
-**LintMark_ValidateWithPaths_Combined_ReturnsError**: `--validate` is combined with a path; the exit code
-is 1, the output contains an error naming `--validate`, and validation does not run. This scenario is tested
-by `LintMark_ValidateWithPaths_Combined_ReturnsError`.
+### Error handling
 
-**LintMark_ValidateWithCheck_Combined_ReturnsError**: `--validate` is combined with `--check`; the exit code
-is 1 and the output contains an error. This scenario is tested by
-`LintMark_ValidateWithCheck_Combined_ReturnsError`.
+**Unknown argument is rejected**: An unrecognized argument (`--unknown`) gives a non-zero exit code and an error
+message that identifies it.
+
+**Unsupported results extension is rejected**: `--validate` combined with `--results <path>.bad` gives a
+non-zero exit code and creates no file.
+
+**Undecodable file is reported with a diagnostic**: A file with an invalid UTF-8 byte on its second line gives
+exit code 1 and the output contains `bad.md:2:3: file-encoding-error Invalid UTF-8 byte sequence`.
+
+**Missing file is reported as a read error**: A path that does not exist gives exit code 1 and the output
+contains `missing.md:1:1: file-read-error File not found`.
+
+**Validate combined with a path is rejected**: The exit code is 1, the output contains an error that names
+`--validate`, and validation does not run.
+
+**Validate combined with check is rejected**: The exit code is 1 and the output contains an error.

@@ -156,6 +156,50 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a failing file inside a named third-party folder is never read.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_ThirdPartyFolderNamed_IsNotProcessed()
+    {
+        // Arrange: undecodable files inside node_modules and .git
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("ok.md");
+        directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
+        directory.WriteBytes(".git/bad.md", [0xFF]);
+
+        // Act: name the folders and a glob inside one of them
+        var nodeModules = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "node_modules");
+        var git = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), ".git");
+        var glob = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "node_modules/**/*.md");
+
+        // Assert: nothing is read, so nothing is reported
+        Assert.Equal(0, nodeModules.ExitCode);
+        Assert.Empty(nodeModules.Lines);
+        Assert.Equal(0, git.ExitCode);
+        Assert.Empty(git.Lines);
+        Assert.Equal(0, glob.ExitCode);
+        Assert.Empty(glob.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a file inside a third-party folder is processed when it is named explicitly.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_ExplicitFileInThirdPartyFolder_IsProcessed()
+    {
+        // Arrange: an undecodable file inside node_modules
+        using var directory = new TemporaryDirectory();
+        directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
+
+        // Act: name the file explicitly
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "node_modules/pkg/bad.md");
+
+        // Assert: it is read and its failure is reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["node_modules/pkg/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
     ///     Test that a file selected by several arguments is processed and reported once.
     /// </summary>
     [Fact]

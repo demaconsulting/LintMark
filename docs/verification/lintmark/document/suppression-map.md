@@ -19,82 +19,71 @@ N/A - standard test environment.
 - Unterminated regions run to the end of the file.
 - Comment-like text inside code and front matter never suppresses anything.
 - Rule identifiers are matched ignoring case after alias resolution.
+- The ranges are sorted by start offset, and invalid arguments are rejected.
 
 #### Test Scenarios
 
-**SuppressionMap_Build_NoDirectives_SuppressesNothing**: A document without directives has no ranges.
-Tested by `SuppressionMap_Build_NoDirectives_SuppressesNothing`.
+##### Normal operation
 
-**SuppressionMap_IsSuppressed_DisableEnableRegion_CoversTextBetween**: Text between a disable and an enable
-comment is suppressed and text outside is not. Tested by
-`SuppressionMap_IsSuppressed_DisableEnableRegion_CoversTextBetween`.
+**Disable and enable comments suppress the text between them**: Text between a disable and an enable comment is
+suppressed and text outside is not.
 
-**SuppressionMap_IsSuppressed_UnterminatedDisable_RunsToEndOfFile**: A disable without an enable suppresses
-to the end of the file. Tested by `SuppressionMap_IsSuppressed_UnterminatedDisable_RunsToEndOfFile`.
+**Disable with rule names suppresses only those rules**: Other rules stay active, and rule names match ignoring
+letter case.
 
-**SuppressionMap_IsSuppressed_DisableWithRules_SuppressesOnlyListedRules**: A disable with rule names
-suppresses only those rules. Tested by
-`SuppressionMap_IsSuppressed_DisableWithRules_SuppressesOnlyListedRules`.
+**Enable with rule names after a bare disable re-enables only those rules**: The rest of the rules stay
+suppressed.
 
-**SuppressionMap_IsSuppressed_EnableWithRules_ReEnablesOnlyListedRules**: An enable with rule names after a
-bare disable re-enables only those rules. Tested by
-`SuppressionMap_IsSuppressed_EnableWithRules_ReEnablesOnlyListedRules`.
+**Disable regions of different rules are tracked independently**: Nested disable and enable comments of
+different rules do not affect one another.
 
-**SuppressionMap_IsSuppressed_OverlappingRuleRegions_TrackedIndependently**: Overlapping regions of
-different rules are tracked independently. Tested by
-`SuppressionMap_IsSuppressed_OverlappingRuleRegions_TrackedIndependently`.
+**Disable-line covers its own line only**: The line that holds the comment is suppressed and no other line.
 
-**SuppressionMap_IsSuppressed_DisableLine_CoversOwnLineOnly**: A disable-line comment covers its own line
-only. Tested by `SuppressionMap_IsSuppressed_DisableLine_CoversOwnLineOnly`.
+**Disable-next-line covers the following line only**: The line after the comment is suppressed and no other line.
 
-**SuppressionMap_IsSuppressed_DisableNextLine_CoversFollowingLineOnly**: A disable-next-line comment covers
-the following line only. Tested by `SuppressionMap_IsSuppressed_DisableNextLine_CoversFollowingLineOnly`.
+**Disable-file covers the whole file**: The text before the comment is suppressed as well.
 
-**SuppressionMap_Build_DisableNextLineOnLastLine_ProducesNoRange**: A disable-next-line comment on the last
-line produces no range. Tested by `SuppressionMap_Build_DisableNextLineOnLastLine_ProducesNoRange`.
+**Restore returns to the captured state**: A restore brings back the state saved by the matching capture.
 
-**SuppressionMap_IsSuppressed_DisableFile_CoversWholeFile**: A disable-file comment covers the whole file.
-Tested by `SuppressionMap_IsSuppressed_DisableFile_CoversWholeFile`.
+**Prettier-ignore covers the next block**: A comment before a table suppresses the whole table, not only the
+next line.
 
-**SuppressionMap_IsSuppressed_CaptureRestore_ReturnsToCapturedState**: A restore returns to the state saved
-by a capture. Tested by `SuppressionMap_IsSuppressed_CaptureRestore_ReturnsToCapturedState`.
+**Prettier-ignore before a list covers the whole list**: Every item of the list is suppressed.
 
-**SuppressionMap_IsSuppressed_RestoreWithoutCapture_IsIgnored**: A restore without a capture has no effect.
-Tested by `SuppressionMap_IsSuppressed_RestoreWithoutCapture_IsIgnored`.
+**Prettier-ignore start and end cover the text between them**: All rules are suppressed in the region.
 
-**SuppressionMap_IsSuppressed_PrettierIgnore_CoversNextBlock**: A prettier-ignore comment covers the next
-block. Tested by `SuppressionMap_IsSuppressed_PrettierIgnore_CoversNextBlock`.
+**Inline comment is a directive**: An inline comment inside a paragraph suppresses as a lintmark directive.
 
-**SuppressionMap_IsSuppressed_PrettierIgnoreBeforeList_CoversWholeList**: A prettier-ignore comment before a
-list covers the whole list. Tested by `SuppressionMap_IsSuppressed_PrettierIgnoreBeforeList_CoversWholeList`.
+**Rule identifiers pass through the alias function**: An alias resolver is applied to identifiers in directives
+and in queries, so an alias and its target match.
 
-**SuppressionMap_IsSuppressed_PrettierIgnoreStartEnd_CoversRegion**: Start and end comments cover the text
-between them. Tested by `SuppressionMap_IsSuppressed_PrettierIgnoreStartEnd_CoversRegion`.
+**Range that intersects a suppressed region is suppressed**: `IsSuppressedRange` reports a block that overlaps a
+suppressed region.
 
-**SuppressionMap_IsSuppressed_UnterminatedPrettierStart_RunsToEndOfFile**: A start comment without an end
-covers to the end of the file. Tested by `SuppressionMap_IsSuppressed_UnterminatedPrettierStart_RunsToEndOfFile`.
+**Ranges are sorted by start offset**: `Ranges` is ordered by start.
 
-**SuppressionMap_Build_UnknownDirectives_AreIgnored**: Unrelated comments and unknown directive names
-suppress nothing. Tested by `SuppressionMap_Build_UnknownDirectives_AreIgnored`.
+##### Boundary conditions
 
-**SuppressionMap_Build_CommentsInCodeAndFrontMatter_AreIgnored**: Comment-like text in code and front matter
-is not a directive. Tested by `SuppressionMap_Build_CommentsInCodeAndFrontMatter_AreIgnored`.
+**Document without directives suppresses nothing**: There are no ranges.
 
-**SuppressionMap_IsSuppressed_InlineComment_IsDirective**: An inline comment inside a paragraph is a
-directive. Tested by `SuppressionMap_IsSuppressed_InlineComment_IsDirective`.
+**Disable without enable runs to the end of the file**: An unterminated region covers all following text.
 
-**SuppressionMap_Build_InlinePrettierComment_IsIgnored**: An inline prettier comment is ignored. Tested by
-`SuppressionMap_Build_InlinePrettierComment_IsIgnored`.
+**Prettier-ignore-start without an end runs to the end of the file**: An unterminated start comment covers all
+following text.
 
-**SuppressionMap_Build_AliasResolver_ResolvesAliases**: Rule identifiers in directives and queries pass
-through the alias function. Tested by `SuppressionMap_Build_AliasResolver_ResolvesAliases`.
+**Disable-next-line on the last line produces no range**: There is no following line to suppress.
 
-**SuppressionMap_IsSuppressedRange_BlockIntersectingRegion_IsSuppressed**: A range that intersects a
-suppressed region is suppressed. Tested by
-`SuppressionMap_IsSuppressedRange_BlockIntersectingRegion_IsSuppressed`.
+**Restore without capture is ignored**: It has no effect on the suppressed state.
 
-**SuppressionMap_Ranges_AreSortedByStart**: `Ranges` is sorted by start offset. Tested by
-`SuppressionMap_Ranges_AreSortedByStart`.
+##### Error handling
 
-**SuppressionMap_Build_NullArguments_Throw**: Null arguments are rejected. Tested by
-`SuppressionMap_Build_NullArguments_Throw`.
+**Unknown directives are ignored**: Unrelated comments, unknown directive names, and malformed comments suppress
+nothing and cause no failure.
+
+**Comments in code and front matter are not directives**: Comment-like text inside code spans, code blocks, and
+front matter suppresses nothing.
+
+**Prettier comments inline are ignored**: A prettier directive inside a paragraph has no effect, because only
+block-level comments carry them.
+
+**Null arguments are rejected**: `Build` throws `ArgumentNullException` for a null argument.

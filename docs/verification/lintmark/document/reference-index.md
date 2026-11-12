@@ -4,8 +4,8 @@
 
 `ReferenceIndex` is verified with unit tests in `ReferenceIndexTests.cs`. Test inputs are built by parsing
 small Markdown texts with `DocumentParser.Parse` (a test-time dependency: the index is built from the real
-block list, so the handling of the parser's definition groups is exercised for real), and the tests then
-inspect `Definitions` and call `TryGet` and `NormalizeLabel`. No mocking is used.
+block list, so the handling of the parser's definition groups and of footnote definitions is exercised for
+real), and the tests then inspect `Definitions` and call `TryGet` and `NormalizeLabel`. No mocking is used.
 
 #### Test Environment
 
@@ -14,37 +14,47 @@ N/A - standard test environment.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- Every definition has the correct label, destination, title, range, and line.
-- Lookup ignores case and whitespace differences; the first of duplicate definitions wins.
-- Footnotes never appear as link reference definitions.
+- Every definition has the correct label, destination, title, range, and line, in source order, wherever it
+  stands, including inside block quotes and list items.
+- Lookup ignores case and whitespace differences; the first of duplicate definitions wins and all stay listed.
+- Footnote definitions never appear as link reference definitions, wherever they stand.
 
 #### Test Scenarios
 
-**ReferenceIndex_Build_NoDefinitions_IsEmpty**: A document without definitions has an empty index. Tested by
-`ReferenceIndex_Build_NoDefinitions_IsEmpty`.
+##### Normal operation
 
-**ReferenceIndex_Build_Definitions_CarryLabelUrlTitleSpanAndLine**: Definitions carry label, destination,
-title, range, and line. Tested by `ReferenceIndex_Build_Definitions_CarryLabelUrlTitleSpanAndLine`.
+**Definitions carry label, destination, title, range, and line**: A definition with a title and one without
+report their label, URL, title (or none), exact range, and 1-based line.
 
-**ReferenceIndex_TryGet_CaseAndWhitespaceInsensitive_FindsDefinition**: Lookups differing in case or
-whitespace find the definition (theory with several queries). Tested by
-`ReferenceIndex_TryGet_CaseAndWhitespaceInsensitive_FindsDefinition`.
+**Lookup ignores case and whitespace differences**: Queries that differ from the label in case, in extra spaces,
+and in a tab all find the definition.
 
-**ReferenceIndex_TryGet_DuplicateLabels_FirstWinsAndBothRetained**: With duplicate labels the first
-definition is returned and both stay in `Definitions`. Tested by
-`ReferenceIndex_TryGet_DuplicateLabels_FirstWinsAndBothRetained`.
+**First of duplicate labels wins and both are kept**: A label defined twice resolves to the first definition,
+and both stay in `Definitions`.
 
-**ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed**: A definition inside a block quote is indexed.
-Tested by `ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed`.
+**Definition inside a block quote is indexed**: The definition's exact range, label, and line are reported.
 
-**ReferenceIndex_Build_FootnotesAndUnreferencedFootnotes_AreExcluded**: Referenced and unreferenced
-footnotes are not in the index. Tested by `ReferenceIndex_Build_FootnotesAndUnreferencedFootnotes_AreExcluded`.
+**Definition inside a list item is indexed**: The definition's exact range, label, and line are reported.
 
-**ReferenceIndex_Build_Headings_ProduceNoSyntheticDefinitions**: Headings add no synthetic definitions.
-Tested by `ReferenceIndex_Build_Headings_ProduceNoSyntheticDefinitions`.
+**Definitions in all nesting positions are indexed in source order**: Top-level, quoted, listed, and nested
+definitions are all listed in the order they appear.
 
-**ReferenceIndex_NormalizeLabel_CollapsesWhitespaceAndFoldsCase**: Normalization trims, collapses whitespace
-runs, and folds case (theory). Tested by `ReferenceIndex_NormalizeLabel_CollapsesWhitespaceAndFoldsCase`.
+**Label normalization trims, collapses whitespace, and folds case**: Several labels, including one with a tab and
+line feed and an empty one, normalize to the expected text.
 
-**ReferenceIndex_Build_NullArguments_Throw**: Null arguments are rejected. Tested by
-`ReferenceIndex_Build_NullArguments_Throw`.
+##### Boundary conditions
+
+**Document without definitions gives an empty index**: `Definitions` is empty.
+
+**Headings add no definitions**: Headings produce no synthetic definitions.
+
+**Footnote definitions are excluded**: Referenced and unreferenced footnotes are not in the index.
+
+**Footnote definition inside a block quote is excluded**: The parser reads it as a link reference definition
+with a label that begins with `^`, and the index does not list it.
+
+**Footnote definition inside a list item is excluded**: The same for a list item.
+
+##### Error handling
+
+**Null arguments are rejected**: `Build` throws `ArgumentNullException` for a null argument.

@@ -5,42 +5,65 @@
 # references to them by label.
 
 sections:
-  - title: ReferenceIndex Unit Requirements
-    requirements:
-      - id: LintMark-ReferenceIndex-Definitions
-        title: >-
-          The ReferenceIndex class shall list every link reference definition of a document in source order
-          with its label, destination, optional title, source range, and line, including definitions nested in
-          block quotes, and shall be empty for a document without definitions.
-        justification: |
-          Rules about reference-style links and rewrites that move definitions need a complete and
-          accurate inventory, including definitions that are not at the top level.
-        tests:
-          - ReferenceIndex_Build_NoDefinitions_IsEmpty
-          - ReferenceIndex_Build_Definitions_CarryLabelUrlTitleSpanAndLine
-          - ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed
-          - ReferenceIndex_Build_Headings_ProduceNoSyntheticDefinitions
-          - ReferenceIndex_Build_NullArguments_Throw
+  - title: LintMark Requirements
+    sections:
+      - title: Document Requirements
+        sections:
+          - title: ReferenceIndex Requirements
+            requirements:
+              - id: LintMark-Document-ReferenceIndex-Listing
+                title: >-
+                  The ReferenceIndex class shall list every link reference definition of a document in source
+                  order with its label, destination, optional title, source range, and line, and shall be empty
+                  for a document without definitions.
+                justification: |
+                  Rules about reference-style links and rewrites that move definitions need a complete and
+                  accurate inventory.
+                tests:
+                  - ReferenceIndex_Build_NoDefinitions_IsEmpty
+                  - ReferenceIndex_Build_Definitions_CarryLabelUrlTitleSpanAndLine
+                  - ReferenceIndex_Build_Headings_ProduceNoSyntheticDefinitions
 
-      - id: LintMark-ReferenceIndex-Lookup
-        title: >-
-          The ReferenceIndex class shall find a definition by label ignoring case and differences in
-          whitespace, and when a label is defined more than once shall resolve it to the first definition while
-          still listing the duplicates.
-        justification: |
-          This is how Markdown itself resolves references. A duplicate definition is a likely authoring
-          mistake that must remain visible.
-        tests:
-          - ReferenceIndex_TryGet_CaseAndWhitespaceInsensitive_FindsDefinition
-          - ReferenceIndex_TryGet_DuplicateLabels_FirstWinsAndBothRetained
-          - ReferenceIndex_NormalizeLabel_CollapsesWhitespaceAndFoldsCase
+              - id: LintMark-Document-ReferenceIndex-NestedDefinitions
+                title: >-
+                  The ReferenceIndex class shall include link reference definitions that stand inside block
+                  quotes and list items.
+                justification: |
+                  A definition inside a quote or list item is still a definition. An inventory that missed it
+                  would hide links that a rewrite must keep working.
+                tests:
+                  - ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed
+                  - ReferenceIndex_Build_DefinitionInListItem_IsIndexed
+                  - ReferenceIndex_Build_DefinitionInNestedContainers_IsIndexedInSourceOrder
 
-      - id: LintMark-ReferenceIndex-ExcludesFootnotes
-        title: >-
-          The ReferenceIndex class shall not list footnote definitions, referenced or not, as link reference
-          definitions.
-        justification: |
-          Footnotes and link references have different syntax and different rules. Mixing them would
-          cause links to resolve to footnotes and footnotes to be treated as links.
-        tests:
-          - ReferenceIndex_Build_FootnotesAndUnreferencedFootnotes_AreExcluded
+              - id: LintMark-Document-ReferenceIndex-Lookup
+                title: >-
+                  The ReferenceIndex class shall find a definition by label, ignoring case and differences in
+                  whitespace.
+                justification: |
+                  This is how Markdown itself matches a reference to its definition.
+                tests:
+                  - ReferenceIndex_TryGet_CaseAndWhitespaceInsensitive_FindsDefinition
+                  - ReferenceIndex_NormalizeLabel_CollapsesWhitespaceAndFoldsCase
+
+              - id: LintMark-Document-ReferenceIndex-DuplicateLabels
+                title: >-
+                  The ReferenceIndex class shall resolve a label that is defined more than once to its first
+                  definition while still listing the duplicates.
+                justification: |
+                  The first definition wins in Markdown, and a duplicate definition is a likely authoring
+                  mistake that must remain visible.
+                tests:
+                  - ReferenceIndex_TryGet_DuplicateLabels_FirstWinsAndBothRetained
+
+              - id: LintMark-Document-ReferenceIndex-ExcludesFootnotes
+                title: >-
+                  The ReferenceIndex class shall not list footnote definitions, referenced or not, at top level
+                  or inside other blocks, as link reference definitions.
+                justification: |
+                  Footnotes and link references have different syntax and different rules. Mixing them would
+                  cause links to resolve to footnotes and footnotes to be treated as links.
+                tests:
+                  - ReferenceIndex_Build_FootnotesAndUnreferencedFootnotes_AreExcluded
+                  - ReferenceIndex_Build_FootnoteDefinitionInBlockQuote_IsExcluded
+                  - ReferenceIndex_Build_FootnoteDefinitionInListItem_IsExcluded

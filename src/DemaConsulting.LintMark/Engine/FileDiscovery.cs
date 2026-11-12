@@ -35,8 +35,10 @@ namespace DemaConsulting.LintMark.Engine;
 ///         so that the failure to read it is reported uniformly with every other read failure. With no
 ///         include arguments the default <c>**/*.md</c> under the base directory is used. Files matched
 ///         by directory, glob or default expansion never come from <c>node_modules</c> or <c>.git</c>
-///         directories; explicitly named files are exempt from that built-in exclusion but not from
-///         user excludes. A pattern that matches nothing is not an error.
+///         directories, whether the folder is named by the argument (or by the leading, wildcard-free
+///         part of a glob) or found beneath the folder searched; only explicitly named files are exempt
+///         from that built-in exclusion, and they are not exempt from user excludes. A pattern that
+///         matches nothing is not an error.
 ///     </para>
 ///     <para>
 ///         The result consists of distinct full paths in ordinal order, so it is independent of
@@ -58,9 +60,14 @@ internal static class FileDiscovery
     private static readonly char Slash = Path.AltDirectorySeparatorChar;
 
     /// <summary>
-    ///     Directories that are never searched by directory, glob or default expansion.
+    ///     Directory patterns that prune excluded folders found beneath a search root.
     /// </summary>
     private static readonly string[] DefaultExcludes = ["**/node_modules/**", "**/.git/**"];
+
+    /// <summary>
+    ///     Names of the directories whose files directory, glob and default expansion never select.
+    /// </summary>
+    private static readonly string[] ExcludedDirectoryNames = ["node_modules", ".git"];
 
     /// <summary>
     ///     Gets the comparison used for file names (case-insensitive on Windows and macOS).
@@ -138,7 +145,7 @@ internal static class FileDiscovery
 
         if (Directory.Exists(full))
         {
-            Glob(full, DefaultPattern, candidates);
+            Glob(full, DefaultPattern, baseDirectory, candidates);
             return;
         }
 
@@ -153,7 +160,7 @@ internal static class FileDiscovery
         // Search from the directory named by the leading wildcard-free segments
         if (Directory.Exists(searchRoot))
         {
-            Glob(searchRoot, relativePattern, candidates);
+            Glob(searchRoot, relativePattern, baseDirectory, candidates);
         }
     }
 
@@ -186,9 +193,22 @@ internal static class FileDiscovery
     /// </summary>
     /// <param name="searchRoot">The directory to search.</param>
     /// <param name="relativePattern">The glob relative to <paramref name="searchRoot"/>.</param>
+    /// <param name="baseDirectory">The full base directory the search root is judged against.</param>
     /// <param name="candidates">Receives the matching full paths.</param>
-    private static void Glob(string searchRoot, string relativePattern, HashSet<string> candidates)
+    /// <remarks>
+    ///     The matcher's exclusions are relative to the search root, so they cannot see an excluded
+    ///     folder that is, or lies above, the root itself. The root is therefore checked first: a root
+    ///     that is inside <c>node_modules</c> or <c>.git</c> yields nothing (judged relative to the base
+    ///     directory, or on its full path when it lies outside the base directory).
+    /// </remarks>
+    private static void Glob(string searchRoot, string relativePattern, string baseDirectory, HashSet<string> candidates)
     {
+        // Nothing below an excluded folder is selected, whether the folder was named or found
+        if (HasExcludedSegment(baseDirectory, searchRoot))
+        {
+            return;
+        }
+
         var matcher = new Matcher(PathComparison);
         matcher.AddInclude(relativePattern);
         foreach (var exclude in DefaultExcludes)
@@ -201,6 +221,26 @@ internal static class FileDiscovery
         {
             candidates.Add(Path.GetFullPath(file.Path, searchRoot));
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a directory has an excluded folder as one of its segments, judged relative to the base directory.
+    /// </summary>
+    /// <param name="baseDirectory">The full base directory.</param>
+    /// <param name="directory">The full directory path.</param>
+    /// <returns>
+    ///     <see langword="true"/> when any segment (including the last) is <c>node_modules</c> or <c>.git</c>.
+    ///     A directory at or below the base directory is judged on the path relative to it, so segments of
+    ///     the base directory and above are ignored and the tool still works when run from inside such a
+    ///     folder. A directory outside the base directory (reached with <c>..</c>, or on another drive) is
+    ///     judged on its full path, so climbing into or beside a third-party folder selects nothing.
+    /// </returns>
+    private static bool HasExcludedSegment(string baseDirectory, string directory)
+    {
+        var relative = Path.GetRelativePath(baseDirectory, directory);
+        return (IsOutside(relative) ? directory : relative)
+            .Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(static segment => ExcludedDirectoryNames.Any(name => string.Equals(segment, name, PathComparison)));
     }
 
     /// <summary>
@@ -262,11 +302,19 @@ internal static class FileDiscovery
     {
         // Candidates outside the root (parent segments, or another drive) can never match
         var relative = Path.GetRelativePath(root, candidate);
-        if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        if (IsOutside(relative))
         {
             return false;
         }
 
         return matcher.Match(root, [relative.Replace(Path.DirectorySeparatorChar, Slash)]).HasMatches;
     }
+
+    /// <summary>
+    ///     Determines whether a relative path leaves its origin directory.
+    /// </summary>
+    /// <param name="relative">The result of <see cref="Path.GetRelativePath(string, string)"/>.</param>
+    /// <returns><see langword="true"/> when the path climbs out of the origin or is on another drive.</returns>
+    private static bool IsOutside(string relative) =>
+        Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 }

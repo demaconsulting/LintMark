@@ -5,9 +5,16 @@
 `DocumentParser` is verified with unit tests in `DocumentParserTests.cs`. The real Markdown library and the
 real `SourceDocument` are used, because the unit exists to compensate for the library's behavior; mocking
 the parser would remove what is being tested. Most tests build a `SourceDocument` from a small text with
-`FromText` and assert on the block list: kind, effective range, depth, and parent. There is one fixture per
-quirk (Q-1 to Q-5 and Q-8) and per rule (R-4 and R-5), named after it. The structure over a large corpus is
-verified separately at subsystem level.
+`FromText` and assert on the block list: kind, effective range (checked as the exact source text of the
+range), depth, and parent. There is one fixture for each behavior listed in *Parser Behaviors Compensated* of
+the `DocumentParser` design, plus fixtures for the dialect and for the classification of each construct. The
+`SuppressionMap` and `ReferenceIndex` that `Parse` builds are only checked for being populated here; their own
+tests verify their content. Some assertions also run the span-tiling check of the subsystem tests
+(`SpanTilingAssertions`, test support code described in the `Document` subsystem verification) on a small
+fixture. The structure over a large corpus is verified separately at subsystem level.
+
+The scenarios for `GetLines` and `GetContinuationPrefix` are supporting verification: the line geometry has no
+requirement and no production caller yet, and its tests protect the behavior until the first consumer exists.
 
 #### Test Environment
 
@@ -16,111 +23,190 @@ N/A - standard test environment.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- Blocks are in source order with enclosing blocks first and no synthetic nodes.
-- Each quirk fixture shows the corrected range or classification.
+- Blocks are in source order with enclosing blocks first and no group shells or empty-range nodes.
+- Each fixture for a parser behavior compensated by the unit shows the corrected range, classification,
+  depth, or parent.
+- Every footnote definition is reported as a block that starts at its marker, whether or not it is referenced
+  and wherever it stands; footnote-like text in code is not reported.
+- A link reference definition reports its enclosing container, and the paragraph or setext heading that follows
+  a definition does not overlap it.
 - Parsing LF and CRLF input gives the same structure.
 - Concurrent calls give identical results.
+- Invalid arguments are rejected with the documented exception.
 
 #### Test Scenarios
 
-**DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder**: A simple document returns its blocks in
-source order. Tested by `DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder`.
+##### Normal operation
 
-**DocumentParser_Parse_EmptyDocument_ReturnsNoBlocks**: An empty document has no blocks. Tested by
-`DocumentParser_Parse_EmptyDocument_ReturnsNoBlocks`.
+**Blocks of a simple document are listed in source order**: A document with a heading, paragraphs, and a list
+returns its blocks ordered by position, enclosing blocks before the blocks they contain.
 
-**DocumentParser_Parse_NullSource_ThrowsArgumentNullException**: A null source is rejected. Tested by
-`DocumentParser_Parse_NullSource_ThrowsArgumentNullException`.
+**Every block construct of the dialect is classified with its exact range**: A document holding an alert, a math
+block, a closed fenced code block, an HTML block, and a task list returns the expected kind and the exact source
+text for each, and no unclosed fence is reported.
 
-**DocumentParser_Parse_NestedContainers_ReportsDepthAndParents**: Nested quotes and lists report depth and
-parent. Tested by `DocumentParser_Parse_NestedContainers_ReportsDepthAndParents`.
+**Pipe table is a table whose cell keeps a pipe inside a code span**: A pipe table is a `Table`, and a code span
+that contains an escaped pipe stays in its cell.
 
-**DocumentParser_Parse_PipeTable_IsTableWithGfmCells**: A pipe table is a `Table`, and a pipe inside a code
-span stays in its cell. Tested by `DocumentParser_Parse_PipeTable_IsTableWithGfmCells`.
+**Grid table is classified as a grid table**: A table written with `+` borders is `GridTable`, not `Table`.
 
-**DocumentParser_Parse_GridTable_IsGridTable**: A grid table is classified `GridTable`. Tested by
-`DocumentParser_Parse_GridTable_IsGridTable`.
+**Front matter is one verbatim block**: A leading YAML section is a single `FrontMatter` block.
 
-**DocumentParser_Parse_FrontMatter_IsFrontMatterBlock**: YAML front matter is a `FrontMatter` block. Tested
-by `DocumentParser_Parse_FrontMatter_IsFrontMatterBlock`.
+**Inline constructs are recognized**: A task list item, a bare-URL automatic link, strikethrough, and inline
+math are found in the syntax tree with exact spans.
 
-**DocumentParser_Parse_VariousBlocks_AreClassified**: An alert (classified as a block quote), a math block,
-a closed fence, an HTML block, and a task list get the expected `BlockKind`, and no unclosed fence is
-reported. Tested by `DocumentParser_Parse_VariousBlocks_AreClassified`.
+**Headings carry no generated identifiers**: Headings get no generated attributes, and no synthetic link
+reference definitions are added.
 
-**DocumentParser_Parse_InlineExtensions_AreRecognized**: Strikethrough and a bare-URL autolink are
-recognized. Tested by `DocumentParser_Parse_InlineExtensions_AreRecognized`.
+**Nested containers report depth and parents**: A quote that contains a list whose item holds a paragraph
+reports depths 0, 1, 2, and 3, and the parent of each block is the node of the block that encloses it.
 
-**DocumentParser_Parse_Headings_HaveNoAutoIdentifiers**: Headings carry no generated attributes and add no
-synthetic definitions. Tested by `DocumentParser_Parse_Headings_HaveNoAutoIdentifiers`.
+**Reference definition inside a block quote reports its container**: A definition in a quote has the quote as
+its parent and the next depth, although the parser keeps it at the document root; a definition outside any
+container has no parent.
 
-**DocumentParser_Parse_UnclosedFence_Q1_EffectiveSpanReachesEnd**: An unclosed fence is `UnclosedFence` and
-extends to the end of the file. Tested by `DocumentParser_Parse_UnclosedFence_Q1_EffectiveSpanReachesEnd`.
+**Reference definition inside a list item reports its container**: A definition in a list item has the item as
+its parent and the next depth.
 
-**DocumentParser_Parse_UnclosedFenceInQuote_Q1_EndsWithParent**: An unclosed fence inside a quote ends with
-the quote. Tested by `DocumentParser_Parse_UnclosedFenceInQuote_Q1_EndsWithParent`.
+**Reference definition in nested containers reports the innermost container**: Definitions in a quote that
+contains a list whose item holds a definition report the innermost enclosing block.
 
-**DocumentParser_Parse_ListTrailingNewline_Q2_EffectiveEndTrimmed**: A list or item never ends on a line
-feed. Tested by `DocumentParser_Parse_ListTrailingNewline_Q2_EffectiveEndTrimmed`.
+**Definitions and footnotes appear in source order with their own ranges**: A document that mixes link
+reference definitions, referenced footnotes, and unreferenced footnotes lists them in source order, each with
+its own exact range and no group shell.
 
-**DocumentParser_Parse_IndentedCodeTrailingNewline_Q2_EffectiveEndTrimmed**: Indented code never ends on a
-line feed. Tested by `DocumentParser_Parse_IndentedCodeTrailingNewline_Q2_EffectiveEndTrimmed`.
+**Referenced footnote range includes its label marker**: Footnotes written as `[^n]: Note`, with the body on the
+next line, with up to three spaces of indentation, and with several paragraphs each start at the `[` of the
+marker and end on the last visible character.
 
-**DocumentParser_Parse_ReferenceAndFootnoteGroups_Q3_SourceOrderedNoShells**: Definitions and footnotes
-appear in source order without group shells. Tested by
-`DocumentParser_Parse_ReferenceAndFootnoteGroups_Q3_SourceOrderedNoShells`.
+**Footnote definition in a list item reports its container**: A footnote definition inside a list item is
+reported with that item as its parent and the next depth.
 
-**DocumentParser_Parse_UnreferencedFootnote_Q3_DetectedByScan**: A footnote definition without a reference is
-reported as `UnreferencedFootnote` with no node. Tested by
-`DocumentParser_Parse_UnreferencedFootnote_Q3_DetectedByScan`.
+**Footnote definition inside a block quote or list item is a footnote**: Such a definition is classified
+`UnreferencedFootnote`, keeps the parser's definition node, reports the enclosing container, and is not a
+`LinkReferenceDefinition`, so the reference index does not list it.
 
-**DocumentParser_Parse_FootnoteLikeLineInCode_Q3_IsNotReported**: A footnote-like line inside code is not
-reported. Tested by `DocumentParser_Parse_FootnoteLikeLineInCode_Q3_IsNotReported`.
+**Paragraph after a definition does not overlap it**: A paragraph that directly follows a definition starts at its
+own text, and the definition keeps its own range.
 
-**DocumentParser_Parse_CrLfCodeSpan_Q4_ParsesLfNormalizedText**: A multi-line code span gives the same blocks
-for CRLF and LF input. Tested by `DocumentParser_Parse_CrLfCodeSpan_Q4_ParsesLfNormalizedText`.
+**Paragraph after a definition in a container does not overlap it**: The same for a definition in a quote and for
+two stacked definitions in a list item; the paragraph excludes the container prefix of its first line and
+nests next to the definitions.
 
-**DocumentParser_GetLines_LazyContinuation_Q5_FlagsLazyLines**: Lazy continuation lines in quotes and lists
-are flagged. Tested by `DocumentParser_GetLines_LazyContinuation_Q5_FlagsLazyLines`.
+**Setext heading after a definition does not overlap it**: A setext heading that directly follows a definition
+starts at its own first line, the definition keeps its own range, and the heading's lines are rebuilt as the text
+line and the underline, numbered from the heading's first line.
 
-**DocumentParser_GetLines_LazySetextLookalike_Q5_IsParagraphTextAndLazy**: A line that looks like a setext
-underline but is lazy is paragraph text. Tested by
-`DocumentParser_GetLines_LazySetextLookalike_Q5_IsParagraphTextAndLazy`.
+**Setext heading after a definition in a container does not overlap it**: The same for a definition in a quote
+and in a list item; the heading nests next to the definition and its lines exclude the container prefix.
 
-**DocumentParser_GetLines_ParagraphLines_Q8_RebuiltFromSpan**: Paragraph lines are rebuilt from the source.
-Tested by `DocumentParser_GetLines_ParagraphLines_Q8_RebuiltFromSpan`.
+**Unreferenced footnote is reported with its range**: A footnote definition that nothing refers to is an
+`UnreferencedFootnote` block with a null node, starting at its marker.
 
-**DocumentParser_GetLines_NestedContainers_R4_ContentStartIsFirstInline**: The content start of
-continuation lines in nested containers is the first inline. Tested by
-`DocumentParser_GetLines_NestedContainers_R4_ContentStartIsFirstInline`.
+**Repeated footnote label is reported**: When two definitions use the same label, or labels that differ only in
+letter case, the second one is also reported as an `UnreferencedFootnote` block.
 
-**DocumentParser_GetLines_MultiLineCodeSpan_R4_FallsBackToPrefixStripping**: A line beginning inside a code
-span falls back to prefix stripping. Tested by
-`DocumentParser_GetLines_MultiLineCodeSpan_R4_FallsBackToPrefixStripping`.
+**Adjacent unreferenced footnotes are both reported**: Two definitions with the same label on consecutive lines
+give two blocks, each with its own range.
 
-**DocumentParser_GetLines_TabIndentedContinuation_ContentStartAfterTab**: The content of a tab-indented
-continuation line starts after the tab. Tested by
-`DocumentParser_GetLines_TabIndentedContinuation_ContentStartAfterTab`.
+**CRLF input gives the same blocks as LF**: A document with a multi-line code span gives identical block kinds
+and ranges for CRLF and LF text.
 
-**DocumentParser_GetContinuationPrefix_R5_BlanksMarkers**: The continuation prefix blanks list markers and
-numbers and keeps quote markers (for `-`, `1.`, `10.`, and quote forms). Tested by
-`DocumentParser_GetContinuationPrefix_R5_BlanksMarkers`.
+**Parse populates suppressions and references**: A document with a suppression comment and a link reference
+definition produces a suppression map and a reference index that contain them.
 
-**DocumentParser_GetLines_SetextHeading_ReturnsTextAndUnderlineLines**: A setext heading yields its text and
-underline lines. Tested by `DocumentParser_GetLines_SetextHeading_ReturnsTextAndUnderlineLines`.
+**Concurrent calls give identical results**: Several different documents (with lists, quotes, footnotes,
+definitions in containers, an unclosed fence, and tables) are parsed on many threads; each result equals the
+sequential result of its document.
 
-**DocumentParser_GetLines_NullArguments_Throw**: Null arguments are rejected. Tested by
-`DocumentParser_GetLines_NullArguments_Throw`.
+##### Boundary conditions
 
-**DocumentParser_Parse_Bom_OffsetsExcludeByteOrderMark**: With a byte order mark, offsets do not include it.
-Tested by `DocumentParser_Parse_Bom_OffsetsExcludeByteOrderMark`.
+**Empty document has no blocks**: An empty document parses to an empty block list.
 
-**DocumentParser_Parse_Tabs_ListCodeAndTextSpansAreExact**: Tab-indented lists, code, and text have exact
-ranges. Tested by `DocumentParser_Parse_Tabs_ListCodeAndTextSpansAreExact`.
+**Unclosed fence extends to the end of the document**: A fence without a closing fence is `UnclosedFence`, and
+its range runs to the end of the text.
 
-**DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks**: Concurrent parses of the same document
-produce identical block lists. Tested by `DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks`.
+**Unclosed fence in a block quote ends with the quote**: The range ends where the quote ends, not at the end of
+the file.
 
-**DocumentParser_Parse_CommentsAndDefinitions_PopulatesSuppressionsAndReferences**: Parsing populates the
-suppression map and the reference index. Tested by
-`DocumentParser_Parse_CommentsAndDefinitions_PopulatesSuppressionsAndReferences`.
+**Unclosed fence in a list item ends with the item**: The range ends where the list item ends.
+
+**Unclosed math block extends to the end of the document**: A math block without a closing delimiter is
+`UnclosedFence`, and its range runs to the end of the text.
+
+**Unclosed math block in a list item ends with the item**: The range ends where the list item ends.
+
+**List followed by a blank line ends on its last visible character**: The range of a list and of its item ends
+on the last character of text, not on the line feed that the parser includes.
+
+**Indented code followed by a blank line ends on its last visible character**: The same for an indented code
+block.
+
+**Footnote-like text in code is not reported**: A line that looks like a footnote definition inside a code block
+is not a block of its own.
+
+**Indented footnote-like line inside a footnote is content**: An indented line that begins like a definition and
+follows a blank line inside a footnote is part of that footnote and is not reported as a new definition.
+
+**Greater-than sign that is paragraph text after a definition is kept**: An indented line after a definition that
+begins with `>` and is not in a block quote starts the paragraph at the `>`.
+
+**Tab-indented list, code, and text have exact ranges**: A list with a tab-indented nested item, a paragraph that
+contains a tab, and a tab-indented code block report the exact kind, depth, and source text, using a tab stop of
+four.
+
+**Byte order mark is excluded from offsets**: A document loaded from bytes with a byte order mark reports
+offsets relative to the text without the mark.
+
+##### Error handling
+
+**Null source is rejected**: `Parse` with a null source throws `ArgumentNullException`.
+
+##### Supporting scenarios for line geometry
+
+These scenarios exercise `GetLines` and `GetContinuationPrefix`, which have no requirement yet.
+
+**Lazy continuation lines are flagged and explicit prefixes are not**: In quotes and lists a continuation line
+without the container prefix has `IsLazy` set, and lines with the prefix do not.
+
+**Setext underline lookalike in a lazy line is paragraph text**: A lazy line that looks like a setext underline is
+a lazy paragraph line, not an underline.
+
+**Paragraph lines have exact content ranges**: The lines of a paragraph are rebuilt from the source with the
+expected content start and end.
+
+**Continuation content in nested containers excludes the prefix**: The content of a continuation line starts
+after all quote and list prefixes.
+
+**Continuation inside a code span excludes the quote marker**: A line that begins inside a multi-line code span
+has its quote marker stripped.
+
+**Tab-indented continuation starts after the tab**: The content of a tab-indented continuation line starts after
+the tab.
+
+**Continuation prefix blanks markers and keeps quote markers**: For `-`, `1.`, `10.`, quoted lists, quotes, and
+plain text, the prefix has list markers and numbers replaced by spaces and keeps `>`.
+
+**Setext heading yields text and underline lines**: A setext heading has two lines.
+
+**Indented continuation of a footnote paragraph is not lazy**: A line indented by four spaces under a footnote's
+first line is not lazy.
+
+**Unindented continuation of a footnote paragraph is lazy**: A line without the indent is flagged lazy.
+
+**Second paragraph of a footnote excludes its indent**: The content of its lines starts after the four-space
+indent, and the lines are not lazy.
+
+**Continuation prefix of a footnote paragraph is four spaces**: The prefix is the four-space body indent whatever
+the label length, the indentation of the marker, or the spaces after it.
+
+**Paragraph after a definition returns only its own lines**: The lines start at the paragraph's text, not at the
+definitions before it.
+
+**Line helpers reject a block that is not a paragraph or heading**: `GetLines` and `GetContinuationPrefix` throw
+`ArgumentException` for a block of any other kind.
+
+**Line helpers reject a block outside the document**: A block whose range lies outside the text makes `GetLines`
+and `GetContinuationPrefix` throw `ArgumentException`.
+
+**Line helpers reject null arguments**: A null document or block throws `ArgumentNullException`.

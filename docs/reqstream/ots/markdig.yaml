@@ -9,12 +9,16 @@ sections:
       - title: Markdig Requirements
         requirements:
           - id: LintMark-OTS-Markdig-Spans
-            title: Markdig shall report the exact source range of every block and inline element it parses.
+            title: >-
+              Markdig shall report the source range of every block and inline element it parses, and the label,
+              destination, title, and range of every link reference definition, consistently between versions.
             justification: |
-              LintMark reports positions and rewrites text by source range, so it depends on the parser
-              to say precisely where each construct starts and ends. The tests also record the
-              documented range inaccuracies (unclosed fences and trailing newlines) that the Document
-              subsystem compensates for, so that a library update that changes them is noticed.
+              LintMark reports positions and rewrites text by source range, so it needs to locate each
+              construct in the source. In a few cases the library's range differs from the visible extent
+              of a construct (an unclosed fenced code block, a list followed by a blank line); LintMark
+              corrects those, so the difference must stay the same between versions. The tests pin both
+              the correct ranges and these deviations, so that a library update that changes either is
+              noticed.
             tags: [ots]
             tests:
               - Markdig_SourceSpans_BlocksAndInlines_AreSourceAccurate

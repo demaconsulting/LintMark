@@ -18,6 +18,10 @@ expect, and it avoids a hand-written pattern matcher.
   list of relative paths
 - An exclude pattern ending in `/**` to remove a directory at any depth
 
+Patterns are judged relative to the directory the matcher is run against, so the library cannot exclude that
+directory itself or a folder above it. `FileDiscovery` therefore checks the search root before running the
+matcher (see the *FileDiscovery* design) and uses the library's excludes only for folders found beneath the root.
+
 ### Integration Pattern
 
 FileSystemGlobbing is consumed as a NuGet package reference of the main project. `FileDiscovery` creates a

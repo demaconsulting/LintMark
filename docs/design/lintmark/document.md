@@ -37,8 +37,9 @@ paragraph or heading and the container prefix of its continuation lines.
 
 - *Type*: In-process .NET static methods.
 - *Role*: Provider.
-- *Contract*: See *DocumentParser Design*.
-- *Constraints*: Arguments must not be null.
+- *Contract*: See *DocumentParser Design*. Both are static and have no production caller yet.
+- *Constraints*: Arguments must not be null; the block must be a paragraph or heading whose range lies inside
+  the document text (otherwise `ArgumentException`). That the block belongs to the document is not verified.
 
 **SuppressionMap.IsSuppressed** and **SuppressionMap.IsSuppressedRange**: Answer whether a rule is
 suppressed at an offset or inside a range.
@@ -67,12 +68,18 @@ by all threads. It then flattens the syntax tree into the block list, compensati
 range quirks, and builds the `SuppressionMap` and `ReferenceIndex` from the same blocks and tree so
 that all three views describe the same parse.
 
-Quirk identifiers (Q-1 to Q-8) and rule identifiers (R-1 to R-6) used in the unit designs come from
-the Phase 0 spike on the Markdig parser. The behaviors that matter to the subsystem are: block ranges
-produced by the parser are not trustworthy as they are (unclosed fences, trailing newlines,
-synthetic group nodes, dropped footnote definitions), CRLF and LF input parse differently in
-multi-line code spans, and paragraph lines are released after parsing. Each unit design records how
-the quirk is handled.
+Block ranges produced by the parser are not trustworthy as they are, and `DocumentParser` compensates for the
+behaviors listed by name in *DocumentParser Design* (*Parser Behaviors Compensated*): unclosed fences, trailing
+line feeds, synthetic group nodes, definitions reported at the document root, dropped and misplaced footnote
+definitions, paragraphs that overlap definitions, the difference between LF and CRLF in multi-line code spans,
+lazy continuation lines, and released paragraph lines. The result is a block list in which siblings never
+overlap, every block lies inside its parent, and no document text is left unaccounted for outside the block
+ranges other than whitespace and container prefixes (quote markers and list markers). The span-tiling tests of
+the subsystem check exactly these properties.
+
+The `SuppressionMap` and `ReferenceIndex` units consume the `BlockInfo` and `BlockKind` types that are
+declared with `DocumentParser`, while the parser builds both of them. This is a cycle of types only: the
+parser calls the two units and they never call back into it, so there is no cycle of behavior.
 
 Thread safety follows the tool-wide rules in the *LintMark* system design: the only state shared
 between threads is the immutable Markdown pipeline. Every other object is created per file and

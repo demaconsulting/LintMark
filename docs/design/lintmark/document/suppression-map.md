@@ -82,8 +82,9 @@ than reported. All regular expressions have a match timeout. The map is immutabl
 
 - **SourceDocument** — line table for the line-scoped directives.
 - **Markdig** — syntax-tree types (HTML blocks and inline HTML) used to locate comments.
-- `BlockInfo` and `BlockKind` — plain value types that the `DocumentParser` unit declares and produces.
-  They are inputs only, so there is no call back into the parser and no dependency cycle.
+- `BlockInfo` and `BlockKind` — plain value types that the `DocumentParser` unit declares and produces. They
+  are inputs only: this unit never calls the parser, so the dependency is a cycle of types (the parser builds
+  this unit and this unit reads the parser's types) but not of behavior.
 
 #### Callers
 

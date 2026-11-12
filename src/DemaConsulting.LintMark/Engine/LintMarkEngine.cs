@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Security;
 using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Document;
 
@@ -180,7 +181,7 @@ internal sealed class LintMarkEngine
         {
             bytes = File.ReadAllBytes(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
         {
             return Failed(path, ReadErrorRuleId, 1, 1, DescribeReadFailure(ex));
         }

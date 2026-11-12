@@ -3,9 +3,10 @@
 ### Verification Approach
 
 `Program` is verified with unit tests defined in `ProgramTests.cs`. Because `Program` directly
-instantiates `Context` from real arguments and calls `Validation.Run` when needed, no mocking
-is required. Tests pass controlled argument arrays and assert on captured console output and
-exit codes.
+instantiates `Context` from real arguments, calls `Validation.Run` when needed, and hands path arguments to the
+real `LintMarkEngine`, no mocking is required. Tests pass controlled argument arrays and assert on captured
+console output and exit codes; the path scenarios use real temporary files (the `TemporaryDirectory` test
+helper).
 
 ### Test Environment
 
@@ -22,52 +23,40 @@ N/A - standard test environment.
 
 ### Test Scenarios
 
-**Program_Run_WithVersionFlag_DisplaysVersionOnly**: `Program.Run` is called with a context
-created from `["--version"]`; the output contains the version string, "Copyright" does not
-appear, the banner prefix does not appear, and exit code is 0, confirming version-only output
-with no banner. This scenario is tested by `Program_Run_WithVersionFlag_DisplaysVersionOnly`.
+#### Normal operation
 
-**Program_Run_WithHelpFlag_DisplaysUsageInformation**: `Program.Run` is called with a context
-from `["--help"]`; the output contains "Usage:", "Options:", "--version", and "--help" and exit
-code is 0. This scenario is tested by `Program_Run_WithHelpFlag_DisplaysUsageInformation`.
+**Long version flag displays the version only**: `Program.Run` with a context from `["--version"]` outputs the
+version string without a banner or copyright notice, and the exit code is 0.
 
-**Program_Run_WithValidateFlag_RunsValidation**: `Program.Run` is called with a context from
-`["--validate"]`; the output contains "Total Tests:" and exit code is 0, confirming the
-self-validation suite is invoked and completes successfully. This scenario is tested by
-`Program_Run_WithValidateFlag_RunsValidation`.
+**Short version flag displays the version**: `["-v"]` outputs the version string and exits with 0.
 
-**Program_Run_NoArguments_DisplaysDefaultBehavior**: `Program.Run` is called with an empty
-argument array; the output contains the tool name and copyright notice and exit code is 0.
-The default pattern is applied to the test process's current directory. This scenario is tested by
-`Program_Run_NoArguments_DisplaysDefaultBehavior`.
+**Help flag displays the usage information**: `["--help"]` outputs "Usage:", "Options:", "--version", and
+"--help", and the exit code is 0.
 
-**Program_Version_ReturnsNonEmptyString**: The `Program.Version` static property is read; the
-returned string is non-empty and non-null, confirming the version is resolvable from the
-assembly attributes. This scenario is tested by `Program_Version_ReturnsNonEmptyString`.
+**Short help flags display the usage information**: `["-h"]` and `["-?"]` output "Usage:" and "Options:" and
+exit with 0.
 
-**Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode**: `Program.Main` is invoked with
-`["--invalid-argument"]`; the exit code is 1, confirming that invalid arguments are caught and
-handled without re-throwing. This scenario is tested by
-`Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode`.
+**Help lists the check option and the path arguments**: `["--help"]` outputs `[paths...]`, `--check`, and the
+default pattern `**/*.md`, and the exit code is 0.
 
-**Program_Run_WithShortVersionFlag_DisplaysVersion**: `Program.Run` is called with a context
-from `["-v"]`; the output contains the version string and exit code is 0. This scenario is
-tested by `Program_Run_WithShortVersionFlag_DisplaysVersion`.
+**Validate flag runs the self-validation**: `["--validate"]` outputs "Total Tests:" and exits with 0.
 
-**Program_Run_WithShortHelpFlag_DisplaysUsage**: `Program.Run` is called with a context from
-`["-h"]`; the output contains "Usage:" and "Options:" and exit code is 0. This scenario is
-tested by `Program_Run_WithShortHelpFlag_DisplaysUsage`.
+**No arguments display the banner and process the current directory**: An empty argument array outputs the tool
+name and the copyright notice and exits with 0; the default pattern is applied to the test process's current
+directory.
 
-**Program_Run_WithQuestionMarkFlag_DisplaysUsage**: `Program.Run` is called with a context from
-`["-?"]`; the output contains "Usage:" and "Options:" and exit code is 0. This scenario is
-tested by `Program_Run_WithQuestionMarkFlag_DisplaysUsage`.
+**Version is resolvable from the assembly**: `Program.Version` returns a non-empty string.
 
-**Program_Run_WithHelpFlag_ListsCheckOptionAndPaths**: `Program.Run` is called with a context from
-`["--help"]`; the output contains `[paths...]`, `--check`, and the default pattern `**/*.md`, and exit code
-is 0. This scenario is tested by `Program_Run_WithHelpFlag_ListsCheckOptionAndPaths`.
+**Path argument runs the engine**: A context for a valid file leaves the exit code at 0.
 
-**Program_Run_WithPathArgument_RunsEngine**: `Program.Run` is called with a context for a valid file and
-another context for an undecodable file; the first leaves the exit code 0, the second makes it 1 and
-writes `file-encoding-error` to the error stream, and the old "not yet implemented" text no longer appears.
-Real files and the real engine are used. This scenario is tested by
-`Program_Run_WithPathArgument_RunsEngine`.
+#### Boundary conditions
+
+N/A - the program has no numeric or size limits; its argument boundaries are verified in the `Context` unit.
+
+#### Error handling
+
+**Invalid arguments are caught and give exit code 1**: `Program.Main` with `["--invalid-argument"]` returns exit
+code 1 without throwing.
+
+**Undecodable file is reported through the context**: A context for an undecodable file makes the exit code 1
+and writes `file-encoding-error` to the error stream; the former "not yet implemented" text no longer appears.

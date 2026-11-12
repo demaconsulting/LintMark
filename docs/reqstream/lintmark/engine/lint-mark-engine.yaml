@@ -1,107 +1,129 @@
 ---
 # Software Unit Requirements for the LintMarkEngine Class
 #
-# The LintMarkEngine class discovers the selected files, processes them in parallel and reports
-# failures deterministically through the context.
+# The LintMarkEngine class processes the selected files and reports failures deterministically through
+# the Context.
 
 sections:
-  - title: LintMarkEngine Unit Requirements
-    requirements:
-      - id: LintMark-LintMarkEngine-ParseEach
-        title: >-
-          The LintMarkEngine class shall read and parse every selected file and report nothing for files that
-          succeed, including when no file is selected.
-        justification: |
-          Reading and parsing every file is the work of the tool. Silence on success keeps the output
-          of large runs readable, and an empty selection is a valid outcome.
-        tests:
-          - LintMarkEngine_Process_ValidFiles_ReturnsNoFailures
-          - LintMarkEngine_Process_NoFiles_ReturnsEmpty
-          - LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero
-          - LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero
-          - LintMarkEngine_Run_CheckFlag_BehavesLikeDefault
-          - LintMarkEngine_RunAndProcess_NullArguments_Throw
+  - title: LintMark Requirements
+    sections:
+      - title: Engine Requirements
+        sections:
+          - title: LintMarkEngine Requirements
+            requirements:
+              - id: LintMark-Engine-LintMarkEngine-ProcessEach
+                title: The LintMarkEngine class shall read and parse every selected file.
+                justification: |
+                  Reading and parsing every selected file is the work of the tool.
+                tests:
+                  - LintMarkEngine_Process_ValidFiles_ReturnsNoFailures
+                  - LintMarkEngine_Run_CheckFlag_BehavesLikeDefault
 
-      - id: LintMark-LintMarkEngine-Parallel
-        title: >-
-          The LintMarkEngine class shall process several files at the same time, up to a configurable limit
-          of one or more, with a limit of one processing the files one after the other.
-        justification: |
-          Parallel processing keeps large documentation sets fast. A limit of one provides a
-          sequential reference for diagnosing problems and for proving that parallelism changes no
-          result.
-        tests:
-          - LintMarkEngine_Process_ParallelismOne_RunsSequentially
-          - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults
-          - LintMarkEngine_Constructor_ParallelismBelowOne_ThrowsArgumentOutOfRangeException
+              - id: LintMark-Engine-LintMarkEngine-IsolatedFailures
+                title: The LintMarkEngine class shall continue with the remaining files when one file fails.
+                justification: |
+                  A defect or damaged content in one file must not hide the state of the rest of a
+                  documentation set.
+                tests:
+                  - LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly
+                  - LintMarkEngine_Process_MissingFile_ReportsReadError
 
-      - id: LintMark-LintMarkEngine-ReadFailure
-        title: >-
-          The LintMarkEngine class shall report a file that does not exist, is denied, or cannot be read as a
-          read failure at line 1 and column 1 with a message that says what went wrong.
-        justification: |
-          Users must be able to distinguish a mistyped or inaccessible path from a problem in a
-          file's content, and the report must not stop the processing of other files.
-        tests:
-          - LintMarkEngine_Process_MissingFile_ReportsReadError
-          - LintMarkEngine_Process_DirectoryAsFile_ReportsReadError
-          - LintMarkEngine_Run_MissingExplicitFile_ReportsReadError
+              - id: LintMark-Engine-LintMarkEngine-SilentOnSuccess
+                title: >-
+                  The LintMarkEngine class shall report nothing for files that succeed, including when no file is
+                  selected.
+                justification: |
+                  Silence on success keeps the output of large runs readable, and an empty selection is a
+                  valid outcome.
+                tests:
+                  - LintMarkEngine_Process_NoFiles_ReturnsEmpty
+                  - LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero
+                  - LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero
 
-      - id: LintMark-LintMarkEngine-DecodeFailure
-        title: >-
-          The LintMarkEngine class shall report a file whose bytes are not valid UTF-8, or that has a
-          UTF-16 or UTF-32 byte order mark, as an encoding failure and a file with a bare carriage return as a
-          line-ending failure, each at the position of the problem.
-        justification: |
-          Damaged or unsupported files must be named with enough precision to repair them, rather
-          than being read incorrectly.
-        tests:
-          - LintMarkEngine_Process_InvalidUtf8_ReportsEncodingError
-          - LintMarkEngine_Process_Utf16File_ReportsEncodingError
-          - LintMarkEngine_Process_LoneCr_ReportsLineEndingError
+              - id: LintMark-Engine-LintMarkEngine-ReadFailure
+                title: >-
+                  The LintMarkEngine class shall report a file that does not exist, is denied, or cannot be read
+                  as a read failure at line 1 and column 1 with a message that says what went wrong.
+                justification: |
+                  Users must be able to distinguish a mistyped or inaccessible path from a problem in a
+                  file's content, and the report must not stop the processing of other files.
+                tests:
+                  - LintMarkEngine_Process_MissingFile_ReportsReadError
+                  - LintMarkEngine_Process_DirectoryAsFile_ReportsReadError
+                  - LintMarkEngine_Run_MissingExplicitFile_ReportsReadError
 
-      - id: LintMark-LintMarkEngine-ParseFailure
-        title: >-
-          The LintMarkEngine class shall report a file for which the Markdown parser fails as a parse failure
-          at line 1 and column 1 naming the kind of failure, without preventing other files from being processed.
-        justification: |
-          A defect triggered by one file's content must be reported against that file and must
-          not abort a run over a whole documentation set.
-        tests:
-          - LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly
-          - LintMarkEngine_Run_ParserFailure_ReportsParseError
+              - id: LintMark-Engine-LintMarkEngine-EncodingFailure
+                title: >-
+                  The LintMarkEngine class shall report a file whose bytes are not valid UTF-8, or that begins
+                  with a UTF-16 or UTF-32 byte order mark, as an encoding failure at the position of the
+                  problem.
+                justification: |
+                  Damaged or unsupported files must be named with enough precision to repair them, rather
+                  than being read incorrectly.
+                tests:
+                  - LintMarkEngine_Process_InvalidUtf8_ReportsEncodingError
+                  - LintMarkEngine_Process_Utf16File_ReportsEncodingError
 
-      - id: LintMark-LintMarkEngine-FailureFormat
-        title: >-
-          The LintMarkEngine class shall write each failure on its own line as `path:line:col: rule-id
-          message` through the context's error output, with the path relative to the current directory using
-          forward slashes, and the failures of one file in order of position.
-        justification: |
-          A single, regular format is machine readable and recognized by editors and build
-          systems. Relative paths with one separator style make output the same on every platform.
-        tests:
-          - LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder
-          - LintMarkEngine_Run_MultipleFailuresInFile_AreOrderedByPosition
+              - id: LintMark-Engine-LintMarkEngine-LineEndingFailure
+                title: >-
+                  The LintMarkEngine class shall report a file with a carriage return that is not part of a CRLF
+                  line ending as a line-ending failure at the position of the carriage return.
+                justification: |
+                  Only LF and CRLF line endings can be restored faithfully, so a bare carriage return must be
+                  named with enough precision to repair it.
+                tests:
+                  - LintMarkEngine_Process_LoneCr_ReportsLineEndingError
 
-      - id: LintMark-LintMarkEngine-ExitStatus
-        title: >-
-          The LintMarkEngine class shall leave the exit status at zero when no failure was reported and make it
-          non-zero when at least one failure was reported.
-        justification: |
-          Scripts and build pipelines act on the exit status alone.
-        tests:
-          - LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero
-          - LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder
-          - LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero
+              - id: LintMark-Engine-LintMarkEngine-ProcessingFailure
+                title: >-
+                  The LintMarkEngine class shall report a file whose processing fails unexpectedly as a failure of
+                  that file at line 1 and column 1, naming the kind of failure.
+                justification: |
+                  A defect triggered by one file's content must be reported against that file and must
+                  not abort a run over a whole documentation set.
+                tests:
+                  - LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly
+                  - LintMarkEngine_Run_ParserFailure_ReportsParseError
 
-      - id: LintMark-LintMarkEngine-OrderedResults
-        title: >-
-          The LintMarkEngine class shall return and report results ordered by path regardless of the order of
-          its inputs, the number of files processed at once, and the order in which processing finishes.
-        justification: |
-          Output that depends on scheduling cannot be compared between runs or machines, and a
-          flaky order makes failures hard to reproduce.
-        tests:
-          - LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder
-          - LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted
-          - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults
+              - id: LintMark-Engine-LintMarkEngine-FailureFormat
+                title: >-
+                  The LintMarkEngine class shall write each failure on its own line as `path:line:col: rule-id
+                  message` through the error output of the Context, with the path relative to the current
+                  directory using forward slashes.
+                justification: |
+                  A single, regular format is machine readable and recognized by editors and build
+                  systems. Relative paths with one separator style make output the same on every platform.
+                tests:
+                  - LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder
+
+              - id: LintMark-Engine-LintMarkEngine-FailureOrderWithinFile
+                title: The LintMarkEngine class shall list the failures of one file in order of position.
+                justification: |
+                  A reader fixing a file works from top to bottom, and a fixed order keeps output
+                  reproducible.
+                tests:
+                  - LintMarkEngine_Run_MultipleFailuresInFile_AreOrderedByPosition
+
+              - id: LintMark-Engine-LintMarkEngine-ExitStatus
+                title: >-
+                  The LintMarkEngine class shall leave the exit status at zero when no failure was reported and
+                  make it non-zero when at least one failure was reported.
+                justification: |
+                  Scripts and build pipelines act on the exit status alone.
+                tests:
+                  - LintMarkEngine_Run_ValidFiles_WritesNothingAndExitsZero
+                  - LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder
+                  - LintMarkEngine_Run_GlobWithoutMatches_WritesNothingAndExitsZero
+
+              - id: LintMark-Engine-LintMarkEngine-OrderedResults
+                title: >-
+                  The LintMarkEngine class shall return and report results ordered by path regardless of the
+                  order of its inputs, the number of files processed at once, and the order in which processing
+                  finishes.
+                justification: |
+                  Output that depends on scheduling cannot be compared between runs or machines, and a
+                  flaky order makes failures hard to reproduce.
+                tests:
+                  - LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder
+                  - LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted
+                  - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults

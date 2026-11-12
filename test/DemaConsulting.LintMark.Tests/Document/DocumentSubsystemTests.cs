@@ -20,6 +20,11 @@
 
 using System.Text;
 using DemaConsulting.LintMark.Document;
+using Markdig.Extensions.Mathematics;
+using Markdig.Extensions.TaskLists;
+using Markdig.Renderers.Html;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -258,6 +263,87 @@ public class DocumentSubsystemTests
     }
 
     /// <summary>
+    ///     Test that every synthetic top-level footnote and definition document tiles correctly (LF).
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_SyntheticDefinitionsAndFootnotes_Lf_HaveNoSpanViolations()
+    {
+        // Arrange / Act: parse all footnote and definition fixtures and collect violations
+        var violations = new List<string>();
+        foreach (var fixture in SyntheticDocuments.GenerateFootnoteDocuments())
+        {
+            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
+            violations.AddRange(SpanTilingAssertions.Check(document));
+        }
+
+        // Assert: no violations
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
+    }
+
+    /// <summary>
+    ///     Test that every synthetic top-level footnote and definition document tiles correctly when given as CRLF bytes.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_SyntheticDefinitionsAndFootnotes_CrLf_HaveNoSpanViolations()
+    {
+        // Arrange / Act: parse all footnote and definition fixtures from CRLF bytes and collect violations
+        var violations = new List<string>();
+        foreach (var fixture in SyntheticDocuments.GenerateFootnoteDocuments())
+        {
+            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, Variant.CrLf)));
+            violations.AddRange(SpanTilingAssertions.Check(document));
+        }
+
+        // Assert: no violations
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
+    }
+
+    /// <summary>
+    ///     Test that a link reference definition inside any container chain reports the depth and enclosing blocks of that chain.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_SyntheticNesting_DefinitionDepthAndParent_MatchContainerChain()
+    {
+        // Arrange: the fixtures whose body is a single definition, and the expected container kinds per chain letter
+        var problems = new List<string>();
+        var count = 0;
+        foreach (var fixture in SyntheticDocuments.Generate().Where(f => f.Name.Contains(":definition:", StringComparison.Ordinal) || f.Name.EndsWith(":definition", StringComparison.Ordinal)))
+        {
+            // Act: parse and find the definition
+            count++;
+            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
+            var definition = document.Blocks.SingleOrDefault(b => b.Kind == BlockKind.LinkReferenceDefinition);
+            if (definition == null)
+            {
+                problems.Add($"{fixture.Name}: expected exactly one definition");
+                continue;
+            }
+
+            // Assert (collected): depth equals the number of enclosing containers, the parent chain reaches the top
+            var ancestors = new List<BlockKind>();
+            var byNode = new Dictionary<Block, BlockInfo>(ReferenceEqualityComparer.Instance);
+            foreach (var block in document.Blocks.Where(b => b.Node != null))
+            {
+                byNode[block.Node!] = block;
+            }
+            for (var parent = definition.Parent; parent != null; parent = byNode[parent].Parent)
+            {
+                ancestors.Add(byNode[parent].Kind);
+            }
+
+            ancestors.Reverse();
+            var expected = fixture.Chain.SelectMany(c => c == 'Q' ? new[] { BlockKind.BlockQuote } : [BlockKind.List, BlockKind.ListItem]).ToList();
+            if (definition.Depth != SyntheticDocuments.BodyDepth(fixture.Chain) || !ancestors.SequenceEqual(expected))
+            {
+                problems.Add($"{fixture.Name}: depth {definition.Depth}, ancestors [{string.Join(",", ancestors)}], expected [{string.Join(",", expected)}]");
+            }
+        }
+
+        Assert.True(count > 100, $"expected many fixtures, found {count}");
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Take(25)));
+    }
+
+    /// <summary>
     ///     Test that paragraph lines of nested fixtures are rebuilt exactly and lazy lines are flagged exactly where the fixture is lazy.
     /// </summary>
     [Fact]
@@ -322,15 +408,101 @@ public class DocumentSubsystemTests
     }
 
     /// <summary>
+    ///     Test that content that cannot be loaded is rejected with the rule and the position of the first problem.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_InvalidContent_Load_ReportsFailureWithPosition()
+    {
+        // Arrange: invalid UTF-8 on line 2, a UTF-16 byte order mark, and a bare carriage return on line 3
+        byte[] invalidUtf8 = [.. "ok\nab"u8, 0xFF, .. "\n"u8];
+        byte[] utf16 = [0xFF, 0xFE, 0x61, 0x00];
+        var loneCr = "a\nb\nc\rd\n"u8.ToArray();
+
+        // Act: load each
+        var encoding = Assert.Throws<SourceDocumentException>(() => SourceDocument.Create("a.md", invalidUtf8));
+        var bom = Assert.Throws<SourceDocumentException>(() => SourceDocument.Create("b.md", utf16));
+        var lineEnding = Assert.Throws<SourceDocumentException>(() => SourceDocument.Create("c.md", loneCr));
+
+        // Assert: rule and position of the first offending byte or character
+        Assert.Equal((SourceDocumentException.EncodingRuleId, 2, 3), (encoding.RuleId, encoding.Line, encoding.Column));
+        Assert.Equal((SourceDocumentException.EncodingRuleId, 1, 1), (bom.RuleId, bom.Line, bom.Column));
+        Assert.Equal((SourceDocumentException.LineEndingRuleId, 3, 2), (lineEnding.RuleId, lineEnding.Line, lineEnding.Column));
+    }
+
+    /// <summary>
+    ///     Test that block offsets of a parsed document convert to the expected line and column positions and back.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_Positions_ParsedBlocks_ConvertToLineAndColumn()
+    {
+        // Arrange: a document from CRLF bytes with a byte order mark; positions must ignore both
+        const string text = "# Title\n\n> - item\n>   more\n\n[a]: http://x\n";
+        byte[] bytes = [0xEF, 0xBB, 0xBF, .. new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))];
+
+        // Act: parse and convert the start of every block
+        var document = DocumentParser.Parse(SourceDocument.Create("p.md", bytes));
+        var positions = document.Blocks.Select(b => (b.Kind, document.Source.PositionOf(b.Start))).ToList();
+
+        // Assert: exact 1-based positions, and every position converts back to the same offset
+        Assert.Equal(
+            [
+                (BlockKind.Heading, (1, 1)),
+                (BlockKind.BlockQuote, (3, 1)),
+                (BlockKind.List, (3, 3)),
+                (BlockKind.ListItem, (3, 3)),
+                (BlockKind.Paragraph, (3, 5)),
+                (BlockKind.LinkReferenceDefinition, (6, 1))
+            ],
+            positions);
+        Assert.All(document.Blocks, b =>
+        {
+            var (line, column) = document.Source.PositionOf(b.Start);
+            Assert.Equal(b.Start, document.Source.OffsetOf(line, column));
+        });
+    }
+
+    /// <summary>
+    ///     Test that every construct of the fixed dialect is recognized from file bytes and that nothing is generated.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_Dialect_AllConstructs_AreRecognizedFromBytes()
+    {
+        // Arrange: front matter, heading, pipe table, grid table, task list with inline constructs, alert, math and a footnote
+        const string text =
+            "---\ntitle: x\n---\n\n# H\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n+---+---+\n| a | b |\n+---+---+\n\n"
+            + "- [x] task https://example.com ~~gone~~ $m$\n\n> [!NOTE]\n> alert\n\n$$\nx\n$$\n\nT[^n].\n\n[^n]: Note\n";
+
+        // Act: parse from bytes
+        var document = DocumentParser.Parse(SourceDocument.Create("d.md", new UTF8Encoding(false).GetBytes(text)));
+
+        // Assert: one block per construct in source order, the inline constructs exist, and no identifier was generated
+        Assert.Equal(
+            [
+                BlockKind.FrontMatter, BlockKind.Heading, BlockKind.Table, BlockKind.GridTable, BlockKind.List, BlockKind.ListItem,
+                BlockKind.Paragraph, BlockKind.BlockQuote, BlockKind.Paragraph, BlockKind.MathBlock, BlockKind.Paragraph,
+                BlockKind.Footnote, BlockKind.Paragraph
+            ],
+            document.Blocks.Select(b => b.Kind).ToList());
+        Assert.Single(document.Ast.Descendants<TaskList>());
+        Assert.Single(document.Ast.Descendants<LinkInline>(), l => l.IsAutoLink);
+        Assert.Single(document.Ast.Descendants<EmphasisInline>(), e => e.DelimiterChar == '~');
+        Assert.Single(document.Ast.Descendants<MathInline>());
+        Assert.Empty(document.References.Definitions);
+        Assert.Null(Assert.Single(document.Ast.Descendants<HeadingBlock>()).TryGetAttributes());
+    }
+
+    /// <summary>
     ///     Test the load, parse, suppress and reference flow on one document from bytes.
     /// </summary>
     [Fact]
     public void DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults()
     {
-        // Arrange: a document with a BOM and CRLF endings, a suppression region, definitions and an unreferenced footnote
+        // Arrange: a document with a BOM and CRLF endings, a suppression region, definitions (the label of the
+        // last one repeats the first in another letter case) and an unreferenced footnote
         const string text =
             "# Title\n\nSee [a] and [b].\n\n<!-- lintmark-disable line-length -->\n\nINSIDE paragraph.\n\n"
-            + "<!-- lintmark-enable line-length -->\n\nAFTER paragraph.\n\n[a]: http://a.example\n[b]: http://b.example \"B\"\n\n[^orphan]: Orphan.\n";
+            + "<!-- lintmark-enable line-length -->\n\nAFTER paragraph.\n\n[a]: http://a.example\n[b]: http://b.example \"B\"\n"
+            + "[A]: http://repeated.example\n\n[^orphan]: Orphan.\n";
         byte[] bytes = [0xEF, 0xBB, 0xBF, .. new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))];
 
         // Act: load and parse
@@ -344,7 +516,10 @@ public class DocumentSubsystemTests
         Assert.True(document.Suppressions.IsSuppressed(inside, "line-length"));
         Assert.False(document.Suppressions.IsSuppressed(inside, "other-rule"));
         Assert.False(document.Suppressions.IsSuppressed(after, "line-length"));
-        Assert.Equal(["a", "b"], document.References.Definitions.Select(d => d.Label).ToList());
+        Assert.Equal(["a", "b", "A"], document.References.Definitions.Select(d => d.Label).ToList());
+        Assert.Equal([13, 14, 15], document.References.Definitions.Select(d => d.Line).ToList());
+        Assert.True(document.References.TryGet("  A ", out var found));
+        Assert.Equal("http://a.example", found.Url);
         Assert.Contains(document.Blocks, b => b.Kind == BlockKind.UnreferencedFootnote);
         Assert.Empty(SpanTilingAssertions.Check(document));
     }

@@ -102,6 +102,8 @@ lintmark "!docs/generated"
 How the files are selected:
 
 - A file named explicitly is always processed, even if it is not a `.md` file or lies below `node_modules`.
+- Only an explicitly named file is processed from a `node_modules` or `.git` folder: a directory or glob that
+  starts inside such a folder (for example `node_modules` or `"node_modules/**/*.md"`) selects nothing.
 - A file selected by several arguments is processed once.
 - A pattern that matches no file is not an error.
 - A name that matches no wildcard pattern and does not exist is reported as a read problem.

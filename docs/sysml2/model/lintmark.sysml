@@ -12,7 +12,11 @@ package LintMark {
 
         metadata info : SoftwareInfo {
             description = "The LintMark system as a whole.";
-            testFiles = ("test/DemaConsulting.LintMark.Tests/IntegrationTests.cs");
+            testFiles = (
+                "test/DemaConsulting.LintMark.Tests/IntegrationTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Runner.cs",
+                "test/DemaConsulting.LintMark.Tests/TemporaryDirectory.cs",
+                "test/DemaConsulting.LintMark.Tests/AssemblyInfo.cs");
             designFiles = ("docs/design/lintmark.md");
             verificationFiles = ("docs/verification/lintmark.md");
             requirementFiles = ("docs/reqstream/lintmark.yaml");
