@@ -110,7 +110,7 @@ sections:
               The Cli subsystem shall not create or change the log file while the command line is parsed, and
               shall expose its path so that the run can be refused when the file is also an input.
             justification: |
-              A log file given with `--log` is replaced when it is opened. Deferring that to the first write
+              A log file given with `--log` is replaced when the run ends. Keeping the file untouched until then
               gives the tool the chance to protect a source file that was named as the log by mistake.
             children:
               - LintMark-Cli-Context-LogDeferred

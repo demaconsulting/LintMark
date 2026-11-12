@@ -19,7 +19,8 @@ N/A - standard test environment.
 - Invalid UTF-8, a UTF-16 byte order mark, and a bare carriage return are rejected with the documented rule
   identifier and position.
 - A UTF-8 byte order mark is preserved and restored; a file without one gets none.
-- Unchanged text written back in the original terminator style reproduces the original bytes.
+- Unchanged text written back in the original terminator style reproduces the original bytes for files whose
+  terminators are all of one style; a mixed file is written in its majority style.
 - Positions are 1-based, count UTF-16 code units, and convert back to the same offsets.
 - The line table cannot be modified by a caller that casts it.
 
@@ -63,6 +64,10 @@ normalized text.
 
 **File with byte order mark and CRLF is restored byte for byte**: Both the mark and the terminators are
 reproduced.
+
+**Mixed file is written in its majority style**: A file with two LF and one CRLF terminator is written as LF, and
+one with two CRLF and one LF terminator as CRLF; both are reported mixed, and the original bytes are not restored
+(the limit of the round trip).
 
 **Normalized text is converted to the requested terminator style**: The static `ToDisk` produces LF or CRLF text
 as requested.

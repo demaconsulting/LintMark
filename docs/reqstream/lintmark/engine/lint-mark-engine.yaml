@@ -134,7 +134,7 @@ sections:
                   contains the log file of the Context, including when the two paths differ only through
                   symbolic links, and shall not touch that file.
                 justification: |
-                  Opening a log file replaces its content, so a source file that is also the log would be
+                  The log file is replaced when the run ends, so a source file that is also the log would be
                   destroyed. Refusing the run is the only outcome that can never lose data; a user can still
                   log to a file in the selection by excluding it with a `!` pattern.
                 tests:

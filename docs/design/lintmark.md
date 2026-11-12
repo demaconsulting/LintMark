@@ -115,13 +115,15 @@ reads and parses files and reports the files it cannot process.
 - *Type*: File.
 - *Role*: Provider.
 - *Contract*: When `--log <file>` is supplied, all `Context.WriteLine` and `Context.WriteError`
-  output is written to the file regardless of `--silent`. The file is created, or its content
-  replaced, by the first line written and not before. A run whose selected files include the log
-  file is refused before anything is written, so the log can never replace an input; the log file
+  output is written to the log regardless of `--silent`. The lines are collected in a temporary file next to the
+  log file, which replaces the log file (by a move, never by truncating it in place) when the context is disposed;
+  until then, and if nothing is written, the log file is neither created nor changed. A run whose selected files
+  include the log file is refused before anything is written, so the log can never replace an input; the log file
   can still be placed inside the selected folders by excluding it with a `!` pattern.
 - *Constraints*: A path that is invalid, names a directory, or lies in a missing directory raises
-  an `InvalidOperationException` when the arguments are parsed; any other failure to open the file
-  is reported by the first write in the same way. Both cause exit code 1.
+  an `InvalidOperationException` when the arguments are parsed; a failure to create the temporary file is
+  reported by the first write, and a failure to replace the log file by disposal (the log stays in the temporary
+  file, which the message names), in the same way. All cause exit code 1.
 
 **Results File**: Optional self-validation results file.
 
@@ -160,8 +162,8 @@ N/A - not a safety-classified software item.
    - `--version` flag → `context.WriteLine(Version)`, then return.
    - Otherwise, unless `--help` or `--validate` was given, `LintMarkEngine.Select(context)` first
      discovers the files (steps 4) and refuses the run with an `InvalidOperationException` when the
-     log file is one of them; this happens before any output, because the first output opens the log
-     file and so replaces its content. Then `PrintBanner` is called; then:
+     log file is one of them; this happens before any output, because a context that has written anything
+     replaces the log file when it is disposed. Then `PrintBanner` is called; then:
      - `--help` flag → `PrintHelp(context)`, then return.
      - `--validate` flag → `Validation.Run(context)`.
      - Otherwise → `LintMarkEngine.Run(context, files)` with the files already selected.
@@ -196,9 +198,8 @@ N/A - not a safety-classified software item.
   `SourceDocument.LineStarts`, `SuppressionMap.Ranges`, `RuleSet.Rules`, `ReferenceIndex.Definitions`,
   `ParsedDocument.Blocks`, `FileResult.Failures`) are backed by immutable collections, so a caller
   cannot change them by casting to a mutable type.
-- Resource lifecycle: `Context` implements `IDisposable`; callers must dispose it to flush and
-  close any open log file handle. The log file is opened by the first write and never reopened after
-  disposal.
+- Resource lifecycle: `Context` implements `IDisposable`; callers must dispose it to publish the log (moving it
+  over the log file) and close its file handle. Nothing is opened again after disposal.
 - Path safety: all caller-supplied path components are validated by `PathHelpers.SafePathCombine`
   before file-system use by self-validation. Files named on the command line are only read, never
   written, and a log file that is one of them is refused before it is opened.

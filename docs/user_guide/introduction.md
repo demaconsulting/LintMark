@@ -244,7 +244,9 @@ Write output to a log file:
 lintmark --log output.log
 ```
 
-The log file is created, or its content replaced, when the first line is written. To make sure that logging can
+The log is first written to a temporary file next to the log file, and the log file itself is replaced when the
+run ends, by moving the temporary file over it (the old file is replaced, never truncated in place, so a second
+name for it, such as a hard link, is left unchanged). To make sure that logging can
 never destroy one of your files, LintMark refuses to run when the log file is also one of the files it would
 process, and reports an error without writing or changing anything (the comparison follows symbolic links, so
 naming the file through a link does not get around it):

@@ -432,6 +432,27 @@ public class SourceDocumentTests
     }
 
     /// <summary>
+    ///     Test that a mixed file is written back in its majority style, which is the documented limit of the round trip.
+    /// </summary>
+    [Fact]
+    public void SourceDocument_ToBytes_MixedFile_WritesMajorityStyle()
+    {
+        // Arrange: a file with two LF terminators and one CRLF terminator, and one with the opposite majority
+        var lfMajority = SourceDocument.Create("a.md", Utf8("a\nb\r\nc\n"));
+        var crLfMajority = SourceDocument.Create("b.md", Utf8("a\r\nb\nc\r\n"));
+
+        // Act: write back unchanged text in the majority style
+        var lfBytes = lfMajority.ToBytes(lfMajority.Text, lfMajority.MajorityLineEnding);
+        var crLfBytes = crLfMajority.ToBytes(crLfMajority.Text, crLfMajority.MajorityLineEnding);
+
+        // Assert: consistent files in the majority style, not the original bytes (only the counts are kept)
+        Assert.Equal(Utf8("a\nb\nc\n"), lfBytes);
+        Assert.Equal(Utf8("a\r\nb\r\nc\r\n"), crLfBytes);
+        Assert.True(lfMajority.LineEndings.IsMixed);
+        Assert.True(crLfMajority.LineEndings.IsMixed);
+    }
+
+    /// <summary>
     ///     Test that ToDisk converts to the requested terminator style.
     /// </summary>
     [Fact]

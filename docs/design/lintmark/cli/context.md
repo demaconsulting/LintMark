@@ -14,10 +14,13 @@ from whether any errors were reported. Its output members are safe to call from 
 **_outputLock**: `System.Threading.Lock` — Guards console output, log file output, the error flag,
 and disposal so that concurrent callers never interleave lines.
 
-**_logWriter**: `StreamWriter?` — Log file writer; `null` until the first write opens the file and when
-logging is not active.
+**_logWriter**: `StreamWriter?` — Writer of the temporary log file; `null` until the first write opens it, after
+disposal, and when logging is not active.
 
-**_disposed**: `bool` — Set by `Dispose`; once set, the log file is never opened again. Guarded by
+**_logTemporaryFile**: `string?` — Path of the temporary file (`.{log file name}.{guid}.tmp` in the log file's
+directory) that holds the log until `Dispose` moves it over the log file.
+
+**_disposed**: `bool` — Set by `Dispose`; once set, nothing is opened again. Guarded by
 `_outputLock`.
 
 **_hasErrors**: `bool` — Set to `true` on the first `WriteError` call; once set, cannot return
@@ -39,7 +42,7 @@ explicit statement of the default behavior and does not change processing.
 cannot change it by casting.
 
 **LogFile**: `string?` — The full path of the log file, or `null` when `--log` was not present. The file
-itself is not touched until the first line is written.
+itself is not created or changed until `Dispose`, and then only if a line was written.
 
 **ResultsFile**: `string?` — Path supplied after `--results` or `--result`, or `null` if
 neither flag was present.
@@ -63,8 +66,8 @@ is read under `_outputLock`.
 Delegates to the private `ArgumentParser` helper to parse flags, then rejects `--validate` combined
 with `--check` or with any path, and only then, if `--log` was present, resolves the log path with
 `ResolveLogFile`: the path must be valid, must not name a directory, and its directory must exist.
-The file is deliberately not opened here, because opening replaces its content and the caller must be
-able to refuse a run in which the log is also an input first (`LintMarkEngine.Select`). The parser
+The file is deliberately not opened here, because replacing it would destroy an input that is also the log, and the
+caller must be able to refuse such a run first (`LintMarkEngine.Select`). The parser
 treats a token that does not start with a dash as a positional
 path. Every other token (including a lone `-` and the empty string) that is not a recognized
 option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together
@@ -80,8 +83,9 @@ the log file path is unusable.
 - *Postconditions*: Message is on stdout (unless `Silent`) and in the log file (if logging is enabled).
 
 Holds `_outputLock` while writing, so concurrent calls produce whole lines in some order. The log line
-goes through the private `WriteToLog`, which opens the file (`OpenLogFile`: new content, `AutoFlush` on)
-on first use, and does nothing when logging is not enabled or after disposal.
+goes through the private `WriteToLog`, which on first use opens the temporary file (`OpenLogFile`, `AutoFlush`
+on) next to the log file, and does nothing when logging is not enabled or after disposal. The log file itself is
+not opened, so it is never truncated in place.
 
 **WriteError**: Writes an error message, sets the error state, and records to the log file.
 
@@ -94,13 +98,15 @@ on first use, and does nothing when logging is not enabled or after disposal.
 Holds `_outputLock` for the error flag, the console color change, the console write, and the log
 write, so concurrent calls neither interleave lines nor tear the color change.
 
-**Dispose**: Disposes the log file writer.
+**Dispose**: Closes the log and replaces the log file with it.
 
 - *Parameters*: None.
 - *Returns*: `void`.
 - *Preconditions*: None.
-- *Postconditions*: `_disposed` is true; `_logWriter` is disposed and set to null; any buffered log
-  content is flushed. Later writes do not reopen the file.
+- *Postconditions*: `_disposed` is true; `_logWriter` is disposed and set to null; if a line was written, the
+  temporary file has been moved over the log file (`CommitLog`: `File.Move` with overwrite). Moving replaces the
+  directory entry instead of truncating the old file, so another name for that file (a hard link) is unchanged
+  and a symbolic link is replaced, not followed. Later writes do nothing.
 
 Takes `_outputLock` so the writer is never disposed while another thread is writing to it.
 
@@ -116,10 +122,12 @@ unusable (invalid, a directory, or in a missing directory). Both exceptions prop
 `Program.Main`, which reports them as `Error: {message}`.
 
 `WriteLine` and `WriteError` write to whichever output channels are available. The one exception is
-the first write to the log file: if the file cannot be opened (for example, access is denied) it throws
+the first write to the log: if the temporary log file cannot be created (for example, access is denied) it throws
 `InvalidOperationException` with the same message, which likewise propagates to `Program.Main`.
 
-`Dispose` does not throw; any disposal errors are silently ignored.
+`Dispose` throws `InvalidOperationException` ("Failed to write log file '{path}': {detail} The log was left in
+'{temporary path}'.") when the log file cannot be replaced; the log is then still in the temporary file.
+Otherwise it does not throw.
 
 #### Dependencies
 

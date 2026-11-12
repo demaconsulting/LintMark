@@ -5,9 +5,11 @@
 #### Purpose
 
 `SourceDocument` is an immutable, LF-normalized view of one Markdown file together with the facts
-needed to write the file back exactly as it was found: the encoding, the byte order mark, and the
-line terminators. Its single responsibility is to turn bytes into trustworthy normalized text and to
-answer position questions about that text.
+needed to write the file back as it was found: the encoding, the byte order mark, and the
+line terminators. A file whose terminators are all of one style is restored byte for byte; a file with
+mixed terminators is not (only the counts of the two styles are kept, by design: mixed endings are a
+violation that the formatter fixes by writing the majority style). Its single responsibility is to turn bytes into
+trustworthy normalized text and to answer position questions about that text.
 
 #### Data Model
 
@@ -90,7 +92,9 @@ may address the line terminator).
 
 **ToBytes**: Instance method. Applies `ToDisk`, encodes with `Encoding`, and prepends the preamble when the
 source had a byte order mark. For an unchanged text and the original terminator style, the bytes equal the
-original file; for mixed files, writing the majority style restores a consistent file.
+original file; for mixed files, writing the majority style restores a consistent file (the original bytes
+cannot be restored, because only the counts of the terminators are kept; see the *line-ending* violation in the
+system design).
 
 Preconditions for the position methods: arguments inside the document; otherwise
 `ArgumentOutOfRangeException` is thrown.

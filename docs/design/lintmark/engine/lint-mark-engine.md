@@ -69,9 +69,11 @@ target (directories are resolved once and cached), and the results are compared 
 `FileDiscovery.PathComparison`. This
 matters because the same file can be named through a link: macOS temporary folders live below `/var`, a link to
 `/private/var`, and the current directory is reported by its real path, so a log named through `/var` would not
-equal the discovered path of the same file. Hard links cannot be recognized this way and are not detected. The
-first write to the log opens it and so
-replaces its content, which would destroy an input; refusing is the only outcome that cannot lose data, and an
+equal the discovered path of the same file. Hard links cannot be recognized this way and are not detected; they
+are made harmless by `Context`, which never truncates the log file in place but moves a temporary file over it,
+so the other name of a hard-linked file keeps its content. A context that has written anything replaces the log
+file when it is disposed, which would destroy an input that is also the log; refusing is the only outcome that
+cannot lose data, and an
 exclusion pattern lets the user keep the log inside the selected folders. `Program` calls `Select` before any
 output for this reason.
 

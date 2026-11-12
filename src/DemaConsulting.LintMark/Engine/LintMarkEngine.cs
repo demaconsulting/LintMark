@@ -169,8 +169,8 @@ internal sealed class LintMarkEngine
     /// <returns>The selected files (distinct full paths in ordinal order).</returns>
     /// <remarks>
     ///     Nothing is read or written, and the log file is not touched. A caller that has output to write
-    ///     should call this before the first write, because the first write opens the log file and so
-    ///     replaces its content.
+    ///     should call this before the first write: a context that has written anything replaces the log file
+    ///     when it is disposed, so a refused run must have written nothing.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
@@ -186,9 +186,11 @@ internal sealed class LintMarkEngine
         // Discover the files against the current directory
         var files = FileDiscovery.Discover(context.Paths, Directory.GetCurrentDirectory());
 
-        // Opening the log file replaces its content, so a log that is also an input would destroy that input.
+        // Replacing the log file would destroy an input that is also the log, so refuse such a run.
         // The comparison is by real path: a path that reaches a file through a link (for example the /var to
-        // /private/var link of macOS temporary folders, or a symbolic link to a source file) names the same file
+        // /private/var link of macOS temporary folders, or a symbolic link to a source file) names the same file.
+        // Hard links cannot be recognized, but the log is written to a temporary file and moved over the log path
+        // (see Context), which leaves the other names of the old file untouched
         if (context.LogFile is { } logFile)
         {
             var cache = new Dictionary<string, string>(StringComparer.Ordinal);

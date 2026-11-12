@@ -22,7 +22,8 @@ N/A - standard test environment.
 - Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
   arguments, are rejected.
 - `--validate` combined with paths or `--check` is rejected before the log path is checked.
-- Creating a context never creates or changes the log file; the first write does, and never after disposal.
+- Creating a context never creates or changes the log file; disposal replaces it by moving a temporary file over
+  it, never by truncating it in place, and nothing is opened after disposal.
 - `Paths` cannot be modified by a caller that casts it.
 - Concurrent writers never interleave lines and never lose the error state.
 
@@ -54,9 +55,21 @@ does.
 
 **Log flag opens the log file**: `--log <tmp>.log` followed by `WriteLine` creates the file with the message.
 
-**Log file is left alone until the first write**: With `--log` naming an existing file, creating the context
-leaves its content intact, exposes its full path as `LogFile`, and the first `WriteLine` replaces the content; with a
-file that does not exist, creating the context does not create it and the first write does.
+**Log file is left alone until disposal**: With `--log` naming an existing file, creating the context and writing
+leave its content intact (also when it is read while the context is open), `LogFile` exposes the full path, and
+disposal replaces the content with the log. With a file that does not exist, nothing is created before disposal, and
+no temporary file remains afterwards.
+
+**Log file that is a hard link is replaced, not truncated**: With the log named through a second name (a hard
+link) of an existing file, disposal gives that name the log, and the original name keeps its content.
+
+**Log file that is a symbolic link is replaced, not followed**: With the log named through a symbolic link to an
+existing file, disposal replaces the link with a regular file holding the log, and the target keeps its content
+(skipped where the environment cannot create links).
+
+**Log that cannot be moved into place is kept and reported**: If the log path has become a directory by the time
+the context is disposed, `Dispose` throws `InvalidOperationException` naming the temporary file, which holds the
+log.
 
 **Log file is not reopened after disposal**: A `WriteLine` after `Dispose` leaves the log as the first session
 left it.

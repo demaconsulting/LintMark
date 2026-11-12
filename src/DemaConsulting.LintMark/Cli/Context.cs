@@ -43,8 +43,14 @@ internal sealed class Context : IDisposable
 
     /// <summary>
     ///     Log file stream writer (if logging is enabled); opened by the first write, never by <see cref="Create"/>.
+    ///     It writes to a temporary file that <see cref="Dispose"/> moves over the log file.
     /// </summary>
     private StreamWriter? _logWriter;
+
+    /// <summary>
+    ///     Full path of the temporary file that holds the log until it is moved over the log file.
+    /// </summary>
+    private string? _logTemporaryFile;
 
     /// <summary>
     ///     Indicates whether the context has been disposed (the log file is never reopened afterwards).
@@ -99,8 +105,10 @@ internal sealed class Context : IDisposable
     ///     Gets the full path of the log file, or <see langword="null"/> when logging is not enabled.
     /// </summary>
     /// <remarks>
-    ///     The file is not touched until the first line is written, so a caller can compare this path with
-    ///     the files it is about to read and refuse the run before an input file would be overwritten.
+    ///     The file is not created or changed while the arguments are parsed or lines are written; it is
+    ///     replaced by <see cref="Dispose"/> if any line was written. A caller can therefore compare this path
+    ///     with the files it is about to read and refuse the run before any output, so that the log never replaces
+    ///     an input file.
     /// </remarks>
     public string? LogFile { get; private init; }
 
@@ -208,18 +216,29 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
-    ///     Opens the log file for writing (creating it, or replacing its content).
+    ///     Opens a temporary file next to the log file for the log lines.
     /// </summary>
     /// <param name="logFile">Full log file path.</param>
+    /// <param name="temporaryFile">Receives the full path of the temporary file.</param>
     /// <returns>The writer.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the file cannot be opened.</exception>
-    private static StreamWriter OpenLogFile(string logFile)
+    /// <remarks>
+    ///     The log file itself is not opened. Its content is never truncated in place, because the path may reach
+    ///     an input through a name that cannot be recognized (a hard link, for example), and truncating would
+    ///     destroy that input. <see cref="CommitLog"/> replaces the directory entry instead.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown when the temporary file cannot be created.</exception>
+    private static StreamWriter OpenLogFile(string logFile, out string temporaryFile)
     {
         try
         {
+            // The same directory keeps the final move on one volume; the name never collides with a real file
+            temporaryFile = Path.Combine(
+                Path.GetDirectoryName(logFile) ?? string.Empty,
+                $".{Path.GetFileName(logFile)}.{Guid.NewGuid():N}.tmp");
+
             // Open with AutoFlush enabled so log entries are immediately written to disk
             // even if the application terminates unexpectedly before Dispose is called
-            return new StreamWriter(logFile, append: false) { AutoFlush = true };
+            return new StreamWriter(temporaryFile, append: false) { AutoFlush = true };
         }
         // Generic catch is justified here to wrap any file system exception with context.
         // Expected exceptions include IOException, UnauthorizedAccessException, ArgumentException,
@@ -231,7 +250,7 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
-    ///     Writes a line to the log file, opening it first if this is the first line.
+    ///     Writes a line to the log, opening the temporary log file first if this is the first line.
     /// </summary>
     /// <param name="message">The message to write.</param>
     /// <remarks>
@@ -244,8 +263,30 @@ internal sealed class Context : IDisposable
             return;
         }
 
-        _logWriter ??= OpenLogFile(LogFile);
+        _logWriter ??= OpenLogFile(LogFile, out _logTemporaryFile);
         _logWriter.WriteLine(message);
+    }
+
+    /// <summary>
+    ///     Replaces the log file with the completed temporary log file.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the log file cannot be replaced; the log then stays in the temporary file, which the message names.
+    /// </exception>
+    private void CommitLog()
+    {
+        try
+        {
+            // Moving over the path replaces the directory entry (a link is replaced, not followed), so no other
+            // name of the old file sees any change
+            File.Move(_logTemporaryFile!, LogFile!, overwrite: true);
+        }
+        // Generic catch is justified here to wrap any file system exception with context.
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to write log file '{LogFile}': {ex.Message} The log was left in '{_logTemporaryFile}'.", ex);
+        }
     }
 
     /// <summary>
@@ -421,10 +462,10 @@ internal sealed class Context : IDisposable
     /// <param name="message">The message to write.</param>
     /// <remarks>
     ///     Output is written to stdout. When <see cref="Silent"/> is <c>true</c>, stdout output is
-    ///     suppressed, but the message is still written to the log file when logging is enabled. The log file is
-    ///     created (or its content replaced) by the first line written, not by <see cref="Create"/>.
+    ///     suppressed, but the message is still written to the log when logging is enabled. The first line
+    ///     opens a temporary file next to the log file; the log file itself is replaced by <see cref="Dispose"/>.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">Thrown by the first write when the log file cannot be opened.</exception>
+    /// <exception cref="InvalidOperationException">Thrown by the first write when the temporary log file cannot be created.</exception>
     public void WriteLine(string message)
     {
         // Serialize so concurrent callers cannot interleave lines on the console or in the log
@@ -474,16 +515,23 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
-    ///     Disposes resources used by the Context.
+    ///     Disposes resources used by the Context and replaces the log file with the log, if any line was written.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the log file cannot be replaced (the log is kept in a temporary file).</exception>
     public void Dispose()
     {
-        // Close and dispose the log file writer if it exists (not while another thread is writing to it)
+        // Close the log writer if it exists (not while another thread is writing to it), then publish the log
         lock (_outputLock)
         {
             _disposed = true;
-            _logWriter?.Dispose();
+            if (_logWriter == null)
+            {
+                return;
+            }
+
+            _logWriter.Dispose();
             _logWriter = null;
+            CommitLog();
         }
     }
 }

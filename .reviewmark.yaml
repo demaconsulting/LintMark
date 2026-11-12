@@ -71,6 +71,7 @@ reviews:
       - "test/**/TemporaryDirectory.cs"
       - "test/**/AssemblyInfo.cs"
       - "test/**/Runner.cs"
+      - "test/**/ReadOnlyAssertions.cs"
 
   - id: LintMark-Design
     title: Review that LintMark Design is Consistent and Complete

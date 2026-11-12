@@ -25,6 +25,7 @@ words:
   - filesystemglobbing
   - Inlines
   - Markdig
+  - mklink
   - ncipollo
   - nestings
   - netstandard

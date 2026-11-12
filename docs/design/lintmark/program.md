@@ -38,8 +38,8 @@ Creates a `Context` using `Context.Create(args)`, calls `Run(context)`, and retu
 
 Inspects flags in priority order: (1) if `context.Version` is true, calls
 `context.WriteLine(Version)` and returns; (2) unless `Help` or `Validate` is set, selects the files with
-`LintMarkEngine.Select(context)` — before any output, because the first output opens (and so replaces)
-the log file, and `Select` refuses the run when the log file is one of the selected files; (3) calls
+`LintMarkEngine.Select(context)` — before any output, because a context that has written anything replaces
+the log file when it is disposed, and `Select` refuses the run when the log file is one of the selected files; (3) calls
 `PrintBanner`; (4) if `context.Help` is true, calls `PrintHelp` and returns; (5) if `context.Validate` is
 true, calls `Validation.Run(context)`; (6) otherwise calls `LintMarkEngine.Run(context, files)` with the
 files selected in step 2, which processes and reports them.

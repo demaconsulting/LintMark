@@ -506,49 +506,133 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that creating a context does not touch an existing log file; the first write replaces it.
+    ///     Test that an existing log file is not touched while the context is open; disposal replaces it.
     /// </summary>
     [Fact]
-    public void Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilFirstWrite()
+    public void Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilDispose()
     {
         // Arrange: an existing file that is named as the log
         using var directory = new TemporaryDirectory();
         var logFile = directory.WriteFile("existing.md", "# Precious\n");
 
-        // Act: create the context and inspect the file before any output, then write and close the log
+        // Act: create the context, write, and inspect the file at each stage
         string contentBeforeWrite;
+        string contentAfterWrite;
         string? resolvedPath;
         using (var context = Context.Create(["--silent", "--log", logFile]))
         {
             contentBeforeWrite = File.ReadAllText(logFile);
             resolvedPath = context.LogFile;
             context.WriteLine("log line");
+            contentAfterWrite = File.ReadAllText(logFile);
         }
 
-        // Assert: the content survived creation, the resolved path is exposed, and the first write replaced the content
+        // Assert: the content survived creation and writing, the resolved path is exposed, and disposal replaced it
         Assert.Equal("# Precious\n", contentBeforeWrite);
+        Assert.Equal("# Precious\n", contentAfterWrite);
         Assert.Equal(logFile, resolvedPath);
         Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(logFile));
     }
 
     /// <summary>
-    ///     Test that creating a context does not create a missing log file.
+    ///     Test that a missing log file is created by disposal only, leaving no temporary file behind.
     /// </summary>
     [Fact]
-    public void Context_Create_LogFlag_MissingFile_IsNotCreatedUntilFirstWrite()
+    public void Context_Create_LogFlag_MissingFile_IsNotCreatedUntilDispose()
     {
         // Arrange: a log path that does not exist
         using var directory = new TemporaryDirectory();
         var logFile = directory.PathOf("new.log");
 
-        // Act: create the context, then write
-        using var context = Context.Create(["--silent", "--log", logFile]);
-        var existsBeforeWrite = File.Exists(logFile);
-        context.WriteError("an error");
+        // Act: create the context, write, and dispose
+        bool existsWhileOpen;
+        using (var context = Context.Create(["--silent", "--log", logFile]))
+        {
+            context.WriteError("an error");
+            existsWhileOpen = File.Exists(logFile);
+        }
 
-        // Assert: created by the first write only
-        Assert.False(existsBeforeWrite);
-        Assert.True(File.Exists(logFile));
+        // Assert: created by disposal, and nothing else remains in the directory
+        Assert.False(existsWhileOpen);
+        Assert.Equal([logFile], Directory.GetFileSystemEntries(directory.FullPath));
+        Assert.Equal("an error" + Environment.NewLine, File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that replacing the log file never changes the content reached through a hard link to it.
+    /// </summary>
+    [Fact]
+    public void Context_Dispose_LogFileIsHardLinkToInput_LeavesTheOtherNameUntouched()
+    {
+        // Arrange: an input and a second name for the same file that serves as the log
+        using var directory = new TemporaryDirectory();
+        var source = directory.WriteFile("README.md", "# Precious\n");
+        var link = directory.PathOf("report.log");
+        var exitCode = OperatingSystem.IsWindows()
+            ? Runner.Run(out _, "cmd.exe", "/c", "mklink", "/H", link, source)
+            : Runner.Run(out _, "ln", source, link);
+        Assert.SkipUnless(exitCode == 0, "Hard links cannot be created in this environment");
+
+        // Act: write a log through the second name and dispose
+        using (var context = Context.Create(["--silent", "--log", link]))
+        {
+            context.WriteLine("log line");
+        }
+
+        // Assert: the log replaced the link, and the input kept its content
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
+        Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(link));
+    }
+
+    /// <summary>
+    ///     Test that a log file that is a symbolic link is replaced and its target is left untouched.
+    /// </summary>
+    [Fact]
+    public void Context_Dispose_LogFileIsSymbolicLink_ReplacesLinkAndLeavesTargetUntouched()
+    {
+        // Arrange: an input and a symbolic link to it that serves as the log (creating links may need a privilege)
+        using var directory = new TemporaryDirectory();
+        var source = directory.WriteFile("README.md", "# Precious\n");
+        var link = directory.PathOf("report.log");
+        try
+        {
+            File.CreateSymbolicLink(link, source);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            Assert.Skip("Symbolic links cannot be created in this environment");
+        }
+
+        // Act: write a log through the link and dispose
+        using (var context = Context.Create(["--silent", "--log", link]))
+        {
+            context.WriteLine("log line");
+        }
+
+        // Assert: the link is now a regular file with the log, and the target kept its content
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
+        Assert.Null(new FileInfo(link).LinkTarget);
+        Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(link));
+    }
+
+    /// <summary>
+    ///     Test that a log that cannot be moved into place is reported and kept in its temporary file.
+    /// </summary>
+    [Fact]
+    public void Context_Dispose_LogFileCannotBeReplaced_ThrowsAndKeepsLogInTemporaryFile()
+    {
+        // Arrange: a context whose log path becomes a directory after the context was created
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.PathOf("run.log");
+        var context = Context.Create(["--silent", "--log", logFile]);
+        context.WriteLine("log line");
+        Directory.CreateDirectory(logFile);
+
+        // Act / Assert: disposal reports the failure and names the temporary file
+        var exception = Assert.Throws<InvalidOperationException>(context.Dispose);
+        Assert.Contains(".tmp", exception.Message);
+        var temporary = Directory.GetFiles(directory.FullPath, "*.tmp").Single();
+        Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(temporary));
     }
 
     /// <summary>

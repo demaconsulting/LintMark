@@ -25,14 +25,18 @@ namespace DemaConsulting.LintMark.Document;
 
 /// <summary>
 ///     An immutable, LF-normalized view of one Markdown file together with the facts needed to
-///     write it back exactly as it was found (encoding, byte order mark and line terminators).
+///     write it back as it was found (encoding, byte order mark and line terminators; a file whose terminators
+///     are mixed is written back in its majority style, see the remarks).
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The Markdown parser renders multi-line code spans differently for LF and CRLF input
 ///         (the CRLF code-span difference), so all parsing and offset arithmetic is done on LF-normalized
 ///         <see cref="Text"/> and the original terminators are only recorded (as counts) so they can be
-///         restored on write. Mixed files are supported; a bare carriage return is rejected rather than
+///         restored on write. A file whose terminators are all of one style is written back byte for byte.
+///         A mixed file is deliberately not: the counts do not say which line had which terminator, and
+///         mixed endings are a violation that a formatter fixes by writing the majority style (see
+///         <see cref="MajorityLineEnding"/>). A bare carriage return is rejected rather than
 ///         silently rewritten.
 ///     </para>
 ///     <para>
@@ -266,6 +270,12 @@ internal sealed class SourceDocument
     /// <param name="normalizedText">Text whose terminators are all <c>\n</c>. Must not be null.</param>
     /// <param name="target">Terminator style to produce.</param>
     /// <returns>The encoded bytes, starting with the UTF-8 byte order mark when the source file had one.</returns>
+    /// <remarks>
+    ///     For unchanged text and the original terminator style (<see cref="MajorityLineEnding"/> for a file whose
+    ///     terminators are all of one style) the bytes equal the original file. A mixed file cannot be restored
+    ///     byte for byte, because only the counts of its terminators are kept: it is written in the style chosen by
+    ///     the caller, normally the majority style.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="normalizedText"/> is null.</exception>
     public byte[] ToBytes(string normalizedText, LineEnding target)
     {

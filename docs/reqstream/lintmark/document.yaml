@@ -47,10 +47,12 @@ sections:
             title: >-
               The Document subsystem shall write the text of a loaded file back to bytes in a chosen
               line-ending style with the file's original byte order mark, reproducing the original bytes
-              exactly when the text is unchanged.
+              exactly when the text is unchanged and the file's line endings are all of one style, and
+              writing a file with mixed line endings in its majority style.
             justification: |
               A formatter must never alter a file that needs no change. Restoring the exact original bytes
-              for unchanged content proves that loading loses no information.
+              for unchanged content proves that loading loses no information. A file with mixed line
+              endings has a formatting violation that is fixed by writing one consistent style.
             children:
               - LintMark-Document-SourceDocument-RoundTrip
               - LintMark-Document-SourceDocument-LineEndingConversion

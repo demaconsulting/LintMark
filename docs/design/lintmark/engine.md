@@ -69,9 +69,10 @@ for example to invert completion order) and `documentParser` (replaces the parse
 the parser fail). They are not user options. The degree of parallelism is also not a user option.
 
 In this phase nothing is ever written to a file by the engine, so the `--check` option is accepted and behaves
-exactly like the default. The one file the tool does write, the `--log` file, is opened by the first output and
-so replaces its content; `Select` therefore refuses a run whose selection contains the log file, so that a source
-file can never be destroyed by being named as the log (the user can exclude the log file with a `!` pattern).
+exactly like the default. The one file the tool does write, the `--log` file, is replaced when the context is
+disposed if anything was written; `Select` therefore refuses a run whose selection contains the log file, so that a
+source file can never be replaced by being named as the log (the user can exclude the log file with a `!`
+pattern).
 
 Files from `node_modules` and `.git` folders belong to other parties and are never selected by a directory,
 glob, or default expansion, including when such a folder is itself the argument or the root of a glob. The
