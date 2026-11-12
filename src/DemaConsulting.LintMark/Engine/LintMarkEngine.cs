@@ -61,6 +61,11 @@ internal sealed class LintMarkEngine
     public const string ParseErrorRuleId = "file-parse-error";
 
     /// <summary>
+    ///     Maximum number of link targets followed when resolving a path (a guard against pathological link structures).
+    /// </summary>
+    private const int MaxLinkDepth = 32;
+
+    /// <summary>
     ///     Maximum number of files processed concurrently.
     /// </summary>
     private readonly int _maxDegreeOfParallelism;
@@ -202,57 +207,55 @@ internal sealed class LintMarkEngine
     /// <summary>
     ///     Resolves every symbolic link or junction along a full path.
     /// </summary>
-    /// <param name="fullPath">The full path.</param>
-    /// <param name="cache">Resolved directories by directory path, shared between calls to save repeated work.</param>
+    /// <param name="path">The full path.</param>
+    /// <param name="cache">Resolved paths by path, shared between calls to save repeated work.</param>
+    /// <param name="depth">The number of link targets followed so far (guards against pathological link structures).</param>
     /// <returns>The full path with every link replaced by its target; the path itself when nothing is a link.</returns>
     /// <remarks>
-    ///     Hard links cannot be recognized this way; a log file that is a hard link to an input is not detected.
+    ///     The parent is resolved first, then the last segment, which may itself be a link. The target of a
+    ///     link is resolved again, because it may be written through further links (a link to
+    ///     <c>/var/x</c> still lies below the <c>/private/var</c> link). Hard links cannot be recognized this
+    ///     way; a log file that is a hard link to an input is not detected.
     /// </remarks>
-    private static string ResolveLinks(string fullPath, Dictionary<string, string> cache)
+    private static string ResolveLinks(string path, Dictionary<string, string> cache, int depth = 0)
     {
-        var directory = Path.GetDirectoryName(fullPath);
-        return directory is null
-            ? fullPath
-            : ResolveLink(Path.Combine(ResolveDirectory(directory, cache), Path.GetFileName(fullPath)));
-    }
-
-    /// <summary>
-    ///     Resolves every link along a directory path.
-    /// </summary>
-    /// <param name="directory">The full directory path.</param>
-    /// <param name="cache">Resolved directories by directory path.</param>
-    /// <returns>The resolved directory path.</returns>
-    private static string ResolveDirectory(string directory, Dictionary<string, string> cache)
-    {
-        if (cache.TryGetValue(directory, out var known))
+        if (cache.TryGetValue(path, out var known))
         {
             return known;
         }
 
-        // Resolve the parent first, then the last segment (which may itself be a link)
-        var parent = Path.GetDirectoryName(directory);
-        var resolved = parent is null
-            ? directory
-            : ResolveLink(Path.Combine(ResolveDirectory(parent, cache), Path.GetFileName(directory)));
-        cache[directory] = resolved;
+        var parent = Path.GetDirectoryName(path);
+        string resolved;
+        if (parent is null)
+        {
+            resolved = path;
+        }
+        else
+        {
+            var combined = Path.Combine(ResolveLinks(parent, cache, depth), Path.GetFileName(path));
+            var target = GetLinkTarget(combined);
+            resolved = target is null || depth >= MaxLinkDepth ? combined : ResolveLinks(target, cache, depth + 1);
+        }
+
+        cache[path] = resolved;
         return resolved;
     }
 
     /// <summary>
-    ///     Follows a link at the end of a path to its final target.
+    ///     Gets the final target of a link at the end of a path.
     /// </summary>
     /// <param name="path">The full path whose parent directories are already resolved.</param>
-    /// <returns>The final target when the path is a link, otherwise the path.</returns>
-    private static string ResolveLink(string path)
+    /// <returns>The full path of the final target, or <see langword="null"/> when the path is not a link.</returns>
+    private static string? GetLinkTarget(string path)
     {
         try
         {
-            return new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? path;
+            return new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
         {
-            // A path that cannot be examined is compared as it is
-            return path;
+            // A path that cannot be examined (or a link loop) is compared as it is
+            return null;
         }
     }
 

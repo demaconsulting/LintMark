@@ -83,9 +83,10 @@ default set minus everything beneath that directory.
 
 **Argument order does not change the result**: Reordering the arguments gives the same sorted result.
 
-**Case variants of one name give one spelling whatever the order** (case-insensitive platforms only; skipped
-elsewhere): `docs/guide.md` and `docs/GUIDE.md` given in either order, or with a glob, return the single
-smallest-in-ordinal-order spelling `docs/GUIDE.md`.
+**Case variants of one name give one spelling whatever the order**: `docs/guide.md` and `docs/GUIDE.md` given in
+either order, or with a glob, give the same result. Where names ignore case, that is the single
+smallest-in-ordinal-order spelling `docs/GUIDE.md`; where names are case-sensitive, the two spellings are two
+different files (the second does not exist) and both are returned.
 
 **A third-party folder named together with a file inside it selects only the file**: The arguments
 `node_modules` and `node_modules/pkg/readme.md` select only the file.

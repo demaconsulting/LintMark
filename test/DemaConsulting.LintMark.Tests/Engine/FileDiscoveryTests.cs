@@ -630,8 +630,7 @@ public class FileDiscoveryTests
     [Fact]
     public void FileDiscovery_Discover_CaseVariantSpellings_ReturnSameSpellingForAnyOrder()
     {
-        // Arrange: the platform compares names without regard to case, and one file exists
-        Assert.SkipUnless(FileDiscovery.PathComparison == StringComparison.OrdinalIgnoreCase, "Names are case-sensitive on this platform");
+        // Arrange: one file exists; whether its other spelling names the same file depends on the platform
         using var directory = new TemporaryDirectory();
         directory.WriteFile("docs/guide.md");
 
@@ -639,13 +638,23 @@ public class FileDiscoveryTests
         var lowerFirst = FileDiscovery.Discover(["docs/guide.md", "docs/GUIDE.md"], directory.FullPath);
         var upperFirst = FileDiscovery.Discover(["docs/GUIDE.md", "docs/guide.md"], directory.FullPath);
         var withGlob = FileDiscovery.Discover(["docs/GUIDE.md", "docs/*.md"], directory.FullPath);
+        var globFirst = FileDiscovery.Discover(["docs/*.md", "docs/GUIDE.md"], directory.FullPath);
 
-        // Assert: one entry, and the same (smallest-in-ordinal-order) spelling every time
-        var expected = new[] { directory.PathOf("docs/GUIDE.md") };
-        Assert.Equal(expected, lowerFirst);
-        Assert.Equal(expected, upperFirst);
-        Assert.Single(withGlob);
-        Assert.Equal(withGlob[0], FileDiscovery.Discover(["docs/*.md", "docs/GUIDE.md"], directory.FullPath)[0]);
+        // Assert: the result never depends on the order of the arguments
+        Assert.Equal(lowerFirst, upperFirst);
+        Assert.Equal(withGlob, globFirst);
+        if (FileDiscovery.PathComparison == StringComparison.OrdinalIgnoreCase)
+        {
+            // Names ignore case, so both spellings are one file, reported under the smallest spelling
+            Assert.Equal([directory.PathOf("docs/GUIDE.md")], lowerFirst);
+            Assert.Equal([directory.PathOf("docs/GUIDE.md")], withGlob);
+        }
+        else
+        {
+            // Names are case-sensitive, so the spellings are two different files (the second does not exist)
+            Assert.Equal(2, lowerFirst.Count);
+            Assert.Equal(2, withGlob.Count);
+        }
     }
 
     /// <summary>
