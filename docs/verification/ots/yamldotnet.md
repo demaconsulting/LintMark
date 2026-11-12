@@ -96,7 +96,7 @@ detect the duplicate.
 
 **Scenario**: A quoted scalar that is never closed, on the second line, is read.
 
-**Expected**: A YAML exception is thrown whose start is on line 2 or later and in a column of at least 1, and whose
+**Expected**: A YAML exception is thrown whose start is exactly line 2, column 4 (the opening quote), and whose
 message is not empty.
 
 #### An unclosed flow sequence throws an exception that is not a YAML exception
@@ -118,8 +118,10 @@ exception from the parser as invalid input.
 recursion in the parser would fail.
 
 **Expected**: Reading finishes within the time allowed without an exception, and the deepest level seen is 3,000,
-well above the depth that LintMark admits. The limit that LintMark applies protects against the running time that
-grows steeply with depth, not against a crash.
+well above the depth that LintMark admits. The parsing thread is a background thread, so a parser that never
+finishes cannot keep the test host alive. The limit that LintMark applies protects against the running time that
+grows steeply with depth, not against a crash; that the limit is enforced, and that a file nested far beyond it is
+rejected promptly, are verified in the `ConfigLoader` unit and the `Configuration` subsystem tests.
 
 #### A leading byte order mark becomes part of the first key (pinned library behavior, not a requirement)
 
@@ -130,6 +132,6 @@ parsing.
 
 #### Independent parsers give identical results on many threads
 
-**Scenario**: The same document is parsed by independent parser instances from 16 threads, 200 times.
+**Scenario**: The same document is parsed by independent parser instances from up to 16 threads, 200 times.
 
 **Expected**: Every result, as a list of values with their positions, equals the sequential result.

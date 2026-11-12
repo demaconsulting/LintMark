@@ -55,6 +55,32 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a configuration file farther away has no influence on the settings or problems of a Markdown file.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_NoMerging_InvalidFartherFileInRepository_NoInfluenceOnNearerFile()
+    {
+        // Arrange: inside one repository, an invalid file above a valid nearer file that sets only one setting, and
+        // a valid farther file that sets another setting
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("invalid/.lintmark.yaml", "color: red\nwrap: sideways\n");
+        directory.WriteFile("invalid/nearer/.lintmark.yaml", "line-length: 70\n");
+        directory.WriteFile("valid/.lintmark.yaml", "wrap: sentence\nbullet: plus\n");
+        directory.WriteFile("valid/nearer/.lintmark.yaml", "line-length: 70\n");
+        var loader = ConfigLoader.ForDiscovery();
+
+        // Act: load a file in each nearer folder
+        var belowInvalid = loader.Load(directory.PathOf("invalid/nearer/a.md"));
+        var belowValid = loader.Load(directory.PathOf("valid/nearer/a.md"));
+
+        // Assert: the farther file's problems are not reported and its settings are not inherited
+        Assert.Empty(belowInvalid.Errors);
+        Assert.Equal(LintMarkConfig.Default with { LineLength = 70 }, belowInvalid.Config);
+        Assert.Empty(belowValid.Errors);
+        Assert.Equal(LintMarkConfig.Default with { LineLength = 70 }, belowValid.Config);
+    }
+
+    /// <summary>
     ///     Test that an explicit file is used instead of discovery.
     /// </summary>
     [Fact]
@@ -151,12 +177,12 @@ public class ConfigurationSubsystemTests
         // Act: load a file
         var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
 
-        // Assert: one syntax problem at or after the quote, and no configuration
+        // Assert: one syntax problem at the opening quote, and no configuration
         Assert.Null(result.Config);
         var error = Assert.Single(result.Errors);
         Assert.Equal(file, error.Path);
         Assert.StartsWith("Invalid YAML", error.Message, StringComparison.Ordinal);
-        Assert.True(error.Line >= 2 && error.Column >= 1);
+        Assert.Equal((2, 7), (error.Line, error.Column));
     }
 
     /// <summary>
@@ -329,19 +355,19 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
-    ///     Test that the documented sample applies every setting and rule alias.
+    ///     Test that the sample that gives every setting is accepted and that representative values are applied.
     /// </summary>
     [Fact]
-    public void ConfigurationSubsystem_Settings_FullSampleFile_AppliesEverySettingAndRuleAlias()
+    public void ConfigurationSubsystem_Settings_FullSampleFile_AcceptedWithRepresentativeValuesApplied()
     {
-        // Arrange: the documented sample as a file
+        // Arrange: the sample that gives every setting, as a file
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", ConfigLoaderParseTests.FullSample);
+        directory.WriteFile(".lintmark.yaml", ConfigurationSamples.FullSample);
 
         // Act: load a file
         var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
 
-        // Assert: every setting differs from the default and the alias was applied to the rule
+        // Assert: no problem is reported, and representative values are applied, including a rule given by its legacy number
         var config = result.Config!;
         Assert.Empty(result.Errors);
         Assert.Equal(100, config.LineLength);
@@ -419,20 +445,21 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
-    ///     Test that problems are ordered by position.
+    ///     Test that problems found at different stages of the load are reported ordered by position.
     /// </summary>
     [Fact]
     public void ConfigurationSubsystem_ErrorPositions_MultipleProblems_AreOrderedByPosition()
     {
-        // Arrange: a file whose problems come from different checks
+        // Arrange: a file whose problems are found at different stages: the unknown rule, the empty pattern and the
+        // unknown setting while the settings are checked, and the anchor on the last line while the file is read
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "rules:\n  nope: true\nignore:\n  - ''\nzz: 1\nbullet: no\n");
+        directory.WriteFile(".lintmark.yaml", "rules:\n  nope: true\nignore:\n  - ''\nzz: 1\nbullet: &b plus\n");
 
         // Act: load a file
         var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
 
-        // Assert: strictly ascending positions
-        Assert.Equal([2, 4, 5, 6], result.Errors.Select(e => e.Line));
+        // Assert: strictly ascending positions, although the anchor was found first
+        Assert.Equal([(2, 3), (4, 5), (5, 1), (6, 9)], result.Errors.Select(e => (e.Line, e.Column)));
     }
 
     /// <summary>
@@ -464,13 +491,13 @@ public class ConfigurationSubsystemTests
     [Fact]
     public void ConfigurationSubsystem_EditorConfig_UnsupportedValues_NotSpecifiedWithoutError()
     {
-        // Arrange: files with cr, unset, a malformed line and unrelated settings
+        // Arrange: files with cr, unset, an unknown value, a malformed line and unrelated settings
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".editorconfig", "root = true\n\n[cr.md]\nend_of_line = cr\n\n[unset.md]\nend_of_line = unset\n\n[other.md]\nmax_line_length = 80\n\n[[[\n");
+        directory.WriteFile(".editorconfig", "root = true\n\n[cr.md]\nend_of_line = cr\n\n[unset.md]\nend_of_line = unset\n\n[banana.md]\nend_of_line = banana\n\n[other.md]\nmax_line_length = 80\n\n[[[\n");
         var resolver = new EditorConfigResolver();
 
         // Act: resolve each file
-        var results = new[] { "cr.md", "unset.md", "other.md", "none.md" }.Select(f => resolver.Resolve(directory.PathOf(f))).ToList();
+        var results = new[] { "cr.md", "unset.md", "banana.md", "other.md", "none.md" }.Select(f => resolver.Resolve(directory.PathOf(f))).ToList();
 
         // Assert: nothing is specified and nothing is an error
         Assert.All(results, r => Assert.Equal(EditorConfigResult.NotSpecified, r));

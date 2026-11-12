@@ -128,11 +128,12 @@ sections:
 
           - id: LintMark-OTS-YamlDotNet-Nesting
             title: >-
-              YamlDotNet shall parse nested collections up to the depth that LintMark admits without failing.
+              YamlDotNet shall parse nested collections up to the nesting limit documented in the user guide
+              without failing.
             justification: |
-              LintMark rejects implausibly deep nesting before parsing, and everything it admits must be
-              parsed reliably. The test records that the depth the library handles is well above the depth
-              that LintMark admits.
+              LintMark rejects nesting beyond the documented limit before parsing, and everything it admits must
+              be parsed reliably. The test records that the depth the library handles is well above the
+              documented limit.
             tags: [ots]
             tests:
               - YamlDotNet_Parser_DeeplyNestedFlowInput_ParsesWithoutStackExhaustion

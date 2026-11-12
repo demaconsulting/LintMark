@@ -26,8 +26,11 @@ temporary directory; the scenarios about the repository boundary create their ow
 a tree without any marker. Tests that change the current directory (relative paths) restore it afterwards and run
 sequentially with the other tests that touch process-wide state. The scenario about a file that is locked against
 reading runs on Windows only, where exclusive locks are enforced for every reader; it is skipped on other platforms
-and no requirement depends on it. The tests that run many threads use 16 degrees of parallelism over many files and
-repeat every lookup ten times.
+and no requirement depends on it. The scenario about a file that cannot be read because its permission is removed
+removes the read permission of a temporary file (with an access-control entry on Windows and the file mode elsewhere)
+and is skipped when the current user can read the file regardless, as a superuser can; the permission is restored
+before the directory is deleted. The tests that run many threads allow up to 16 degrees of parallelism over many
+files and repeat every lookup ten times.
 
 #### Acceptance Criteria
 
@@ -43,9 +46,9 @@ repeat every lookup ten times.
 - Every documented value of every setting is accepted, written with or without quotes, in block or flow style, in
   any order, with LF or CRLF line endings, and with or without a UTF-8 marker at the start of the file.
 - Unknown settings (including wrong-case names), wrong kinds of values, out-of-range numbers, null values,
-  duplicates, rule conflicts, invalid YAML, unsupported structure, implausibly deep nesting, an implausibly large
-  file, and invalid or unsupported encodings are each reported as a problem at the right position; none is ignored
-  or partially applied, and a pathological file is rejected promptly.
+  duplicates, rule conflicts, invalid YAML, unsupported structure, nesting beyond the documented limit, a file larger
+  than the documented size limit, and invalid or unsupported encodings are each reported as a problem at the right
+  position; none is ignored or partially applied, and a pathological file is rejected promptly.
 - Problems carry the file path and a 1-based line and column, are ordered by line, column, and message, and are the
   same on every run, for LF and CRLF files alike.
 - Many threads get results identical to sequential use.
@@ -139,6 +142,16 @@ at 1:1.
 **File locked against reading is a problem (Windows only)**: A file held open exclusively gives one problem that
 says the file cannot be read, instead of an exception. The scenario is skipped on other platforms.
 
+**File without read permission is reported as denied**: A file whose read permission is removed for the current user
+gives one problem at 1:1, "Access to the configuration file is denied". The scenario is skipped when the current
+user can read the file regardless.
+
+**Path that cannot be resolved is a problem for a named file and no configuration for a discovered one**: A named
+file whose path contains a null character gives one problem at 1:1 that says the path is not valid, reported
+against the path as given; a Markdown path or directory with a null character, and the root of the file system
+(which has no containing directory), find no configuration file and give the defaults without a source, without an
+exception.
+
 **Problems of an invalid file are known up front and returned for every file**: A file with two faults gives two
 initial problems, and loading any file returns the same problems; the discovery and defaults-only loaders have no
 initial problems.
@@ -147,7 +160,8 @@ initial problems.
 problem at 1:1 that says it is larger than 1 MiB; direct loading and parsing of the same size behave the same.
 
 **File of exactly 1 MiB is accepted**: Content of exactly the limit (a long comment) is a valid, empty
-configuration.
+configuration when it is parsed, when it is read from a file, and when the file is named to the explicit-file
+loader (which then has no initial problems).
 
 **Null and blank arguments are rejected (supporting)**: The explicit-file factory throws `ArgumentNullException`
 for null and `ArgumentException` for a blank name; direct loading throws for null and for an empty name; the
@@ -255,8 +269,10 @@ group is reported at 2:3 with the name prefixed by `link-refactor.`.
 wrap, `star` for bullet, and `cr`, `auto`, and `consistent` for the line ending), the problem is at the value,
 names the setting, and lists the allowed tokens in order.
 
-**List indent other than two or four is reported**: `0`, `1`, `3`, `8`, a quoted `"2"`, and `two` are reported at
-the value.
+**List indent other than two or four is reported with the accepted values**: `0`, `1`, `3`, `8`, `-2`, a number
+beyond the integer range, `2.5`, `two`, and the quoted `"2"` and `'4'` are each reported at the value with the
+message `Invalid value '{value}' for setting 'list-indent'; expected one of: 2, 4`, followed by `without quotes` for
+a quoted value.
 
 **Numbers that are not plain decimal whole numbers are reported**: `abc`, quoted numbers, `1.5`, `0x10`, `+5`,
 `1_000`, `007`, `1e3`, and `true` are each reported with "expected a whole number without quotes from 0 to 100000".
@@ -280,8 +296,9 @@ length of `0` or `-1` are reported with the dotted setting name and the range 1 
 
 **Link conversion flag that is not a boolean is reported**: `yes` for `enabled` is reported at 2:12.
 
-**Definitions marker that is not an HTML comment is reported**: Plain text, an unclosed comment, `<!--->`, and an
-unopened comment are reported as "expected a single-line HTML comment".
+**Definitions marker that is not a single HTML comment is reported**: Plain text, an unclosed comment, an unopened
+comment, `<!-->`, `<!--->`, `<!--> -->`, and a marker followed by more text or by a second comment are reported as
+"expected a single-line HTML comment".
 
 **Definitions marker that spans lines is reported**: A marker with an escaped line break is reported.
 
@@ -289,7 +306,8 @@ unopened comment are reported as "expected a single-line HTML comment".
 against the dotted rule name.
 
 **Invalid ignore element is reported**: An empty element, a blank element, a null element, a missing element, a
-nested list or mapping, and a multi-line element each give one problem at the element's line, naming what is
+nested list or mapping, and a multi-line element (with a line feed, a carriage return, or a next-line, line
+separator, or paragraph separator character) each give one problem at the element's line, naming what is
 wrong, while the valid element before it causes none.
 
 ##### Null values
@@ -299,6 +317,10 @@ are each reported at 1:1 as "Setting 'wrap' must not be empty".
 
 **Empty rules, link conversion, ignore, and number settings are reported**: Empty or null values for `rules`,
 `link-refactor`, `ignore`, and `line-length` are each reported at the key.
+
+**An anchor or tag on an empty value is reported once**: `rules: &a`, `ignore: !!null`, `link-refactor: &a`, and
+`line-length: &a` each give one problem, "Anchors, aliases and tags are not supported", at the anchor or tag, and
+not a second one about an empty value.
 
 ##### Duplicates and rule conflicts
 
@@ -327,13 +349,14 @@ invalid value for `MD033` are both reported.
 
 ##### Invalid syntax
 
-**Unclosed flow sequence is reported as invalid YAML**: An unclosed `[a, b` inside a file gives one problem that
-starts with "Invalid YAML", at a valid position, and no configuration, even though the parser fails with an
-unusual exception type.
+**Unclosed flow sequence is reported as invalid YAML**: An unclosed `[a, b` on line 2 gives one problem that starts
+with "Invalid YAML", at 2:11 (the end of the last content the parser read), and no configuration, even though the
+parser fails with an unusual exception type.
 
-**Tab indentation is reported as invalid YAML**: A nested mapping indented with a tab gives one syntax problem.
+**Tab indentation is reported as invalid YAML**: A nested mapping indented with a tab gives one syntax problem at
+1:1, the start of the mapping that contains the tab.
 
-**Unterminated quote is reported as invalid YAML**: The problem is on or after the line of the quote.
+**Unterminated quote is reported as invalid YAML**: The problem is at the opening quote, 2:7 in the scenario.
 
 **Positions of syntax problems are never before line 1, column 1**: Ten malformed inputs (unclosed braces and
 brackets, an unterminated quote, a doubled colon, `a: b: c`, a lone tab, a directive, and a complex key with an
@@ -353,13 +376,14 @@ and an anchor on a list) are each reported at the construct with "Anchors, alias
 
 **Complex key is reported**: A key that is a list is reported at 1:3.
 
-##### Implausibly deep nesting
+##### Nesting beyond the limit
 
 **Block nesting below the limit inside an unknown setting gives one problem**: Fifty levels inside an unknown
 setting give only the unknown-setting problem and no crash.
 
 **Flow nesting beyond the limit is reported at the offending bracket**: Sixty-five nested `[` and sixty-five nested
-`{` are each reported at the first bracket beyond 64 levels, at column 3 + 64 + 1, instead of being parsed.
+`{` are each reported at the first bracket beyond 64 levels, at column 3 + 64 + 1, instead of being parsed. When the
+excess is on the second line of a file whose line breaks are lone carriage returns, it is reported on line 2.
 
 **Flow nesting exactly at the limit is parsed**: Sixty-four nested brackets are accepted, so only the unknown
 setting is reported.
@@ -369,6 +393,10 @@ setting is reported.
 **Invalid UTF-8 is reported at the offending position**: An invalid byte after two characters on line 2 is
 reported at 2:3 as "Invalid UTF-8 byte sequence", with no configuration.
 
+**Each kind of line break counts once in the position of an invalid byte**: After a line feed, a carriage return
+line feed, or a lone carriage return the invalid byte is on line 2 at column 4, and after two lone carriage returns
+it is on line 3.
+
 **UTF-16 and UTF-32 encodings are rejected**: A UTF-16 little endian mark, a UTF-16 big endian mark, and a UTF-32
 mark at the start are each reported at 1:1 as an unsupported byte order mark.
 
@@ -377,11 +405,17 @@ reported at 1:1, as an editor would show it.
 
 ##### Problem positions, ordering, and consistency
 
-**Problems are sorted by position and then by message**: A file whose faults arise from different checks gives
-four problems in ascending line and column order.
+**Problems found at different stages are reported in order of position**: A file with an unknown setting, an invalid
+value and an unknown rule, which are found while the settings are checked, and an anchor and a tag, which are found
+earlier while the file is read, gives five problems in ascending line order, with the earlier-found anchor and tag
+in their place among the others; the exact positions and messages are asserted.
 
-**Problems are the same on every run (supporting)**: Parsing the same faulty content 21 times gives identical
-positions and messages every time.
+**Problems at one position are ordered by message (ordinal)**: Four problems given to a result in reverse order,
+two of them at one line and column with messages that sort differently under an ordinal and a culture-sensitive
+comparison, are stored by line, then column, then ordinal message.
+
+**Problems are the same on every run (supporting)**: Parsing the same faulty content, whose problems are found at
+different stages, 21 times gives identical positions and messages every time.
 
 **Every problem carries the path it was given**: Parsing under another path names that path in every problem and
 in the result's source.
@@ -400,7 +434,7 @@ throws `ArgumentOutOfRangeException`; a message with a line break is stored on o
 ##### Concurrency and caching
 
 **Many threads get the sequential results**: A root file, a nested file, and an invalid nested file serve 60 files
-in many folders plus 20 files elsewhere; 16 threads load every file ten times; every result equals the sequential
+in many folders plus 20 files elsewhere; up to 16 threads load every file ten times; every result equals the sequential
 one.
 
 **Files of one directory share one result instance (supporting)**: Two files in the same folder get the same

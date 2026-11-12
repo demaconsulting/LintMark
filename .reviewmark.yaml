@@ -142,6 +142,7 @@ reviews:
       - "docs/design/lintmark/configuration.md"
       - "docs/verification/lintmark/configuration.md"
       - "test/**/Configuration/ConfigurationSubsystemTests.cs"
+      - "test/**/Configuration/ConfigurationSamples.cs"
 
   - id: LintMark-Configuration-LintMarkConfig
     title: Review that LintMark Configuration LintMarkConfig Implementation is Correct

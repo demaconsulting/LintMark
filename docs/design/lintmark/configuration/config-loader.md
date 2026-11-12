@@ -70,18 +70,19 @@ walk without a cache and is the testable form of this algorithm.
 shares one result instance. Behind it, a second cache keyed by the full path of the configuration file ensures
 that a file shared by several directories is read and parsed once. Content is therefore read once per
 configuration file per run, and edits made while a run is in progress are not seen. Keys are compared with an
-ordinal comparison;
-two spellings of one directory (for example in different letter case on a case-insensitive file system) merely cost
-one extra identical parse. Thread safety: both caches are `ConcurrentDictionary` instances of `Lazy` values with
-`ExecutionAndPublication`, so concurrent callers share one computation and every caller observes the same
-immutable result. Results are pure functions of the file-system content, independent of scheduling.
+ordinal comparison; two spellings of one directory (for example in different letter case on a case-insensitive file
+system) merely cost one extra identical parse. Thread safety: both caches are `ConcurrentDictionary` instances of
+`Lazy` values with `ExecutionAndPublication`, so concurrent callers share one computation and every caller observes
+the same immutable result. Results are pure functions of the file-system content, independent of scheduling.
 
 **Encoding rules**: The loader decodes bytes itself rather than letting the YAML library read the file.
 
 - Content larger than 1 MiB is rejected (the reader stops a little beyond the limit, so a huge file is not loaded).
 - A UTF-8 byte order mark is stripped silently. A UTF-16 or UTF-32 byte order mark is rejected.
 - Decoding is strict UTF-8: invalid bytes are reported at their position, never replaced.
-- LF and CRLF line endings are both accepted and give the same result, including the positions of problems.
+- LF, CRLF, and a lone CR each count as one line break, both for the positions of invalid bytes and for the
+  position of excessive nesting, and a configuration file with LF or CRLF line endings gives the same result,
+  including the positions of problems.
 - Positions are 1-based, count UTF-16 code units, and count a tab as one, the same convention as the source
   document of the `Document` subsystem. They refer to the decoded text, so a stripped byte order mark does not
   shift columns.
@@ -123,19 +124,20 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
   The allowed tokens are listed, in declaration order, in the message.
 - Whole numbers must be plain (unquoted) decimal digits without a plus sign or leading zeros, fit in a 32-bit
   integer, and lie in the range of the setting. A quoted number, a decimal fraction, a hexadecimal number, and
-  an underscore-separated number are errors. `list-indent` accepts only 2 or 4.
+  an underscore-separated number are errors. `list-indent` accepts only the plain numbers 2 and 4; any other
+  value, whatever it looks like, reports `expected one of: 2, 4`.
 - Booleans must be plain `true` or `false`; `yes`, `on`, `True`, and quoted forms are errors.
 - A null value is an error, so that a half-edited file never silently reverts to the defaults: `key:` with no
   value, `~`, `null`, and an empty `rules`, `link-refactor`, or `ignore` all report that the setting must not
-  be empty. An explicit empty collection (`ignore: []`, `rules: {}`) is valid.
+  be empty. An explicit empty collection (`ignore: []`, `rules: {}`) is valid. An empty value that carries an
+  anchor or tag (`rules: &a`) is reported once, as an unsupported construct, and not also as empty.
 - An empty file, a file with only whitespace and comments, a lone document marker, and a lone null document all
   mean "no settings" and yield the defaults without an error.
 - A key that appears twice is reported at the later occurrence and the message names the line of the first. The
   same applies to the options inside `link-refactor`.
 - Rule names in `rules` are rule ids or legacy aliases such as `MD013`, compared ignoring case. The canonical id is
   stored, whatever spelling the file used, and the stored map is built from canonical ids in ordinal order, so
-  reordering
-  the entries never changes the result. Two entries that resolve to the same rule (by id and alias, or by letter
+  reordering the entries never changes the result. Two entries that resolve to the same rule (by id and alias, or by letter
   case) are a conflict, reported at every occurrence after the first by source position, so the outcome depends
   only on the content of the file. The alias of a dropped rule is accepted and ignored (not stored) but still
   takes part in conflict detection. An unknown name is an error; so is the alias of a rule the formatter always
@@ -154,16 +156,16 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
   small file consume unbounded time. The scan counts every opening and closing bracket, even inside quoted text
   or comments, which only matters for input that is invalid anyway.
 
-**Guards against pathological files**: The requirements state the need as observable behavior: a file that is
-implausibly large or implausibly deeply nested is reported as a problem promptly, with a position, instead of
-stalling or failing the run. The numbers live here and in the user guide, not in the requirements. The size limit
-is 1 MiB (no valid configuration is anywhere near it, and the reader stops a little beyond the limit, so a huge
-unrelated file is never loaded). The nesting limit is 64 levels, applied by a scan before the YAML library sees the
-text: measurement showed that unguarded input nested 100,000 levels deep occupied the parser for about a minute,
-while the scan rejects it in milliseconds. The documented range of the numeric settings (up to 100000) is not a
-guard; it is the range that the `LintMarkConfig` checks enforce so that later width calculations cannot overflow.
-The system and subsystem tests for the two guards use a generous time bound (10 seconds) so that they do not depend
-on the speed of the machine.
+**Guards against pathological files**: The requirements state the need as observable behavior: a file that exceeds the
+size or nesting limits documented in the user guide is reported as a problem with a position. The numbers live here
+and in the user guide, not in the requirements. The size limit is 1 MiB (no valid configuration is anywhere near
+it, and the reader stops a little beyond the limit, so a huge unrelated file is never loaded). The nesting limit is
+64 levels, applied by a scan before the YAML library sees the text: measurement showed that unguarded input nested
+100,000 levels deep occupied the parser for about a minute, while the scan rejects it in milliseconds, which is why
+the unit and subsystem scenarios also bound the time. The documented range of the numeric settings (up to 100000)
+is not a guard; it is the range that the `LintMarkConfig` checks enforce so that later width calculations cannot
+overflow. The system and subsystem tests for the two guards use a generous time bound (10 seconds) so that they do
+not depend on the speed of the machine.
 
 **Error catalog**: Every message is reported with the rule id `config-error` against the path of the
 configuration file. Positions are 1-based. Errors about a null or empty value are reported at the **key**; every
@@ -211,8 +213,9 @@ text of an invalid value is:
 - for the definitions marker: `a single-line HTML comment`.
 
 A quoted value in a message is shortened to 40 characters followed by `...`, and its line breaks become spaces.
-`list-indent` has one irregularity: the value 3 reports `expected one of: 2, 4`, and any other value outside 2
-to 4 reports the number-range form.
+`list-indent` has its own form of the invalid-value message: `Invalid value '{v}' for setting 'list-indent';
+expected one of: 2, 4` for every value that is not the plain number 2 or 4, whether it is a number such as 3, 8, or
+`-2`, text, or a quoted number; for a quoted value the text ends with `without quotes`.
 
 **Reporting**: The engine, not the loader, writes errors. They appear as `display-path:line:col: config-error
 message` with the display path of the configuration file (relative to the current directory with `/`
@@ -278,8 +281,8 @@ other readers, writers, and deletion; read up to the size limit plus a little; h
 - *Preconditions*: `path` is not null or empty.
 
 Steps: reject content over the size limit; reject a UTF-16 or UTF-32 byte order mark; strip a UTF-8 byte order
-mark; decode strictly (a failure is located by counting line feeds before the bad byte and measuring the partial
-line in UTF-16 code units); delegate the text to `ConfigParser.Parse`.
+mark; decode strictly (a failure is located by counting line breaks (LF, CRLF, or a lone CR) before the bad byte and
+measuring the partial line in UTF-16 code units); delegate the text to `ConfigParser.Parse`.
 
 **ConfigParser.Parse**: Turns decoded text into a valid configuration or a complete list of problems; pure.
 
@@ -302,10 +305,11 @@ problems never do.
 Problems with the environment or the content are never exceptions; they become `ConfigError` entries in the
 `ConfigLoadResult` (see the error catalog above). File access catches only the expected exception types:
 file or directory not found, access denied, other I/O failures, unsupported operations, and security failures.
-Path resolution catches only the exceptions that signal an invalid or too long path. The one generic catch is
-around the YAML parser loop, where the library is known to raise unexpected exception types; its justification is
-documented at the catch. All errors of one file are collected and returned sorted by line, column, and message
-(ordinal), with exact duplicates removed.
+Path resolution catches only the exceptions that signal a path that cannot be used: an invalid or too long path,
+a path form that the platform does not support, and a security failure while the path is resolved. The one generic
+catch is around the YAML parser loop, where the library is known to raise unexpected exception types; its
+justification is documented at the catch. All errors of one file are collected and returned sorted by line, column,
+and message (ordinal), with exact duplicates removed.
 
 Only argument misuse raises exceptions: `ArgumentNullException` for a null path and `ArgumentException` for an
 empty or (for file names) blank path. The `ConfigLoadResult` and `ConfigError` constructors throw

@@ -60,7 +60,10 @@ writes output; problems are returned as values.
 - *Role*: Provider.
 - *Contract*: `Parse` decodes and validates the bytes of a configuration file; `LoadFile` reads a file and
   parses it; `FindConfigFile` runs the discovery walk for a directory. None of them caches or keeps state.
-- *Constraints*: Same exception rules as `Load`; they are exposed so that each step can be exercised alone.
+- *Constraints*: They are exposed so that each step can be exercised alone. `Parse` throws `ArgumentNullException`
+  for a null path and `ArgumentException` for an empty one (the path is only reported in problems); `LoadFile` throws
+  for a null name and `ArgumentException` for an empty or blank one; `FindConfigFile` throws for a null directory and
+  `ArgumentException` for an empty one. Environment and content problems are never exceptions.
 
 **EditorConfigResolver.Resolve**: Gets the line ending that the editor settings specify for a Markdown file.
 
@@ -134,16 +137,20 @@ design documents); `.editorconfig` discovery and section matching are delegated 
 compensate for; the compensation is described in the unit designs.
 
 **Scope of the requirements in this phase**: The line ending that the editor settings or the configuration give is
-stored on each file's effective configuration but nothing consumes it before the formatter exists, so it cannot be
+stored on each file's effective configuration, but nothing consumes it before the formatter exists, so it cannot be
 observed from outside the tool. The requirement therefore states only what is observable now: editor settings that
-cannot be used never produce an error. The report of settings that cannot be read (a message that the engine places
-at the start of the Markdown file) is verified by tests that have no requirement, like the determination of the line
-ending (nearest file, sections, root file, patterns, letter case, the `end-of-line` setting taking precedence). The
-formatting phase adds the system requirement that the tool uses the line
-ending given by the editor settings when the configuration gives none, and re-adds a requirement for the report of
-unreadable settings together with an observable system-level behavior, with the subsystem and unit
-requirements that decompose them, and links the existing tests to them.
+cannot be used never produce an error. Two groups of behavior are verified by tests that have no requirement in
+this phase:
 
-**Guards against pathological files**: A configuration file that is implausibly large or implausibly deeply nested
-is reported as a problem with a position, promptly. The limits and the reasons for them are described in
-*ConfigLoader Design*.
+- The report of settings that cannot be read, a message that the engine places at the start of the Markdown file.
+- The determination of the line ending: the nearest file, sections, the root file, patterns, letter case, and the
+  `end-of-line` setting taking precedence.
+
+The formatting phase adds the system requirement that the tool uses the line ending given by the editor settings
+when the configuration gives none, and re-adds a requirement for the report of unreadable settings together with an
+observable system-level behavior. It adds the subsystem and unit requirements that decompose them, and links the
+existing tests to them.
+
+**Guards against pathological files**: A configuration file that exceeds the size limit or the nesting limit
+documented in the user guide (1 MiB and 64 levels) is reported as a problem with a position, promptly. The limits
+and the reasons for them are described in *ConfigLoader Design*.

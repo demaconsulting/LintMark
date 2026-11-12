@@ -54,6 +54,14 @@ internal sealed record LintMarkConfig
     public const int MaxNumber = 100_000;
 
     /// <summary>
+    ///     The characters that end a line: CR, LF, NEL (U+0085), line separator (U+2028) and paragraph separator (U+2029).
+    /// </summary>
+    /// <remarks>
+    ///     Shared by every single-line check of the configuration so they cannot drift apart.
+    /// </remarks>
+    public const string LineBreakCharacters = "\r\n\u0085\u2028\u2029";
+
+    /// <summary>
     ///     Backing field of <see cref="LineLength"/>.
     /// </summary>
     private readonly int _lineLength = 120;
@@ -424,7 +432,7 @@ internal sealed record LintMarkConfig
             }
 
             if (value.Any(static pattern => string.IsNullOrWhiteSpace(pattern)
-                                            || pattern.AsSpan().IndexOfAny("\r\n\u0085\u2028\u2029\\") >= 0))
+                                            || pattern.AsSpan().IndexOfAny(LineBreakCharacters + "\\") >= 0))
             {
                 throw new ArgumentException(
                     "Ignore patterns must be non-blank, single-line and use forward slashes.",

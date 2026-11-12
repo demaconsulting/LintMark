@@ -360,6 +360,49 @@ public sealed class EditorConfigTests : IDisposable
     }
 
     /// <summary>
+    ///     Validates that one resolved chain of settings files can be evaluated from many threads with identical results.
+    /// </summary>
+    [Fact]
+    public void EditorConfig_Parser_SharedResolvedChain_ParallelParse_IdenticalResults()
+    {
+        // Arrange: nested files with several properties, the chain of each directory resolved once, and the direct
+        // sequential result of every file as the expectation
+        Write(".editorconfig", "root = true\n\n[*.md]\nend_of_line = lf\nindent_style = space\n\n[docs/*.md]\nend_of_line = crlf\n");
+        Write("docs/.editorconfig", "[b.md]\nend_of_line = lf\nindent_style = tab\n");
+        var parser = new EditorConfigParser();
+        var directories = new[] { Path.Combine(_root, "docs"), Path.Combine(_root, "other") };
+        var chains = directories.ToDictionary(d => d, d => parser.GetResolvedChainForDirectory(d), StringComparer.Ordinal);
+        var files = Enumerable.Range(0, 64)
+            .Select(i => Path.Combine(directories[i % 2], $"{(char)('a' + (i % 4))}.md"))
+            .ToArray();
+        var expected = files.Select(f => Describe(parser.Parse(f).Properties)).ToArray();
+
+        // Act: evaluate every file many times from many threads against the shared chain of its directory
+        var actual = new string[files.Length * 20];
+        Parallel.For(
+            0,
+            actual.Length,
+            new ParallelOptions { MaxDegreeOfParallelism = 16 },
+            index =>
+            {
+                var file = files[index % files.Length];
+                actual[index] = Describe(parser.Parse(file, chains[Path.GetDirectoryName(file)!]).Properties);
+            });
+
+        // Assert: every concurrent result, with all of its properties, equals the sequential one
+        for (var i = 0; i < actual.Length; i++)
+        {
+            Assert.Equal(expected[i % files.Length], actual[i]);
+        }
+
+        Assert.Contains(expected, e => e.Contains("end_of_line=crlf", StringComparison.Ordinal));
+        return;
+
+        static string Describe(IEnumerable<KeyValuePair<string, string>> properties) =>
+            string.Join(";", properties.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"));
+    }
+
+    /// <summary>
     ///     Validates that a parser per thread produces the same results as sequential parsing.
     /// </summary>
     [Fact]

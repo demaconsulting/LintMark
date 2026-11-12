@@ -898,7 +898,7 @@ public class IntegrationTests
     {
         // Arrange: the documented sample with every setting, rule alias and ignore patterns
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", ConfigLoaderParseTests.FullSample);
+        directory.WriteFile(".lintmark.yaml", ConfigurationSamples.FullSample);
         var file = directory.WriteFile("a.md");
 
         // Act: run the tool with the file

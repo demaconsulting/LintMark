@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using DemaConsulting.LintMark.Configuration;
 
 namespace DemaConsulting.LintMark.Tests;
@@ -605,6 +608,199 @@ public class ConfigLoaderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal((1, 1), (error.Line, error.Column));
         Assert.Contains("larger than 1 MiB", error.Message);
+    }
+
+    /// <summary>
+    ///     Test that a file of exactly the size limit is read and accepted through the file reader.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_LoadFile_AtSizeLimit_Accepted()
+    {
+        // Arrange: a comment-only file of exactly the limit
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("limit.yaml", Enumerable.Repeat((byte)'#', ConfigLoader.MaxFileBytes).ToArray());
+
+        // Act: load it
+        var result = ConfigLoader.LoadFile(file);
+
+        // Assert: it is a valid, empty configuration
+        Assert.Empty(result.Errors);
+        Assert.Equal(LintMarkConfig.Default, result.Config);
+    }
+
+    /// <summary>
+    ///     Test that an explicit file of exactly the size limit gives no initial errors.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_ForFile_AtSizeLimit_HasNoInitialErrors()
+    {
+        // Arrange: a comment-only file of exactly the limit
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("limit.yaml", Enumerable.Repeat((byte)'#', ConfigLoader.MaxFileBytes).ToArray());
+
+        // Act: create the loader
+        var loader = ConfigLoader.ForFile(file);
+
+        // Assert: nothing is reported and the defaults apply to every file
+        Assert.Empty(loader.InitialErrors);
+        Assert.Equal(LintMarkConfig.Default, loader.Load("a.md").Config);
+    }
+
+    /// <summary>
+    ///     Test that a Markdown path that cannot be resolved has no configuration.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_ForDiscovery_Load_PathWithNullCharacter_ReturnsDefaults()
+    {
+        // Arrange: a path no file system accepts
+        var loader = ConfigLoader.ForDiscovery();
+
+        // Act: load it
+        var result = loader.Load("docs/a\0b.md");
+
+        // Assert: the defaults apply and nothing is thrown or reported
+        Assert.Equal(LintMarkConfig.Default, result.Config);
+        Assert.Null(result.SourcePath);
+        Assert.Empty(result.Errors);
+    }
+
+    /// <summary>
+    ///     Test that a Markdown path without a directory, the root of the file system, has no configuration.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_ForDiscovery_Load_FileSystemRootPath_ReturnsDefaults()
+    {
+        // Arrange: the root of the file system, which has no containing directory
+        var root = Path.GetPathRoot(Directory.GetCurrentDirectory())!;
+
+        // Act: load it
+        var result = ConfigLoader.ForDiscovery().Load(root);
+
+        // Assert: the defaults apply
+        Assert.Equal(LintMarkConfig.Default, result.Config);
+        Assert.Null(result.SourcePath);
+    }
+
+    /// <summary>
+    ///     Test that a directory that cannot be resolved has no configuration file.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_FindConfigFile_PathWithNullCharacter_ReturnsNull()
+    {
+        // Act & Assert: a path no file system accepts finds nothing and does not throw
+        Assert.Null(ConfigLoader.FindConfigFile("docs/a\0b"));
+    }
+
+    /// <summary>
+    ///     Test that an explicit file whose path cannot be resolved is reported against the text as given.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_LoadFile_PathWithNullCharacter_ReportsPathNotValid()
+    {
+        // Act: load a path no file system accepts
+        var result = ConfigLoader.LoadFile("conf/a\0b.yaml");
+
+        // Assert: one problem at the start of the file, named by the given path
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(("conf/a\0b.yaml", 1, 1), (error.Path, error.Line, error.Column));
+        Assert.Contains("the path is not valid", error.Message);
+        Assert.Null(result.Config);
+    }
+
+    /// <summary>
+    ///     Test that an explicit file that the current user may not read is reported as denied.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_LoadFile_AccessDenied_ReportsAccessDenied()
+    {
+        // Arrange: a file whose read permission is removed for the current user
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("denied.yaml", "line-length: 80\n");
+        var restore = DenyRead(file);
+        try
+        {
+            // A process with full rights (for example a superuser) can still read the file; nothing is testable then
+            Assert.SkipWhen(CanRead(file), "The current user can read the file despite the removed permission");
+
+            // Act: load it
+            var result = ConfigLoader.LoadFile(file);
+
+            // Assert: reported as denied at the start of the file
+            var error = Assert.Single(result.Errors);
+            Assert.Equal((1, 1, "Access to the configuration file is denied"), (error.Line, error.Column, error.Message));
+        }
+        finally
+        {
+            restore();
+        }
+    }
+
+    /// <summary>
+    ///     Removes the read permission of a file for the current user.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <returns>An action that restores the permission so the file can be deleted.</returns>
+    private static Action DenyRead(string file)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return DenyReadWindows(file);
+        }
+        else
+        {
+            return DenyReadUnix(file);
+        }
+    }
+
+    /// <summary>
+    ///     Adds a deny-read entry to the access list of a file for the current user.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <returns>An action that removes the entry again.</returns>
+    [SupportedOSPlatform("windows")]
+    private static Action DenyReadWindows(string file)
+    {
+        var rule = new FileSystemAccessRule(WindowsIdentity.GetCurrent().User!, FileSystemRights.ReadData, AccessControlType.Deny);
+        var info = new FileInfo(file);
+        var security = info.GetAccessControl();
+        security.AddAccessRule(rule);
+        info.SetAccessControl(security);
+        return () =>
+        {
+            var current = info.GetAccessControl();
+            current.RemoveAccessRule(rule);
+            info.SetAccessControl(current);
+        };
+    }
+
+    /// <summary>
+    ///     Removes all permissions of a file.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <returns>An action that restores read and write permission for the owner.</returns>
+    [UnsupportedOSPlatform("windows")]
+    private static Action DenyReadUnix(string file)
+    {
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        return () => File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    }
+
+    /// <summary>
+    ///     Determines whether a file can be opened for reading.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <returns><see langword="true"/> when it can be read.</returns>
+    private static bool CanRead(string file)
+    {
+        try
+        {
+            using var stream = File.OpenRead(file);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

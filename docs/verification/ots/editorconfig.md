@@ -28,7 +28,8 @@ significant on every platform. The behavior of LintMark's own interpretation of 
 The scenarios for section patterns, letter case, layering, the root file, chain evaluation, the typed accessor, and
 files that do not exist describe pinned library behavior and are not linked to a requirement in this phase,
 because the line ending that they lead to is not observable until files are rewritten. The scenarios for the raw
-`unset` property, malformed lines, and concurrent use are required.
+`unset` property, malformed lines, and concurrent use (one shared parser, one shared resolved chain, and a parser
+per thread) are required.
 
 ### Test Scenarios
 
@@ -112,13 +113,22 @@ which is why LintMark does not use it.
 
 #### One shared parser gives identical results on many threads
 
-**Scenario**: Files in two folders under settings files with different sections are resolved 20 times each from 16
-threads through one shared parser instance.
+**Scenario**: Files in two folders under settings files with different sections are resolved 20 times each from up
+to 16 threads through one shared parser instance.
 
 **Expected**: Every result equals the sequential result.
 
+#### One resolved chain of settings files gives identical results on many threads
+
+**Scenario**: The chain of settings files of each of two folders is resolved once, and files of both folders are
+evaluated 20 times each from up to 16 threads against the shared chain of their folder, through one shared parser;
+the settings files set several properties and have overlapping sections.
+
+**Expected**: Every result, with all of its properties, equals the result of a direct sequential parse of the same
+file, and the results include `crlf`.
+
 #### A parser per thread gives identical results on many threads
 
-**Scenario**: The same kind of tree is resolved from 16 threads, each call with its own parser.
+**Scenario**: The same kind of tree is resolved from up to 16 threads, each call with its own parser.
 
 **Expected**: Every result equals the sequential result.

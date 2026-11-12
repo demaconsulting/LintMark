@@ -58,8 +58,12 @@ only LF and CRLF.
 | `label-max-length` | `LabelMaxLength` | `int`, 1 to 100000 | 40 |
 | `definitions-marker` | `DefinitionsMarker` | `string`, a single-line HTML comment | `<!-- Link References -->` |
 
-A marker is valid when it starts with `<!--`, ends with `-->`, is at least seven characters long (an empty
-comment), and contains no line break (CR, LF, NEL, line separator, or paragraph separator).
+A marker is valid when it is exactly one HTML comment on one line: it starts with `<!--`, the text right after that
+does not start with `>` or `->` (an HTML parser ends the comment there), the first `-->` after the opening is the
+final three characters (nothing follows the comment), it is at least seven characters long (an empty comment), and
+it contains no line break. A line break is CR, LF, NEL (U+0085), line separator (U+2028), or paragraph separator
+(U+2029); the same set is used for the single-line check of ignore patterns and is defined once, as
+`LintMarkConfig.LineBreakCharacters`.
 `LinkRefactorOptions.IsValidMarker` is shared with `ConfigLoader` so that a file is rejected with a message
 exactly when the property would have thrown.
 
@@ -127,8 +131,7 @@ every member is safe for concurrent use.
 Hand-over note: `RuleIdentifiers` is a supporting type of this unit only because the `rules` setting must be
 validated before the linting subsystem exists. When the rule catalog is introduced it must absorb this table
 (move it and add the rule metadata) rather than duplicate it, and the suppression map's rule-id canonical-form
-function
-can then be bound to the same resolution.
+function can then be bound to the same resolution.
 
 **Ignore**: `Ignore` holds glob patterns of files to skip. The default is `.git/**`, `node_modules/**`,
 `**/.venv/**`, `**/generated/**`, `**/thirdparty/**`, and `.agent-logs/**`. A configured `ignore` list replaces
@@ -157,11 +160,13 @@ on which files are processed.
 **Scope of the requirements in this phase**: The requirements state what the configuration holds and refuses:
 the documented defaults, every value within its range, rule identification, refused values, and collections that
 holders and source collections cannot change. They state the refusal as an observable outcome (the value cannot be
-set); that it is raised as an exception from the initializer is a design decision described above. Deriving a copy
+set); that it is raised as an exception from the initializer is a design decision described above. The rule
+identification requirements name `RuleIdentifiers`, the supporting type that implements them. Deriving a copy
 that differs in chosen settings, and equality by content, are needed only to fill in the line ending that the
 editor settings give, which takes effect with the formatter. Their tests are kept as tests without a requirement,
 and the formatting phase re-creates the requirement together with the system requirement that observes the line
-ending.
+ending. Defensive checks without a separate observable need, such as the refusal of an uninitialized ignore array,
+are likewise verified by tests without a requirement.
 
 #### Key Methods
 
@@ -198,7 +203,7 @@ ending.
 **LinkRefactorOptions.IsValidMarker**: Determines whether text is acceptable as a definitions marker.
 
 - *Parameters*: `string value`.
-- *Returns*: `bool`; `true` for a single-line HTML comment.
+- *Returns*: `bool`; `true` for exactly one single-line HTML comment (see the marker rule above).
 - *Preconditions*: `value` is not null.
 
 **LinkRefactorOptions constructor and initializers**: The constructor assigns every option through the validating

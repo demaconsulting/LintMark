@@ -242,8 +242,10 @@ Every value is checked strictly, so that a typo can never silently fall back to 
   `link-refactor`, which are reported as `link-refactor.<option>`.
 - The file contains one YAML document; a second document is an error. Anchors, aliases, and tags are not
   supported.
-- The file must be UTF-8 (with or without a byte order mark) with LF or CRLF line endings, at most 1 MiB, and
-  with brackets nested at most 64 levels deep.
+- The file must be UTF-8 (with or without a byte order mark) with LF or CRLF line endings.
+- Limits: a file larger than 1 MiB (1,048,576 bytes) is an error, and so is a file in which `[` and `{` brackets
+  are nested more than 64 levels deep. Both are reported with a position and are rejected promptly, however far
+  the limit is exceeded.
 
 ### Rules
 

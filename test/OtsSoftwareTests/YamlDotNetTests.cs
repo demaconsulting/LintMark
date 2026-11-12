@@ -148,7 +148,7 @@ public class YamlDotNetTests
         // Act: read the events
         var events = ReadEvents(yaml);
 
-        // Assert: only the stream markers are present
+        // Assert: no document is present
         Assert.DoesNotContain(events, e => e is DocumentStart);
     }
 
@@ -252,9 +252,8 @@ public class YamlDotNetTests
         // Act: read until the failure
         var exception = Assert.ThrowsAny<YamlException>(() => ReadEvents(yaml));
 
-        // Assert: the position is 1-based and on or after the start of the bad scalar
-        Assert.True(exception.Start.Line >= 2);
-        Assert.True(exception.Start.Column >= 1);
+        // Assert: the position is exactly where the bad scalar starts (1-based, line 2 column 4)
+        Assert.Equal((2L, 4L), (exception.Start.Line, exception.Start.Column));
         Assert.False(string.IsNullOrWhiteSpace(exception.Message));
     }
 
@@ -321,7 +320,11 @@ public class YamlDotNetTests
                     failure = ex;
                 }
             },
-            256 * 1024);
+            256 * 1024)
+        {
+            // A parser that never finishes must not keep the test host alive after the join times out
+            IsBackground = true
+        };
 
         // Act: run to completion
         thread.Start();

@@ -45,7 +45,7 @@ sections:
               - LintMark-Configuration-ConfigLoader-NoMerging
               - LintMark-Configuration-ConfigLoader-FartherFilesIgnored
             tests:
-              - ConfigurationSubsystem_Discovery_NestedConfigsAndRepositoryBoundary_ResolvesNearestWithinRepository
+              - ConfigurationSubsystem_NoMerging_InvalidFartherFileInRepository_NoInfluenceOnNearerFile
 
           - id: LintMark-Configuration-ExplicitFile
             title: >-
@@ -116,7 +116,7 @@ sections:
               - LintMark-Configuration-ConfigLoader-IgnorePatternDuplicates
               - LintMark-Configuration-ConfigLoader-IgnorePatternCase
             tests:
-              - ConfigurationSubsystem_Settings_FullSampleFile_AppliesEverySettingAndRuleAlias
+              - ConfigurationSubsystem_Settings_FullSampleFile_AcceptedWithRepresentativeValuesApplied
 
           - id: LintMark-Configuration-EquivalentLayouts
             title: >-
@@ -205,7 +205,10 @@ sections:
               - LintMark-Configuration-ConfigLoader-NullValues
               - LintMark-Configuration-LintMarkConfig-RangeChecks
               - LintMark-Configuration-LintMarkConfig-ChoiceChecks
-              - LintMark-Configuration-LintMarkConfig-WellFormedChecks
+              - LintMark-Configuration-LintMarkConfig-IgnorePatternChecks
+              - LintMark-Configuration-LintMarkConfig-RuleTableChecks
+              - LintMark-Configuration-LintMarkConfig-MarkerChecks
+              - LintMark-Configuration-LintMarkConfig-LinkOptionChecks
             tests:
               - ConfigurationSubsystem_Validation_InvalidValue_ReportedWithMessageAndPosition
 
@@ -224,8 +227,8 @@ sections:
 
           - id: LintMark-Configuration-SizeLimit
             title: >-
-              The Configuration subsystem shall report a configuration file that is implausibly large as a
-              configuration problem.
+              The Configuration subsystem shall report a configuration file that exceeds the size limit documented
+              in the user guide as a configuration problem.
             justification: |
               No valid configuration is anywhere near that size, and a damaged or unrelated file must be named
               as a problem instead of being processed.
@@ -236,11 +239,12 @@ sections:
 
           - id: LintMark-Configuration-NestingLimit
             title: >-
-              The Configuration subsystem shall report a configuration file that is nested implausibly deeply
-              as a configuration problem, without stalling the run.
+              The Configuration subsystem shall report a configuration file whose nesting exceeds the limit
+              documented in the user guide as a configuration problem.
             justification: |
               A damaged or hostile file, for example one arriving in a pull request that a build pipeline
-              checks, must be rejected promptly and must not be able to stall or bring down the run.
+              checks, must be rejected promptly and must not be able to stall or bring down the run. The
+              scenario that verifies the requirement therefore also bounds the time taken.
             children:
               - LintMark-Configuration-ConfigLoader-NestingLimit
             tests:

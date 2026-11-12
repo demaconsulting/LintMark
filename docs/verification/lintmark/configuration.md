@@ -32,11 +32,13 @@ are therefore run sequentially with the other tests that touch process-wide stat
 
 - All integration tests pass with zero failures.
 - The nearest `.lintmark.yaml` file up to and including the repository root is used and nothing above the
-  repository root is read; no other configuration file influences the result.
+  repository root is read; no other configuration file influences the result, even when it is invalid and sits
+  between the repository root and the nearest file.
 - An explicitly named file is used instead of discovery, also when it is given as a relative path; a named file
   that is missing or cannot be read is reported at line 1, column 1, before any Markdown file is processed.
 - A tree without a configuration file and a tree with an empty file both give the documented defaults.
-- The documented full sample file applies every setting, including a rule given by its legacy number.
+- The sample file that gives every setting is accepted without problems, and representative values of it are applied,
+  including a rule given by its legacy number.
 - Equivalent files in block style, in flow style, with the settings in another order, with CRLF line endings, and
   with a UTF-8 marker give equal settings.
 - A file with malformed YAML, with an unsupported structure (a list, two configurations, a reference, or a
@@ -45,10 +47,10 @@ are therefore run sequentially with the other tests that touch process-wide stat
 - An invalid file gives no configuration and one problem per fault, each at its line and column in the file, ordered
   by position.
 - A setting given twice and a rule named twice are reported at the later entry.
-- A file larger than 1 MiB is reported at line 1, column 1, and a file nested 100,000 levels deep is reported with a
-  position within 10 seconds.
-- Editor settings that cannot be used (`cr`, `unset`, unknown, malformed lines, unrelated settings) are "not
-  specified" and never an error.
+- A file larger than the documented size limit (1 MiB) is reported at line 1, column 1, and a file nested far beyond
+  the documented nesting limit (a file nested 100,000 levels deep) is reported with a position within 10 seconds.
+- Editor settings that cannot be used (`cr`, `unset`, an unknown value such as `banana`, malformed lines, unrelated
+  settings) are "not specified" and never an error.
 - Supporting: editor settings that cannot be read are reported as a one-line message, which is verified without a
   requirement (see below).
 - Many threads that use one loader and one resolver get results identical to sequential use.
@@ -68,6 +70,12 @@ in `docs` are created. A file at the repository root gets the root settings, a f
 nested settings (the line length and wrap mode of the root file are not inherited), a file in a folder without its
 own configuration shares the root file's result instance, and the file above the repository is never used.
 
+**A farther configuration file has no influence, even when it is invalid**: Inside one repository, an invalid
+configuration file in a folder, with a valid nearer file below it that sets only the line length, and a valid
+farther file that sets other settings with a valid nearer file below it that sets only the line length. A file below
+each nearer file gets no problems and a configuration that equals the defaults with only the nearer file's line
+length; the invalid file's problems are not reported and the valid farther file's settings are not inherited.
+
 **An explicit file replaces discovery**: A discoverable file and a second file, named with a relative path, are
 created; with the named file loaded through the explicit-file loader while the temporary directory is the current
 directory, the named file's settings apply.
@@ -76,9 +84,11 @@ directory, the named file's settings apply.
 file both give a configuration equal to the built-in defaults (line length 120, fill wrapping, compact tables,
 link conversion off).
 
-**The full sample file applies every setting and rule alias**: The documented sample that sets every setting to a
-non-default value is loaded; there are no problems, the settings have the sample's values, the rule named by its
-legacy number is switched off under its rule name, and the ignore patterns replace the defaults.
+**The sample file that gives every setting is accepted and representative values are applied**: The sample that gives
+every setting, every link conversion option, three rules (one by its legacy number), and two ignore patterns is
+loaded; there are no problems, and the line length, line ending, table style, link conversion flag, the rule named
+by its legacy number (switched off under its rule name), and the ignore patterns (which replace the defaults) have
+the sample's values. The sample is shared with the unit and system tests through a neutral test helper.
 
 **Editor settings give the line ending per file (supporting evidence for the formatting phase)**: A root
 `.editorconfig` gives `lf` to all files and `crlf` to Markdown files, and a second file in a sub folder declares
@@ -92,23 +102,26 @@ defaults.
 
 #### Boundary conditions
 
-**A file larger than the limit is reported at its first line**: A file one byte larger than 1 MiB gives no
-configuration and one problem at line 1, column 1 that names the limit.
+**A file larger than the limit is reported at its first line**: A file one byte larger than the documented limit of 1
+MiB gives no configuration and one problem at line 1, column 1 that names the limit.
 
-**A deeply nested file is reported promptly**: A file whose value is nested 100,000 levels deep gives no
-configuration and one problem on line 1 that starts `Nesting is too deep`, and loading takes less than 10 seconds.
+**A deeply nested file is reported promptly**: A file whose value is nested 100,000 levels deep, far beyond the
+documented limit of 64 levels, gives no configuration and one problem on line 1 that starts `Nesting is too deep`,
+and loading takes less than 10 seconds. The time bound is part of the scenario because the reason for the limit
+is that parsing such a file unguarded takes unbounded time.
 
 **Many threads get the sequential results**: Configuration and editor settings in several folders (one
-configuration invalid) are used by 16 threads over 48 files, each looked up ten times through one shared loader and
+configuration invalid) are used by up to 16 threads over 48 files, each looked up ten times through one shared loader and
 one shared resolver; every result (line length, problem messages, line ending, and editor-settings problem) equals
 the result of sequential use with fresh instances.
 
-**Problems of one file are ordered by position**: A file whose faults come from different checks (an unknown rule,
-an empty ignore pattern, an unknown setting, an invalid value) gives problems on strictly ascending lines.
+**Problems of one file are ordered by position**: A file whose problems are found at different stages (an unknown
+rule, an empty ignore pattern and an unknown setting while the settings are checked, and an anchor on its last line
+while the file is read) gives the problems in ascending position order, although the anchor was found first.
 
-**Unsupported editor values and unrelated settings are not specified**: Sections that give `cr`, `unset`, an
-unrelated setting, no section at all, and a malformed `[[[` line are resolved; every result equals the "not
-specified" result and none carries an error message.
+**Unsupported editor values and unrelated settings are not specified**: Sections that give `cr`, `unset`, an unknown
+value (`banana`), an unrelated setting, no section at all, and a malformed `[[[` line are resolved; every result
+equals the "not specified" result and none carries an error message.
 
 #### Error handling
 
@@ -131,7 +144,7 @@ column 14, and line 3 column 7 of that file. The scenario shows that all problem
 own position.
 
 **Malformed YAML is reported with a position**: A file with an unterminated quote gives no configuration and one
-problem that starts `Invalid YAML`, on or after the line of the quote.
+problem that starts `Invalid YAML`, at the opening quote (2:7).
 
 **Unsupported structure is reported at the construct**: A list, two configurations, a reference to another part of
 the file, and a non-text name, each in its own folder, give no configuration and one problem each, at the position of

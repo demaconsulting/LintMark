@@ -454,8 +454,8 @@ sections:
 
       - id: LintMark-System-ConfigInputLimits
         title: >-
-          The tool shall report a configuration file that is implausibly large or implausibly deeply nested as
-          a configuration problem, without stalling or failing.
+          The tool shall report a configuration file that exceeds the size or nesting limits documented in the
+          user guide as a configuration problem.
         tags: [system]
         justification: |
           A damaged or hostile configuration file, for example one arriving in a pull request that a build

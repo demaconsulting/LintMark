@@ -23,10 +23,11 @@ culture when it ends.
 - The built-in default has the documented value for every setting: the 22 configurable rules enabled except the
   three documented as off, the six default ignore patterns in their documented order, link conversion off with its
   documented option values, and no line ending chosen.
-- The smallest and largest value of every numeric range, an empty ignore list, and the shortest valid marker are
-  accepted, and every setting reads back the value it was given.
+- The smallest and largest value of every numeric range (line length, maximum blank lines, link conversion
+  threshold and label length), both list indents, an empty ignore list, and the shortest valid marker are accepted,
+  and every setting reads back the value it was given.
 - A value outside its range, an undefined enumeration value, a malformed ignore pattern, an incomplete or
-  mistaken rule table, and a marker that is not a single-line HTML comment are refused with the documented
+  mistaken rule table, and a marker that is not exactly one HTML comment on one line are refused with the documented
   exception type.
 - A rule is identified by its name or legacy number in any letter case, in every culture; the legacy numbers of
   removed rules are recognized but are not rules.
@@ -92,9 +93,18 @@ rule has two numbers, no number is also a dropped number, and there are nine dro
 
 **Smallest and largest line length are accepted**: Zero (unlimited) and 100,000 are stored.
 
+**Smallest and largest maximum blank line count are accepted**: One and 100,000 are stored.
+
+**Both list indents are accepted**: Two and four are stored.
+
+**Smallest and largest link conversion threshold and label length are accepted**: One and 100,000 are stored for
+both numbers, through a modified copy and through the constructor.
+
 **An empty ignore list is accepted**: The patterns can be cleared.
 
-**The shortest valid definitions marker is accepted**: The empty comment `<!---->` is stored.
+**Markers that are one HTML comment on one line are accepted**: The shortest marker `<!---->`, and markers such as
+`<!-- x -->`, `<!--- x -->`, `<!-- a - b -->`, `<!-- a -- b -->`, `<!-- a --->`, `<!--x-->`, and the default marker
+are stored, and the shared marker check agrees.
 
 **The default ignore list is an initialized immutable array**: The shared default patterns are an immutable array
 that is ready for use.
@@ -130,10 +140,11 @@ typed settings (wrap, line ending, headings, bullet, ordered style, emphasis, st
 style, hard break, thematic break, tables, bare URLs, and trailing whitespace) throws
 `ArgumentOutOfRangeException`.
 
-**An uninitialized ignore array is refused**: The default value of the immutable array throws `ArgumentException`.
+**An uninitialized ignore array is refused (supporting)**: The default value of the immutable array throws
+`ArgumentException`. The refusal has no separate observable need, so the scenario has no requirement.
 
-**A malformed ignore pattern is refused**: A null, empty, blank, multi-line (LF or CRLF), or backslash pattern among
-valid ones throws `ArgumentException`.
+**A malformed ignore pattern is refused**: A null, empty, blank, multi-line (LF, CRLF, a lone CR, or a next-line, line
+separator, or paragraph separator character), or backslash pattern among valid ones throws `ArgumentException`.
 
 **A rule table that is wrong is refused**: A table with an empty key, an unknown key, a legacy number instead of the
 rule name, or a missing rule throws `ArgumentException`, and a null table throws `ArgumentNullException`.
@@ -143,9 +154,11 @@ rule name, or a missing rule throws `ArgumentException`, and a null table throws
 **A threshold or label length outside the range is refused**: `0`, `-1`, and `100001` throw
 `ArgumentOutOfRangeException`, for a modified copy and for the constructor.
 
-**A marker that is not a single-line HTML comment is refused**: An empty marker, plain text, an unclosed or
-unopened comment, `<!-->`, and markers with a line break throw `ArgumentException`, and a null marker throws
-`ArgumentNullException`.
+**A marker that is not exactly one HTML comment on one line is refused**: An empty marker, plain text, an unclosed or
+unopened comment, `<!-->`, `<!--->`, `<!--> -->`, `<!---> -->`, a comment followed by text or by a second comment, and
+markers with a line break (LF, CRLF, a lone CR, or a next-line, line separator, or paragraph separator character)
+throw `ArgumentException`, the shared marker check returns false for each, and a null marker throws
+`ArgumentNullException`, also from the shared marker check.
 
 **A null name is refused by the rule lookups (supporting)**: Resolving null, and asking whether null is dropped,
 throw `ArgumentNullException`.

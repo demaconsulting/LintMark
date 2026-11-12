@@ -8,8 +8,9 @@ helper), because the unit's purpose is to turn what that library reports for a M
 mocking the library would remove everything that is worth checking. Two seams that the resolver exposes through its
 constructor, one delegate for the library call that resolves the chain of settings files of a directory and one for
 the call that evaluates a file against a chain, are used only to provoke failures that cannot be caused reliably on
-every platform: a chain lookup that throws an `IOException` whose message contains a line break, and an evaluation
-that throws `UnauthorizedAccessException` while the chain lookup is real. The tests assert on the returned
+every platform, and to count lookups: a chain lookup that throws an `IOException` whose message contains a line
+break (once with a counter, to show that the failure is determined once per directory), and an evaluation that
+throws `UnauthorizedAccessException` while the chain lookup is real. The tests assert on the returned
 `EditorConfigResult` (line ending and error message) and never on library types.
 
 Every scenario that reads settings from the file system starts its tree with a root `.editorconfig` that declares
@@ -18,16 +19,15 @@ the temporary tree. Section patterns are exercised through one data-driven test 
 of the editor settings specification; each case is a separate test case.
 
 The behavior that is required in this phase is the tolerance of settings that cannot be used and the same results
-under concurrent use. Which line ending the settings give is not
-observable until files are rewritten, and neither is the report of settings that cannot be read, so the scenarios
-that verify them (marked supporting below) are tests without a
-requirement; the formatting phase adds the requirements that they then verify.
+under concurrent use. Which line ending the settings give is not observable until files are rewritten, and neither
+is the report of settings that cannot be read. The scenarios that verify them (marked supporting below) are tests
+without a requirement; the formatting phase adds the requirements that they then verify.
 
 #### Test Environment
 
 Temporary directories are created and removed by each test. The tests that resolve a relative path change the
 current directory and restore it afterwards, so the class runs sequentially with the other tests that touch
-process-wide state. The tests that use many threads use 16 degrees of parallelism over 60 files in three folders
+process-wide state. The tests that use many threads allow up to 16 degrees of parallelism over 60 files in three folders
 and repeat every lookup ten times through one shared resolver.
 
 #### Acceptance Criteria
@@ -37,7 +37,9 @@ and repeat every lookup ten times through one shared resolver.
   specified" without an error message.
 - Malformed lines are ignored and no error is reported.
 - Many threads get the sequential results.
-- Supporting: settings that cannot be read give a one-line message and no line ending, never an exception.
+- Supporting: settings that cannot be read give a one-line message and no line ending, never an exception; a failed
+  lookup is made once per directory.
+- Supporting: a path that cannot be resolved, or has no containing directory, gives "not specified".
 - Supporting: `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
   value in any letter case; the nearest file that gives a value wins, a value that cannot be used in a nearer file
   hides a farther one, a file that declares `root = true` ends the search, and a later section overrides an
@@ -67,8 +69,9 @@ equals sign, and a line of text before a valid `[*.md]` section gives `crlf` and
 ##### Concurrency
 
 **Many threads get the sequential results**: Nested settings files with different sections and 60 files in three
-folders are resolved ten times each from 16 threads through one shared resolver; every result equals the result of
-a fresh resolver used sequentially.
+folders are resolved ten times each from up to 16 threads through one shared resolver; every complete result (line
+ending and message) equals the result of a fresh resolver used sequentially, and both line endings occur among
+the results.
 
 ##### Supporting scenarios (no requirement until the formatting phase)
 
@@ -77,6 +80,13 @@ whose message contains a line break, the result has no line ending and the messa
 settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
 "Cannot read .editorconfig settings: denied". Nothing is thrown. The formatting phase re-adds a requirement for the
 report of unreadable settings together with an observable system-level behavior.
+
+**A failed settings lookup is made once per directory and reported for every file**: With a chain lookup that fails
+and counts its calls, three files of one folder get the same message from one lookup, and a file in another folder
+causes a second lookup with the same message.
+
+**A path that cannot be resolved has no settings**: A path that contains a null character, and the root of the file
+system (which has no containing directory), give "not specified" without consulting the library.
 
 **Section that gives `lf` resolves to `lf`**: A `[*]` section with `end_of_line = lf` gives `lf` for a Markdown file,
 with no error message.
@@ -130,8 +140,9 @@ the nested file's `crlf`.
 disk and another file of the same folder is resolved; the earlier line ending is still reported, which shows that
 the chain was not read again.
 
-**Null and empty arguments are rejected**: A null path throws `ArgumentNullException`, an empty path throws
-`ArgumentException`, and a null chain delegate in the constructor throws `ArgumentNullException`.
+**Null and empty arguments are rejected**: A null path throws `ArgumentNullException` and an empty path throws
+`ArgumentException`; a null chain delegate and a null evaluation delegate in the constructor each throw
+`ArgumentNullException` naming the argument.
 
 **Result rejects invalid combinations**: A result with both a line ending and an error, with a blank error, or with
 an undefined line ending throws `ArgumentException`, and an error message with a line break is stored on one line.

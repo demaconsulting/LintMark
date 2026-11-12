@@ -52,8 +52,8 @@ EditorConfig has no self-validation mode. The evidence for the behaviors LintMar
 test project `test/OtsSoftwareTests`, which exercises the library directly: glob patterns, case sensitivity of
 section patterns, case-insensitivity of property names and values, later-section and nearer-file precedence,
 `root = true`, evaluation with a resolved chain compared with a direct parse, the raw `unset` value, the unreliable
-typed accessor, `cr`, nonexistent files, malformed lines, and parallel parsing with a shared parser and with a
-parser per thread.
+typed accessor, `cr`, nonexistent files, malformed lines, and parallel parsing with a shared parser, with one
+resolved chain shared by many threads, and with a parser per thread.
 
 Only the raw property text (including `unset`), the leniency toward malformed lines, and concurrent use are
 required of the library in this phase, because they decide whether editor settings that cannot be used are

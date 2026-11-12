@@ -149,6 +149,8 @@ sections:
                   A configuration that cannot be used must be reported instead of replaced by other settings.
                 tests:
                   - ConfigLoader_ForFile_DirectoryAsFile_ReportsCannotRead
+                  - ConfigLoader_LoadFile_AccessDenied_ReportsAccessDenied
+                  - ConfigLoader_LoadFile_PathWithNullCharacter_ReportsPathNotValid
 
               - id: LintMark-Configuration-ConfigLoader-ExplicitFileProblemsUpFront
                 title: >-
@@ -162,8 +164,8 @@ sections:
 
               - id: LintMark-Configuration-ConfigLoader-SizeLimit
                 title: >-
-                  The ConfigLoader class shall report a configuration file that is implausibly large as a
-                  problem at line 1 and column 1 of that file.
+                  The ConfigLoader class shall report a configuration file that exceeds the size limit documented
+                  in the user guide as a problem at line 1 and column 1 of that file.
                 justification: |
                   No valid configuration is anywhere near that size. A damaged or unrelated file must be named
                   as a problem instead of being read to the end.
@@ -171,6 +173,8 @@ sections:
                   - ConfigLoader_LoadFile_TooLarge_ReportsSizeError
                   - ConfigLoader_Parse_TooLarge_ReportsSizeError
                   - ConfigLoader_Parse_AtSizeLimit_Accepted
+                  - ConfigLoader_LoadFile_AtSizeLimit_Accepted
+                  - ConfigLoader_ForFile_AtSizeLimit_HasNoInitialErrors
 
               - id: LintMark-Configuration-ConfigLoader-DefaultsWithoutFile
                 title: >-
@@ -180,6 +184,9 @@ sections:
                   Using the tool without any configuration is the common case.
                 tests:
                   - ConfigLoader_ForDiscovery_Load_NoConfigFile_ReturnsDefaults
+                  - ConfigLoader_ForDiscovery_Load_PathWithNullCharacter_ReturnsDefaults
+                  - ConfigLoader_ForDiscovery_Load_FileSystemRootPath_ReturnsDefaults
+                  - ConfigLoader_FindConfigFile_PathWithNullCharacter_ReturnsNull
 
               - id: LintMark-Configuration-ConfigLoader-DefaultsOnly
                 title: >-
@@ -475,8 +482,8 @@ sections:
 
               - id: LintMark-Configuration-ConfigLoader-InvalidIgnorePatterns
                 title: >-
-                  The ConfigLoader class shall report an ignore pattern that is not valid as a problem at that
-                  pattern.
+                  The ConfigLoader class shall report an ignore pattern that is empty, blank, not text, or spread over
+                  more than one line as a problem at that pattern.
                 justification: |
                   A pattern that cannot match anything meaningful must be reported, not silently dropped.
                 tests:
@@ -567,6 +574,7 @@ sections:
                   other places or add hidden types are not supported.
                 tests:
                   - ConfigLoader_Parse_AnchorAliasOrTag_Reported
+                  - ConfigLoader_Parse_AnchorOrTagOnEmptyValue_ReportedOnce
                 children:
                   - LintMark-OTS-YamlDotNet-Features
 
@@ -581,9 +589,8 @@ sections:
 
               - id: LintMark-Configuration-ConfigLoader-NestingLimit
                 title: >-
-                  The ConfigLoader class shall report a configuration file whose collections are nested
-                  implausibly deeply as a problem at the position where the nesting becomes excessive, without
-                  stalling the run.
+                  The ConfigLoader class shall report a configuration file whose nesting exceeds the limit
+                  documented in the user guide as a problem at the position where the nesting exceeds it.
                 justification: |
                   No valid configuration nests that deeply. A damaged or hostile file, for example one arriving in
                   a pull request that a build pipeline checks, must be rejected promptly and must not be able to
@@ -591,6 +598,7 @@ sections:
                 tests:
                   - ConfigLoader_Parse_NestingBeyondLimit_ReportsPositionOfOffendingBracket
                   - ConfigLoader_Parse_NestingAtLimit_IsParsed
+                  - ConfigLoader_Parse_NestingBeyondLimitAfterLoneCarriageReturn_ReportsLineAfterBreak
                   - ConfigLoader_Parse_DeeplyNestedUnknownValue_ReportsOneErrorWithoutCrash
                 children:
                   - LintMark-OTS-YamlDotNet-Nesting
@@ -605,6 +613,7 @@ sections:
                 tests:
                   - ConfigLoader_Parse_InvalidUtf8_ReportedAtOffendingPosition
                   - ConfigLoader_Parse_Utf8BomThenInvalidUtf8_PositionAccountsForBomStrip
+                  - ConfigLoader_Parse_InvalidUtf8AfterLineBreaks_PositionCountsEachBreakOnce
 
               - id: LintMark-Configuration-ConfigLoader-UnsupportedEncoding
                 title: >-
@@ -645,7 +654,8 @@ sections:
                 justification: |
                   An order that varies makes reports hard to compare and hard to read.
                 tests:
-                  - ConfigLoader_Parse_SeveralErrors_SortedByPositionThenMessage
+                  - ConfigLoader_Parse_ErrorsFoundOutOfPositionOrder_ReportedInPositionOrder
+                  - ConfigLoadResult_Constructor_ProblemsOutOfOrder_SortedByLineColumnThenMessage
 
               - id: LintMark-Configuration-ConfigLoader-ConcurrentLoads
                 title: >-

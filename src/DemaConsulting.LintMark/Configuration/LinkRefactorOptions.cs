@@ -46,6 +46,16 @@ internal sealed record LinkRefactorOptions
     private const int MinimumMarkerLength = 7;
 
     /// <summary>
+    ///     The text that opens an HTML comment.
+    /// </summary>
+    private const string CommentOpen = "<!--";
+
+    /// <summary>
+    ///     The text that closes an HTML comment.
+    /// </summary>
+    private const string CommentClose = "-->";
+
+    /// <summary>
     ///     Backing field of <see cref="Threshold"/>.
     /// </summary>
     private readonly int _threshold;
@@ -159,8 +169,10 @@ internal sealed record LinkRefactorOptions
     /// </summary>
     /// <param name="value">The text to test. Must not be null.</param>
     /// <returns>
-    ///     <see langword="true"/> when the text is a single-line HTML comment (it starts with <c>&lt;!--</c>,
-    ///     ends with <c>--&gt;</c> and contains no line break); otherwise <see langword="false"/>.
+    ///     <see langword="true"/> when the text is exactly one single-line HTML comment (it starts with
+    ///     <c>&lt;!--</c>, the text after that does not start with <c>&gt;</c> or <c>-&gt;</c>, the first
+    ///     <c>--&gt;</c> after the opening is the end of the text, and there is no line break); otherwise
+    ///     <see langword="false"/>.
     /// </returns>
     /// <remarks>
     ///     Shared with the configuration loader so that a file is rejected with a message
@@ -173,9 +185,18 @@ internal sealed record LinkRefactorOptions
         ArgumentNullException.ThrowIfNull(value);
 
         // A marker is written on a line of its own, so it must be one comment on one line
-        return value.Length >= MinimumMarkerLength
-               && value.StartsWith("<!--", StringComparison.Ordinal)
-               && value.EndsWith("-->", StringComparison.Ordinal)
-               && value.AsSpan().IndexOfAny("\r\n\u0085\u2028\u2029") < 0;
+        if (value.Length < MinimumMarkerLength
+            || !value.StartsWith(CommentOpen, StringComparison.Ordinal)
+            || value.AsSpan().IndexOfAny(LintMarkConfig.LineBreakCharacters) >= 0)
+        {
+            return false;
+        }
+
+        // Text right after the opening that starts with ">" or "->" would end the comment immediately (an HTML parser
+        // treats those as empty comments), and the first end delimiter must be the final three characters so that
+        // nothing follows the comment
+        var afterOpen = value.AsSpan(CommentOpen.Length);
+        return !afterOpen.StartsWith(">") && !afterOpen.StartsWith("->")
+               && value.IndexOf(CommentClose, CommentOpen.Length, StringComparison.Ordinal) == value.Length - CommentClose.Length;
     }
 }

@@ -648,18 +648,20 @@ internal static class ConfigParser
         /// <param name="value">The value node.</param>
         private void ApplyListIndent(string name, Node key, Node value)
         {
-            if (!TryInt(name, key, value, 2, 4, out var indent))
+            if (!TryScalar(name, key, value, out var scalar))
             {
                 return;
             }
 
-            if (indent == 3)
+            // Only the plain numbers 2 and 4 are accepted; every other value gets the same message
+            if (scalar.Style == ScalarStyle.Plain && scalar.Value is "2" or "4")
             {
-                AddError(value, $"Invalid value '3' for setting '{name}'; expected one of: 2, 4");
+                _config = _config with { ListIndent = scalar.Value == "2" ? 2 : 4 };
                 return;
             }
 
-            _config = _config with { ListIndent = indent };
+            var hint = scalar.Style == ScalarStyle.Plain ? string.Empty : " without quotes";
+            AddError(value, $"Invalid value {Quote(scalar.Value)} for setting '{name}'; expected one of: 2, 4{hint}");
         }
 
         /// <summary>
@@ -812,7 +814,11 @@ internal static class ConfigParser
             // Null is an error (a half-edited file must not silently revert to the defaults); an empty list is valid
             if (value is ScalarNode nullable && IsNull(nullable))
             {
-                AddError(key, "Setting 'ignore' must not be empty");
+                if (!nullable.Reported)
+                {
+                    AddError(key, "Setting 'ignore' must not be empty");
+                }
+
                 return;
             }
 
@@ -876,7 +882,7 @@ internal static class ConfigParser
                 return false;
             }
 
-            if (scalar.Value.AsSpan().IndexOfAny("\r\n\u0085\u2028\u2029") >= 0)
+            if (scalar.Value.AsSpan().IndexOfAny(LintMarkConfig.LineBreakCharacters) >= 0)
             {
                 AddError(item, "Ignore patterns must be on a single line");
                 return false;
@@ -952,7 +958,12 @@ internal static class ConfigParser
                     map = found;
                     return true;
                 case ScalarNode scalar when IsNull(scalar):
-                    AddError(key, $"Setting '{setting}' must not be empty");
+                    // A decorated null (an anchor or tag on an empty value) was already reported once
+                    if (!scalar.Reported)
+                    {
+                        AddError(key, $"Setting '{setting}' must not be empty");
+                    }
+
                     return false;
                 default:
                     if (!value.Reported)

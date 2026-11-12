@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
@@ -33,44 +34,6 @@ public class ConfigLoaderParseTests
     ///     The path reported in the errors of every test.
     /// </summary>
     private const string ConfigPath = "conf/.lintmark.yaml";
-
-    /// <summary>
-    ///     The documented sample configuration that sets every setting to a non-default value.
-    /// </summary>
-    internal const string FullSample =
-        "line-length: 100\n"
-        + "wrap: sentence\n"
-        + "end-of-line: crlf\n"
-        + "final-newline: false\n"
-        + "heading-style: atx\n"
-        + "bullet: asterisk\n"
-        + "list-indent: 4\n"
-        + "ordered-style: one\n"
-        + "emphasis: underscore\n"
-        + "strong: underscore\n"
-        + "code-fence: tilde\n"
-        + "code-block-style: fenced\n"
-        + "hard-break: backslash\n"
-        + "thematic-break: asterisks\n"
-        + "bare-urls: leave\n"
-        + "tables: aligned\n"
-        + "max-blank-lines: 2\n"
-        + "trailing-whitespace: strip\n"
-        + "link-refactor:\n"
-        + "  enabled: true\n"
-        + "  threshold: 80\n"
-        + "  in-tables: false\n"
-        + "  break-link-text: true\n"
-        + "  label-max-length: 25\n"
-        + "  definitions-marker: \"<!-- Links -->\"\n"
-        + "rules:\n"
-        + "  MD013: false\n"
-        + "  heading-increment: false\n"
-        + "  descriptive-link-text: true\n"
-        + "  MD025: false\n"
-        + "ignore:\n"
-        + "  - \"docs/generated/**\"\n"
-        + "  - \"**/vendor/**\"\n";
 
     /// <summary>
     ///     Parses text as UTF-8 content of a configuration file.
@@ -167,13 +130,13 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that the documented sample file applies every setting.
+    ///     Test that the sample configuration gives every setting its sample value.
     /// </summary>
     [Fact]
     public void ConfigLoader_Parse_FullSampleFile_AppliesEverySetting()
     {
         // Act: parse the documented sample
-        var config = Valid(FullSample);
+        var config = Valid(ConfigurationSamples.FullSample);
 
         // Assert: every setting has the sample's value
         Assert.Equal(100, config.LineLength);
@@ -394,7 +357,7 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that the whole range of line length values and the list indent values are accepted.
+    ///     Test that the line length range and its boundaries are accepted.
     /// </summary>
     [Theory]
     [InlineData("line-length: 0\n", 0)]
@@ -425,22 +388,26 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that a list indent other than two or four is reported.
+    ///     Test that a list indent other than two or four is reported with the accepted values, whatever the value looks like.
     /// </summary>
     [Theory]
-    [InlineData("0")]
-    [InlineData("1")]
-    [InlineData("3")]
-    [InlineData("8")]
-    [InlineData("\"2\"")]
-    [InlineData("two")]
-    public void ConfigLoader_Parse_ListIndentNotTwoOrFour_Reported(string value)
+    [InlineData("0", "Invalid value '0' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("1", "Invalid value '1' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("3", "Invalid value '3' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("8", "Invalid value '8' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("-2", "Invalid value '-2' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("99999999999", "Invalid value '99999999999' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("two", "Invalid value 'two' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("2.5", "Invalid value '2.5' for setting 'list-indent'; expected one of: 2, 4")]
+    [InlineData("\"2\"", "Invalid value '2' for setting 'list-indent'; expected one of: 2, 4 without quotes")]
+    [InlineData("'4'", "Invalid value '4' for setting 'list-indent'; expected one of: 2, 4 without quotes")]
+    public void ConfigLoader_Parse_ListIndentNotTwoOrFour_Reported(string value, string message)
     {
         // Act: parse the invalid value
         var error = OneError($"list-indent: {value}\n");
 
-        // Assert: the value is rejected at its position
-        AssertError(error, 1, 14, "list-indent");
+        // Assert: the value is rejected at its position with the accepted values
+        Assert.Equal((1, 14, message), (error.Line, error.Column, error.Message));
     }
 
     /// <summary>
@@ -762,6 +729,8 @@ public class ConfigLoaderParseTests
     [InlineData("\"<!-- open\"")]
     [InlineData("\"<!--->\"")]
     [InlineData("\"close -->\"")]
+    [InlineData("\"<!--> -->\"")]
+    [InlineData("\"<!-- a --> text <!-- b -->\"")]
     public void ConfigLoader_Parse_LinkRefactorMarkerNotComment_Reported(string value)
     {
         // Act: parse the invalid marker
@@ -1059,6 +1028,10 @@ public class ConfigLoaderParseTests
     [InlineData("  - [a, b]\n", "Ignore patterns must be text")]
     [InlineData("  - {a: b}\n", "Ignore patterns must be text")]
     [InlineData("  - \"a\\nb\"\n", "must be on a single line")]
+    [InlineData("  - \"a\\rb\"\n", "must be on a single line")]
+    [InlineData("  - \"a\\Nb\"\n", "must be on a single line")]
+    [InlineData("  - \"a\\Lb\"\n", "must be on a single line")]
+    [InlineData("  - \"a\\Pb\"\n", "must be on a single line")]
     public void ConfigLoader_Parse_IgnoreInvalidElement_Reported(string item, string message)
     {
         // Act: parse a list with one valid and one invalid element
@@ -1080,11 +1053,10 @@ public class ConfigLoaderParseTests
         // Act: parse an unclosed flow sequence
         var result = Parse("line-length: 80\nignore: [a, b\nwrap: fill\n");
 
-        // Assert: one positioned syntax error and no configuration
+        // Assert: one syntax error at the end of the last content the parser read before it failed
         Assert.Null(result.Config);
         var error = Assert.Single(result.Errors);
-        Assert.StartsWith("Invalid YAML", error.Message);
-        Assert.True(error.Line >= 1 && error.Column >= 1);
+        AssertError(error, 2, 11, "Invalid YAML");
     }
 
     /// <summary>
@@ -1096,14 +1068,14 @@ public class ConfigLoaderParseTests
         // Act: parse a nested mapping indented with a tab
         var result = Parse("rules:\n\tline-length: false\n");
 
-        // Assert: one syntax error
+        // Assert: one syntax error at the start of the mapping the tab was found in
         var error = Assert.Single(result.Errors);
-        Assert.StartsWith("Invalid YAML", error.Message);
+        AssertError(error, 1, 1, "Invalid YAML");
         Assert.Null(result.Config);
     }
 
     /// <summary>
-    ///     Test that an unterminated quoted string is reported as invalid YAML at or after its start.
+    ///     Test that an unterminated quoted string is reported as invalid YAML where the quote starts.
     /// </summary>
     [Fact]
     public void ConfigLoader_Parse_MalformedYamlUnterminatedQuote_ReportsInvalidYaml()
@@ -1111,9 +1083,8 @@ public class ConfigLoaderParseTests
         // Act: parse a quote that is never closed
         var error = OneError("line-length: 80\nwrap: \"fill\n");
 
-        // Assert: reported as invalid YAML on or after the line of the quote
-        Assert.StartsWith("Invalid YAML", error.Message);
-        Assert.True(error.Line >= 2);
+        // Assert: reported as invalid YAML at the opening quote
+        AssertError(error, 2, 7, "Invalid YAML");
     }
 
     /// <summary>
@@ -1187,6 +1158,23 @@ public class ConfigLoaderParseTests
         // Assert: the construct is reported at its position
         Assert.Null(result.Config);
         var error = result.Errors.First(e => e.Message.Contains("not supported", StringComparison.Ordinal));
+        AssertError(error, line, column, "Anchors, aliases and tags are not supported");
+    }
+
+    /// <summary>
+    ///     Test that an anchor or tag on an empty value is reported once, not also as an empty value.
+    /// </summary>
+    [Theory]
+    [InlineData("rules: &a\n", 1, 8)]
+    [InlineData("ignore: !!null\n", 1, 9)]
+    [InlineData("link-refactor: &a\n", 1, 16)]
+    [InlineData("line-length: &a\n", 1, 14)]
+    public void ConfigLoader_Parse_AnchorOrTagOnEmptyValue_ReportedOnce(string yaml, int line, int column)
+    {
+        // Act: parse content whose only value is empty and decorated
+        var error = OneError(yaml);
+
+        // Assert: the one problem is the unsupported construct
         AssertError(error, line, column, "Anchors, aliases and tags are not supported");
     }
 
@@ -1309,6 +1297,44 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
+    ///     Test that a lone carriage return, a line feed and a carriage return line feed each count as one line break
+    ///     when the position of invalid UTF-8 is reported.
+    /// </summary>
+    [Theory]
+    [InlineData("a: 1\rb: ", 2, 4)]
+    [InlineData("a: 1\nb: ", 2, 4)]
+    [InlineData("a: 1\r\nb: ", 2, 4)]
+    [InlineData("a: 1\r\rb: ", 3, 4)]
+    public void ConfigLoader_Parse_InvalidUtf8AfterLineBreaks_PositionCountsEachBreakOnce(string before, int line, int column)
+    {
+        // Arrange: an invalid byte after the line breaks
+        byte[] content = [.. Encoding.UTF8.GetBytes(before), 0xFF];
+
+        // Act: parse it
+        var result = ConfigLoader.Parse(ConfigPath, content);
+
+        // Assert: the position is the one an editor shows
+        AssertError(Assert.Single(result.Errors), line, column, "Invalid UTF-8 byte sequence");
+    }
+
+    /// <summary>
+    ///     Test that a lone carriage return counts as a line break when the position of excessive nesting is reported.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_Parse_NestingBeyondLimitAfterLoneCarriageReturn_ReportsLineAfterBreak()
+    {
+        // Arrange: the excessive bracket is on the second line of a file with carriage return line breaks only
+        var depth = ConfigParser.MaxNestingDepth + 1;
+        var yaml = "a: 1\rb: " + new string('[', depth);
+
+        // Act: parse it
+        var error = OneError(yaml);
+
+        // Assert: reported on line 2 at the first bracket beyond the limit
+        AssertError(error, 2, 3 + depth, "Nesting is too deep");
+    }
+
+    /// <summary>
     ///     Test that content larger than the limit is rejected.
     /// </summary>
     [Fact]
@@ -1343,37 +1369,71 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that errors are sorted by position and then by message.
+    ///     Test that problems found in different phases of the load are reported in order of position.
     /// </summary>
     [Fact]
-    public void ConfigLoader_Parse_SeveralErrors_SortedByPositionThenMessage()
+    public void ConfigLoader_Parse_ErrorsFoundOutOfPositionOrder_ReportedInPositionOrder()
     {
-        // Act: parse a file whose errors arise in a different order than their positions
-        var result = Parse("rules:\n  MD013: false\n  line-length: true\nwrap: nope\nignore:\n  - ''\n  - 'ok'\nzz: 1\n");
+        // Arrange: constructs that are reported while the file is read (an anchor on line 3 and a tag on line 6)
+        // and problems that are reported afterwards, while the settings are checked (lines 1, 2 and 5)
+        const string yaml = "zz: 1\nwrap: nope\nbullet: &b dash\nrules:\n  nope: true\nline-length: !!int 5\n";
 
-        // Assert: the errors are in position order
-        var positions = result.Errors.Select(e => (e.Line, e.Column)).ToList();
-        Assert.Equal(positions.OrderBy(p => p.Line).ThenBy(p => p.Column), positions);
-        Assert.Equal(4, positions.Count);
+        // Act: parse it
+        var result = Parse(yaml);
+
+        // Assert: the order is by position, not by the order in which the problems were found
+        Assert.Null(result.Config);
+        Assert.Equal(
+            [
+                (1, 1, "Unknown setting 'zz'"),
+                (2, 7, "Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic"),
+                (3, 9, "Anchors, aliases and tags are not supported"),
+                (5, 3, "Unknown rule 'nope'"),
+                (6, 14, "Anchors, aliases and tags are not supported")
+            ],
+            result.Errors.Select(e => (e.Line, e.Column, e.Message)));
     }
 
     /// <summary>
-    ///     Test that parsing the same content repeatedly gives the same errors.
+    ///     Test that problems at the same position are ordered by message, using an ordinal comparison.
+    /// </summary>
+    [Fact]
+    public void ConfigLoadResult_Constructor_ProblemsOutOfOrder_SortedByLineColumnThenMessage()
+    {
+        // Arrange: problems in reverse order, two of them at one position with messages that sort differently
+        // under an ordinal and a culture-sensitive comparison
+        var errors = ImmutableArray.Create(
+            new ConfigError("a.yaml", 2, 1, "late"),
+            new ConfigError("a.yaml", 1, 5, "alpha"),
+            new ConfigError("a.yaml", 1, 5, "Beta"),
+            new ConfigError("a.yaml", 1, 2, "zeta"));
+
+        // Act: create the result
+        var result = new ConfigLoadResult(null, "a.yaml", errors);
+
+        // Assert: by line, then column, then ordinal message
+        Assert.Equal(
+            [(1, 2, "zeta"), (1, 5, "Beta"), (1, 5, "alpha"), (2, 1, "late")],
+            result.Errors.Select(e => (e.Line, e.Column, e.Message)));
+    }
+
+    /// <summary>
+    ///     Test that parsing the same content repeatedly gives the same errors in the same order.
     /// </summary>
     [Fact]
     public void ConfigLoader_Parse_Errors_AreDeterministicAcrossRepeatedCalls()
     {
-        // Arrange: content with several errors
-        const string yaml = "b: 1\na: 2\nwrap: x\nrules: {MD013: false, line-length: true}\n";
+        // Arrange: content with several errors, found in different phases and in different orders
+        const string yaml = "b: 1\na: 2\nwrap: x\nrules: {MD013: false, line-length: true}\nbullet: &b dash\n";
 
         // Act: parse it repeatedly
         var first = Parse(yaml).Errors.Select(e => $"{e.Line}:{e.Column}:{e.Message}").ToList();
         var results = Enumerable.Range(0, 20).Select(_ => Parse(yaml).Errors.Select(e => $"{e.Line}:{e.Column}:{e.Message}").ToList());
 
-        // Assert: every run is identical
+        // Assert: every run is identical, and the problems were found at all
+        Assert.Equal(5, first.Count);
         Assert.All(results, r => Assert.Equal(first, r));
     }
-
     /// <summary>
     ///     Test that every error carries the path it was given.
     /// </summary>

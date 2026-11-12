@@ -309,6 +309,53 @@ public class LintMarkConfigTests
     }
 
     /// <summary>
+    ///     Test that the smallest and largest maximum blank line count are accepted.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(100_000)]
+    public void LintMarkConfig_MaxBlankLines_OneAndMax_Accepted(int value)
+    {
+        // Act: set the boundary value
+        var config = LintMarkConfig.Default with { MaxBlankLines = value };
+
+        // Assert: it is stored
+        Assert.Equal(value, config.MaxBlankLines);
+    }
+
+    /// <summary>
+    ///     Test that both list indent values are accepted.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void LintMarkConfig_ListIndent_TwoAndFour_Accepted(int value)
+    {
+        // Act: set the value
+        var config = LintMarkConfig.Default with { ListIndent = value };
+
+        // Assert: it is stored
+        Assert.Equal(value, config.ListIndent);
+    }
+
+    /// <summary>
+    ///     Test that the smallest and largest threshold and label length are accepted.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(100_000)]
+    public void LinkRefactorOptions_ThresholdAndLabelLength_OneAndMax_Accepted(int value)
+    {
+        // Act: set the boundary value through a modified copy and through the constructor
+        var copy = LinkRefactorOptions.Disabled with { Threshold = value, LabelMaxLength = value };
+        var constructed = new LinkRefactorOptions(true, value, true, true, value, "<!-- x -->");
+
+        // Assert: both numbers are stored by both routes
+        Assert.Equal((value, value), (copy.Threshold, copy.LabelMaxLength));
+        Assert.Equal((value, value), (constructed.Threshold, constructed.LabelMaxLength));
+    }
+
+    /// <summary>
     ///     Test that a list indent other than two or four is rejected.
     /// </summary>
     [Theory]
@@ -380,6 +427,10 @@ public class LintMarkConfigTests
     [InlineData("   ")]
     [InlineData("a\nb")]
     [InlineData("a\r\nb")]
+    [InlineData("a\rb")]
+    [InlineData("a\u0085b")]
+    [InlineData("a\u2028b")]
+    [InlineData("a\u2029b")]
     [InlineData("a\\b")]
     public void LintMarkConfig_Ignore_InvalidElement_Throws(string? pattern)
     {
@@ -463,7 +514,7 @@ public class LintMarkConfigTests
     }
 
     /// <summary>
-    ///     Test that a marker that is not a single-line HTML comment is rejected.
+    ///     Test that a marker that is not a single HTML comment on one line is rejected.
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -471,26 +522,56 @@ public class LintMarkConfigTests
     [InlineData("<!-- open")]
     [InlineData("close -->")]
     [InlineData("<!-->")]
+    [InlineData("<!--->")]
+    [InlineData("<!--> -->")]
+    [InlineData("<!---> -->")]
+    [InlineData("<!-- a --> text <!-- b -->")]
+    [InlineData("<!-- a --> text")]
+    [InlineData("<!-- a -->-->")]
     [InlineData("<!-- a\nb -->")]
     [InlineData("<!-- a\r\nb -->")]
+    [InlineData("<!-- a\rb -->")]
+    [InlineData("<!-- a\u0085b -->")]
+    [InlineData("<!-- a\u2028b -->")]
+    [InlineData("<!-- a\u2029b -->")]
     public void LinkRefactorOptions_DefinitionsMarker_NotSingleLineHtmlComment_ThrowsException(string marker)
     {
-        // Act & Assert: the marker is rejected
+        // Act & Assert: the marker is rejected by the property, and the shared check agrees
         Assert.Throws<ArgumentException>(() => LinkRefactorOptions.Disabled with { DefinitionsMarker = marker });
+        Assert.False(LinkRefactorOptions.IsValidMarker(marker));
         Assert.Throws<ArgumentNullException>(() => LinkRefactorOptions.Disabled with { DefinitionsMarker = null! });
     }
 
     /// <summary>
-    ///     Test that the shortest valid marker, an empty comment, is accepted.
+    ///     Test that a null marker is rejected by the shared marker check.
     /// </summary>
     [Fact]
-    public void LinkRefactorOptions_DefinitionsMarker_EmptyComment_IsAccepted()
+    public void LinkRefactorOptions_IsValidMarker_Null_ThrowsArgumentNullException()
     {
-        // Act: set the shortest valid marker
-        var options = LinkRefactorOptions.Disabled with { DefinitionsMarker = "<!---->" };
+        // Act & Assert: null is not a marker
+        Assert.Throws<ArgumentNullException>(() => LinkRefactorOptions.IsValidMarker(null!));
+    }
 
-        // Assert: it is stored
-        Assert.Equal("<!---->", options.DefinitionsMarker);
+    /// <summary>
+    ///     Test that markers that are one HTML comment on one line are accepted, including the shortest one.
+    /// </summary>
+    [Theory]
+    [InlineData("<!---->")]
+    [InlineData("<!-- x -->")]
+    [InlineData("<!--- x -->")]
+    [InlineData("<!-- a - b -->")]
+    [InlineData("<!-- a -- b -->")]
+    [InlineData("<!-- a --->")]
+    [InlineData("<!--x-->")]
+    [InlineData("<!-- Link References -->")]
+    public void LinkRefactorOptions_DefinitionsMarker_SingleLineHtmlComment_IsAccepted(string marker)
+    {
+        // Act: set the marker
+        var options = LinkRefactorOptions.Disabled with { DefinitionsMarker = marker };
+
+        // Assert: it is stored and the shared check agrees
+        Assert.Equal(marker, options.DefinitionsMarker);
+        Assert.True(LinkRefactorOptions.IsValidMarker(marker));
     }
 
     /// <summary>

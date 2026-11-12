@@ -29,7 +29,7 @@ the platforms LintMark supports and exposes its low-level parser.
 Not used: object mapping, serialization, deserialization, schema or type converters, merge keys, and any rendering.
 
 Behaviors of the library that the design depends on and compensates for (each is pinned by the integration tests
-in `test/OtsSoftwareTests`):
+in `test/OtsSoftwareTests` unless stated otherwise):
 
 - A leading byte order mark is not stripped by the parser; it would become part of the first key. `ConfigLoader`
   decodes the bytes and removes the mark before parsing.
@@ -37,10 +37,12 @@ in `test/OtsSoftwareTests`):
 - Some malformed input raises an exception that is not a `YamlException` and carries no position (an unclosed flow
   sequence is one). `ConfigParser` treats any exception from advancing the parser as invalid YAML and reports it at
   the end of the last event that was read successfully.
-- Tab-indentation errors carry a coarse position.
+- Tab-indentation errors carry a coarse position (the start of the enclosing collection).
 - Running time grows quadratically with the nesting depth of flow collections. `ConfigParser` rejects input nested
-  deeper than a fixed limit before the parser sees it. Deeply nested input at a bounded size is also shown by the
-  integration tests to be parsed without exhausting the stack.
+  deeper than a fixed limit before the parser sees it. This rationale is not pinned by the OTS tests: the
+  `ConfigLoader` unit tests verify that input beyond the limit is rejected, and the subsystem test verifies that a
+  file nested far beyond it is rejected promptly. The OTS tests show only that deeply nested input at a bounded size
+  is parsed without exhausting the stack.
 
 ### Integration Pattern
 

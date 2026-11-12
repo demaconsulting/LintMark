@@ -13,11 +13,11 @@ sections:
         requirements:
           - id: LintMark-OTS-EditorConfig-RawProperties
             title: >-
-              EditorConfig shall expose the raw text of each property, including the value unset.
+              EditorConfig shall expose the raw text of the end_of_line property, including the value unset.
             justification: |
               The library's typed line-ending value does not honor unset or unknown values and still reports
-              a value from a farther file, so LintMark interprets the raw text itself. The tests pin both
-              the raw behavior LintMark uses and the typed behavior it avoids.
+              a value from a farther file, so LintMark interprets the raw text of end_of_line itself. The
+              tests pin both the raw behavior LintMark uses and the typed behavior it avoids.
             tags: [ots]
             tests:
               - EditorConfig_Parser_UnsetValue_RawPropertyIsUnset
@@ -33,12 +33,13 @@ sections:
 
           - id: LintMark-OTS-EditorConfig-Concurrency
             title: >-
-              EditorConfig shall give identical results when one parser instance, or one parser instance per
-              thread, evaluates files on several threads at once.
+              EditorConfig shall give identical results when one parser instance, one parser instance per
+              thread, or one resolved chain of settings files evaluates files on several threads at once.
             justification: |
-              Line endings are resolved by parallel workers through one shared parser. The tests confirm
-              that sharing is safe.
+              Line endings are resolved by parallel workers through one shared parser that evaluates files
+              against shared, cached chains of settings files. The tests confirm that sharing is safe.
             tags: [ots]
             tests:
               - EditorConfig_Parser_SharedParser_ParallelParse_IdenticalResults
+              - EditorConfig_Parser_SharedResolvedChain_ParallelParse_IdenticalResults
               - EditorConfig_Parser_ParserPerThread_ParallelParse_IdenticalResults

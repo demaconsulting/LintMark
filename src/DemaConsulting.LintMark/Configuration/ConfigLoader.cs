@@ -428,13 +428,17 @@ internal sealed class ConfigLoader
             return (1, 1);
         }
 
-        // Count line feeds before the bad byte, then measure the partial line in UTF-16 units
+        // Count line breaks before the bad byte (LF, CRLF or a lone CR, as in the nesting scan and in YAML),
+        // then measure the partial line in UTF-16 units
         var before = content[..index];
         var line = 1;
         var lineStart = 0;
         for (var i = 0; i < before.Length; i++)
         {
-            if (before[i] == (byte)'\n')
+            // A CR directly before an LF belongs to the same line break; the LF is the one counted
+            var isBreak = before[i] == (byte)'\n'
+                          || (before[i] == (byte)'\r' && (i + 1 >= content.Length || content[i + 1] != (byte)'\n'));
+            if (isBreak)
             {
                 line++;
                 lineStart = i + 1;
