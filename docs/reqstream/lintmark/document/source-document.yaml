@@ -103,3 +103,14 @@ sections:
                   written out in one consistent style chosen by the caller.
                 tests:
                   - SourceDocument_ToDisk_Target_ConvertsLineEndings
+
+              - id: LintMark-Document-SourceDocument-ImmutableLineTable
+                title: >-
+                  The SourceDocument class shall expose its table of line starts in a form that its holders
+                  cannot change.
+                justification: |
+                  Every position and line computation of a document depends on this table, and documents
+                  are shared between the stages of the pipeline. A table that a caller could modify, even
+                  through a cast of the read-only interface, would corrupt every later result.
+                tests:
+                  - SourceDocument_LineStarts_CastToMutableTypes_CannotBeModified

@@ -66,6 +66,10 @@ output, and the tool exits with code 0.
 **Log flag writes the output to a file**: `--log <path>` creates the file, and it contains output that also
 appears in the combined console output.
 
+**A log file that is also an input is refused**: The tool is run with a Markdown file named as both `--log` and
+the input; it exits with 1, the output says it is refusing to overwrite the file, and the file's content is
+unchanged.
+
 **Invocation without arguments displays the banner**: The combined output contains the tool name and the
 copyright notice, and the exit code is 0.
 

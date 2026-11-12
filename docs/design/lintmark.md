@@ -115,9 +115,13 @@ reads and parses files and reports the files it cannot process.
 - *Type*: File.
 - *Role*: Provider.
 - *Contract*: When `--log <file>` is supplied, all `Context.WriteLine` and `Context.WriteError`
-  output is written to the file regardless of `--silent`. The file is truncated at open.
-- *Constraints*: The path must be writable; failure to open the file raises an
-  `InvalidOperationException` and causes exit code 1.
+  output is written to the file regardless of `--silent`. The file is created, or its content
+  replaced, by the first line written and not before. A run whose selected files include the log
+  file is refused before anything is written, so the log can never replace an input; the log file
+  can still be placed inside the selected folders by excluding it with a `!` pattern.
+- *Constraints*: A path that is invalid, names a directory, or lies in a missing directory raises
+  an `InvalidOperationException` when the arguments are parsed; any other failure to open the file
+  is reported by the first write in the same way. Both cause exit code 1.
 
 **Results File**: Optional self-validation results file.
 
@@ -147,18 +151,22 @@ N/A - not a safety-classified software item.
 
 1. The host environment starts the tool process and passes command-line arguments to
    `Program.Main`.
-2. `Program.Main` calls `Context.Create(args)`, which parses the arguments and opens the log
-   file if `--log` was specified. An `ArgumentException` or `InvalidOperationException` at
-   this point (including `--validate` combined with a path or `--check`, which is rejected before
-   a log file is opened) is caught, written to stderr, and causes exit code 1.
+2. `Program.Main` calls `Context.Create(args)`, which parses the arguments and checks the log file
+   path (without opening the file) if `--log` was specified. An `ArgumentException` or
+   `InvalidOperationException` at this point (including `--validate` combined with a path or
+   `--check`, which is rejected before the log path is checked) is caught, written to stderr, and
+   causes exit code 1.
 3. `Program.Run(context)` inspects the parsed flags and dispatches to one handler:
    - `--version` flag → `context.WriteLine(Version)`, then return.
-   - Otherwise, `PrintBanner` is called first; then:
+   - Otherwise, unless `--help` or `--validate` was given, `LintMarkEngine.Select(context)` first
+     discovers the files (steps 4) and refuses the run with an `InvalidOperationException` when the
+     log file is one of them; this happens before any output, because the first output opens the log
+     file and so replaces its content. Then `PrintBanner` is called; then:
      - `--help` flag → `PrintHelp(context)`, then return.
      - `--validate` flag → `Validation.Run(context)`.
-     - Otherwise → `RunToolLogic(context)`, which calls `LintMarkEngine.Run(context)`.
-4. `LintMarkEngine.Run` passes `context.Paths` and the current directory to `FileDiscovery.Discover`,
-   which returns distinct full paths in ordinal order.
+     - Otherwise → `LintMarkEngine.Run(context, files)` with the files already selected.
+4. `LintMarkEngine.Select` passes `context.Paths` and the current directory to
+   `FileDiscovery.Discover`, which returns distinct full paths in ordinal order.
 5. `LintMarkEngine.Process` reads and parses the files in parallel. For each file a worker reads the
    bytes, creates a `SourceDocument` (strict UTF-8 decoding, byte order mark detection, CRLF to LF
    normalization), and calls `DocumentParser.Parse`. A read, encoding, line-ending, or parser failure
@@ -184,12 +192,16 @@ N/A - not a safety-classified software item.
   - `Context` serializes `WriteLine`, `WriteError`, `Dispose` and the read of `ExitCode` with a
     `System.Threading.Lock`, as a defensive measure for any caller that writes concurrently.
 - Immutability: `Context` properties are set once at construction via `init` accessors and are
-  read-only thereafter.
+  read-only thereafter. Collections that a unit exposes through a read-only interface (`Context.Paths`,
+  `SourceDocument.LineStarts`, `SuppressionMap.Ranges`, `RuleSet.Rules`, `ReferenceIndex.Definitions`,
+  `ParsedDocument.Blocks`, `FileResult.Failures`) are backed by immutable collections, so a caller
+  cannot change them by casting to a mutable type.
 - Resource lifecycle: `Context` implements `IDisposable`; callers must dispose it to flush and
-  close any open log file handle.
+  close any open log file handle. The log file is opened by the first write and never reopened after
+  disposal.
 - Path safety: all caller-supplied path components are validated by `PathHelpers.SafePathCombine`
   before file-system use by self-validation. Files named on the command line are only read, never
-  written.
+  written, and a log file that is one of them is refused before it is opened.
 - Input handling: only UTF-8 text with LF or CRLF line terminators is supported; other input is
   reported as a failure instead of being repaired.
 - Planned configuration behavior (design intent for a later phase, not a current capability): the

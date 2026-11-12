@@ -119,6 +119,7 @@ sections:
                   and a footnote must never be mistaken for a link reference definition.
                 tests:
                   - DocumentParser_Parse_UnreferencedFootnote_IsReportedWithItsRange
+                  - DocumentParser_Parse_UnreferencedFootnoteOnLaterLine_IsReported
                   - DocumentParser_Parse_ReferencedFootnote_RangeIncludesLabelMarker
                   - DocumentParser_Parse_DuplicateFootnoteDefinition_SecondIsReported
                   - DocumentParser_Parse_AdjacentUnreferencedFootnotes_AreBothReported
@@ -189,3 +190,14 @@ sections:
                   - LintMark-OTS-Markdig-Concurrency
                 tests:
                   - DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks
+
+              - id: LintMark-Document-DocumentParser-ImmutableBlocks
+                title: >-
+                  The DocumentParser class shall return a parsed document whose block list cannot be changed by
+                  its holders.
+                justification: |
+                  The block list is the basis of every range computation and is passed between pipeline
+                  stages. A list that a caller could modify, even through a cast of the read-only interface,
+                  would change what every other stage sees.
+                tests:
+                  - DocumentParser_Parse_Blocks_CastToMutableTypes_CannotBeModified

@@ -37,9 +37,12 @@ Creates a `Context` using `Context.Create(args)`, calls `Run(context)`, and retu
 - *Postconditions*: Exactly one handler has been called.
 
 Inspects flags in priority order: (1) if `context.Version` is true, calls
-`context.WriteLine(Version)` and returns; (2) calls `PrintBanner`; (3) if `context.Help` is
-true, calls `PrintHelp` and returns; (4) if `context.Validate` is true, calls
-`Validation.Run(context)`; (5) otherwise calls `RunToolLogic(context)`.
+`context.WriteLine(Version)` and returns; (2) unless `Help` or `Validate` is set, selects the files with
+`LintMarkEngine.Select(context)` — before any output, because the first output opens (and so replaces)
+the log file, and `Select` refuses the run when the log file is one of the selected files; (3) calls
+`PrintBanner`; (4) if `context.Help` is true, calls `PrintHelp` and returns; (5) if `context.Validate` is
+true, calls `Validation.Run(context)`; (6) otherwise calls `LintMarkEngine.Run(context, files)` with the
+files selected in step 2, which processes and reports them.
 
 **PrintBanner**: Writes the tool name, version, and copyright line to `context`.
 
@@ -53,12 +56,6 @@ options table (including `--check`) to `context`.
 - *Parameters*: `Context context` — output target.
 - *Returns*: `void`.
 
-**RunToolLogic**: Main tool logic entry point; creates a `LintMarkEngine` with its default settings
-and calls `Run(context)`, which discovers, parses, and reports on the selected Markdown files.
-
-- *Parameters*: `Context context` — output target and source of the path arguments.
-- *Returns*: `void`.
-
 ### Error Handling
 
 `Main` handles errors at two levels. Expected errors (`ArgumentException` and
@@ -66,8 +63,10 @@ and calls `Run(context)`, which discovers, parses, and reports on the selected M
 code 1 without a stack trace; this includes the usage error raised by `Context.Create` when
 `--validate` is combined with paths or `--check`. Unexpected errors (`Exception`) are written to
 stderr as `"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
-`Run`, `PrintBanner`, `PrintHelp`, and `RunToolLogic` do not catch exceptions; all errors
-propagate to `Main`. Failures of individual files are not exceptions: `LintMarkEngine` reports them
+`Run`, `PrintBanner`, and `PrintHelp` do not catch exceptions; all errors
+propagate to `Main`. A log file that is one of the selected files is such an error
+(`InvalidOperationException` from `LintMarkEngine.Select`, reported as `Error: {message}` with exit
+code 1 and nothing written). Failures of individual files are not exceptions: `LintMarkEngine` reports them
 through `Context.WriteError`, which makes the exit code 1.
 
 ### Dependencies
@@ -76,8 +75,8 @@ through `Context.WriteError`, which makes the exit code 1.
   `Context.WriteError` for all output.
 - **Validation** — `Program.Run` calls `Validation.Run(context)` when the `--validate` flag is
   set.
-- **LintMarkEngine** — `RunToolLogic` calls `LintMarkEngine.Run(context)` to process the selected
-  Markdown files.
+- **LintMarkEngine** — `Run` calls `LintMarkEngine.Select(context)` and then
+  `LintMarkEngine.Run(context, files)` to process the selected Markdown files.
 
 ### Callers
 

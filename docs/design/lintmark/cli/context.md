@@ -14,7 +14,11 @@ from whether any errors were reported. Its output members are safe to call from 
 **_outputLock**: `System.Threading.Lock` — Guards console output, log file output, the error flag,
 and disposal so that concurrent callers never interleave lines.
 
-**_logWriter**: `StreamWriter?` — Log file writer; `null` when logging is not active.
+**_logWriter**: `StreamWriter?` — Log file writer; `null` until the first write opens the file and when
+logging is not active.
+
+**_disposed**: `bool` — Set by `Dispose`; once set, the log file is never opened again. Guarded by
+`_outputLock`.
 
 **_hasErrors**: `bool` — Set to `true` on the first `WriteError` call; once set, cannot return
 to `false` within the same invocation. Always read and written under `_outputLock`.
@@ -31,7 +35,11 @@ to `false` within the same invocation. Always read and written under `_outputLoc
 explicit statement of the default behavior and does not change processing.
 
 **Paths**: `IReadOnlyList<string>` — The positional arguments (files, directories, globs, and
-`!` exclusions) in the order given; empty when none were supplied.
+`!` exclusions) in the order given; empty when none were supplied. Backed by an immutable array, so a caller
+cannot change it by casting.
+
+**LogFile**: `string?` — The full path of the log file, or `null` when `--log` was not present. The file
+itself is not touched until the first line is written.
 
 **ResultsFile**: `string?` — Path supplied after `--results` or `--result`, or `null` if
 neither flag was present.
@@ -49,26 +57,31 @@ is read under `_outputLock`.
 - *Parameters*: `string[] args` — raw command-line argument array.
 - *Returns*: `Context` — a new instance with all flags set.
 - *Preconditions*: `args` is not null.
-- *Postconditions*: All flag properties reflect the parsed argument state; the log file is open
-  if `--log` was supplied.
+- *Postconditions*: All flag properties reflect the parsed argument state; `LogFile` is the full log
+  path if `--log` was supplied. The log file has not been created or changed.
 
 Delegates to the private `ArgumentParser` helper to parse flags, then rejects `--validate` combined
-with `--check` or with any path, and only then opens the log file by calling `OpenLogFile` if
-`--log` was present. The parser treats a token that does not start with a dash as a positional
+with `--check` or with any path, and only then, if `--log` was present, resolves the log path with
+`ResolveLogFile`: the path must be valid, must not name a directory, and its directory must exist.
+The file is deliberately not opened here, because opening replaces its content and the caller must be
+able to refuse a run in which the log is also an input first (`LintMarkEngine.Select`). The parser
+treats a token that does not start with a dash as a positional
 path. Every other token (including a lone `-` and the empty string) that is not a recognized
 option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together
 with paths; the dispatcher then ignores the paths. Throws `ArgumentException` for unknown or
 malformed arguments and for the `--validate` combination; throws `InvalidOperationException` if
-the log file cannot be opened.
+the log file path is unusable.
 
 **WriteLine**: Writes a message to standard output and to the log file.
 
 - *Parameters*: `string message` — the message to write.
 - *Returns*: `void`.
 - *Preconditions*: None.
-- *Postconditions*: Message is on stdout (unless `Silent`) and in the log file (if open).
+- *Postconditions*: Message is on stdout (unless `Silent`) and in the log file (if logging is enabled).
 
-Holds `_outputLock` while writing, so concurrent calls produce whole lines in some order.
+Holds `_outputLock` while writing, so concurrent calls produce whole lines in some order. The log line
+goes through the private `WriteToLog`, which opens the file (`OpenLogFile`: new content, `AutoFlush` on)
+on first use, and does nothing when logging is not enabled or after disposal.
 
 **WriteError**: Writes an error message, sets the error state, and records to the log file.
 
@@ -76,7 +89,7 @@ Holds `_outputLock` while writing, so concurrent calls produce whole lines in so
 - *Returns*: `void`.
 - *Preconditions*: None.
 - *Postconditions*: `_hasErrors` is true; message is on stderr in red (unless `Silent`) and in
-  the log file (if open).
+  the log file (if logging is enabled).
 
 Holds `_outputLock` for the error flag, the console color change, the console write, and the log
 write, so concurrent calls neither interleave lines nor tear the color change.
@@ -86,8 +99,8 @@ write, so concurrent calls neither interleave lines nor tear the color change.
 - *Parameters*: None.
 - *Returns*: `void`.
 - *Preconditions*: None.
-- *Postconditions*: `_logWriter` is disposed and set to null; any buffered log content is
-  flushed.
+- *Postconditions*: `_disposed` is true; `_logWriter` is disposed and set to null; any buffered log
+  content is flushed. Later writes do not reopen the file.
 
 Takes `_outputLock` so the writer is never disposed while another thread is writing to it.
 
@@ -98,12 +111,13 @@ dash-leading argument (including a lone `-`) and for an empty argument (the mess
 "Unsupported argument ''"; an empty string is never a path), ("{arg} requires {description}") for an
 option whose required value is missing or not an accepted integer, and
 ("--validate cannot be combined with paths or --check") for the self-validation conflict. It throws
-`InvalidOperationException` ("Failed to open log file '{path}': {detail}") when the `--log` file
-cannot be opened. Both exceptions propagate to `Program.Main`, which reports them as
-`Error: {message}`.
+`InvalidOperationException` ("Failed to open log file '{path}': {detail}") when the `--log` path is
+unusable (invalid, a directory, or in a missing directory). Both exceptions propagate to
+`Program.Main`, which reports them as `Error: {message}`.
 
-`WriteLine` and `WriteError` do not throw; they write to whichever output channels are
-available.
+`WriteLine` and `WriteError` write to whichever output channels are available. The one exception is
+the first write to the log file: if the file cannot be opened (for example, access is denied) it throws
+`InvalidOperationException` with the same message, which likewise propagates to `Program.Main`.
 
 `Dispose` does not throw; any disposal errors are silently ignored.
 
@@ -116,4 +130,5 @@ available.
 
 - **Program** — creates `Context` via `Context.Create` and calls `WriteLine` and `WriteError`.
 - **Validation** — receives `Context` from `Program` and calls `WriteLine` and `WriteError`.
-- **LintMarkEngine** — reads `Paths` and reports failures with `WriteError`.
+- **LintMarkEngine** — reads `Paths` and `LogFile` (to refuse a log file that is also an input) and
+  reports failures with `WriteError`.

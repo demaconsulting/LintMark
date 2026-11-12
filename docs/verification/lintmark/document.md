@@ -80,10 +80,16 @@ skipping it, so coverage cannot be lost silently. Otherwise the standard test en
 - Block offsets convert to the expected 1-based line and column and back.
 - Every construct of the dialect is recognized from bytes, and nothing that is absent from the file is added.
 - Suppression, reference lookup, and line-ending facts of one document agree with its content.
+- No collection exposed by a parse result can be modified by a caller that casts it.
 
 ### Test Scenarios
 
 #### Normal operation
+
+**Parse result collections cannot be changed through a cast**: A document with blocks, a disable region that
+names a rule, and a definition is parsed; the block list, the line table, the suppression ranges and the first
+range's rule collection, and the definition list each throw `NotSupportedException` for every attempted change
+through the mutable interfaces and are not `List<T>`, `HashSet<T>`, or array instances.
 
 **Repository Markdown tiles correctly with LF line endings**: Every repository Markdown file is parsed with LF
 line endings and the tiling assertions report no violations.

@@ -290,6 +290,25 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that a log file that is also an input is refused and the input survives.
+    /// </summary>
+    [Fact]
+    public void LintMark_LogFileIsSelectedInput_Provided_RefusesAndKeepsFile()
+    {
+        // Arrange: a Markdown file that is named both as the log and as the input
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("README.md", "# Precious\n");
+
+        // Act: run the tool
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--log", file, file);
+
+        // Assert: the run fails with an explanation and the file is untouched
+        Assert.Equal(1, exitCode);
+        Assert.Contains("refusing to overwrite", output);
+        Assert.Equal("# Precious\n", File.ReadAllText(file));
+    }
+
+    /// <summary>
     ///     Test that validate with --results flag generates a JUnit XML file.
     /// </summary>
     [Fact]

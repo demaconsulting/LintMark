@@ -147,7 +147,7 @@ public class DocumentParserTests
             [(BlockKind.BlockQuote, 0), (BlockKind.List, 1), (BlockKind.ListItem, 2), (BlockKind.Paragraph, 3)],
             kinds);
         Assert.Null(document.Blocks[0].Parent);
-        for (var i = 1; i < document.Blocks.Count; i++)
+        for (var i = 1; i < document.Blocks.Length; i++)
         {
             Assert.Same(document.Blocks[i - 1].Node, document.Blocks[i].Parent);
         }
@@ -394,6 +394,42 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that the block list of a parsed document cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_Blocks_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange / Act: parse a document with several blocks and take the block list
+        var document = Parse("# Title\n\nText.\n\n- item\n");
+        IReadOnlyList<BlockInfo> blocks = document.Blocks;
+
+        // Assert: a caller cannot change the list
+        ReadOnlyAssertions.AssertCannotBeModified(blocks);
+    }
+
+    /// <summary>
+    ///     Test that an unreferenced footnote definition is found on any line, not only the first, because
+    ///     the line-start anchor of the definition expression applies to the line searched.
+    /// </summary>
+    /// <param name="text">The document text.</param>
+    /// <param name="expected">The expected source text of the reported definition.</param>
+    [Theory]
+    [InlineData("[^a]: first line\n", "[^a]: first line")]
+    [InlineData("Text.\n\n[^a]: second paragraph\n", "[^a]: second paragraph")]
+    [InlineData("Text.\n[^a]: right after text\n", "[^a]: right after text")]
+    [InlineData("# Title\n\nText.\n\n   [^a]: indented by three\n", "[^a]: indented by three")]
+    [InlineData("a\n\nb\n\nc\n\nd\n\ne\n\nf\n\n[^late]: far down the document\n", "[^late]: far down the document")]
+    public void DocumentParser_Parse_UnreferencedFootnoteOnLaterLine_IsReported(string text, string expected)
+    {
+        // Arrange / Act: parse a document whose only definition is unreferenced
+        var document = Parse(text);
+
+        // Assert: the definition is reported with its exact range, wherever its line is
+        var unreferenced = Single(document, BlockKind.UnreferencedFootnote);
+        Assert.Equal(expected, text.Substring(unreferenced.Start, unreferenced.EndInclusive - unreferenced.Start + 1));
+    }
+
+    /// <summary>
     ///     Test that a footnote-looking line inside a code block is not a definition.
     /// </summary>
     [Fact]
@@ -584,7 +620,7 @@ public class DocumentParserTests
 
         // Assert: the block lists are equal and nest
         Assert.Equal(SummarizeWithDepth(lf), SummarizeWithDepth(crlf));
-        Assert.Equal(4, crlf.Blocks.Count);
+        Assert.Equal(4, crlf.Blocks.Length);
         Assert.Empty(SpanTilingAssertions.CheckNesting(crlf));
     }
 
@@ -598,7 +634,7 @@ public class DocumentParserTests
         var document = Parse("[^m]: [^n]: x\n");
 
         // Assert: the outer footnote is its marker, the inner one (a definition the parser kept) follows it, and both are top-level siblings
-        Assert.Equal(2, document.Blocks.Count);
+        Assert.Equal(2, document.Blocks.Length);
         Assert.All(document.Blocks, b => Assert.Equal(BlockKind.UnreferencedFootnote, b.Kind));
         Assert.All(document.Blocks, b => Assert.Null(b.Parent));
         Assert.Equal((0, 4), (document.Blocks[0].Start, document.Blocks[0].EndInclusive));
@@ -1309,7 +1345,7 @@ public class DocumentParserTests
         Assert.Equal(groups / 50, document.Blocks.Count(b => b.Kind == BlockKind.Footnote));
         Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.BlockQuote));
         Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.ListItem));
-        Assert.Equal(161_200, document.Blocks.Count);
+        Assert.Equal(161_200, document.Blocks.Length);
         Assert.True(document.Blocks.Zip(document.Blocks.Skip(1)).All(pair => pair.First.Start <= pair.Second.Start), "blocks are not in source order");
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"parsing took {stopwatch.Elapsed.TotalSeconds:F1} s");
     }

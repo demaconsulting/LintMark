@@ -337,5 +337,67 @@ public class ProgramTests
             Console.SetError(originalError);
         }
     }
+
+    /// <summary>
+    ///     Test that Run refuses a log file that is also an input before the banner opens (and so truncates) it.
+    /// </summary>
+    [Fact]
+    public void Program_Run_LogFileIsSelectedInput_ThrowsBeforeAnyOutputAndKeepsFile()
+    {
+        // Arrange: an existing source file and a not yet existing file, each named as log and as input
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var missing = directory.PathOf("new.md");
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var existingContext = Context.Create(["--log", existing, existing]);
+            using var missingContext = Context.Create(["--log", missing, missing]);
+
+            // Act / Assert: both runs are refused
+            Assert.Throws<InvalidOperationException>(() => Program.Run(existingContext));
+            Assert.Throws<InvalidOperationException>(() => Program.Run(missingContext));
+
+            // Assert: nothing was written to the console, the source is intact and no file was created
+            Assert.Empty(outWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+            Assert.False(File.Exists(missing));
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Main reports a log file that is also an input as an error with exit code one.
+    /// </summary>
+    [Fact]
+    public void Program_Main_LogFileIsSelectedInput_ReturnsOneAndKeepsFile()
+    {
+        // Arrange: an existing source file named as the log and as the input
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: run the entry point
+            var exitCode = Program.Main(["--silent", "--log", existing, existing]);
+
+            // Assert: failure with an explanation, and the file is untouched
+            Assert.Equal(1, exitCode);
+            Assert.Contains("refusing to overwrite", errorWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
 }
 

@@ -24,8 +24,15 @@ make a search root excluded; see *Third-party folders* below.
 **PathComparison**: `StringComparison` — `OrdinalIgnoreCase` on Windows and macOS, `Ordinal` elsewhere; it
 controls glob matching and the removal of duplicates.
 
+**Separators**: both `/` and `\` are accepted in every argument on every platform. `Discover` converts every
+backslash to a forward slash (`NormalizeSeparators`) before any file-system check, so `docs\guide.md` names the
+same file on Unix as on Windows, for literal paths and directories and for exclusions as well as for globs. On
+Unix a backslash is therefore never part of a file name; Windows accepts both styles, so the conversion loses
+nothing there.
+
 Argument interpretation:
 
+- **Null element**: `ArgumentNullException` (parameter `patterns`), raised before any element is interpreted.
 - **Blank, whitespace, or only `!`**: `ArgumentException`.
 - **`!pattern`**: an exclusion.
 - **Existing file**: taken as given; exempt from the built-in excludes and the `.md` extension, but not from
@@ -63,12 +70,20 @@ prefix is, or lies inside, such a folder (`node_modules/**/*.md`, `.git/**`) sel
 - *Preconditions*: arguments are not null.
 - *Postconditions*: the result does not depend on the order of `patterns` or on enumeration order.
 
-Algorithm: (1) split the arguments into includes and exclusions; (2) when there is no include, use the
+Algorithm: (1) check that no argument is null, then split the arguments into includes and exclusions, converting
+separators; (2) when there is no include, use the
 default pattern, so only exclusions mean "everything except these"; (3) expand every include into a
-candidate set (case-insensitive on Windows and macOS): for a glob, the leading wildcard-free segments name
+candidate set (exact strings): for a glob, the leading wildcard-free segments name
 the search root and the rest is the relative pattern; a root that has a third-party folder segment (above)
 yields nothing, otherwise the globbing library is run against that root with the built-in excludes added;
-(4) remove candidates matched by the user exclusions; (5) sort the result with the ordinal comparer.
+(4) remove candidates matched by the user exclusions; (5) group the remainder by `PathComparison` and keep
+from each group its smallest-in-ordinal-order spelling; (6) sort the result with the ordinal comparer.
+
+Step 5 matters only where names are compared without regard to case (Windows and macOS): one file can then be
+found under spellings that differ only in case (an argument typed `docs/GUIDE.md` and a glob that finds
+`docs/guide.md` on disk). Keeping whichever spelling arrived first would make the reported path depend on the
+order of the arguments; the smallest-in-ordinal-order spelling does not. The chosen spelling is not necessarily
+the one on disk, but it names the same file.
 
 A user exclusion is resolved like an include: its wildcard-free leading segments give a root directory
 (relative to the base directory unless absolute) and the rest is a glob relative to that root. A
@@ -78,7 +93,8 @@ directory and everything beneath it.
 
 #### Error Handling
 
-`ArgumentNullException` for null arguments; `ArgumentException` for blank patterns. A glob whose search
+`ArgumentNullException` for null arguments, including a null element of `patterns`; `ArgumentException` for
+blank patterns. A glob whose search
 root does not exist matches nothing and is not an error. File-system errors during enumeration propagate to
 the caller; existence of explicitly named files is deliberately not checked here so that read problems are
 reported uniformly by `LintMarkEngine`.

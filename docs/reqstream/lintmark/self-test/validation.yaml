@@ -18,7 +18,7 @@ sections:
                   Provides a built-in mechanism to verify the tool is functioning correctly
                   in the deployment environment. A summary is printed for human review.
                 children:
-                  - LintMark-Utilities-SafePaths
+                  - LintMark-Utilities-PathHelpers-SafeCombine
                 tests:
                   - Validation_Run_WithSilentContext_PrintsSummary
                   - Validation_Run_WithSilentContext_ExitCodeIsZero

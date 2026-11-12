@@ -45,7 +45,7 @@ namespace DemaConsulting.LintMark.Engine;
 ///     </para>
 ///     <para>
 ///         Thread safety: an instance holds only immutable configuration; <see cref="Process"/> and
-///         <see cref="Run"/> may be called concurrently.
+///         <see cref="Run(Context)"/> may be called concurrently.
 ///     </para>
 /// </remarks>
 internal sealed class LintMarkEngine
@@ -113,18 +113,33 @@ internal sealed class LintMarkEngine
     /// <param name="context">The context supplying the path arguments and receiving the failure reports. Must not be null.</param>
     /// <remarks>
     ///     Failures are written through <see cref="Context.WriteError"/>, which makes the exit code 1.
-    ///     Discovery runs against the current directory.
+    ///     Discovery runs against the current directory (see <see cref="Select"/>).
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the log file is one of the selected files.</exception>
     public void Run(Context context)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(context);
 
-        // Discover and process the files; no output happens until all workers are done
+        Run(context, Select(context));
+    }
+
+    /// <summary>
+    ///     Processes and reports the given files.
+    /// </summary>
+    /// <param name="context">The context receiving the failure reports. Must not be null.</param>
+    /// <param name="files">The files to process, as returned by <see cref="Select"/>. Must not be null.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public void Run(Context context, IReadOnlyList<string> files)
+    {
+        // Validate input
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(files);
+
+        // Process the files; no output happens until all workers are done
         var baseDirectory = Directory.GetCurrentDirectory();
-        var files = FileDiscovery.Discover(context.Paths, baseDirectory);
         var results = Process(files);
 
         // Emit in display-path order, and within a file by position, so output is deterministic
@@ -140,6 +155,41 @@ internal sealed class LintMarkEngine
                 context.WriteError($"{displayPath}:{failure.Line}:{failure.Column}: {failure.RuleId} {failure.Message}");
             }
         }
+    }
+
+    /// <summary>
+    ///     Selects the files named by the context and refuses a run that would overwrite one of them with the log.
+    /// </summary>
+    /// <param name="context">The context supplying the path arguments and the log file path. Must not be null.</param>
+    /// <returns>The selected files (distinct full paths in ordinal order).</returns>
+    /// <remarks>
+    ///     Nothing is read or written, and the log file is not touched. A caller that has output to write
+    ///     should call this before the first write, because the first write opens the log file and so
+    ///     replaces its content.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when <see cref="Context.LogFile"/> is one of the selected files; the log would replace that
+    ///     input, so the run is refused instead.
+    /// </exception>
+    public static IReadOnlyList<string> Select(Context context)
+    {
+        // Validate input
+        ArgumentNullException.ThrowIfNull(context);
+
+        // Discover the files against the current directory
+        var files = FileDiscovery.Discover(context.Paths, Directory.GetCurrentDirectory());
+
+        // Opening the log file replaces its content, so a log that is also an input would destroy that input
+        if (context.LogFile is { } logFile && files.Any(file => string.Equals(file, logFile, FileDiscovery.PathComparison)))
+        {
+            throw new InvalidOperationException(
+                $"Log file '{logFile}' is also selected as an input file; refusing to overwrite it. " +
+                "Choose a different --log path or exclude the file with a ! pattern.");
+        }
+
+        return files;
     }
 
     /// <summary>

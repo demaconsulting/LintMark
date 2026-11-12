@@ -27,8 +27,12 @@ the platform's comparison rule, so the tests pass on case-sensitive and case-ins
 - A file named explicitly is selected even inside such a folder, and a base directory that itself lies inside
   such a folder still finds its own files, while a root that climbs out of it into or beside a third-party
   folder selects nothing.
-- The result is distinct, sorted, and independent of argument order.
-- Blank and null arguments are rejected.
+- The result is distinct, sorted, and independent of argument order; where names are compared without regard
+  to case, one file named with different spellings is returned with the same (smallest-in-ordinal-order) spelling
+  whatever the argument order.
+- Literal paths, directories, and exclusions written with backslashes select the same files as with forward slashes.
+- Blank and null arguments are rejected, and a null element is reported as a null argument even when a blank
+  pattern precedes it.
 
 #### Test Scenarios
 
@@ -48,6 +52,13 @@ extensions.
 **Single-segment glob does not descend**: `*.md` returns only top-level files.
 
 **Glob written with backslashes is accepted**: Backslash separators give the same result as slashes.
+
+**Literal file and directory paths written with backslashes are found**: `docs\guide.md` and `docs\deep` select
+the same files as `docs/guide.md` and `docs/deep`, on every platform (the case that fails on Unix when
+separators are normalized only for globs).
+
+**Exclusions written with backslashes remove the same files**: `!docs\deep` and `!docs\guide.md` remove the
+directory contents and the file respectively.
 
 **Absolute glob is resolved from its wildcard-free prefix**: An absolute glob returns the matches.
 
@@ -71,6 +82,10 @@ default set minus everything beneath that directory.
 **Overlapping arguments give each file once**: A file selected by several arguments is returned once.
 
 **Argument order does not change the result**: Reordering the arguments gives the same sorted result.
+
+**Case variants of one name give one spelling whatever the order** (case-insensitive platforms only; skipped
+elsewhere): `docs/guide.md` and `docs/GUIDE.md` given in either order, or with a glob, return the single
+smallest-in-ordinal-order spelling `docs/GUIDE.md`.
 
 **A third-party folder named together with a file inside it selects only the file**: The arguments
 `node_modules` and `node_modules/pkg/readme.md` select only the file.
@@ -112,3 +127,6 @@ reading it reports the problem.
 **Blank patterns are rejected**: Empty, whitespace-only, and lone `!` arguments throw `ArgumentException`.
 
 **Null arguments are rejected**: Null arguments throw `ArgumentNullException`.
+
+**A null element is reported as null**: A null element first, after a blank pattern, or after valid patterns
+throws `ArgumentNullException` for `patterns`, never `ArgumentException`.

@@ -66,7 +66,9 @@ LF-normalized text and uses its line table to convert offsets to line and column
 parses the normalized text once with a pipeline that is built once per process and shared read-only
 by all threads. It then flattens the syntax tree into the block list, compensating for the parser's
 range quirks, and builds the `SuppressionMap` and `ReferenceIndex` from the same blocks and tree so
-that all three views describe the same parse.
+that all three views describe the same parse. Every collection that the result exposes (`SourceDocument.LineStarts`,
+`ParsedDocument.Blocks`, `SuppressionMap.Ranges`, `RuleSet.Rules`, `ReferenceIndex.Definitions`) is immutable,
+not merely read-only through an interface, so one stage or caller cannot change what the others see.
 
 Block ranges produced by the parser are not trustworthy as they are, and `DocumentParser` compensates for the
 behaviors listed by name in *DocumentParser Design* (*Parser Behaviors Compensated*): unclosed fences, trailing

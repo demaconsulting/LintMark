@@ -25,7 +25,8 @@ answer position questions about that text.
 **Encoding**: `System.Text.Encoding` — UTF-8 that emits a byte order mark only when `HasBom` is true.
 
 **LineStarts**: `IReadOnlyList<int>` — The offset of the first character of every line. A final newline
-produces a trailing empty line that starts at `Text.Length`; an empty file has one empty line.
+produces a trailing empty line that starts at `Text.Length`; an empty file has one empty line. Backed by an
+immutable array, so a caller cannot change it even by casting the list.
 
 **MajorityLineEnding**: `LineEnding` — `CrLf` when CRLF terminators outnumber LF terminators, otherwise
 `Lf` (a tie, or a file without terminators, is `Lf`). `LineEnding` is an enum with the values `Lf` and

@@ -35,8 +35,9 @@ the advanced extension bundle (unpredictable parse changes), and column-width in
 A second, private pipeline exists. It is identical except that grid tables are not recognized, and it is used
 only when the first parse leaves blocks that do not nest (see *Invalid grid tables*).
 
-**ParsedDocument**: A record `(SourceDocument Source, MarkdownDocument Ast, IReadOnlyList<BlockInfo> Blocks,
-SuppressionMap Suppressions, ReferenceIndex References)`, created per file.
+**ParsedDocument**: A record `(SourceDocument Source, MarkdownDocument Ast, ImmutableArray<BlockInfo> Blocks,
+SuppressionMap Suppressions, ReferenceIndex References)`, created per file. The block list is an immutable
+array, so no holder of the document can change it.
 
 **BlockInfo**: A record `(Block? Node, BlockKind Kind, int Start, int EndInclusive, int Depth, Block?
 Parent)`. `Start` is the first and `EndInclusive` the last visible character of the block; the end is the
@@ -204,7 +205,10 @@ document with 160000 blocks (about 0.8 MB) is parsed in about a second, most of 
 *Dropped footnote detection* is coverage based; labels are not compared with each other, so letter case and
 repeated labels need no special handling. It runs only when the text contains `[^`. A line is a footnote
 definition marker when, after at most three spaces, it starts with `[^`, a label of one or more characters
-that are neither `]` nor whitespace, and `]:` (a culture-invariant expression with a match timeout). The
+that are neither `]` nor whitespace, and `]:` (a culture-invariant expression with a match timeout, anchored at
+the start of the line: it is matched against the line's own slice of the text through the
+`Match(text, beginning, length)` overload, which treats the slice as the whole input, so the anchor applies at the
+start of that line on every line and not only at offset zero). The
 marker becomes an `UnreferencedFootnote` block with a null `Node`, depth 0, and no parent, unless its first
 character already lies inside a leaf block (a code block, a paragraph, or an earlier definition: such a line is
 only text) or inside a `Footnote` block. A repeated label therefore gets a block because the parser

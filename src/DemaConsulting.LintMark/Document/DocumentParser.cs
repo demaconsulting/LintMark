@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
@@ -144,7 +145,7 @@ internal static partial class DocumentParser
 
         var suppressions = SuppressionMap.Build(source, blocks, ast);
         var references = ReferenceIndex.Build(source, blocks);
-        return new ParsedDocument(source, ast, blocks, suppressions, references);
+        return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references);
     }
 
     /// <summary>
@@ -984,6 +985,8 @@ internal static partial class DocumentParser
                 return null;
             }
 
+            // The (beginning, length) overload searches the slice as if it were the whole input, so the
+            // line-start anchor of the expression applies at the start of this line and not at offset zero
             var match = FootnoteDefinitionRegex().Match(_source.Text, start, end - start);
             return match.Success ? match : null;
         }

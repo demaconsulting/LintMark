@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Document;
@@ -31,11 +32,12 @@ namespace DemaConsulting.LintMark.Document;
 /// <param name="Suppressions">Suppression directives found in HTML comments.</param>
 /// <param name="References">Link reference definitions.</param>
 /// <remarks>
-///     Created per file and never shared between workers. Treated as read-only after creation.
+///     Created per file and never shared between workers. Treated as read-only after creation; the block
+///     list is an immutable array, so no holder of the document can change it.
 /// </remarks>
 internal sealed record ParsedDocument(
     SourceDocument Source,
     MarkdownDocument Ast,
-    IReadOnlyList<BlockInfo> Blocks,
+    ImmutableArray<BlockInfo> Blocks,
     SuppressionMap Suppressions,
     ReferenceIndex References);

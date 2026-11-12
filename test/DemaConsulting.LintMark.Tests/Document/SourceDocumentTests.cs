@@ -56,6 +56,24 @@ public class SourceDocumentTests
     }
 
     /// <summary>
+    ///     Test that the exposed line table cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void SourceDocument_LineStarts_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange: a three-line document
+        var document = SourceDocument.Create("a.md", Utf8("a\nb\nc\n"));
+
+        // Act: take the line table
+        var lineStarts = document.LineStarts;
+
+        // Assert: a caller cannot change it, and positions are still computed from the original table
+        ReadOnlyAssertions.AssertCannotBeModified(lineStarts);
+        Assert.Equal(new[] { 0, 2, 4, 6 }, lineStarts);
+        Assert.Equal((3, 1), document.PositionOf(4));
+    }
+
+    /// <summary>
     ///     Test that CRLF content is normalized to LF and counted.
     /// </summary>
     [Fact]

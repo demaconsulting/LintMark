@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Markdig.Syntax;
@@ -53,15 +54,19 @@ internal sealed class ReferenceIndex
     /// </summary>
     /// <param name="definitions">All definitions in source order.</param>
     /// <param name="byLabel">First-definition-wins lookup.</param>
-    private ReferenceIndex(IReadOnlyList<ReferenceDefinition> definitions, Dictionary<string, ReferenceDefinition> byLabel)
+    private ReferenceIndex(IEnumerable<ReferenceDefinition> definitions, Dictionary<string, ReferenceDefinition> byLabel)
     {
-        Definitions = definitions;
+        Definitions = definitions.ToImmutableArray();
         _byLabel = byLabel;
     }
 
     /// <summary>
     ///     Gets every definition (including duplicates) in source order.
     /// </summary>
+    /// <remarks>
+    ///     The list is backed by an immutable array, so a caller cannot change the index through it,
+    ///     not even by casting.
+    /// </remarks>
     public IReadOnlyList<ReferenceDefinition> Definitions { get; }
 
     /// <summary>

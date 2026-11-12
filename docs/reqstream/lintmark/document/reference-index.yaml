@@ -67,3 +67,14 @@ sections:
                   - ReferenceIndex_Build_FootnotesAndUnreferencedFootnotes_AreExcluded
                   - ReferenceIndex_Build_FootnoteDefinitionInBlockQuote_IsExcluded
                   - ReferenceIndex_Build_FootnoteDefinitionInListItem_IsExcluded
+
+              - id: LintMark-Document-ReferenceIndex-ImmutableDefinitions
+                title: >-
+                  The ReferenceIndex class shall expose its list of definitions in a form that its holders
+                  cannot change.
+                justification: |
+                  Rules about links and rewrites that move definitions read this list. A list that a caller
+                  could modify, even through a cast of the read-only interface, would make the index disagree
+                  with its own lookup.
+                tests:
+                  - ReferenceIndex_Definitions_CastToMutableTypes_CannotBeModified

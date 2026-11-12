@@ -506,6 +506,101 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that creating a context does not touch an existing log file; the first write replaces it.
+    /// </summary>
+    [Fact]
+    public void Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilFirstWrite()
+    {
+        // Arrange: an existing file that is named as the log
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.WriteFile("existing.md", "# Precious\n");
+
+        // Act: create the context and inspect the file before any output, then write and close the log
+        string contentBeforeWrite;
+        string? resolvedPath;
+        using (var context = Context.Create(["--silent", "--log", logFile]))
+        {
+            contentBeforeWrite = File.ReadAllText(logFile);
+            resolvedPath = context.LogFile;
+            context.WriteLine("log line");
+        }
+
+        // Assert: the content survived creation, the resolved path is exposed, and the first write replaced the content
+        Assert.Equal("# Precious\n", contentBeforeWrite);
+        Assert.Equal(logFile, resolvedPath);
+        Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that creating a context does not create a missing log file.
+    /// </summary>
+    [Fact]
+    public void Context_Create_LogFlag_MissingFile_IsNotCreatedUntilFirstWrite()
+    {
+        // Arrange: a log path that does not exist
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.PathOf("new.log");
+
+        // Act: create the context, then write
+        using var context = Context.Create(["--silent", "--log", logFile]);
+        var existsBeforeWrite = File.Exists(logFile);
+        context.WriteError("an error");
+
+        // Assert: created by the first write only
+        Assert.False(existsBeforeWrite);
+        Assert.True(File.Exists(logFile));
+    }
+
+    /// <summary>
+    ///     Test that a log path in a directory that does not exist is rejected when the context is created.
+    /// </summary>
+    [Fact]
+    public void Context_Create_LogFlag_MissingDirectory_ThrowsInvalidOperationException()
+    {
+        // Arrange: a log path below a directory that does not exist
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.PathOf("missing/dir/run.log");
+
+        // Act / Assert: rejected up front, without creating anything
+        Assert.Throws<InvalidOperationException>(() => Context.Create(["--log", logFile]));
+        Assert.False(Directory.Exists(directory.PathOf("missing")));
+    }
+
+    /// <summary>
+    ///     Test that writing after disposal does not reopen (and so truncate) the log file.
+    /// </summary>
+    [Fact]
+    public void Context_WriteLine_AfterDispose_DoesNotReopenLogFile()
+    {
+        // Arrange: a context that has written a line and is disposed
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.PathOf("run.log");
+        var context = Context.Create(["--silent", "--log", logFile]);
+        context.WriteLine("first");
+        context.Dispose();
+
+        // Act: write again after disposal
+        context.WriteLine("second");
+
+        // Assert: the log is as the first session left it
+        Assert.Equal("first" + Environment.NewLine, File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that the exposed path list cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void Context_Paths_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange / Act: create a context with paths
+        using var context = Context.Create(["a.md", "docs", "!docs/old"]);
+
+        // Assert: a caller cannot change the list
+        ReadOnlyAssertions.AssertCannotBeModified(context.Paths);
+        Assert.Equal(new[] { "a.md", "docs", "!docs/old" }, context.Paths);
+    }
+
+    /// <summary>
     ///     Test creating a context with positional arguments sets the paths in the order given.
     /// </summary>
     [Fact]

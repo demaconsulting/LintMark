@@ -19,8 +19,8 @@ supplied through the internal constructor parameters `fileProcessor` and `docume
 
 **FileFailure**: A record `(string RuleId, int Line, int Column, string Message)`.
 
-**FileResult**: A record `(string Path, IReadOnlyList<FileFailure> Failures)`; the failure list is empty for
-a file that was read and parsed.
+**FileResult**: A record `(string Path, ImmutableArray<FileFailure> Failures)`; the failure list is empty for
+a file that was read and parsed, and cannot be changed by its holders.
 
 The instance holds only immutable configuration, so `Run` and `Process` can be called concurrently.
 
@@ -38,19 +38,35 @@ Line breaks in messages are replaced by spaces so that a failure is always one l
 
 #### Key Methods
 
-**Run**: Discovers, processes, and reports.
+**Run**: Discovers, processes, and reports. Two overloads: `Run(Context)` selects the files itself and
+`Run(Context, IReadOnlyList<string>)` reports on files that the caller has already selected.
 
-- *Parameters*: `Context context`.
+- *Parameters*: `Context context`; optionally the selected `files`.
 - *Returns*: `void`.
-- *Preconditions*: `context` is not null.
+- *Preconditions*: arguments are not null.
 - *Postconditions*: every failure has been written with `Context.WriteError`; the exit code is 1 when at
   least one failure was reported, and unchanged otherwise.
 
-Steps: (1) call `FileDiscovery.Discover(context.Paths, current directory)`; (2) call `Process`; (3) pair
+Steps: (1) `Run(Context)` calls `Select`; (2) call `Process`; (3) pair
 each result with its display path (relative to the current directory, `/` separators) and sort by display
 path (ordinal); (4) for each file, order its failures by line, column, and rule identifier (ordinal) and
 write `{display-path}:{line}:{col}: {rule-id} {message}`. No summary line is written. Zero matched files
 is not an error.
+
+**Select** (static): Selects the files and protects the log file.
+
+- *Parameters*: `Context context`.
+- *Returns*: `IReadOnlyList<string>` — the distinct full paths from `FileDiscovery.Discover(context.Paths,
+  current directory)`.
+- *Preconditions*: `context` is not null.
+- *Postconditions*: nothing has been read or written, and the log file has not been touched.
+
+When `context.LogFile` is among the selected files (compared with `FileDiscovery.PathComparison`) the method throws
+`InvalidOperationException` ("Log file '{path}' is also selected as an input file; refusing to overwrite it.
+Choose a different --log path or exclude the file with a ! pattern."). The first write to the log opens it and so
+replaces its content, which would destroy an input; refusing is the only outcome that cannot lose data, and an
+exclusion pattern lets the user keep the log inside the selected folders. `Program` calls `Select` before any
+output for this reason.
 
 **Process**: Processes files, possibly in parallel.
 
@@ -75,6 +91,8 @@ Per-file failures are data, not exceptions, and are reported through `Context.Wr
 raise `ArgumentNullException`, and a degree of parallelism below one raises `ArgumentOutOfRangeException`.
 An empty path argument raises `ArgumentException` from discovery; because `Context` writes happen only
 after processing, nothing has been written when that happens, and `Program.Main` reports it as an error.
+A log file that is one of the selected files raises `InvalidOperationException` from `Select`, likewise
+before anything is written.
 
 Workers never write output and never touch the `Context`; this is the thread-safety rule that makes the
 output deterministic (see the *LintMark* system design).
@@ -87,4 +105,5 @@ output deterministic (see the *LintMark* system design).
 
 #### Callers
 
-- **Program** — `RunToolLogic` creates an engine with the default settings and calls `Run`.
+- **Program** — `Run` calls the static `Select` before any output and then `Run(context, files)` on an engine
+  with the default settings.

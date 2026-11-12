@@ -67,6 +67,24 @@ public class SuppressionMapTests
     }
 
     /// <summary>
+    ///     Test that the exposed ranges and their rule sets cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void SuppressionMap_Ranges_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange: a document with one region that disables two listed rules
+        var document = Parse("<!-- lintmark-disable line-length no-bare-urls -->\n\nINSIDE\n\n<!-- lintmark-enable -->\n");
+
+        // Act: take the ranges and the rule set of the first one
+        var ranges = document.Suppressions.Ranges;
+
+        // Assert: neither the list of ranges nor the list of rules can be modified by a caller
+        ReadOnlyAssertions.AssertCannotBeModified(ranges);
+        ReadOnlyAssertions.AssertCannotBeModified(ranges[0].Rules.Rules);
+        Assert.True(At(document, "INSIDE", "line-length"));
+    }
+
+    /// <summary>
     ///     Test that disable and enable form a region covering the text between them.
     /// </summary>
     [Fact]

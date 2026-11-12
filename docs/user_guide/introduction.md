@@ -84,7 +84,10 @@ lintmark README.md docs
 
 Arguments can also be glob patterns. The wildcard `*` matches within one path segment and `**` matches any
 number of directory levels. Patterns may be relative, relative to a parent directory (`../docs/*.md`),
-or absolute, and may use `/` or `\` as separator. Quote patterns so that the shell passes them unchanged:
+or absolute. Both `/` and `\` are accepted as separators in every argument (patterns, file names, directories,
+and exclusions) on every platform, so `docs\guide.md` selects the same file on Linux as on Windows; on Linux
+and macOS this means a backslash cannot be part of a file name given on the command line. Quote patterns so
+that the shell passes them unchanged:
 
 ```bash
 lintmark "docs/**/*.md"
@@ -107,7 +110,10 @@ How the files are selected:
 - A file selected by several arguments is processed once.
 - A pattern that matches no file is not an error.
 - A name that matches no wildcard pattern and does not exist is reported as a read problem.
-- On Windows and macOS, patterns ignore letter case; on other systems they do not.
+- On Windows and macOS, patterns ignore letter case; on other systems they do not. Where case is ignored and
+  one file is selected under spellings that differ only in case (for example `docs/guide.md` and
+  `docs/GUIDE.md`), it is processed once and reported under the alphabetically first spelling (upper case
+  before lower case), whatever the order of the arguments.
 
 LintMark reads files as UTF-8 text (with or without a byte order mark) that uses LF or CRLF line endings.
 
@@ -238,6 +244,22 @@ Write output to a log file:
 lintmark --log output.log
 ```
 
+The log file is created, or its content replaced, when the first line is written. To make sure that logging can
+never destroy one of your files, LintMark refuses to run when the log file is also one of the files it would
+process, and reports an error without writing or changing anything:
+
+```text
+Error: Log file '/work/README.md' is also selected as an input file; refusing to overwrite it. Choose a
+different --log path or exclude the file with a ! pattern.
+```
+
+Choose a log file that the selection does not match (for example `output.log`), or exclude the log file when
+you want to keep it inside the selected folders:
+
+```bash
+lintmark --log lint-report.md "!lint-report.md"
+```
+
 ## Error Handling
 
 Unrecognized arguments cause the tool to print an error message to standard error and exit
@@ -275,7 +297,7 @@ lintmark [options] [paths...]
 | `--validate`                          | Run self-validation (cannot be combined with paths)          |
 | `--results <file>`, `--result <file>` | Write validation results to file (TRX or JUnit format)       |
 | `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
-| `--log <file>`                        | Write output to log file                                     |
+| `--log <file>`                        | Write output to log file (refused if it is a selected file)  |
 
 # Examples
 

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
+
 namespace DemaConsulting.LintMark.Cli;
 
 /// <summary>
@@ -40,9 +42,14 @@ internal sealed class Context : IDisposable
     private readonly Lock _outputLock = new();
 
     /// <summary>
-    ///     Log file stream writer (if logging is enabled).
+    ///     Log file stream writer (if logging is enabled); opened by the first write, never by <see cref="Create"/>.
     /// </summary>
     private StreamWriter? _logWriter;
+
+    /// <summary>
+    ///     Indicates whether the context has been disposed (the log file is never reopened afterwards).
+    /// </summary>
+    private bool _disposed;
 
     /// <summary>
     ///     Indicates whether errors have been reported.
@@ -81,12 +88,21 @@ internal sealed class Context : IDisposable
     /// <summary>
     ///     Gets the positional path arguments (files, directories, globs and <c>!</c> excludes) in the order given.
     /// </summary>
-    public IReadOnlyList<string> Paths { get; private init; } = [];
+    public IReadOnlyList<string> Paths { get; private init; } = ImmutableArray<string>.Empty;
 
     /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
     public string? ResultsFile { get; private init; }
+
+    /// <summary>
+    ///     Gets the full path of the log file, or <see langword="null"/> when logging is not enabled.
+    /// </summary>
+    /// <remarks>
+    ///     The file is not touched until the first line is written, so a caller can compare this path with
+    ///     the files it is about to read and refuse the run before an input file would be overwritten.
+    /// </remarks>
+    public string? LogFile { get; private init; }
 
     /// <summary>
     ///     Gets the heading depth for markdown output (default is 1).
@@ -122,7 +138,10 @@ internal sealed class Context : IDisposable
     /// <exception cref="ArgumentException">
     ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths or <c>--check</c>.
     /// </exception>
-    /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the specified log file path is unusable (invalid, a directory, or in a missing directory).
+    ///     The file itself is not opened here; see <see cref="WriteLine"/>.
+    /// </exception>
     public static Context Create(string[] args)
     {
         // Validate input
@@ -137,38 +156,70 @@ internal sealed class Context : IDisposable
             throw new ArgumentException("--validate cannot be combined with paths or --check", nameof(args));
         }
 
-        var result = new Context
+        // Check the log path now but do not open it: opening truncates, and the file may turn out to be one of the
+        // inputs, which the caller has to be able to detect (and refuse) before it is overwritten
+        var logFile = parser.LogFile != null ? ResolveLogFile(parser.LogFile) : null;
+
+        return new Context
         {
             Version = parser.Version,
             Help = parser.Help,
             Silent = parser.Silent,
             Validate = parser.Validate,
             Check = parser.Check,
-            Paths = parser.Paths,
+            Paths = parser.Paths.ToImmutableArray(),
             ResultsFile = parser.ResultsFile,
+            LogFile = logFile,
             HeadingDepth = parser.HeadingDepth
         };
-
-        // Open log file if specified
-        if (parser.LogFile != null)
-        {
-            result.OpenLogFile(parser.LogFile);
-        }
-
-        return result;
     }
 
     /// <summary>
-    ///     Opens the log file for writing
+    ///     Resolves and checks the log file path without touching the file.
     /// </summary>
-    /// <param name="logFile">Log file path</param>
-    private void OpenLogFile(string logFile)
+    /// <param name="logFile">Log file path as given.</param>
+    /// <returns>The full path.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the path cannot be a log file.</exception>
+    private static string ResolveLogFile(string logFile)
+    {
+        try
+        {
+            var full = Path.GetFullPath(logFile);
+            if (Directory.Exists(full))
+            {
+                throw new IOException("The path is a directory");
+            }
+
+            var directory = Path.GetDirectoryName(full);
+            if (directory != null && !Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException("The directory does not exist");
+            }
+
+            return full;
+        }
+        // Generic catch is justified here to wrap any file system exception with context.
+        // Expected exceptions include IOException, ArgumentException, NotSupportedException and
+        // other path-related exceptions.
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to open log file '{logFile}': {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    ///     Opens the log file for writing (creating it, or replacing its content).
+    /// </summary>
+    /// <param name="logFile">Full log file path.</param>
+    /// <returns>The writer.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the file cannot be opened.</exception>
+    private static StreamWriter OpenLogFile(string logFile)
     {
         try
         {
             // Open with AutoFlush enabled so log entries are immediately written to disk
             // even if the application terminates unexpectedly before Dispose is called
-            _logWriter = new StreamWriter(logFile, append: false) { AutoFlush = true };
+            return new StreamWriter(logFile, append: false) { AutoFlush = true };
         }
         // Generic catch is justified here to wrap any file system exception with context.
         // Expected exceptions include IOException, UnauthorizedAccessException, ArgumentException,
@@ -177,6 +228,24 @@ internal sealed class Context : IDisposable
         {
             throw new InvalidOperationException($"Failed to open log file '{logFile}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    ///     Writes a line to the log file, opening it first if this is the first line.
+    /// </summary>
+    /// <param name="message">The message to write.</param>
+    /// <remarks>
+    ///     Must be called with <c>_outputLock</c> held. Does nothing when logging is not enabled or after disposal.
+    /// </remarks>
+    private void WriteToLog(string message)
+    {
+        if (LogFile == null || _disposed)
+        {
+            return;
+        }
+
+        _logWriter ??= OpenLogFile(LogFile);
+        _logWriter.WriteLine(message);
     }
 
     /// <summary>
@@ -352,8 +421,10 @@ internal sealed class Context : IDisposable
     /// <param name="message">The message to write.</param>
     /// <remarks>
     ///     Output is written to stdout. When <see cref="Silent"/> is <c>true</c>, stdout output is
-    ///     suppressed, but the message is still written to the log file when one is open.
+    ///     suppressed, but the message is still written to the log file when logging is enabled. The log file is
+    ///     created (or its content replaced) by the first line written, not by <see cref="Create"/>.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown by the first write when the log file cannot be opened.</exception>
     public void WriteLine(string message)
     {
         // Serialize so concurrent callers cannot interleave lines on the console or in the log
@@ -366,7 +437,7 @@ internal sealed class Context : IDisposable
             }
 
             // Write to log file if logging is enabled
-            _logWriter?.WriteLine(message);
+            WriteToLog(message);
         }
     }
 
@@ -398,7 +469,7 @@ internal sealed class Context : IDisposable
             }
 
             // Write to log file if logging is enabled
-            _logWriter?.WriteLine(message);
+            WriteToLog(message);
         }
     }
 
@@ -410,6 +481,7 @@ internal sealed class Context : IDisposable
         // Close and dispose the log file writer if it exists (not while another thread is writing to it)
         lock (_outputLock)
         {
+            _disposed = true;
             _logWriter?.Dispose();
             _logWriter = null;
         }

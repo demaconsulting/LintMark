@@ -20,10 +20,15 @@ N/A - standard test environment.
 - Comment-like text inside code and front matter never suppresses anything.
 - Rule identifiers are matched ignoring case after alias resolution.
 - The ranges are sorted by start offset, and invalid arguments are rejected.
+- The ranges and their rule sets cannot be modified by a caller that casts them.
 
 #### Test Scenarios
 
 ##### Normal operation
+
+**Ranges and rule sets cannot be changed through a cast**: For a region that disables two named rules, `Ranges`
+and the first range's `Rules` collection are not a `List<T>`, `HashSet<T>`, or array, every attempted change
+through the mutable interfaces throws `NotSupportedException`, and the rules are still suppressed.
 
 **Disable and enable comments suppress the text between them**: Text between a disable and an enable comment is
 suppressed and text outside is not.

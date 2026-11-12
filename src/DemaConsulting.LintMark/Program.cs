@@ -114,6 +114,11 @@ internal static class Program
             return;
         }
 
+        // Select the files before any output: the first line written opens (and so replaces) the log file,
+        // which must never happen to a file that is about to be read as an input
+        var engine = new LintMarkEngine();
+        IReadOnlyList<string> files = context.Help || context.Validate ? [] : LintMarkEngine.Select(context);
+
         // Print application banner
         PrintBanner(context);
 
@@ -132,7 +137,7 @@ internal static class Program
         }
 
         // Priority 4: Main tool functionality
-        RunToolLogic(context);
+        engine.Run(context, files);
     }
 
     /// <summary>
@@ -168,18 +173,5 @@ internal static class Program
         context.WriteLine("  --results <file>           Write validation results to file (.trx or .xml)");
         context.WriteLine("  --depth <#>                Set heading depth for markdown output (default: 1)");
         context.WriteLine("  --log <file>               Write output to log file");
-    }
-
-    /// <summary>
-    ///     Runs the main tool logic: discovers the selected Markdown files, parses each and reports failures.
-    /// </summary>
-    /// <param name="context">The context containing command line arguments and program state.</param>
-    /// <remarks>
-    ///     Failures are reported through <see cref="Context.WriteError"/>, so the exit code is 1 when any
-    ///     file cannot be read or parsed. Linting and formatting rules are not yet implemented.
-    /// </remarks>
-    private static void RunToolLogic(Context context)
-    {
-        new LintMarkEngine().Run(context);
     }
 }

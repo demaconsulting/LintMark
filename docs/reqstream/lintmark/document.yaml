@@ -147,6 +147,22 @@ sections:
             tests:
               - DocumentSubsystem_ConcurrentParse_RepositoryMarkdown_MatchesSequential
 
+          - id: LintMark-Document-ImmutableResults
+            title: >-
+              The Document subsystem shall expose the collections of a parse result (lines, blocks, suppression
+              ranges and rule sets, reference definitions) in a form that their holders cannot change.
+            justification: |
+              A parse result is passed between pipeline stages and shared by the rules that examine it. A
+              collection that one stage could modify, even through a cast of a read-only interface, would
+              change what every other stage sees and make results depend on who ran first.
+            children:
+              - LintMark-Document-SourceDocument-ImmutableLineTable
+              - LintMark-Document-DocumentParser-ImmutableBlocks
+              - LintMark-Document-SuppressionMap-ImmutableRanges
+              - LintMark-Document-ReferenceIndex-ImmutableDefinitions
+            tests:
+              - DocumentSubsystem_ParseResult_ExposedCollections_CannotBeModified
+
           - id: LintMark-Document-Suppressions
             title: >-
               The Document subsystem shall determine, from the suppression comments of a document, which

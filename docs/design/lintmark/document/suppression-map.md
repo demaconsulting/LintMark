@@ -11,14 +11,16 @@ interpretation of directive comments; deciding which rules exist belongs to late
 #### Data Model
 
 **Ranges**: `IReadOnlyList<SuppressionRange>` — The resolved ranges sorted by start offset. Ranges may
-overlap when they carry different rule sets.
+overlap when they carry different rule sets. Backed by an immutable array, so a caller cannot change it
+even by casting the list.
 
 **SuppressionRange**: A record `(int Start, int End, RuleSet Rules)`. Offsets refer to the LF-normalized text
 and the range is half-open, `[Start, End)`. An unterminated range ends at `int.MaxValue`.
 
 **RuleSet**: Describes which rules a range suppresses, with `RuleSetKind` `All` (every rule), `Only` (the
 listed rules), or `AllExcept` (every rule but the listed ones). `Contains(ruleId)` compares rule
-identifiers ordinal-ignore-case.
+identifiers ordinal-ignore-case. The listed rules (`Rules`) are held in a frozen set, so a caller cannot change
+them even by casting the collection.
 
 **Alias resolver**: An optional `Func<string, string>` applied to every rule identifier, both in directives
 and in queries, before comparison. It is the identity in this phase; a later phase supplies rule alias

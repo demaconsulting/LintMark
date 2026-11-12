@@ -21,10 +21,15 @@ N/A - standard test environment.
 - A UTF-8 byte order mark is preserved and restored; a file without one gets none.
 - Unchanged text written back in the original terminator style reproduces the original bytes.
 - Positions are 1-based, count UTF-16 code units, and convert back to the same offsets.
+- The line table cannot be modified by a caller that casts it.
 
 #### Test Scenarios
 
 ##### Normal operation
+
+**Line table cannot be changed through a cast**: `LineStarts` is not a `List<int>` or an array, every attempted
+change through `IList<int>` throws `NotSupportedException`, and positions are still computed from the
+original table.
 
 **LF file keeps its text and counts LF terminators**: A file with LF terminators keeps its text and counts only
 LF terminators.

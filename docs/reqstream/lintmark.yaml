@@ -76,6 +76,21 @@ sections:
         tests:
           - LintMark_LogFlag_Provided_WritesOutputToFile
 
+      - id: LintMark-System-LogSafety
+        title: >-
+          The tool shall refuse to run, without changing any file, when the log file is also one of the files
+          selected for processing.
+        tags: [system]
+        justification: |
+          A log file is replaced when it is written, so logging to a source file would silently destroy it.
+          Users can still log into a selected folder by excluding the log file with a `!` pattern.
+        children:
+          - LintMark-Program-LogNotInput
+          - LintMark-Cli-LogDeferred
+          - LintMark-Engine-LogNotInput
+        tests:
+          - LintMark_LogFileIsSelectedInput_Provided_RefusesAndKeepsFile
+
       - id: LintMark-System-ErrorHandling
         title: The tool shall return a non-zero exit code for unrecognized arguments.
         tags: [system]
@@ -204,6 +219,7 @@ sections:
           - LintMark-Document-Suppressions
           - LintMark-Document-References
           - LintMark-Document-ReferenceLookup
+          - LintMark-Document-ImmutableResults
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
+
 namespace DemaConsulting.LintMark.Engine;
 
 /// <summary>
@@ -27,6 +29,6 @@ namespace DemaConsulting.LintMark.Engine;
 /// <param name="Failures">The failures found (empty when the file was read and parsed successfully).</param>
 /// <remarks>
 ///     Workers return results and never write output; the engine emits them later in path order so
-///     output does not depend on scheduling. Immutable once created.
+///     output does not depend on scheduling. Immutable once created, including the failure list.
 /// </remarks>
-internal sealed record FileResult(string Path, IReadOnlyList<FileFailure> Failures);
+internal sealed record FileResult(string Path, ImmutableArray<FileFailure> Failures);

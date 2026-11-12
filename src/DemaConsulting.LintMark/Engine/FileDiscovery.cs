@@ -42,9 +42,12 @@ namespace DemaConsulting.LintMark.Engine;
 ///     </para>
 ///     <para>
 ///         The result consists of distinct full paths in ordinal order, so it is independent of
-///         enumeration order. Name comparison is case-insensitive on Windows and macOS and
-///         case-sensitive elsewhere. Only directory enumeration touches the file system; the unit is
-///         stateless and thread-safe.
+///         enumeration order and of the order of the arguments. Name comparison is case-insensitive on
+///         Windows and macOS and case-sensitive elsewhere; where it is case-insensitive and one file is
+///         found under spellings that differ only in case, the smallest-in-ordinal-order spelling is kept.
+///         Both <c>/</c> and <c>\</c> are accepted as separators in every argument on every platform
+///         (on Unix, a backslash is therefore never part of a file name). Only directory enumeration
+///         touches the file system; the unit is stateless and thread-safe.
 ///     </para>
 /// </remarks>
 internal static class FileDiscovery
@@ -84,27 +87,31 @@ internal static class FileDiscovery
     /// <remarks>
     ///     Directory enumeration is the only side effect. Safe to call concurrently.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
     public static IReadOnlyList<string> Discover(IReadOnlyList<string> patterns, string baseDirectory)
     {
-        // Validate input
+        // Validate input, every element before any is interpreted, so a null is always the null error
         ArgumentNullException.ThrowIfNull(patterns);
         ArgumentNullException.ThrowIfNull(baseDirectory);
+        if (patterns.Any(static pattern => pattern is null))
+        {
+            throw new ArgumentNullException(nameof(patterns), "Path arguments must not contain null.");
+        }
 
-        // Split the arguments into includes and excludes
+        // Split the arguments into includes and excludes; either separator style is accepted on every platform
         var includes = new List<string>();
         var excludes = new List<string>();
         foreach (var pattern in patterns)
         {
-            var isExclude = pattern is not null && pattern.StartsWith('!');
-            var body = isExclude ? pattern![1..] : pattern;
+            var isExclude = pattern.StartsWith('!');
+            var body = isExclude ? pattern[1..] : pattern;
             if (string.IsNullOrWhiteSpace(body))
             {
                 throw new ArgumentException("Path arguments must not be empty.", nameof(patterns));
             }
 
-            (isExclude ? excludes : includes).Add(body);
+            (isExclude ? excludes : includes).Add(NormalizeSeparators(body));
         }
 
         // Without an include the default pattern applies (so "lintmark !docs/**" means everything but docs)
@@ -115,17 +122,34 @@ internal static class FileDiscovery
 
         // Collect candidates from every include
         var root = Path.GetFullPath(baseDirectory);
-        var candidates = new HashSet<string>(StringComparer.FromComparison(PathComparison));
+        var candidates = new HashSet<string>(StringComparer.Ordinal);
         foreach (var include in includes)
         {
             Expand(include, root, candidates);
         }
 
-        // Apply user excludes and return a stable order
-        var result = ApplyExcludes(candidates, excludes, root);
+        // Apply user excludes, then keep one spelling of each file: where names are case-insensitive the
+        // spellings of one file differ only in case, and the smallest-in-ordinal-order wins so that the result
+        // does not depend on the order of the arguments (or on which expansion found a file first)
+        var result = ApplyExcludes(candidates, excludes, root)
+            .GroupBy(static path => path, StringComparer.FromComparison(PathComparison))
+            .Select(static group => group.Order(StringComparer.Ordinal).First())
+            .ToList();
         result.Sort(StringComparer.Ordinal);
         return result;
     }
+
+    /// <summary>
+    ///     Converts every backslash of a pattern to a forward slash.
+    /// </summary>
+    /// <param name="pattern">The pattern or path.</param>
+    /// <returns>The pattern with <c>/</c> separators (Windows accepts both styles, so this is lossless there).</returns>
+    /// <remarks>
+    ///     Applied to every argument before any file system check, so that a backslash path such as
+    ///     <c>docs\guide.md</c> names the same file on every platform (on Unix a backslash would otherwise
+    ///     be an ordinary file name character).
+    /// </remarks>
+    private static string NormalizeSeparators(string pattern) => pattern.Replace('\\', Slash);
 
     /// <summary>
     ///     Expands one include argument into candidate files.
@@ -136,6 +160,7 @@ internal static class FileDiscovery
     private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates)
     {
         // An existing file is taken as given; an existing directory means all Markdown files beneath it
+        pattern = NormalizeSeparators(pattern);
         var full = Path.GetFullPath(pattern, baseDirectory);
         if (File.Exists(full))
         {
@@ -175,7 +200,8 @@ internal static class FileDiscovery
     /// </returns>
     private static (string Root, string? RelativePattern) SplitPattern(string pattern, string baseDirectory)
     {
-        var segments = pattern.Replace('\\', Slash).Split(Slash);
+        pattern = NormalizeSeparators(pattern);
+        var segments = pattern.Split(Slash);
         var wildcard = Array.FindIndex(segments, static s => s.Contains('*', StringComparison.Ordinal));
         if (wildcard < 0)
         {

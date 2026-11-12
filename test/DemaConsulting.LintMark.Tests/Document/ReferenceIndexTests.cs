@@ -54,6 +54,24 @@ public class ReferenceIndexTests
     }
 
     /// <summary>
+    ///     Test that the exposed definition list cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void ReferenceIndex_Definitions_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange: a document with two definitions
+        var document = Parse("See [a] and [b].\n\n[a]: http://a.example\n[b]: http://b.example\n");
+
+        // Act: take the definition list
+        var definitions = document.References.Definitions;
+
+        // Assert: a caller cannot change it, and lookups still work
+        ReadOnlyAssertions.AssertCannotBeModified(definitions);
+        Assert.True(document.References.TryGet("b", out var definition));
+        Assert.Equal("http://b.example", definition.Url);
+    }
+
+    /// <summary>
     ///     Test that definitions carry label, URL, title, span and line.
     /// </summary>
     [Fact]

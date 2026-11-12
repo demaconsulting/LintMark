@@ -53,7 +53,8 @@ public class LintMarkEngineTests
                 exitCode = context.ExitCode;
             }
 
-            return (exitCode, File.ReadAllLines(log));
+            // The log file is created by the first line written, so a run that reports nothing leaves none
+            return (exitCode, File.Exists(log) ? File.ReadAllLines(log) : []);
         }
         finally
         {
@@ -552,5 +553,137 @@ public class LintMarkEngineTests
         Assert.Equal(
             ["a.md:1:2: rule-y earliest", "a.md:1:5: rule-a first", "a.md:1:5: rule-z second", "a.md:3:1: rule-b later"],
             lines);
+    }
+
+    /// <summary>
+    ///     Runs an action with a directory as the current directory.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="directory">The directory.</param>
+    /// <param name="action">The action.</param>
+    /// <returns>The result of the action.</returns>
+    private static T InDirectory<T>(TemporaryDirectory directory, Func<T> action)
+    {
+        var originalDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            Directory.SetCurrentDirectory(directory.FullPath);
+            return action();
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(originalDirectory);
+        }
+    }
+
+    /// <summary>
+    ///     Test that a log file named as an input file is refused before it is touched.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_LogFileNamedAsInput_ThrowsAndLeavesFileUntouched()
+    {
+        // Arrange: a source file that is also given as the log file
+        using var directory = new TemporaryDirectory();
+        var source = directory.WriteFile("README.md", "# Precious\n");
+        using var context = Context.Create(["--log", source, "README.md"]);
+
+        // Act / Assert: the run is refused with a message naming the file
+        var exception = Assert.Throws<InvalidOperationException>(() => InDirectory(directory, () => LintMarkEngine.Select(context)));
+        Assert.Contains("README.md", exception.Message);
+
+        // Assert: the source file is intact
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
+    }
+
+    /// <summary>
+    ///     Test that a log file found by default discovery is refused, and that nothing was written to it.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_LogFileFoundByDiscovery_ThrowsAndLeavesFileUntouched()
+    {
+        // Arrange: a Markdown file under the current directory used as the log, with default discovery
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a.md");
+        var source = directory.WriteFile("docs/notes.md", "# Precious\n");
+        using var context = Context.Create(["--log", source]);
+
+        // Act / Assert: the run is refused
+        Assert.Throws<InvalidOperationException>(() => InDirectory(directory, () =>
+        {
+            new LintMarkEngine(1).Run(context);
+            return 0;
+        }));
+
+        // Assert: the file is intact, and no failure was reported
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that excluding the log file lets the run proceed with the other files.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_LogFileExcluded_SelectsOtherFiles()
+    {
+        // Arrange: a log in the selected tree that is excluded by a pattern
+        using var directory = new TemporaryDirectory();
+        var a = directory.WriteFile("a.md");
+        var log = directory.WriteFile("out.md", "old log\n");
+        using var context = Context.Create(["--log", log, "!out.md"]);
+
+        // Act: select
+        var files = InDirectory(directory, () => LintMarkEngine.Select(context));
+
+        // Assert: only the other file is selected, and the log is untouched until written
+        Assert.Equal(new[] { a }, files);
+        Assert.Equal("old log\n", File.ReadAllText(log));
+    }
+
+    /// <summary>
+    ///     Test that a log file outside the selection does not prevent a run.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_LogFileNotSelected_SelectsFiles()
+    {
+        // Arrange: a log whose name does not match the default pattern
+        using var directory = new TemporaryDirectory();
+        var a = directory.WriteFile("a.md");
+        using var context = Context.Create(["--log", directory.PathOf("run.log")]);
+
+        // Act: select
+        var files = InDirectory(directory, () => LintMarkEngine.Select(context));
+
+        // Assert: the Markdown file is selected and the log file does not exist yet
+        Assert.Equal(new[] { a }, files);
+        Assert.False(File.Exists(directory.PathOf("run.log")));
+    }
+
+    /// <summary>
+    ///     Test that a null context is rejected by selection.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_NullContext_ThrowsArgumentNullException()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentNullException>(() => LintMarkEngine.Select(null!));
+    }
+
+    /// <summary>
+    ///     Test that a file result cannot be changed through its failure list.
+    /// </summary>
+    [Fact]
+    public void FileResult_Failures_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange: a result built from an array that the creator keeps
+        var source = new[] { new FileFailure("rule-a", 1, 1, "first") };
+        var result = new FileResult("a.md", [.. source]);
+
+        // Act: the creator changes its array afterwards
+        source[0] = new FileFailure("rule-b", 2, 2, "changed");
+        IReadOnlyList<FileFailure> failures = result.Failures;
+
+        // Assert: the result is unaffected and a caller cannot change it
+        Assert.Equal("rule-a", failures[0].RuleId);
+        ReadOnlyAssertions.AssertCannotBeModified(failures);
     }
 }

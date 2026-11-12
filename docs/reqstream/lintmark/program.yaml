@@ -55,3 +55,15 @@ sections:
               programmatically via the process exit code.
             tests:
               - Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode
+
+          - id: LintMark-Program-LogNotInput
+            title: >-
+              The Program class shall select the files to lint before writing any output, so that a log file
+              that is also a selected file is refused before it is created or replaced.
+            justification: |
+              The first line of output opens the log file and so replaces its content. Writing the banner
+              before checking the selection would destroy a source file named as the log, so the check must
+              come first and the failure must be reported as an ordinary error with exit code one.
+            tests:
+              - Program_Run_LogFileIsSelectedInput_ThrowsBeforeAnyOutputAndKeepsFile
+              - Program_Main_LogFileIsSelectedInput_ReturnsOneAndKeepsFile

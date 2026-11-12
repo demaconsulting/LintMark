@@ -130,6 +130,25 @@ public class DocumentSubsystemTests
         [.. document.Blocks.Select(b => (b.Kind, b.Start, b.EndInclusive, b.Depth))];
 
     /// <summary>
+    ///     Test that no collection of a parse result can be changed by a caller that casts it.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_ParseResult_ExposedCollections_CannotBeModified()
+    {
+        // Arrange / Act: parse a document that has blocks, a suppression region and a definition
+        var document = DocumentParser.Parse(SourceDocument.FromText(
+            "t.md", "<!-- lintmark-disable line-length -->\n\nText [a].\n\n<!-- lintmark-enable -->\n\n[a]: http://a.example\n"));
+        IReadOnlyList<BlockInfo> blocks = document.Blocks;
+
+        // Assert: every collection that the result exposes refuses changes through a cast
+        ReadOnlyAssertions.AssertCannotBeModified(blocks);
+        ReadOnlyAssertions.AssertCannotBeModified(document.Source.LineStarts);
+        ReadOnlyAssertions.AssertCannotBeModified(document.Suppressions.Ranges);
+        ReadOnlyAssertions.AssertCannotBeModified(document.Suppressions.Ranges[0].Rules.Rules);
+        ReadOnlyAssertions.AssertCannotBeModified(document.References.Definitions);
+    }
+
+    /// <summary>
     ///     Test that the repository's Markdown files tile correctly with LF line endings.
     /// </summary>
     [Fact]

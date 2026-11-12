@@ -130,3 +130,14 @@ sections:
                   change how the surrounding document is checked.
                 tests:
                   - SuppressionMap_Build_CommentsInCodeAndFrontMatter_AreIgnored
+
+              - id: LintMark-Document-SuppressionMap-ImmutableRanges
+                title: >-
+                  The SuppressionMap class shall expose its ranges, and the rule sets of those ranges, in a form
+                  that their holders cannot change.
+                justification: |
+                  Suppressions decide which findings are reported and which text a formatter may rewrite.
+                  A range list or rule set that a caller could modify, even through a cast of the read-only
+                  interface, would let one consumer change the answers given to all others.
+                tests:
+                  - SuppressionMap_Ranges_CastToMutableTypes_CannotBeModified

@@ -15,22 +15,26 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
-- *Contract*: Parses `string[] args` into flag properties and opens the log file if `--log` is
-  present. Returns a fully initialized `Context`. Accepts `--result` as a legacy alias for
+- *Contract*: Parses `string[] args` into flag properties and, if `--log` is present, checks the
+  log file path and exposes its full path as `LogFile` without opening the file. Returns a fully
+  initialized `Context`. Accepts `--result` as a legacy alias for
   `--results`, `--check`, and positional path arguments. Every argument that does not start with a
   dash is a path; they are exposed in order through `Paths`.
 - *Constraints*: Throws `ArgumentException` for unknown or malformed arguments (every unrecognized
   dash-leading token, including a lone `-`, and an empty argument) and for `--validate` combined with
-  a path or `--check`; the latter is raised before any log file is opened. Throws
-  `InvalidOperationException` when the log file cannot be opened.
+  a path or `--check`; the latter is raised before the log path is checked. Throws
+  `InvalidOperationException` when the log file path is unusable (invalid, a directory, or in a
+  missing directory). The log file is neither created nor changed by `Create`.
 
 **Context.WriteLine**: Writes a message to stdout and to the log file.
 
 - *Type*: In-process .NET instance method.
 - *Role*: Provider.
-- *Contract*: Writes `message` to `Console.Out` and to the log file if one is open. Stdout
-  output is suppressed when `Silent` is true; the log file always receives the message.
-- *Constraints*: Thread-safe: concurrent calls are serialized so lines are never interleaved.
+- *Contract*: Writes `message` to `Console.Out` and to the log file if logging is enabled. Stdout
+  output is suppressed when `Silent` is true; the log file always receives the message. The first
+  write creates the log file, or replaces its content.
+- *Constraints*: Thread-safe: concurrent calls are serialized so lines are never interleaved. Throws
+  `InvalidOperationException` when the first write cannot open the log file.
 
 **Context.WriteError**: Writes an error message and sets the error exit code.
 
@@ -54,14 +58,17 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 - *Type*: In-process .NET properties.
 - *Role*: Provider.
 - *Contract*: `Paths` lists the positional arguments in the order given (empty when none were
-  given); `Check` is true when `--check` was present. Both are fixed after `Create`.
-- *Constraints*: Read-only. Phase 1 processing is identical with and without `Check`.
+  given), as an immutable list; `Check` is true when `--check` was present. Both are fixed after
+  `Create`. `LogFile` is the full path of the log file, or null when `--log` was not given.
+- *Constraints*: Read-only; a caller cannot change `Paths` even by casting it. Phase 1 processing is
+  identical with and without `Check`.
 
 **Context.Dispose**: Releases the log file `StreamWriter`.
 
 - *Type*: In-process .NET method (`IDisposable`).
 - *Role*: Provider.
-- *Contract*: Disposes `_logWriter` and sets it to null; flushes any buffered content. Callers
+- *Contract*: Disposes `_logWriter` (if the first write opened it) and sets it to null; flushes any
+  buffered content. After disposal the log file is never opened again. Callers
   must use a `using` statement to guarantee disposal.
 - *Constraints*: Safe to call multiple times (idempotent after first call); takes the output lock so
   it never disposes the writer while another thread is writing.
@@ -85,6 +92,9 @@ by a single lock. The engine itself reports results from one thread after its wo
 the lock is a defensive guarantee for any caller that writes concurrently rather than a
 requirement of the current flow. `ExitCode` logic is unchanged: 1 after any `WriteError`.
 
-When `--log` is active, `Context` holds an open `StreamWriter` for the duration of the
-invocation. The `Program.Main` call site wraps the `Context` in a `using` statement to ensure
-the file handle is released and buffered content is flushed on exit.
+When `--log` is active, `Context` opens the log file with a `StreamWriter` at the first write and
+holds it for the rest of the invocation. Opening replaces the file's content, so `Create` only checks the
+path and exposes it as `LogFile`: the caller can then compare it with the files it is about to read and
+refuse the run before a source file that was also named as the log is destroyed (`Program` does this
+through `LintMarkEngine.Select`). The `Program.Main` call site wraps the `Context` in a `using`
+statement to ensure the file handle is released and buffered content is flushed on exit.

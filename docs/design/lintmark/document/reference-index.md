@@ -10,7 +10,7 @@ resolves a reference to its definition by label, the way Markdown does.
 #### Data Model
 
 **Definitions**: `IReadOnlyList<ReferenceDefinition>` — every definition in source order, including
-duplicates.
+duplicates. Backed by an immutable array, so a caller cannot change it even by casting the list.
 
 **ReferenceDefinition**: A record `(string Label, string NormalizedLabel, string Url, string? Title, int Start,
 int EndInclusive, int Line)`. `Label` is the label as the parser reports it (case kept, internal whitespace

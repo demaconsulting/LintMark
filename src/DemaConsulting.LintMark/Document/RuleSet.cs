@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Frozen;
+
 namespace DemaConsulting.LintMark.Document;
 
 /// <summary>
@@ -32,17 +34,17 @@ internal sealed class RuleSet
     /// <summary>
     ///     The listed rules (empty for <see cref="RuleSetKind.All"/>).
     /// </summary>
-    private readonly HashSet<string> _rules;
+    private readonly FrozenSet<string> _rules;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="RuleSet"/> class.
     /// </summary>
     /// <param name="kind">How the rules are interpreted.</param>
-    /// <param name="rules">The listed rules.</param>
+    /// <param name="rules">The listed rules (copied).</param>
     private RuleSet(RuleSetKind kind, IEnumerable<string> rules)
     {
         Kind = kind;
-        _rules = new HashSet<string>(rules, StringComparer.OrdinalIgnoreCase);
+        _rules = rules.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -58,6 +60,9 @@ internal sealed class RuleSet
     /// <summary>
     ///     Gets the listed rules (empty for <see cref="RuleSetKind.All"/>).
     /// </summary>
+    /// <remarks>
+    ///     The collection is a frozen set, so a caller cannot change the rule set through it, not even by casting.
+    /// </remarks>
     public IReadOnlyCollection<string> Rules => _rules;
 
     /// <summary>

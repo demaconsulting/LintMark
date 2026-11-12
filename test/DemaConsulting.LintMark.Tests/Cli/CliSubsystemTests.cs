@@ -447,6 +447,40 @@ public class CliSubsystemTests
     }
 
     /// <summary>
+    ///     Test that Context and Program refuse a log file that is also an input, leaving the file intact.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_LogFlow_LogFileSelectedAsInput_RefusesAndKeepsFile()
+    {
+        // Arrange: a source file named as the log and as the input, and a context that holds it until first write
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("README.md", "# Precious\n");
+        var originalError = Console.Error;
+        try
+        {
+            using var capturedError = new StringWriter();
+            Console.SetError(capturedError);
+
+            // Act: run the entry point, then create a context only to show that creation alone is harmless
+            using (var context = Context.Create(["--log", file, file]))
+            {
+                Assert.Equal("# Precious\n", File.ReadAllText(file));
+            }
+
+            var exitCode = Program.Main(["--log", file, file]);
+
+            // Assert: refused with exit code one and an explanation; the file is intact
+            Assert.Equal(1, exitCode);
+            Assert.Contains("refusing to overwrite", capturedError.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(file));
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
     ///     Test that Context and Program work together to process positional paths and exit successfully.
     /// </summary>
     [Fact]

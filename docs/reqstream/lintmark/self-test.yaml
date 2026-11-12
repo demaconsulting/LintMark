@@ -25,6 +25,7 @@ sections:
               without requiring a separate test harness.
             children:
               - LintMark-SelfTest-Validation-Run
+              - LintMark-Utilities-SafePaths
             tests:
               - SelfTestSubsystem_ValidationWorkflow_NoResultFiles_CompletesSuccessfully
 

@@ -171,3 +171,37 @@ sections:
                   Matching everything or nothing for it would hide the mistake.
                 tests:
                   - FileDiscovery_Discover_BlankPattern_ThrowsArgumentException
+
+              - id: LintMark-Engine-FileDiscovery-NullArgument
+                title: >-
+                  The FileDiscovery class shall reject a null argument, and a null element of the argument list,
+                  as a null argument before interpreting any other argument.
+                justification: |
+                  A null element is a programming error that must be reported as such, whatever the other
+                  arguments are, instead of being mistaken for an empty pattern.
+                tests:
+                  - FileDiscovery_Discover_NullArguments_ThrowArgumentNullException
+                  - FileDiscovery_Discover_NullElement_ThrowsArgumentNullException
+
+              - id: LintMark-Engine-FileDiscovery-SpellingChoice
+                title: >-
+                  The FileDiscovery class shall, where file names are compared without regard to case and one
+                  file is selected under spellings that differ only in case, return the smallest-in-ordinal-order
+                  spelling, independent of the order of the arguments.
+                justification: |
+                  The reported path of a file must not depend on how the user ordered the arguments, or the
+                  output is not reproducible.
+                tests:
+                  - FileDiscovery_Discover_CaseVariantSpellings_ReturnSameSpellingForAnyOrder
+
+              - id: LintMark-Engine-FileDiscovery-Separators
+                title: >-
+                  The FileDiscovery class shall accept both `/` and `\` as path separators in every argument on
+                  every platform.
+                justification: |
+                  A command line written on Windows must select the same files on Linux and macOS, for literal
+                  paths and directories as well as for patterns and exclusions.
+                tests:
+                  - FileDiscovery_Discover_BackslashGlob_IsAccepted
+                  - FileDiscovery_Discover_BackslashLiteralPath_FindsFile
+                  - FileDiscovery_Discover_BackslashLiteralExclude_RemovesFiles

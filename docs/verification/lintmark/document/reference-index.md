@@ -18,10 +18,14 @@ N/A - standard test environment.
   stands, including inside block quotes and list items.
 - Lookup ignores case and whitespace differences; the first of duplicate definitions wins and all stay listed.
 - Footnote definitions never appear as link reference definitions, wherever they stand.
+- The definition list cannot be modified by a caller that casts it.
 
 #### Test Scenarios
 
 ##### Normal operation
+
+**Definition list cannot be changed through a cast**: `Definitions` is not a `List<T>` or an array, every
+attempted change throws `NotSupportedException`, and lookups still find the definitions.
 
 **Definitions carry label, destination, title, range, and line**: A definition with a title and one without
 report their label, URL, title (or none), exact range, and 1-based line.

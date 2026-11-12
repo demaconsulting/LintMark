@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -86,7 +87,7 @@ internal sealed partial class SuppressionMap
     /// <summary>
     ///     The resolved ranges, sorted by start offset.
     /// </summary>
-    private readonly List<SuppressionRange> _ranges;
+    private readonly ImmutableArray<SuppressionRange> _ranges;
 
     /// <summary>
     ///     Alias-resolving function applied to every rule identifier before comparison.
@@ -96,17 +97,21 @@ internal sealed partial class SuppressionMap
     /// <summary>
     ///     Initializes a new instance of the <see cref="SuppressionMap"/> class.
     /// </summary>
-    /// <param name="ranges">Resolved ranges.</param>
+    /// <param name="ranges">Resolved ranges (copied into an immutable array).</param>
     /// <param name="canonicalize">Rule identifier alias-resolving function.</param>
     private SuppressionMap(List<SuppressionRange> ranges, Func<string, string> canonicalize)
     {
-        _ranges = ranges;
+        _ranges = ranges.ToImmutableArray();
         _canonicalize = canonicalize;
     }
 
     /// <summary>
     ///     Gets the resolved ranges sorted by start offset.
     /// </summary>
+    /// <remarks>
+    ///     The list is backed by an immutable array, so a caller cannot change the map through it,
+    ///     not even by casting.
+    /// </remarks>
     public IReadOnlyList<SuppressionRange> Ranges => _ranges;
 
     /// <summary>

@@ -97,13 +97,29 @@ sections:
                   - Context_WriteError_SetsErrorExitCode
 
               - id: LintMark-Cli-Context-LogFailure
-                title: The Context class shall report an error when the specified log file cannot be opened.
+                title: The Context class shall report an error when the specified log file path cannot be used.
                 justification: |
-                  Failure to open a log file must be surfaced immediately so that users know their
+                  Failure to use a log file must be surfaced as early as possible so that users know their
                   log output will not be captured, preventing silent data loss in audit or
-                  compliance workflows.
+                  compliance workflows. A path that is invalid, names a directory, or lies in a missing
+                  directory is rejected when the context is created; any other failure to open the file is
+                  reported by the first write.
                 tests:
                   - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
+                  - Context_Create_LogFlag_MissingDirectory_ThrowsInvalidOperationException
+
+              - id: LintMark-Cli-Context-LogDeferred
+                title: >-
+                  The Context class shall expose the full path of the log file and shall neither create nor
+                  change that file until the first line is written, and never again after disposal.
+                justification: |
+                  Opening a log file replaces its content, so doing it while the arguments are parsed would
+                  destroy a source file that was also given as an input before anyone could notice. Exposing the
+                  path lets the caller compare it with the files it is about to read and refuse the run first.
+                tests:
+                  - Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilFirstWrite
+                  - Context_Create_LogFlag_MissingFile_IsNotCreatedUntilFirstWrite
+                  - Context_WriteLine_AfterDispose_DoesNotReopenLogFile
 
               - id: LintMark-Cli-Context-Paths
                 title: >-
@@ -117,6 +133,7 @@ sections:
                   - Context_Create_NoPaths_PathsEmpty
                   - Context_Create_PathsMixedWithFlags_ParsesBoth
                   - Context_Create_HelpOrVersionWithPaths_DoesNotThrow
+                  - Context_Paths_CastToMutableTypes_CannotBeModified
 
               - id: LintMark-Cli-Context-Check
                 title: The Context class shall expose whether the `--check` flag was specified.

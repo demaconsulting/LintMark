@@ -31,7 +31,8 @@ N/A - standard test environment.
 - Each fixture for a parser behavior compensated by the unit shows the corrected range, classification,
   depth, or parent.
 - Every footnote definition is reported as a block that starts at its marker, whether or not it is referenced
-  and wherever it stands; footnote-like text in code is not reported.
+  and wherever it stands, on any line of the document (the line-start anchor of the marker expression applies
+  to each line); footnote-like text in code is not reported.
 - A link reference definition reports its enclosing container, and the paragraph or setext heading that follows
   a definition does not overlap it.
 - A footnote whose body ends with an indented HTML block ends with that block, so no block lies outside its parent.
@@ -51,6 +52,13 @@ N/A - standard test environment.
 #### Test Scenarios
 
 ##### Normal operation
+
+**Block list cannot be changed through a cast**: `ParsedDocument.Blocks` is an immutable array; viewed as
+`IList<BlockInfo>`, every attempted change throws `NotSupportedException`.
+
+**Unreferenced footnotes are found on any line**: Documents whose only footnote definition is unreferenced and
+stands on the first line, after a paragraph, directly after text, indented by three spaces, or far down the
+document report it with its exact range each time.
 
 **Blocks of a simple document are listed in source order**: A document with a heading, paragraphs, and a list
 returns its blocks ordered by position, enclosing blocks before the blocks they contain.

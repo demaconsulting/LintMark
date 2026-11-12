@@ -21,7 +21,7 @@ N/A - standard test environment.
   and `Program.Run`.
 - Invalid arguments produce exit code 1 and an error message.
 - Log files and results files are created at the specified paths when the corresponding flags
-  are used.
+  are used; a log file that is also an input is refused and left intact.
 - Positional paths flow from `Context.Create` to the engine; an undecodable file gives a diagnostic and
   exit code 1, and `--check` leaves files unchanged.
 - `--validate` combined with paths is rejected with exit code 1.
@@ -53,6 +53,10 @@ specified path and exits with 0.
 
 **Log flag writes a log file**: `["--log", "<tmp>.log"]` creates a log file at the specified path and exits
 with 0.
+
+**A log file that is also an input is refused and survives**: A Markdown file is named both as the log and as the
+input. Creating the context leaves the file's content intact, and `Program.Main` returns 1 with a message that
+contains "refusing to overwrite" while the content is still unchanged.
 
 **Depth flag sets the heading depth**: `["--depth", "2"]` is parsed and propagated through `Context`, and the exit
 code is 0.

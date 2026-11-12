@@ -599,4 +599,88 @@ public class FileDiscoveryTests
         Assert.Throws<ArgumentNullException>(() => FileDiscovery.Discover(null!, "."));
         Assert.Throws<ArgumentNullException>(() => FileDiscovery.Discover([], null!));
     }
+
+    /// <summary>
+    ///     Test that a null element is reported as a null argument wherever it stands, even after an invalid pattern.
+    /// </summary>
+    /// <param name="position">Which element is null (0: first, 1: after a blank pattern, 2: last after valid patterns).</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void FileDiscovery_Discover_NullElement_ThrowsArgumentNullException(int position)
+    {
+        // Arrange: a base directory and a pattern list with a null element (a blank pattern stands before it in one case)
+        using var directory = new TemporaryDirectory();
+        string[] patterns = position switch
+        {
+            0 => [null!, "*.md"],
+            1 => ["", null!],
+            _ => ["*.md", "!docs", null!]
+        };
+
+        // Act / Assert: the null element is rejected as null, not as a blank pattern
+        var exception = Assert.Throws<ArgumentNullException>(() => FileDiscovery.Discover(patterns, directory.FullPath));
+        Assert.Equal("patterns", exception.ParamName);
+    }
+
+    /// <summary>
+    ///     Test that one file named with different casing gets the same spelling whatever the argument order.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_CaseVariantSpellings_ReturnSameSpellingForAnyOrder()
+    {
+        // Arrange: the platform compares names without regard to case, and one file exists
+        Assert.SkipUnless(FileDiscovery.PathComparison == StringComparison.OrdinalIgnoreCase, "Names are case-sensitive on this platform");
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("docs/guide.md");
+
+        // Act: name the file with two spellings in both orders, and once through a glob
+        var lowerFirst = FileDiscovery.Discover(["docs/guide.md", "docs/GUIDE.md"], directory.FullPath);
+        var upperFirst = FileDiscovery.Discover(["docs/GUIDE.md", "docs/guide.md"], directory.FullPath);
+        var withGlob = FileDiscovery.Discover(["docs/GUIDE.md", "docs/*.md"], directory.FullPath);
+
+        // Assert: one entry, and the same (smallest-in-ordinal-order) spelling every time
+        var expected = new[] { directory.PathOf("docs/GUIDE.md") };
+        Assert.Equal(expected, lowerFirst);
+        Assert.Equal(expected, upperFirst);
+        Assert.Single(withGlob);
+        Assert.Equal(withGlob[0], FileDiscovery.Discover(["docs/*.md", "docs/GUIDE.md"], directory.FullPath)[0]);
+    }
+
+    /// <summary>
+    ///     Test that a literal path written with backslashes names the same file on every platform.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_BackslashLiteralPath_FindsFile()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name a file and a directory with backslash separators
+        var file = FileDiscovery.Discover(["docs\\guide.md"], directory.FullPath);
+        var folder = FileDiscovery.Discover(["docs\\deep"], directory.FullPath);
+
+        // Assert: both are found, as with forward slashes
+        Assert.Equal(Expected(directory, "docs/guide.md"), file);
+        Assert.Equal(Expected(directory, "docs/deep/more.md"), folder);
+    }
+
+    /// <summary>
+    ///     Test that a literal exclude written with backslashes removes the same files as with forward slashes.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_BackslashLiteralExclude_RemovesFiles()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: exclude a directory and a file by backslash paths
+        var files = FileDiscovery.Discover(["docs", "!docs\\deep", "!docs\\guide.md"], directory.FullPath);
+
+        // Assert: only the remaining file is left
+        Assert.Equal(Expected(directory, "docs/generated/api.md"), files);
+    }
 }

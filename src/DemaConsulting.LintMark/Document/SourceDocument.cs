@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Text;
 
 namespace DemaConsulting.LintMark.Document;
@@ -86,7 +87,7 @@ internal sealed class SourceDocument
             }
         }
 
-        LineStarts = starts;
+        LineStarts = starts.ToImmutableArray();
     }
 
     /// <summary>
@@ -122,6 +123,10 @@ internal sealed class SourceDocument
     /// <summary>
     ///     Gets the offset (into <see cref="Text"/>) of the first character of every line.
     /// </summary>
+    /// <remarks>
+    ///     The list is backed by an immutable array, so a caller cannot change the line table through
+    ///     it, not even by casting.
+    /// </remarks>
     public IReadOnlyList<int> LineStarts { get; }
 
     /// <summary>
