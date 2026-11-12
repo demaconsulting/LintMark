@@ -353,6 +353,52 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
+    ///     Test that an unknown setting, rule and link conversion option are reported at the name with a message.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_UnknownSettings_ReportedWithMessageAndPosition()
+    {
+        // Arrange: a file with an unknown setting, an unknown rule and an unknown link conversion option
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile(
+            ".lintmark.yaml",
+            "color: red\nrules:\n  no-such-rule: true\nlink-refactor:\n  color: red\n");
+
+        // Act: load a file
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+
+        // Assert: no configuration, and each unknown name is reported at the name with its message
+        Assert.Null(result.Config);
+        Assert.Equal(
+            [
+                (file, 1, 1, "Unknown setting 'color'"),
+                (file, 3, 3, "Unknown rule 'no-such-rule'"),
+                (file, 5, 3, "Unknown setting 'link-refactor.color'")
+            ],
+            result.Errors.Select(e => (e.Path, e.Line, e.Column, e.Message)));
+    }
+
+    /// <summary>
+    ///     Test that an invalid value is reported at the value with a message that names the allowed values.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_InvalidValue_ReportedWithMessageAndPosition()
+    {
+        // Arrange: a file with a value that is not one of the allowed words
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile(".lintmark.yaml", "wrap: sideways\n");
+
+        // Act: load a file
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+
+        // Assert: no configuration, and the value is reported at its position with its message
+        Assert.Null(result.Config);
+        Assert.Equal(
+            [(file, 1, 7, "Invalid value 'sideways' for setting 'wrap'; expected one of: fill, sentence, semantic")],
+            result.Errors.Select(e => (e.Path, e.Line, e.Column, e.Message)));
+    }
+
+    /// <summary>
     ///     Test that an invalid file reports every problem with its position and yields no configuration.
     /// </summary>
     [Fact]

@@ -203,7 +203,6 @@ sections:
               report, so that editors and build systems can read them.
             children:
               - LintMark-Engine-LintMarkEngine-ConfigErrorFormat
-              - LintMark-Engine-LintMarkEngine-EditorConfigFailure
             tests:
               - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
 
@@ -221,13 +220,13 @@ sections:
           - id: LintMark-Engine-ConfigErrorOrder
             title: >-
               The Engine subsystem shall order configuration problems together with the file failures by path
-              and position, with the same output for any number of files processed at once.
+              and position.
             justification: |
               Reproducible output is required for comparing runs and for stable build logs.
             children:
               - LintMark-Engine-LintMarkEngine-ConfigErrorOrder
             tests:
-              - EngineSubsystem_ConfigErrors_ParallelAndSequential_ProduceIdenticalOutput
+              - EngineSubsystem_ConfigErrors_AndFileFailures_MergedInPathThenPositionOrder
 
           - id: LintMark-Engine-ConfigErrorIsolation
             title: >-

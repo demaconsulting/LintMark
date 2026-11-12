@@ -72,7 +72,9 @@ The worker first reads and parses the file, then attaches the effective configur
 3. Otherwise, when a resolver is present, the line ending from the editor settings is copied into the
    configuration with a `with` expression, so a shared configuration is never changed. When the editor settings
    cannot be read, one `ConfigError` is stored at line 1, column 1 of the Markdown file and the configuration is kept
-   without a line ending. A line ending that is not specified stays unset.
+   without a line ending. A line ending that is not specified stays unset. This report is verified by tests without a
+   requirement until the formatting phase re-adds a requirement for it together with an observable system-level
+   behavior.
 
 When all workers have finished, the results are sorted by path. The failures of every file and the
 distinct configuration problems (those of all files plus the initial problems of an explicit `--config` file,

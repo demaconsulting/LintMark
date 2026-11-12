@@ -19,7 +19,10 @@ and with what exit status. The line ending that the editor settings give takes e
 rewritten, so no system requirement asserts its use in this phase: the system scenario shows that settings that
 LintMark cannot use never break a run, and the formatting phase adds the system requirement and the scenario that
 observe the line ending that the editor settings give. Until then that outcome is verified, without a requirement,
-by tests at the Configuration subsystem, `Engine` subsystem, and unit level.
+by tests at the Configuration subsystem, `Engine` subsystem, and unit level. The tolerance of settings that cannot be
+used is the only system requirement about editor settings: the report of editor settings that cannot be read is
+also verified by tests without a requirement until the formatting phase re-adds a requirement for it together with an
+observable system-level behavior.
 
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made

@@ -186,7 +186,7 @@ sections:
               - LintMark-Configuration-ConfigLoader-UnknownLinkOptions
               - LintMark-Configuration-ConfigLoader-UnknownRules
             tests:
-              - ConfigurationSubsystem_Validation_InvalidFile_ReportsEveryProblemWithPosition
+              - ConfigurationSubsystem_Validation_UnknownSettings_ReportedWithMessageAndPosition
 
           - id: LintMark-Configuration-InvalidValues
             title: >-
@@ -207,7 +207,7 @@ sections:
               - LintMark-Configuration-LintMarkConfig-ChoiceChecks
               - LintMark-Configuration-LintMarkConfig-WellFormedChecks
             tests:
-              - ConfigurationSubsystem_Validation_InvalidFile_ReportsEveryProblemWithPosition
+              - ConfigurationSubsystem_Validation_InvalidValue_ReportedWithMessageAndPosition
 
           - id: LintMark-Configuration-ConflictingEntries
             title: >-
@@ -291,17 +291,6 @@ sections:
               - LintMark-Configuration-EditorConfigResolver-MalformedContent
             tests:
               - ConfigurationSubsystem_EditorConfig_UnsupportedValues_NotSpecifiedWithoutError
-
-          - id: LintMark-Configuration-EditorConfigUnreadable
-            title: >-
-              The Configuration subsystem shall report editor settings that cannot be read as a message.
-            justification: |
-              A settings file that cannot be read may hold the setting that matters, so the user must be
-              told rather than have the tool continue as if the setting were absent.
-            children:
-              - LintMark-Configuration-EditorConfigResolver-UnreadableFile
-            tests:
-              - ConfigurationSubsystem_EditorConfig_UnreadableSettings_ReportedAsMessage
 
           - id: LintMark-Configuration-ConcurrentUse
             title: >-

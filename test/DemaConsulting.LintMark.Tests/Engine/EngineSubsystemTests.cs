@@ -271,6 +271,35 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that configuration problems and file failures are merged in path then position order.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_ConfigErrors_AndFileFailures_MergedInPathThenPositionOrder()
+    {
+        // Arrange: a root configuration with two problems, a nested configuration with one, and failing files
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "wrap: nope\nbogus: 1\n");
+        directory.WriteFile("docs/.lintmark.yaml", "tables: grid\n");
+        directory.WriteBytes("a.md", [0xFF]);
+        directory.WriteBytes("docs/x.md", [0xFF]);
+
+        // Act: run with several workers
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(4));
+
+        // Assert: ordinal path order, so the dotted file names come first, then position within a file
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            [
+                ".lintmark.yaml:1:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic",
+                ".lintmark.yaml:2:1: config-error Unknown setting 'bogus'",
+                "a.md:1:1: file-encoding-error Invalid UTF-8 byte sequence",
+                "docs/.lintmark.yaml:1:9: config-error Invalid value 'grid' for setting 'tables'; expected one of: compact, aligned",
+                "docs/x.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"
+            ],
+            lines);
+    }
+
+    /// <summary>
     ///     Test that parallel and sequential runs produce identical output when configurations are invalid.
     /// </summary>
     [Fact]

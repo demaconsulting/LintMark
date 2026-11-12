@@ -48,7 +48,9 @@ are therefore run sequentially with the other tests that touch process-wide stat
 - A file larger than 1 MiB is reported at line 1, column 1, and a file nested 100,000 levels deep is reported with a
   position within 10 seconds.
 - Editor settings that cannot be used (`cr`, `unset`, unknown, malformed lines, unrelated settings) are "not
-  specified" and never an error, and editor settings that cannot be read are reported as a one-line message.
+  specified" and never an error.
+- Supporting: editor settings that cannot be read are reported as a one-line message, which is verified without a
+  requirement (see below).
 - Many threads that use one loader and one resolver get results identical to sequential use.
 - Configurations and problem lists cannot be changed by their holders.
 
@@ -114,9 +116,19 @@ specified" result and none carries an error message.
 file is expected are each given to the explicit-file loader; each reports one problem at line 1, column 1 as soon as
 the loader is created, and a Markdown file loaded through it gets no configuration.
 
+**An unknown setting, rule, and link option are reported at the name**: A file with an unknown setting `color` on its
+first line, an unknown rule `no-such-rule` under `rules`, and an unknown option `color` under `link-refactor` gives no
+configuration and three problems, each at the position of the unknown name (1:1, 3:3, and 5:3) with the messages
+`Unknown setting 'color'`, `Unknown rule 'no-such-rule'`, and `Unknown setting 'link-refactor.color'`.
+
+**An invalid value is reported at the value**: A file with `wrap: sideways` gives no configuration and one problem at
+the value (1:7) with the message `Invalid value 'sideways' for setting 'wrap'; expected one of: fill, sentence,
+semantic`.
+
 **An invalid file reports every problem at its position and yields no configuration**: A file with an unknown
 setting, a wrong type, and an invalid value gives no configuration and three problems at line 1 column 1, line 2
-column 14, and line 3 column 7 of that file.
+column 14, and line 3 column 7 of that file. The scenario shows that all problems are returned together, each at its
+own position.
 
 **Malformed YAML is reported with a position**: A file with an unterminated quote gives no configuration and one
 problem that starts `Invalid YAML`, on or after the line of the quote.
@@ -132,9 +144,10 @@ is reported at 2:3 as invalid UTF-8; a file saved as UTF-16 is reported at 1:1 a
 and then by its name, and a setting given again at the end of the file, give no configuration and problems at the
 rule's second entry (4:3) and at the repeated setting (5:1), each naming the earlier line.
 
-**Editor settings that cannot be read are reported as a message**: A resolver whose lookup of the settings fails
-with a line break in its message gives no line ending and the one-line message
-`Cannot read .editorconfig settings: disk failure`.
+**Editor settings that cannot be read are reported as a message (supporting)**: A resolver whose lookup of the
+settings fails with a line break in its message gives no line ending and the one-line message
+`Cannot read .editorconfig settings: disk failure`. This scenario has no requirement; the formatting phase re-adds a
+requirement for it together with an observable system-level behavior.
 
 **Results cannot be changed through casts**: The rule table and the ignore patterns of a valid configuration, and the
 problem list of an invalid one, refuse every change attempted through the mutable collection interfaces.

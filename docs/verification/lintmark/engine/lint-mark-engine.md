@@ -48,9 +48,10 @@ Tests that change the current directory or capture console output run in the seq
 - A configuration problem is written once, however many files share it, as `path:line:col: config-error message`
   with a forward-slash path relative to the current directory (including `../` paths), merged with file failures in
   path and position order, with exit code 1; the files of an invalid configuration are still read.
-- A problem of a named configuration file is reported even when no Markdown file is selected, and editor settings
-  that cannot be read are reported at line 1, column 1 of the Markdown file they were read for.
+- A problem of a named configuration file is reported even when no Markdown file is selected.
 - One worker and many workers give identical results and output.
+- Supporting: editor settings that cannot be read are reported at line 1, column 1 of the Markdown file they were
+  read for; this is verified without a requirement until the formatting phase re-adds one.
 - Supporting: the line ending of a file is the configuration's when it gives one (the editor settings are then not
   consulted), otherwise the editor settings', otherwise unspecified, also with an explicit configuration file; `cr`
   and other unusable editor values leave it unspecified. The line ending is not observable until files are
@@ -133,7 +134,8 @@ configuration and an engine whose resolver throws when consulted are run with `-
 reported as `a.md:1:1: config-error Cannot read .editorconfig settings: consulted`, which shows that it was
 consulted.
 
-**Configuration problems give identical output for any degree of parallelism**: Invalid configurations in several
+**Configuration problems give identical output for any degree of parallelism (supports the ordered results)**:
+Invalid configurations in several
 folders (an invalid value, an unknown setting, and a conflict between a rule's legacy number and its name), forty
 valid files, and one undecodable file are run with one worker and with sixteen; the exit code is 1, the lines and
 the exit code are identical, no line is repeated, and there are four lines.
@@ -208,7 +210,8 @@ missing file give the configuration problem and then `missing.md:1:1: file-read-
 `Process` level, an invalid configuration leaves each result without a configuration but with one configuration
 problem, while an undecodable file still reports its `file-encoding-error` and the valid file has no failure.
 
-**Unreadable editor settings are reported at the Markdown file**: With a resolver whose lookup throws an
+**Unreadable editor settings are reported at the Markdown file (supporting)**: With a resolver whose lookup throws an
 `IOException`, `a.md:1:1: config-error Cannot read .editorconfig settings: disk failure` is written and the exit
 code is 1; at the `Process` level the result keeps its configuration, the line ending stays unspecified, and the
-problem is at line 1, column 1 of the Markdown file.
+problem is at line 1, column 1 of the Markdown file. These scenarios have no requirement; the formatting phase
+re-adds a requirement for them together with an observable system-level behavior.

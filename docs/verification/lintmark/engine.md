@@ -44,8 +44,9 @@ scenario writes declares `root = true`.
 - `--config` makes one named file govern every file and its problems are reported once, also when no file is
   selected; `--no-config` reads no configuration file and no editor settings, so invalid ones are never reported.
 - Editor-settings values that cannot be used are never an error.
-- Configuration problems and file failures come out in the same order and with the same exit code for one worker
-  and for eight workers.
+- Configuration problems and file failures are merged in path order and, within a file, in position order.
+- A file is processed with the same configuration, and gives the same configuration problems and exit code, for one
+  worker and for eight workers.
 - Supporting: the line ending of a file comes from its configuration, else from the editor settings, else stays
   unspecified.
 
@@ -86,9 +87,16 @@ discoverable file is not involved and the problem is not repeated for every file
 `.editorconfig` with a malformed line and an unknown `end_of_line` value are present; with `--no-config` the
 exit code is 0 and nothing is written, and the same run without the option exits with 1 and writes one line.
 
-**Sequential and parallel runs give identical configuration reports**: Six folders hold twelve files each, three of
+**Sequential and parallel runs give identical configuration reports (configuration independent of scheduling)**: Six
+folders hold twelve files each, three of
 them with an invalid configuration that has two problems, and one failing file; with one worker and with eight
 workers the seven lines are identical, in ordinal path order, with the same exit code 1.
+
+**Configuration problems and file failures are merged in path and position order**: A root configuration with two
+problems (`wrap: nope` and an unknown setting), a nested configuration in `docs` with one problem, and two
+undecodable files (`a.md` and `docs/x.md`) are run with four workers; the exit code is 1 and the five lines come out
+in ordinal path order (the dotted `.lintmark.yaml` first, then `a.md`, then `docs/.lintmark.yaml`, then
+`docs/x.md`) and, within a file, in position order, with the messages of the configuration and file problems.
 
 **Editor settings that cannot be used are not an error**: An `.editorconfig` that gives `cr`, `unset`, an unknown
 word, an unrelated setting, and has malformed lines is present for five files; the exit code is 0 and nothing is

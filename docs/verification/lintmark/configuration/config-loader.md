@@ -209,7 +209,8 @@ switch off the line-length rule.
 
 **Reordered rule entries give equal rules**: The same toggles in opposite orders give equal tables.
 
-**Ignore list replaces the default patterns**: A one-element list leaves exactly that pattern.
+**Ignore list replaces the default patterns**: A list of three patterns in non-alphabetical order is kept exactly as
+given, in that order, and no default pattern remains.
 
 **Empty ignore list clears the default patterns**: Nothing remains ignored.
 
@@ -225,6 +226,10 @@ key recognized.
 
 **CRLF line endings parse and number lines like LF**: The same three-line content with LF and with CRLF gives
 the same problems at the same positions, on lines 2 and 3.
+
+**A valid file with CRLF line endings gives the same configuration as with LF**: A valid file with several settings,
+a rule toggle, and an ignore list is parsed with LF and with CRLF line endings; the two configurations are equal
+and differ from the defaults.
 
 ##### Unknown settings
 

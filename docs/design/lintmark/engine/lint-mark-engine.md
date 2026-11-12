@@ -113,7 +113,9 @@ configuration is copied with that line ending using a `with` expression on the i
 configuration is attached unchanged. The precedence is therefore: the configuration's `end-of-line`, then the
 editor settings, then unspecified. Nothing consumes the line ending before the formatter exists, so this
 precedence is verified by tests that have no requirement in this phase; the formatting phase adds the requirements
-that make it observable.
+that make it observable. The 1:1 report of editor settings that cannot be read is likewise verified by tests without
+a requirement until the formatting phase re-adds a requirement for it together with an observable system-level
+behavior.
 
 #### Error Handling
 

@@ -58,8 +58,10 @@ gives every concurrent caller the same chain, so results are identical to sequen
 
 **Scope of the requirements in this phase**: What a user can observe before files are rewritten is that editor
 settings that cannot be used (a `cr` or `unset` value, an unknown word, a missing setting, no applicable section,
-malformed lines) never produce an error, and that settings that cannot be read are reported. Those are the
-behaviors the resolver's requirements state. Which line ending a given set of settings gives (the layering of
+malformed lines) never produce an error. That is the behavior the resolver's requirements state. A settings file
+that cannot be read is reported as a message; that behavior is verified by a test without a requirement, and the
+formatting phase re-adds a requirement for it together with an observable system-level behavior. Which line ending a
+given set of settings gives (the layering of
 files and sections, the root file, the section patterns, letter case, and the per-directory cache) takes effect
 with the formatter. Their tests are kept as tests without a requirement, and the formatting phase adds the system
 requirement that the tool uses the line ending given by the editor settings, together with the requirements that

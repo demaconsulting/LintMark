@@ -81,7 +81,7 @@ immutable result. Results are pure functions of the file-system content, indepen
 - Content larger than 1 MiB is rejected (the reader stops a little beyond the limit, so a huge file is not loaded).
 - A UTF-8 byte order mark is stripped silently. A UTF-16 or UTF-32 byte order mark is rejected.
 - Decoding is strict UTF-8: invalid bytes are reported at their position, never replaced.
-- LF and CRLF line endings are both accepted.
+- LF and CRLF line endings are both accepted and give the same result, including the positions of problems.
 - Positions are 1-based, count UTF-16 code units, and count a tab as one, the same convention as the source
   document of the `Document` subsystem. They refer to the decoded text, so a stripped byte order mark does not
   shift columns.
@@ -142,7 +142,8 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
   applies. The value must be a boolean.
 - `ignore` must be a list of non-blank, single-line text elements. A backslash in a pattern is converted to a
   slash, exact duplicates are removed keeping the first, and the order is preserved. A configured list replaces
-  the default list. The setting is validated and stored but not applied by the engine yet.
+  the default list and is used as given, apart from that normalization. The setting is validated and stored but
+  not applied by the engine yet.
 - `definitions-marker` must be a single-line HTML comment (see *LintMarkConfig Design*).
 - Anchors, aliases, and tags (including `!!str`) are rejected, because the meaning of a setting must be readable
   where it is written. Complex (non-scalar) keys are rejected. Literal and folded scalars are accepted by the

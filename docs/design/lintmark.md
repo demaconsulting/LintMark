@@ -283,6 +283,9 @@ N/A - not a safety-classified software item.
   `--config` replaces only the discovery of `.lintmark.yaml` and does not disable `.editorconfig`. The line ending
   is stored but not consumed before the formatter exists, so it cannot be observed from outside the tool in this
   phase; the formatting phase adds the system requirement that the tool uses it, and until then only the
-  tolerance of editor settings that cannot be used is a system requirement.
+  tolerance of editor settings that cannot be used is a system requirement. The report of editor settings that
+  cannot be read (a `config-error` at 1:1 of the Markdown file) is verified by supporting tests without a
+  requirement; the formatting phase re-adds a requirement for it together with an observable system-level
+  behavior.
 - Configuration scope: the `ignore` setting is validated and stored, but the engine does not apply it yet, and no
   setting other than the line ending changes behavior until linting and formatting are added.

@@ -307,8 +307,8 @@ sections:
 
               - id: LintMark-Configuration-ConfigLoader-IgnorePatterns
                 title: >-
-                  The ConfigLoader class shall accept a list of ignore patterns, including an empty list, that
-                  replaces the default patterns and keeps the order given.
+                  The ConfigLoader class shall use the list of ignore patterns that a configuration file gives,
+                  including an empty list, instead of the default patterns.
                 justification: |
                   The list says which files the user does not want processed. A configuration that names its
                   own list means exactly that list.
@@ -373,13 +373,14 @@ sections:
 
               - id: LintMark-Configuration-ConfigLoader-LineEndings
                 title: >-
-                  The ConfigLoader class shall accept a configuration file with LF or CRLF line endings, numbering
-                  its lines the same way in both.
+                  The ConfigLoader class shall give the same result for a configuration file with CRLF line
+                  endings as for the same content with LF line endings, including the positions of problems.
                 justification: |
                   Configuration files are written on many platforms, and a reported line number must match what
                   the user's editor shows.
                 tests:
                   - ConfigLoader_Parse_CrlfLineEndings_ParsesAndNumbersLinesCorrectly
+                  - ConfigLoader_Parse_CrlfLineEndings_ValidFile_GivesEqualConfig
                 children:
                   - LintMark-OTS-YamlDotNet-LineEndingPositions
 

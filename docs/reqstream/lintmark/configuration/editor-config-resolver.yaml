@@ -2,11 +2,11 @@
 # Software Unit Requirements for the EditorConfigResolver Class
 #
 # The EditorConfigResolver class determines the line ending that the .editorconfig files give for a
-# Markdown file. Only the tolerance of settings that cannot be used and the reporting of settings that cannot
-# be read are observable before files are rewritten, so those are the behaviors required in this phase. The
-# resolution of the line ending value itself is verified by tests that are not linked to a requirement
-# until the formatting phase adds the matching system requirement. Requirements that depend on the behavior
-# of the editor-settings library list the matching OTS requirements as children.
+# Markdown file. Only the tolerance of settings that cannot be used is observable before files are
+# rewritten, so that is the behavior required in this phase. The resolution of the line ending value
+# itself and the reporting of settings that cannot be read are verified by tests that are not linked to
+# a requirement until the formatting phase adds the matching system requirements. Requirements that
+# depend on the behavior of the editor-settings library list the matching OTS requirements as children.
 
 sections:
   - title: LintMark Requirements
@@ -43,16 +43,6 @@ sections:
                   - EditorConfigResolver_Resolve_MalformedEditorConfig_BadLinesIgnored_LaterSectionApplies
                 children:
                   - LintMark-OTS-EditorConfig-MalformedLines
-
-              - id: LintMark-Configuration-EditorConfigResolver-UnreadableFile
-                title: >-
-                  The EditorConfigResolver class shall report a settings file that applies and cannot be read as
-                  a one-line message instead of throwing.
-                justification: |
-                  A file that cannot be read may contain the setting that matters, so the user must be told
-                  rather than have the tool continue as if the setting were absent.
-                tests:
-                  - EditorConfigResolver_Resolve_UnreadableEditorConfig_ReturnsErrorMessage
 
               - id: LintMark-Configuration-EditorConfigResolver-ConcurrentLookups
                 title: >-

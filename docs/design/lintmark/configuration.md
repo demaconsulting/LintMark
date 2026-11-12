@@ -135,12 +135,14 @@ compensate for; the compensation is described in the unit designs.
 
 **Scope of the requirements in this phase**: The line ending that the editor settings or the configuration give is
 stored on each file's effective configuration but nothing consumes it before the formatter exists, so it cannot be
-observed from outside the tool. The requirements therefore state only what is observable now: editor settings that
-cannot be used never produce an error, and settings that cannot be read are reported. Determining the line ending
-(nearest file, sections, root file, patterns, letter case, the `end-of-line` setting taking precedence) is verified
-by tests that have no requirement. The formatting phase adds the system requirement that the tool uses the line
-ending given by the editor settings when the configuration gives none, together with the subsystem and unit
-requirements that decompose it, and links the existing tests to them.
+observed from outside the tool. The requirement therefore states only what is observable now: editor settings that
+cannot be used never produce an error. The report of settings that cannot be read (a message that the engine places
+at the start of the Markdown file) is verified by tests that have no requirement, like the determination of the line
+ending (nearest file, sections, root file, patterns, letter case, the `end-of-line` setting taking precedence). The
+formatting phase adds the system requirement that the tool uses the line
+ending given by the editor settings when the configuration gives none, and re-adds a requirement for the report of
+unreadable settings together with an observable system-level behavior, with the subsystem and unit
+requirements that decompose them, and links the existing tests to them.
 
 **Guards against pathological files**: A configuration file that is implausibly large or implausibly deeply nested
 is reported as a problem with a position, promptly. The limits and the reasons for them are described in

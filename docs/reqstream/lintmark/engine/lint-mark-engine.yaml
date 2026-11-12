@@ -127,6 +127,7 @@ sections:
                   - LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder
                   - LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted
                   - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults
+                  - LintMarkEngine_Run_ConfigErrors_ParallelAndSequentialProduceIdenticalOutput
 
               - id: LintMark-Engine-LintMarkEngine-ImmutableResults
                 title: >-
@@ -226,13 +227,11 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorOrder
                 title: >-
                   The LintMarkEngine class shall order configuration problems together with file failures by
-                  path and then by position, with the same output for any degree of parallelism.
+                  path and then by position.
                 justification: |
-                  Reproducible output is required for comparing runs and for stable build logs, and
-                  scheduling must never be visible.
+                  Reproducible output is required for comparing runs and for stable build logs.
                 tests:
                   - LintMarkEngine_Run_ConfigErrorsAndFileFailures_MergedInPathThenPositionOrder
-                  - LintMarkEngine_Run_ConfigErrors_ParallelAndSequentialProduceIdenticalOutput
 
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorIsolation
                 title: >-
@@ -243,16 +242,6 @@ sections:
                 tests:
                   - LintMarkEngine_Process_InvalidConfig_FileStillParsedAndConfigNull
                   - LintMarkEngine_Run_InvalidConfig_StillReportsFileReadFailures
-
-              - id: LintMark-Engine-LintMarkEngine-EditorConfigFailure
-                title: >-
-                  The LintMarkEngine class shall report editor settings that cannot be read as a configuration
-                  problem at line 1 and column 1 of the Markdown file they were read for.
-                justification: |
-                  Settings that cannot be read may contain the line ending that matters, so the user must be
-                  told, and the problem belongs to the file that was affected.
-                tests:
-                  - LintMarkEngine_Run_EditorConfigUnreadable_ReportsConfigErrorAtMarkdownFile
 
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorExitStatus
                 title: >-

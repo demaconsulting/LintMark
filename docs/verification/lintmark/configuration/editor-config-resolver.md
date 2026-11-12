@@ -17,9 +17,10 @@ Every scenario that reads settings from the file system starts its tree with a r
 the temporary tree. Section patterns are exercised through one data-driven test whose cases are the pattern forms
 of the editor settings specification; each case is a separate test case.
 
-The behavior that is required in this phase is the tolerance of settings that cannot be used, the report of
-settings that cannot be read, and the same results under concurrent use. Which line ending the settings give is not
-observable until files are rewritten, so the scenarios that verify it (marked supporting below) are tests without a
+The behavior that is required in this phase is the tolerance of settings that cannot be used and the same results
+under concurrent use. Which line ending the settings give is not
+observable until files are rewritten, and neither is the report of settings that cannot be read, so the scenarios
+that verify them (marked supporting below) are tests without a
 requirement; the formatting phase adds the requirements that they then verify.
 
 #### Test Environment
@@ -35,8 +36,8 @@ and repeat every lookup ten times through one shared resolver.
 - `cr`, `unset`, an unknown word, an empty value, no `end_of_line` setting, and no applicable section all give "not
   specified" without an error message.
 - Malformed lines are ignored and no error is reported.
-- Settings that cannot be read give a one-line message and no line ending, never an exception.
 - Many threads get the sequential results.
+- Supporting: settings that cannot be read give a one-line message and no line ending, never an exception.
 - Supporting: `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
   value in any letter case; the nearest file that gives a value wins, a value that cannot be used in a nearer file
   hides a farther one, a file that declares `root = true` ends the search, and a later section overrides an
@@ -63,13 +64,6 @@ error.
 **Malformed lines are ignored and later sections still apply**: A file with `[[[`, a bare property name, a bare
 equals sign, and a line of text before a valid `[*.md]` section gives `crlf` and no error message.
 
-##### Settings that cannot be read
-
-**Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
-whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
-settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
-"Cannot read .editorconfig settings: denied". Nothing is thrown.
-
 ##### Concurrency
 
 **Many threads get the sequential results**: Nested settings files with different sections and 60 files in three
@@ -77,6 +71,12 @@ folders are resolved ten times each from 16 threads through one shared resolver;
 a fresh resolver used sequentially.
 
 ##### Supporting scenarios (no requirement until the formatting phase)
+
+**Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
+whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
+settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
+"Cannot read .editorconfig settings: denied". Nothing is thrown. The formatting phase re-adds a requirement for the
+report of unreadable settings together with an observable system-level behavior.
 
 **Section that gives `lf` resolves to `lf`**: A `[*]` section with `end_of_line = lf` gives `lf` for a Markdown file,
 with no error message.

@@ -241,6 +241,25 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
+    ///     Test that a valid file with CRLF line endings gives the same configuration as the same content with LF.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_Parse_CrlfLineEndings_ValidFile_GivesEqualConfig()
+    {
+        // Arrange: a valid file with several settings, with both line endings
+        const string lf = "line-length: 90\nwrap: semantic\nrules:\n  line-length: false\nignore:\n  - build/**\n";
+        var crlf = lf.Replace("\n", "\r\n", StringComparison.Ordinal);
+
+        // Act: parse both
+        var lfConfig = Valid(lf);
+        var crlfConfig = Valid(crlf);
+
+        // Assert: the configurations are equal, and they are not the defaults
+        Assert.Equal(lfConfig, crlfConfig);
+        Assert.NotEqual(LintMarkConfig.Default, crlfConfig);
+    }
+
+    /// <summary>
     ///     Test that the order of settings does not matter.
     /// </summary>
     [Fact]
@@ -965,16 +984,16 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that an ignore list is accepted and replaces the defaults.
+    ///     Test that an ignore list replaces the defaults and is used exactly as given, in the given order.
     /// </summary>
     [Fact]
     public void ConfigLoader_Parse_IgnoreReplacesDefaults()
     {
-        // Act: parse an ignore list
-        var config = Valid("ignore:\n  - build/**\n");
+        // Act: parse an ignore list whose order is not alphabetical
+        var config = Valid("ignore:\n  - zeta/**\n  - alpha/**\n  - build/**\n");
 
-        // Assert: only the given pattern remains
-        Assert.Equal(["build/**"], config.Ignore);
+        // Assert: exactly the given patterns remain, in the given order, and no default pattern is left
+        Assert.Equal(["zeta/**", "alpha/**", "build/**"], config.Ignore);
     }
 
     /// <summary>
