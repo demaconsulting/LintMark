@@ -73,18 +73,6 @@ sections:
               - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
               - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
 
-          - id: LintMark-Engine-LogNotInput
-            title: >-
-              The Engine subsystem shall refuse a run whose selection contains the log file, without touching
-              that file.
-            justification: |
-              The log file is replaced when it is first written, so a source file that is also the log would
-              be destroyed. Refusing the run guarantees that logging never costs the user a file.
-            children:
-              - LintMark-Engine-LintMarkEngine-LogNotInput
-            tests:
-              - EngineSubsystem_LogFileInSelection_IsRefusedUnlessExcluded
-
           - id: LintMark-Engine-FailureReport
             title: >-
               The Engine subsystem shall report each file that cannot be read, decoded, or processed on its own

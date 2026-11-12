@@ -29,8 +29,6 @@ console output run in the sequential test collection.
   parallelism, or the completion order.
 - Files run at the same time when parallelism allows it, and never when it is limited to one.
 - Invalid constructor and method arguments are rejected.
-- A log file that is among the selected files is refused before it is touched, whether it is named, found by
-  discovery, or missing; excluding it with a `!` pattern, or placing it outside the selection, allows the run.
 - A file result cannot be modified through its failure list.
 
 #### Test Scenarios
@@ -65,13 +63,6 @@ at 0.
 **Several failures of one file are ordered by position**: They are written ordered by line, column, and rule
 identifier.
 
-**Excluded log file lets the run proceed**: With `--log` naming a Markdown file in the selected tree and the
-same file excluded with a `!` pattern, `Select` returns the other files and leaves the log file's content
-intact until it is written.
-
-**Log file outside the selection does not prevent a run**: A log whose name the selection does not match is
-accepted, and `Select` does not create it.
-
 **File result failures cannot be changed through a cast**: A result built from an array that the creator later
 changes keeps its original failures, and the list is not a `List<FileFailure>` or an array and throws
 `NotSupportedException` for every attempted change.
@@ -105,15 +96,4 @@ is written as a `file-parse-error` line by `Run`.
 
 **Degree of parallelism below one is rejected**: The constructor throws `ArgumentOutOfRangeException`.
 
-**Null arguments are rejected**: Null arguments to `Run`, `Select`, and `Process` throw `ArgumentNullException`.
-
-**Log file named as an input is refused**: With the log file named as the input, `Select` throws
-`InvalidOperationException` that names the file, and the file's content is unchanged.
-
-**Log file found by discovery is refused**: With the log file a Markdown file under the current directory and
-no path arguments, `Run` throws `InvalidOperationException`, reports no failure, and leaves the file intact.
-
-**Log file reached through a link is refused**: A log named through a symbolic link to an input file, and a log
-named through a linked directory that holds the input, each make `Select` throw `InvalidOperationException` with
-the input intact (skipped where the environment cannot create symbolic links). The same comparison by real path
-makes the other log tests pass on macOS, where temporary folders are below the `/var` link.
+**Null arguments are rejected**: Null arguments to `Run` and `Process` throw `ArgumentNullException`.

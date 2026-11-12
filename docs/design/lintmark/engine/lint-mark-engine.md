@@ -38,44 +38,20 @@ Line breaks in messages are replaced by spaces so that a failure is always one l
 
 #### Key Methods
 
-**Run**: Discovers, processes, and reports. Two overloads: `Run(Context)` selects the files itself and
-`Run(Context, IReadOnlyList<string>)` reports on files that the caller has already selected.
+**Run**: Discovers, processes, and reports.
 
-- *Parameters*: `Context context`; optionally the selected `files`.
+- *Parameters*: `Context context`.
 - *Returns*: `void`.
-- *Preconditions*: arguments are not null.
+- *Preconditions*: `context` is not null.
 - *Postconditions*: every failure has been written with `Context.WriteError`; the exit code is 1 when at
   least one failure was reported, and unchanged otherwise.
 
-Steps: (1) `Run(Context)` calls `Select`; (2) call `Process`; (3) pair
+Steps: (1) discover the files with `FileDiscovery.Discover(context.Paths, current directory)`; (2) call
+`Process`; (3) pair
 each result with its display path (relative to the current directory, `/` separators) and sort by display
 path (ordinal); (4) for each file, order its failures by line, column, and rule identifier (ordinal) and
 write `{display-path}:{line}:{col}: {rule-id} {message}`. No summary line is written. Zero matched files
 is not an error.
-
-**Select** (static): Selects the files and protects the log file.
-
-- *Parameters*: `Context context`.
-- *Returns*: `IReadOnlyList<string>` — the distinct full paths from `FileDiscovery.Discover(context.Paths,
-  current directory)`.
-- *Preconditions*: `context` is not null.
-- *Postconditions*: nothing has been read or written, and the log file has not been touched.
-
-When `context.LogFile` is among the selected files the method throws
-`InvalidOperationException` ("Log file '{path}' is also selected as an input file; refusing to overwrite it.
-Choose a different --log path or exclude the file with a ! pattern."). Paths are compared by real path
-(`ResolveLinks`): every symbolic link or junction along each path, including the last segment, is replaced by its
-target (directories are resolved once and cached), and the results are compared with
-`FileDiscovery.PathComparison`. This
-matters because the same file can be named through a link: macOS temporary folders live below `/var`, a link to
-`/private/var`, and the current directory is reported by its real path, so a log named through `/var` would not
-equal the discovered path of the same file. Hard links cannot be recognized this way and are not detected; they
-are made harmless by `Context`, which never truncates the log file in place but moves a temporary file over it,
-so the other name of a hard-linked file keeps its content. A context that has written anything replaces the log
-file when it is disposed, which would destroy an input that is also the log; refusing is the only outcome that
-cannot lose data, and an
-exclusion pattern lets the user keep the log inside the selected folders. `Program` calls `Select` before any
-output for this reason.
 
 **Process**: Processes files, possibly in parallel.
 
@@ -100,8 +76,6 @@ Per-file failures are data, not exceptions, and are reported through `Context.Wr
 raise `ArgumentNullException`, and a degree of parallelism below one raises `ArgumentOutOfRangeException`.
 An empty path argument raises `ArgumentException` from discovery; because `Context` writes happen only
 after processing, nothing has been written when that happens, and `Program.Main` reports it as an error.
-A log file that is one of the selected files raises `InvalidOperationException` from `Select`, likewise
-before anything is written.
 
 Workers never write output and never touch the `Context`; this is the thread-safety rule that makes the
 output deterministic (see the *LintMark* system design).
@@ -114,5 +88,4 @@ output deterministic (see the *LintMark* system design).
 
 #### Callers
 
-- **Program** — `Run` calls the static `Select` before any output and then `Run(context, files)` on an engine
-  with the default settings.
+- **Program** — `Run` calls `Run(context)` on an engine with the default settings.

@@ -112,7 +112,7 @@ lintmark [options] [paths...]
 | `--validate`                          | Run self-validation (cannot be combined with paths)          |
 | `--results <file>`, `--result <file>` | Write results to `.trx` (TRX) or `.xml` (JUnit XML) file.    |
 | `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
-| `--log <file>`                        | Write output to log file (refused if it is a selected file)  |
+| `--log <file>`                        | Write output to log file                                     |
 
 ## Output and Exit Codes
 

@@ -36,14 +36,11 @@ Creates a `Context` using `Context.Create(args)`, calls `Run(context)`, and retu
 - *Preconditions*: `context` is not null.
 - *Postconditions*: Exactly one handler has been called.
 
-Before dispatching, and before any output, selects the files with `LintMarkEngine.Select(context)` when no
-action flag is set (the files are then processed) or when the log file already exists (a guard only, for
-version, help, and validation): a context that has written anything replaces the log file when it is disposed,
-and `Select` refuses the run when the log file is one of the selected files. Then inspects flags in priority
+Inspects flags in priority
 order: (1) if `context.Version` is true, calls `context.WriteLine(Version)` and returns; (2) calls
 `PrintBanner`; (3) if `context.Help` is true, calls `PrintHelp` and returns; (4) if `context.Validate` is
-true, calls `Validation.Run(context)`; (5) otherwise calls `LintMarkEngine.Run(context, files)` with the
-files selected before dispatching, which processes and reports them.
+true, calls `Validation.Run(context)`; (5) otherwise calls `LintMarkEngine.Run(context)`, which selects,
+processes, and reports the files.
 
 **PrintBanner**: Writes the tool name, version, and copyright line to `context`.
 
@@ -65,9 +62,7 @@ code 1 without a stack trace; this includes the usage error raised by `Context.C
 `--validate` is combined with paths or `--check`. Unexpected errors (`Exception`) are written to
 stderr as `"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
 `Run`, `PrintBanner`, and `PrintHelp` do not catch exceptions; all errors
-propagate to `Main`. A log file that is one of the selected files is such an error
-(`InvalidOperationException` from `LintMarkEngine.Select`, reported as `Error: {message}` with exit
-code 1 and nothing written). Failures of individual files are not exceptions: `LintMarkEngine` reports them
+propagate to `Main`. Failures of individual files are not exceptions: `LintMarkEngine` reports them
 through `Context.WriteError`, which makes the exit code 1.
 
 ### Dependencies
@@ -76,8 +71,7 @@ through `Context.WriteError`, which makes the exit code 1.
   `Context.WriteError` for all output.
 - **Validation** — `Program.Run` calls `Validation.Run(context)` when the `--validate` flag is
   set.
-- **LintMarkEngine** — `Run` calls `LintMarkEngine.Select(context)` and then
-  `LintMarkEngine.Run(context, files)` to process the selected Markdown files.
+- **LintMarkEngine** — `Run` calls `LintMarkEngine.Run(context)` to process the selected Markdown files.
 
 ### Callers
 

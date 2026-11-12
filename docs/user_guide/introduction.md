@@ -244,23 +244,14 @@ Write output to a log file:
 lintmark --log output.log
 ```
 
-The log is first written to a temporary file next to the log file, and the log file itself is replaced when the
-run ends, by moving the temporary file over it (the old file is replaced, never truncated in place, so a second
-name for it, such as a hard link, is left unchanged). To make sure that logging can
-never destroy one of your files, LintMark refuses to run when the log file is also one of the files it would
-process, and reports an error without writing or changing anything (the comparison follows symbolic links, so
-naming the file through a link does not get around it):
+The log file is opened, and any existing content is replaced, as soon as LintMark starts. This is the same
+behavior as the other DEMA Consulting tools. Choose a log path that is not one of your Markdown files: LintMark does
+not check whether the log file is also one of the files it would process, so `lintmark --log README.md` empties
+`README.md` before reading it. A log file that cannot be opened (for example, because its directory does not exist)
+is reported as an error and nothing is processed:
 
 ```text
-Error: Log file '/work/README.md' is also selected as an input file; refusing to overwrite it. Choose a
-different --log path or exclude the file with a ! pattern.
-```
-
-Choose a log file that the selection does not match (for example `output.log`), or exclude the log file when
-you want to keep it inside the selected folders:
-
-```bash
-lintmark --log lint-report.md "!lint-report.md"
+Error: Failed to open log file 'missing/output.log': Could not find a part of the path '/work/missing/output.log'.
 ```
 
 ## Error Handling
@@ -300,7 +291,7 @@ lintmark [options] [paths...]
 | `--validate`                          | Run self-validation (cannot be combined with paths)          |
 | `--results <file>`, `--result <file>` | Write validation results to file (TRX or JUnit format)       |
 | `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
-| `--log <file>`                        | Write output to log file (refused if it is a selected file)  |
+| `--log <file>`                        | Write output to log file                                     |
 
 # Examples
 
