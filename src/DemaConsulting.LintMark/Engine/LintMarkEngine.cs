@@ -181,15 +181,79 @@ internal sealed class LintMarkEngine
         // Discover the files against the current directory
         var files = FileDiscovery.Discover(context.Paths, Directory.GetCurrentDirectory());
 
-        // Opening the log file replaces its content, so a log that is also an input would destroy that input
-        if (context.LogFile is { } logFile && files.Any(file => string.Equals(file, logFile, FileDiscovery.PathComparison)))
+        // Opening the log file replaces its content, so a log that is also an input would destroy that input.
+        // The comparison is by real path: a path that reaches a file through a link (for example the /var to
+        // /private/var link of macOS temporary folders, or a symbolic link to a source file) names the same file
+        if (context.LogFile is { } logFile)
         {
-            throw new InvalidOperationException(
-                $"Log file '{logFile}' is also selected as an input file; refusing to overwrite it. " +
-                "Choose a different --log path or exclude the file with a ! pattern.");
+            var cache = new Dictionary<string, string>(StringComparer.Ordinal);
+            var realLog = ResolveLinks(logFile, cache);
+            if (files.Any(file => string.Equals(ResolveLinks(file, cache), realLog, FileDiscovery.PathComparison)))
+            {
+                throw new InvalidOperationException(
+                    $"Log file '{logFile}' is also selected as an input file; refusing to overwrite it. " +
+                    "Choose a different --log path or exclude the file with a ! pattern.");
+            }
         }
 
         return files;
+    }
+
+    /// <summary>
+    ///     Resolves every symbolic link or junction along a full path.
+    /// </summary>
+    /// <param name="fullPath">The full path.</param>
+    /// <param name="cache">Resolved directories by directory path, shared between calls to save repeated work.</param>
+    /// <returns>The full path with every link replaced by its target; the path itself when nothing is a link.</returns>
+    /// <remarks>
+    ///     Hard links cannot be recognized this way; a log file that is a hard link to an input is not detected.
+    /// </remarks>
+    private static string ResolveLinks(string fullPath, Dictionary<string, string> cache)
+    {
+        var directory = Path.GetDirectoryName(fullPath);
+        return directory is null
+            ? fullPath
+            : ResolveLink(Path.Combine(ResolveDirectory(directory, cache), Path.GetFileName(fullPath)));
+    }
+
+    /// <summary>
+    ///     Resolves every link along a directory path.
+    /// </summary>
+    /// <param name="directory">The full directory path.</param>
+    /// <param name="cache">Resolved directories by directory path.</param>
+    /// <returns>The resolved directory path.</returns>
+    private static string ResolveDirectory(string directory, Dictionary<string, string> cache)
+    {
+        if (cache.TryGetValue(directory, out var known))
+        {
+            return known;
+        }
+
+        // Resolve the parent first, then the last segment (which may itself be a link)
+        var parent = Path.GetDirectoryName(directory);
+        var resolved = parent is null
+            ? directory
+            : ResolveLink(Path.Combine(ResolveDirectory(parent, cache), Path.GetFileName(directory)));
+        cache[directory] = resolved;
+        return resolved;
+    }
+
+    /// <summary>
+    ///     Follows a link at the end of a path to its final target.
+    /// </summary>
+    /// <param name="path">The full path whose parent directories are already resolved.</param>
+    /// <returns>The final target when the path is a link, otherwise the path.</returns>
+    private static string ResolveLink(string path)
+    {
+        try
+        {
+            return new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
+        {
+            // A path that cannot be examined is compared as it is
+            return path;
+        }
     }
 
     /// <summary>

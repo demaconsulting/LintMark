@@ -131,7 +131,8 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-LogNotInput
                 title: >-
                   The LintMarkEngine class shall refuse, before reading or writing any file, a selection that
-                  contains the log file of the Context, and shall not touch that file.
+                  contains the log file of the Context, including when the two paths differ only through
+                  symbolic links, and shall not touch that file.
                 justification: |
                   Opening a log file replaces its content, so a source file that is also the log would be
                   destroyed. Refusing the run is the only outcome that can never lose data; a user can still
@@ -141,6 +142,8 @@ sections:
                   - LintMarkEngine_Run_LogFileFoundByDiscovery_ThrowsAndLeavesFileUntouched
                   - LintMarkEngine_Select_LogFileExcluded_SelectsOtherFiles
                   - LintMarkEngine_Select_LogFileNotSelected_SelectsFiles
+                  - LintMarkEngine_Select_LogFileIsSymbolicLinkToInput_ThrowsAndLeavesFileUntouched
+                  - LintMarkEngine_Select_LogFileThroughLinkedDirectory_ThrowsAndLeavesFileUntouched
                   - LintMarkEngine_Select_NullContext_ThrowsArgumentNullException
 
               - id: LintMark-Engine-LintMarkEngine-ImmutableResults

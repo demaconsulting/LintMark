@@ -61,9 +61,16 @@ is not an error.
 - *Preconditions*: `context` is not null.
 - *Postconditions*: nothing has been read or written, and the log file has not been touched.
 
-When `context.LogFile` is among the selected files (compared with `FileDiscovery.PathComparison`) the method throws
+When `context.LogFile` is among the selected files the method throws
 `InvalidOperationException` ("Log file '{path}' is also selected as an input file; refusing to overwrite it.
-Choose a different --log path or exclude the file with a ! pattern."). The first write to the log opens it and so
+Choose a different --log path or exclude the file with a ! pattern."). Paths are compared by real path
+(`ResolveLinks`): every symbolic link or junction along each path, including the last segment, is replaced by its
+target (directories are resolved once and cached), and the results are compared with
+`FileDiscovery.PathComparison`. This
+matters because the same file can be named through a link: macOS temporary folders live below `/var`, a link to
+`/private/var`, and the current directory is reported by its real path, so a log named through `/var` would not
+equal the discovered path of the same file. Hard links cannot be recognized this way and are not detected. The
+first write to the log opens it and so
 replaces its content, which would destroy an input; refusing is the only outcome that cannot lose data, and an
 exclusion pattern lets the user keep the log inside the selected folders. `Program` calls `Select` before any
 output for this reason.

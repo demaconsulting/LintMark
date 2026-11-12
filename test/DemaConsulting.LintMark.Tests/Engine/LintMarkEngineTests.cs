@@ -627,7 +627,7 @@ public class LintMarkEngineTests
     {
         // Arrange: a log in the selected tree that is excluded by a pattern
         using var directory = new TemporaryDirectory();
-        var a = directory.WriteFile("a.md");
+        directory.WriteFile("a.md");
         var log = directory.WriteFile("out.md", "old log\n");
         using var context = Context.Create(["--log", log, "!out.md"]);
 
@@ -635,7 +635,7 @@ public class LintMarkEngineTests
         var files = InDirectory(directory, () => LintMarkEngine.Select(context));
 
         // Assert: only the other file is selected, and the log is untouched until written
-        Assert.Equal(new[] { a }, files);
+        Assert.Equal(["a.md"], files.Select(static f => Path.GetFileName(f)));
         Assert.Equal("old log\n", File.ReadAllText(log));
     }
 
@@ -647,15 +647,67 @@ public class LintMarkEngineTests
     {
         // Arrange: a log whose name does not match the default pattern
         using var directory = new TemporaryDirectory();
-        var a = directory.WriteFile("a.md");
+        directory.WriteFile("a.md");
         using var context = Context.Create(["--log", directory.PathOf("run.log")]);
 
         // Act: select
         var files = InDirectory(directory, () => LintMarkEngine.Select(context));
 
         // Assert: the Markdown file is selected and the log file does not exist yet
-        Assert.Equal(new[] { a }, files);
+        Assert.Equal(["a.md"], files.Select(static f => Path.GetFileName(f)));
         Assert.False(File.Exists(directory.PathOf("run.log")));
+    }
+
+    /// <summary>
+    ///     Test that a log file reached through a symbolic link to an input is refused.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_LogFileIsSymbolicLinkToInput_ThrowsAndLeavesFileUntouched()
+    {
+        // Arrange: an input and a link to it that serves as the log (creating links may need a privilege)
+        using var directory = new TemporaryDirectory();
+        var source = directory.WriteFile("README.md", "# Precious\n");
+        var link = directory.PathOf("report.log");
+        try
+        {
+            File.CreateSymbolicLink(link, source);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            Assert.Skip("Symbolic links cannot be created in this environment");
+        }
+
+        using var context = Context.Create(["--log", link, "README.md"]);
+
+        // Act / Assert: refused, because the log would overwrite the input through the link
+        Assert.Throws<InvalidOperationException>(() => InDirectory(directory, () => LintMarkEngine.Select(context)));
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
+    }
+
+    /// <summary>
+    ///     Test that a log file reached through a linked directory is refused.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Select_LogFileThroughLinkedDirectory_ThrowsAndLeavesFileUntouched()
+    {
+        // Arrange: a directory with an input, and a link to the directory used to name the log
+        using var directory = new TemporaryDirectory();
+        var source = directory.WriteFile("real/README.md", "# Precious\n");
+        var linkedDirectory = directory.PathOf("alias");
+        try
+        {
+            Directory.CreateSymbolicLink(linkedDirectory, directory.PathOf("real"));
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            Assert.Skip("Symbolic links cannot be created in this environment");
+        }
+
+        using var context = Context.Create(["--log", Path.Combine(linkedDirectory, "README.md"), "real/README.md"]);
+
+        // Act / Assert: refused, because both paths name the same file
+        Assert.Throws<InvalidOperationException>(() => InDirectory(directory, () => LintMarkEngine.Select(context)));
+        Assert.Equal("# Precious\n", File.ReadAllText(source));
     }
 
     /// <summary>

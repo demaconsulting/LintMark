@@ -112,3 +112,8 @@ is written as a `file-parse-error` line by `Run`.
 
 **Log file found by discovery is refused**: With the log file a Markdown file under the current directory and
 no path arguments, `Run` throws `InvalidOperationException`, reports no failure, and leaves the file intact.
+
+**Log file reached through a link is refused**: A log named through a symbolic link to an input file, and a log
+named through a linked directory that holds the input, each make `Select` throw `InvalidOperationException` with
+the input intact (skipped where the environment cannot create symbolic links). The same comparison by real path
+makes the other log tests pass on macOS, where temporary folders are below the `/var` link.

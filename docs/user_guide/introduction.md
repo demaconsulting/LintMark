@@ -246,7 +246,8 @@ lintmark --log output.log
 
 The log file is created, or its content replaced, when the first line is written. To make sure that logging can
 never destroy one of your files, LintMark refuses to run when the log file is also one of the files it would
-process, and reports an error without writing or changing anything:
+process, and reports an error without writing or changing anything (the comparison follows symbolic links, so
+naming the file through a link does not get around it):
 
 ```text
 Error: Log file '/work/README.md' is also selected as an input file; refusing to overwrite it. Choose a
