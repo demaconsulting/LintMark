@@ -1025,7 +1025,7 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that an implausibly large configuration file is reported.
+    ///     Test that a configuration file larger than the documented limit is reported.
     /// </summary>
     [Fact]
     public void LintMark_ConfigLimits_OversizedFile_ReportsErrorAndReturnsError()
@@ -1047,7 +1047,7 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that an implausibly deeply nested configuration file is reported promptly instead of stalling the run.
+    ///     Test that a configuration file nested deeper than the documented limit is reported promptly.
     /// </summary>
     [Fact]
     public void LintMark_ConfigLimits_DeeplyNestedFile_ReportsErrorWithinTimeBound()

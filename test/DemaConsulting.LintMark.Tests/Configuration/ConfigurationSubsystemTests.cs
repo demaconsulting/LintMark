@@ -266,7 +266,7 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
-    ///     Test that an implausibly large file is reported at its first line.
+    ///     Test that a file larger than the documented limit is reported at its first line.
     /// </summary>
     [Fact]
     public void ConfigurationSubsystem_Limits_OversizedFile_ReportedAtLineOne()
@@ -288,7 +288,7 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
-    ///     Test that an implausibly deeply nested file is reported promptly with a position.
+    ///     Test that a file nested deeper than the documented limit is reported promptly with a position.
     /// </summary>
     [Fact]
     public void ConfigurationSubsystem_Limits_DeeplyNestedFile_ReportedWithinTimeBound()
