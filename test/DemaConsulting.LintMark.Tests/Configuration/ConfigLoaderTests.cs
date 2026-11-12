@@ -744,6 +744,37 @@ public class ConfigLoaderTests
     }
 
     /// <summary>
+    ///     Test that a discovered configuration file that the current user may not read is reported rather than skipped.
+    /// </summary>
+    [Fact]
+    public void ConfigLoader_ForDiscovery_Load_UnreadableNearestConfig_ReportedWithoutFallingBack()
+    {
+        // Arrange: a readable file farther up and an unreadable nearest file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 90\n");
+        var denied = directory.WriteFile("sub/.lintmark.yaml", "line-length: 80\n");
+        directory.WriteFile("sub/a.md", "# A\n");
+        var restore = DenyRead(denied);
+        try
+        {
+            // A process with full rights (for example a superuser) can still read the file; nothing is testable then
+            Assert.SkipWhen(CanRead(denied), "The current user can read the file despite the removed permission");
+
+            // Act: load the configuration for the Markdown file next to the unreadable file
+            var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("sub/a.md"));
+
+            // Assert: the nearest file is the one reported, and the farther file is not used
+            var error = Assert.Single(result.Errors);
+            Assert.Equal((1, 1, "Access to the configuration file is denied"), (error.Line, error.Column, error.Message));
+            Assert.Null(result.Config);
+        }
+        finally
+        {
+            restore();
+        }
+    }
+
+    /// <summary>
     ///     Removes the read permission of a file for the current user.
     /// </summary>
     /// <param name="file">The file.</param>

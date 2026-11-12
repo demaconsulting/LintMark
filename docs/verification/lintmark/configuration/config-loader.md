@@ -146,6 +146,10 @@ says the file cannot be read, instead of an exception. The scenario is skipped o
 gives one problem at 1:1, "Access to the configuration file is denied". The scenario is skipped when the current
 user can read the file regardless.
 
+**Discovered file without read permission is reported rather than skipped**: With a readable file in the repository
+root and an unreadable nearest file, loading for a Markdown file beside the nearest file gives no configuration and
+the one problem at 1:1, "Access to the configuration file is denied"; the farther file is not used. The scenario is
+skipped when the current user can read the file regardless.
 **Path that cannot be resolved is a problem for a named file and no configuration for a discovered one**: A named
 file whose path contains a null character gives one problem at 1:1 that says the path is not valid, reported
 against the path as given; a Markdown path or directory with a null character, and the root of the file system

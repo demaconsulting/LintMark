@@ -761,6 +761,21 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that an option directly after the config option is rejected instead of being taken as its value.
+    /// </summary>
+    /// <param name="option">The option that follows.</param>
+    [Theory]
+    [InlineData("--no-config")]
+    [InlineData("--validate")]
+    [InlineData("-v")]
+    public void Context_Create_ConfigFlag_FollowedByOption_ThrowsArgumentException(string option)
+    {
+        // Act & Assert: the option is not swallowed as the file name
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config", option]));
+        Assert.Contains("--config requires a configuration filename argument", exception.Message);
+    }
+
+    /// <summary>
     ///     Test that repeating the config option keeps the last value.
     /// </summary>
     [Fact]

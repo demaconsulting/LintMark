@@ -324,7 +324,7 @@ internal sealed class Context : IDisposable
 
                 case "--config":
                     ConfigFile = GetRequiredStringArgument(arg, args, index, "a configuration filename argument");
-                    if (string.IsNullOrWhiteSpace(ConfigFile))
+                    if (string.IsNullOrWhiteSpace(ConfigFile) || ConfigFile.StartsWith('-'))
                     {
                         throw new ArgumentException($"{arg} requires a configuration filename argument", nameof(args));
                     }

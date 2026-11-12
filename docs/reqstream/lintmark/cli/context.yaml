@@ -172,13 +172,15 @@ sections:
 
               - id: LintMark-Cli-Context-ConfigFileValueRequired
                 title: >-
-                  The Context class shall reject the `--config` option when its value is missing or blank.
+                  The Context class shall reject the `--config` option when its value is missing, blank, or another
+                  option.
                 justification: |
                   A missing name must be reported instead of consuming the next argument or being silently
-                  ignored.
+                  ignored, and an option that follows must not be mistaken for the name.
                 tests:
                   - Context_Create_ConfigFlag_WithoutValue_ThrowsArgumentException
                   - Context_Create_ConfigFlag_BlankValue_ThrowsArgumentException
+                  - Context_Create_ConfigFlag_FollowedByOption_ThrowsArgumentException
 
               - id: LintMark-Cli-Context-NoConfig
                 title: The Context class shall expose whether the `--no-config` flag was specified.

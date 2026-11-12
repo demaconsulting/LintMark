@@ -139,6 +139,9 @@ each throw `ArgumentException`; for `--config` the message says that a configura
 **Blank config value is rejected like a missing one**: `--config` followed by an empty string or by spaces throws
 `ArgumentException` with the same message.
 
+**Option after the config option is rejected**: `--config --no-config`, `--config --validate`, and `--config -v` throw
+`ArgumentException` with the same message instead of taking the option as the file name.
+
 **Config combined with no-config is rejected**: `--config a.yaml --no-config` throws `ArgumentException` whose message
 names both options.
 

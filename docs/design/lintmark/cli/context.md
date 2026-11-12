@@ -65,8 +65,9 @@ Delegates to the private `ArgumentParser` helper to parse flags, then rejects `-
 with `--check`, `--config`, `--no-config`, or any path, rejects `--config` combined with `--no-config`, and only
 then, if `--log` was present, opens the log file with
 `OpenLogFile` (`StreamWriter` with `append: false` and `AutoFlush` on, so an existing file is truncated, as in
-the other DEMA Consulting tools). `--config` takes the next argument as its value (a missing or blank value is an
-error) and a repeated `--config` replaces the earlier value; `--no-config` is a plain flag. The parser
+the other DEMA Consulting tools). `--config` takes the next argument as its value (a missing, blank, or dash-leading
+value is an error, so `--config --no-config` is reported rather than taking `--no-config` as a file name) and a
+repeated `--config` replaces the earlier value; `--no-config` is a plain flag. The parser
 treats a token that does not start with a dash as a positional
 path. Every other token (including a lone `-` and the empty string) that is not a recognized
 option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together

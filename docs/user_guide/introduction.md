@@ -168,6 +168,7 @@ lintmark --no-config docs
 - `--config <file>` names the configuration file. A relative path is relative to the current directory, and both
   `/` and `\` are accepted on every platform. When the option is repeated, the last one wins. A named file that
   does not exist or cannot be read is a configuration error, reported even when no Markdown file is selected.
+  A file name that starts with a dash is taken for another option and rejected; write `./-name.yaml` instead.
   `--config` does not disable `.editorconfig` (see *Line Endings and .editorconfig*).
 - `--no-config` ignores both `.lintmark.yaml` and `.editorconfig`, and uses the built-in defaults. Nothing is
   searched for or read.
@@ -244,8 +245,8 @@ Every value is checked strictly, so that a typo can never silently fall back to 
   supported.
 - The file must be UTF-8 (with or without a byte order mark) with LF or CRLF line endings.
 - Limits: a file larger than 1 MiB (1,048,576 bytes) is an error, and so is a file in which `[` and `{` brackets
-  are nested more than 64 levels deep. Both are reported with a position and are rejected promptly, however far
-  the limit is exceeded.
+  are nested more than 64 levels deep (brackets inside comments and quoted text are counted too). Both are
+  reported with a position and are rejected promptly, however far the limit is exceeded.
 
 ### Rules
 
