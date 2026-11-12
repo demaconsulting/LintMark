@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def LintMarkEngine {
-        doc /* Discovers the selected files, processes them in parallel and reports failures in a deterministic order (also documents the FileResult and FileFailure supporting types). */
+        doc /* Discovers the selected files, processes them in parallel, attaches each file's effective configuration and reports failures and configuration problems in a deterministic order (also documents the FileResult and FileFailure supporting types). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
@@ -21,5 +21,15 @@ package LintMark {
         dependency LintMarkEngine to FileDiscovery;
         dependency LintMarkEngine to SourceDocument;
         dependency LintMarkEngine to DocumentParser;
+
+        // Each file's configuration comes from the configuration loader, and the line ending from the
+        // editor settings is filled in by the engine when the configuration gives none; the results and
+        // problems of both are held in the per-file result and reported through the context.
+        dependency LintMarkEngine to ConfigLoader;
+        dependency LintMarkEngine to EditorConfigResolver;
+        dependency LintMarkEngine to LintMarkConfig;
+        dependency LintMarkEngine to ConfigLoadResult;
+        dependency LintMarkEngine to ConfigError;
+        dependency LintMarkEngine to EditorConfigResult;
     }
 }

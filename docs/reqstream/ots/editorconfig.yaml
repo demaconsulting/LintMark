@@ -1,0 +1,78 @@
+---
+# EditorConfig OTS Software Requirements
+#
+# Requirements for the editorconfig library functionality that LintMark relies on to read the end_of_line
+# setting of .editorconfig files.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: EditorConfig Requirements
+        requirements:
+          - id: LintMark-OTS-EditorConfig-Sections
+            title: >-
+              EditorConfig shall apply a section to a file according to the section patterns of the editor
+              settings format, treating patterns with a slash as relative to the directory of the settings file,
+              with letter case significant in patterns and not significant in property names and values.
+            justification: |
+              Users write sections for the files they mean, and the result must be what their editor gives
+              them. The tests pin the pattern forms that LintMark relies on, including the fact that
+              patterns are case-sensitive on every platform.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_GlobPatterns_MatchPerSpecification
+              - EditorConfig_Parser_SectionPatternCase_IsCaseSensitive
+              - EditorConfig_Parser_PropertyAndValueCase_AreInsensitive
+
+          - id: LintMark-OTS-EditorConfig-Precedence
+            title: >-
+              EditorConfig shall let a later section override an earlier one, a nearer file override a farther
+              file, and a file that declares itself the root end the search, and shall give the same result
+              whether a file is evaluated directly or against a previously resolved chain of settings files.
+            justification: |
+              These are the layering rules of the editor settings format. LintMark caches the resolved
+              chain per directory, which is only correct if evaluating against the chain gives the same
+              result as evaluating directly.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_LaterSectionOverridesEarlier
+              - EditorConfig_Parser_NearerFileOverridesFartherFile
+              - EditorConfig_Parser_RootTrue_StopsSearch
+              - EditorConfig_Parser_DirectoryChain_ParseWithChain_EqualsDirectParse
+
+          - id: LintMark-OTS-EditorConfig-RawProperties
+            title: >-
+              EditorConfig shall expose the raw text of each property, including the value unset, and shall
+              resolve a file that does not exist.
+            justification: |
+              The library's typed line-ending value does not honor unset or unknown values and still reports
+              a value from a farther file, so LintMark interprets the raw text itself. The tests pin both
+              the raw behavior LintMark uses and the typed behavior it avoids.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_UnsetValue_RawPropertyIsUnset
+              - EditorConfig_Parser_TypedEndOfLine_IgnoresUnsetAndInvalidValues
+              - EditorConfig_Parser_EndOfLineCr_TypedAccessorReportsCr
+              - EditorConfig_Parser_NonexistentFile_StillResolved
+
+          - id: LintMark-OTS-EditorConfig-Leniency
+            title: >-
+              EditorConfig shall ignore malformed lines in a settings file without failing and shall still apply
+              the valid sections that follow them.
+            justification: |
+              Editor settings files are shared with other tools, and mistakes in them must not stop LintMark.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_MalformedLines_AreIgnored
+
+          - id: LintMark-OTS-EditorConfig-Concurrency
+            title: >-
+              EditorConfig shall give identical results when one parser instance, or one parser instance per
+              thread, evaluates files on several threads at once.
+            justification: |
+              Line endings are resolved by parallel workers through one shared parser. The tests confirm
+              that sharing is safe.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_SharedParser_ParallelParse_IdenticalResults
+              - EditorConfig_Parser_ParserPerThread_ParallelParse_IdenticalResults

@@ -20,6 +20,7 @@ N/A - standard test environment.
 - `Program.Version` returns a non-empty, non-null string.
 - With a path argument, `Program.Run` processes the file with the real engine and reports failures through
   the context (exit code 1).
+- The help text lists the configuration options and the configuration files they concern.
 
 ### Test Scenarios
 
@@ -38,6 +39,9 @@ exit with 0.
 
 **Help lists the check option and the path arguments**: `["--help"]` outputs `[paths...]`, `--check`, and the
 default pattern `**/*.md`, and the exit code is 0.
+
+**Help lists the configuration options**: `["--help"]` outputs `--config <file>`, `--no-config`, and the names
+`.lintmark.yaml` and `.editorconfig`, and the exit code is 0.
 
 **Validate flag runs the self-validation**: `["--validate"]` outputs "Total Tests:" and exits with 0.
 

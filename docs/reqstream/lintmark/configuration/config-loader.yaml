@@ -1,0 +1,446 @@
+---
+# Software Unit Requirements for the ConfigLoader Class
+#
+# The ConfigLoader class finds, reads, and validates the .lintmark.yaml configuration that applies to a
+# Markdown file. Requirements that depend on the behavior of the YAML parsing library list the matching
+# OTS requirements as children.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: ConfigLoader Requirements
+            requirements:
+              - id: LintMark-Configuration-ConfigLoader-NearestFile
+                title: >-
+                  The ConfigLoader class shall select the nearest configuration file that is in the directory of a
+                  Markdown file or in one of its parent directories, including for a file or directory that does
+                  not exist, and shall not treat a directory with the configuration file's name as a
+                  configuration file.
+                justification: |
+                  Looking upward from the document is the rule users can predict, and documents that are about
+                  to be created must be treated like existing ones.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_ConfigInOwnDirectory_UsesIt
+                  - ConfigLoader_ForDiscovery_Load_ConfigInAncestor_UsesIt
+                  - ConfigLoader_ForDiscovery_Load_DirectoryNamedLikeConfig_IsSkipped
+                  - ConfigLoader_ForDiscovery_Load_FileInMissingDirectory_StillSearchesUpward
+                  - ConfigLoader_FindConfigFile_Variants_ReturnsExpectedPath
+
+              - id: LintMark-Configuration-ConfigLoader-PathForms
+                title: >-
+                  The ConfigLoader class shall accept Markdown file paths that are relative to the current
+                  directory or that use either kind of slash, on every platform.
+                justification: |
+                  Users and scripts write paths in the style of their own platform, and the same command line
+                  must work everywhere.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_RelativeMarkdownPath_ResolvedAgainstCurrentDirectory
+                  - ConfigLoader_ForDiscovery_Load_BackslashSeparators_AreNormalized
+
+              - id: LintMark-Configuration-ConfigLoader-RepositoryBoundary
+                title: >-
+                  The ConfigLoader class shall stop looking for a configuration file after the first directory
+                  that contains a `.git` directory or `.git` file, searching that directory too, and shall search
+                  as far as the root of the file system when there is no such directory.
+                justification: |
+                  A repository's configuration belongs to that repository. A configuration found above it
+                  would belong to some other project. Linked working trees and submodules mark their root with a
+                  file instead of a directory.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_ConfigInRepositoryRoot_IsFound
+                  - ConfigLoader_ForDiscovery_Load_GitDirectoryStopsSearch_ConfigAboveIgnored
+                  - ConfigLoader_ForDiscovery_Load_GitFileStopsSearch_ConfigAboveIgnored
+                  - ConfigLoader_ForDiscovery_Load_GitInNearerFolder_StopsThere
+                  - ConfigLoader_ForDiscovery_Load_ConfigBesideGitEntry_IsFound
+                  - ConfigLoader_ForDiscovery_Load_NoGitAnywhere_ConfigInParentFound
+
+              - id: LintMark-Configuration-ConfigLoader-NoMerging
+                title: >-
+                  The ConfigLoader class shall use only the settings of the nearest configuration file, without
+                  inheriting from, reading, or reporting problems in any farther configuration file.
+                justification: |
+                  Cascading configurations make the effective settings of a document impossible to tell
+                  without tracing a whole tree of files.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_NearestConfigWins_FartherNeverRead
+                  - ConfigLoader_ForDiscovery_Load_NearerPartialConfig_DoesNotInheritFarther
+
+              - id: LintMark-Configuration-ConfigLoader-ExplicitFile
+                title: >-
+                  The ConfigLoader class shall use exactly the configuration file it is told to use for every
+                  Markdown file, resolving a relative path against the current directory and accepting either
+                  kind of slash, and shall ignore any file it could have discovered.
+                justification: |
+                  Naming a configuration file is a deliberate choice that must override discovery.
+                tests:
+                  - ConfigLoader_ForFile_Load_AnyMarkdownFile_ReturnsFileConfig
+                  - ConfigLoader_ForFile_RelativeFile_ResolvedAgainstCurrentDirectory
+                  - ConfigLoader_ForFile_IgnoresDiscoverableFile
+                  - ConfigLoader_LoadFile_ValidFile_ReturnsConfigWithFullPath
+                  - ConfigLoader_ForFile_NullOrBlank_Throws
+
+              - id: LintMark-Configuration-ConfigLoader-ExplicitFileProblems
+                title: >-
+                  The ConfigLoader class shall report a configuration file that does not exist, cannot be read,
+                  is a directory, or is larger than 1 MiB as a problem at line 1 and column 1 of that file, and
+                  shall make the problem available before any Markdown file is processed.
+                justification: |
+                  A configuration that cannot be used must be reported instead of replaced by other
+                  settings, and the report must not depend on files being selected.
+                tests:
+                  - ConfigLoader_ForFile_MissingFile_ReportsNotFoundAt1x1
+                  - ConfigLoader_ForFile_DirectoryAsFile_ReportsCannotRead
+                  - ConfigLoader_ForFile_InitialErrors_ContainFileErrors
+                  - ConfigLoader_LoadFile_TooLarge_ReportsSizeError
+                  - ConfigLoader_Parse_TooLarge_ReportsSizeError
+                  - ConfigLoader_Parse_AtSizeLimit_Accepted
+
+              - id: LintMark-Configuration-ConfigLoader-DefaultsWithoutFile
+                title: >-
+                  The ConfigLoader class shall provide the default configuration for a Markdown file for which no
+                  configuration file applies.
+                justification: |
+                  Using the tool without any configuration is the common case.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_NoConfigFile_ReturnsDefaults
+
+              - id: LintMark-Configuration-ConfigLoader-DefaultsOnly
+                title: >-
+                  The ConfigLoader class shall be able to provide the default configuration for every file
+                  without reading anything from the file system.
+                justification: |
+                  A run that is told to ignore configuration files must not be influenced by them in any way,
+                  not even by a file that is invalid.
+                tests:
+                  - ConfigLoader_ForDefaults_Load_IgnoresConfigFilesAndNeverProbes
+                  - ConfigLoader_Load_NullOrEmptyPath_Throws
+
+              - id: LintMark-Configuration-ConfigLoader-EmptyFile
+                title: >-
+                  The ConfigLoader class shall treat a configuration file that is empty, or contains only
+                  comments, a document marker, or a null document, as one that gives no settings.
+                justification: |
+                  A newly created or temporarily emptied configuration file must behave like having none.
+                tests:
+                  - ConfigLoader_Parse_EmptyContent_ReturnsDefaults
+                  - ConfigLoader_Parse_ContentWithoutSettings_ReturnsDefaults
+                children:
+                  - LintMark-OTS-YamlDotNet-EmptyDocuments
+
+              - id: LintMark-Configuration-ConfigLoader-OmittedSettings
+                title: >-
+                  The ConfigLoader class shall use the default for every setting that a configuration file leaves
+                  out, including individual rules and link conversion options.
+                justification: |
+                  A configuration should state only what differs from the preferred style.
+                tests:
+                  - ConfigLoader_Parse_PartialFile_OmittedSettingsKeepDefaults
+                  - ConfigLoader_Parse_LinkRefactorPartial_KeepsDefaults
+                  - ConfigLoader_Parse_RulesPartial_OthersKeepDefaults
+                  - ConfigLoader_Parse_ExplicitEmptyCollections_Accepted
+
+              - id: LintMark-Configuration-ConfigLoader-ChoiceSettings
+                title: >-
+                  The ConfigLoader class shall accept every documented value of each setting that selects one
+                  form from a fixed list, written with or without quotes.
+                justification: |
+                  Each choice is one canonical form. Accepting exactly the documented values, in one
+                  spelling, keeps configurations unambiguous.
+                tests:
+                  - ConfigLoader_Parse_EveryEnumValue_Accepted
+                  - ConfigLoader_Parse_QuotedEnumValue_Accepted
+                  - ConfigLoader_Parse_FullSampleFile_AppliesEverySetting
+
+              - id: LintMark-Configuration-ConfigLoader-NumericSettings
+                title: >-
+                  The ConfigLoader class shall accept whole numbers written without quotes within the documented
+                  range of each numeric setting, including zero for an unlimited line length and only 2 or 4 for
+                  the list indent.
+                justification: |
+                  Numbers are bounded so that later width calculations cannot overflow, and the list indent
+                  has only the two forms that Markdown lists use.
+                tests:
+                  - ConfigLoader_Parse_LineLengthInRange_Accepted
+                  - ConfigLoader_Parse_ListIndentTwoAndFour_Accepted
+                children:
+                  - LintMark-OTS-YamlDotNet-ScalarStyles
+
+              - id: LintMark-Configuration-ConfigLoader-BooleanSettings
+                title: >-
+                  The ConfigLoader class shall accept `true` and `false`, written without quotes, for every
+                  on-or-off setting.
+                justification: |
+                  Other spellings such as yes, on, or quoted text mean different things to different YAML
+                  readers, so only one is accepted.
+                tests:
+                  - ConfigLoader_Parse_BooleanSettings_TrueAndFalse_Accepted
+                children:
+                  - LintMark-OTS-YamlDotNet-ScalarStyles
+
+              - id: LintMark-Configuration-ConfigLoader-LinkRefactorSettings
+                title: >-
+                  The ConfigLoader class shall accept the link conversion options as a nested group in which each
+                  option may be given or omitted.
+                justification: |
+                  Link conversion is an opt-in feature with its own tuning options that are grouped under one
+                  setting.
+                tests:
+                  - ConfigLoader_Parse_FullSampleFile_AppliesEverySetting
+                  - ConfigLoader_Parse_LinkRefactorPartial_KeepsDefaults
+                  - ConfigLoader_Parse_FlowStyleMapping_Accepted
+
+              - id: LintMark-Configuration-ConfigLoader-RuleToggles
+                title: >-
+                  The ConfigLoader class shall let a configuration switch each configurable rule on or off by
+                  rule name, leaving rules that are not mentioned in their default state.
+                justification: |
+                  Users must be able to turn individual rules on or off without restating all the others.
+                tests:
+                  - ConfigLoader_Parse_RulesKebabId_Accepted
+                  - ConfigLoader_Parse_RulesPartial_OthersKeepDefaults
+
+              - id: LintMark-Configuration-ConfigLoader-RuleAliases
+                title: >-
+                  The ConfigLoader class shall accept a legacy rule number in any letter case wherever a rule name
+                  is accepted, applying it to the rule it stands for, and shall accept and ignore the legacy
+                  numbers of removed rules.
+                justification: |
+                  Users migrating from other Markdown tools bring their rule numbers with them, and a number
+                  of a rule that no longer exists must not make an old configuration invalid.
+                tests:
+                  - ConfigLoader_Parse_RulesAlias_StoredAsCanonicalId
+                  - ConfigLoader_Parse_RulesAnyLetterCase_Accepted
+                  - ConfigLoader_Parse_RulesDroppedAlias_AcceptedAndNotStored
+                  - ConfigLoader_Parse_RulesReorderedKeys_ProduceEqualRules
+
+              - id: LintMark-Configuration-ConfigLoader-IgnorePatterns
+                title: >-
+                  The ConfigLoader class shall accept a list of ignore patterns that replaces the default
+                  patterns, using forward slashes, without exact duplicates, and in the order given.
+                justification: |
+                  The list says which files the user does not want processed. A configuration that names its
+                  own list means exactly that list.
+                tests:
+                  - ConfigLoader_Parse_IgnoreReplacesDefaults
+                  - ConfigLoader_Parse_IgnoreEmptyList_ClearsDefaults
+                  - ConfigLoader_Parse_IgnoreBackslashesNormalized
+                  - ConfigLoader_Parse_IgnoreExactDuplicates_RemovedKeepingFirstAndOrder
+                  - ConfigLoader_Parse_IgnoreCaseVariants_AreDistinct
+
+              - id: LintMark-Configuration-ConfigLoader-FileFormat
+                title: >-
+                  The ConfigLoader class shall accept a configuration file written in block or flow style, with
+                  its settings in any order, with or without a UTF-8 byte order mark, and with LF or CRLF line
+                  endings.
+                justification: |
+                  Configuration files are written by hand on many platforms and in many editors, and equivalent
+                  files must give equivalent settings.
+                tests:
+                  - ConfigLoader_Parse_Utf8Bom_IsIgnored
+                  - ConfigLoader_Parse_CrlfLineEndings_ParsesAndNumbersLinesCorrectly
+                  - ConfigLoader_Parse_KeyOrder_DoesNotMatter
+                  - ConfigLoader_Parse_FlowStyleMapping_Accepted
+                children:
+                  - LintMark-OTS-YamlDotNet-ByteOrderMark
+
+              - id: LintMark-Configuration-ConfigLoader-UnknownSettings
+                title: >-
+                  The ConfigLoader class shall report a setting name, rule name, or link conversion option that
+                  it does not know, including one that differs from a known name only in letter case, as a
+                  problem at that name.
+                justification: |
+                  A misspelled setting that is silently ignored would reformat a documentation set in a style
+                  the user did not choose.
+                tests:
+                  - ConfigLoader_Parse_UnknownKey_ReportsAtKey
+                  - ConfigLoader_Parse_WrongCase_Reported
+                  - ConfigLoader_Parse_LinkRefactorUnknownSubKey_ReportedWithDottedName
+                  - ConfigLoader_Parse_RulesUnknownRule_ReportedAtKey
+                  - ConfigLoader_Parse_RulesFormatterAlias_Md009_ReportedUnknown
+
+              - id: LintMark-Configuration-ConfigLoader-InvalidValues
+                title: >-
+                  The ConfigLoader class shall report a value that is of the wrong kind, outside its range,
+                  not one of the allowed choices, or not a valid ignore pattern, as a problem at that value that
+                  states what is allowed.
+                justification: |
+                  Telling the user what is allowed lets them repair the file without consulting the
+                  documentation.
+                tests:
+                  - ConfigLoader_Parse_InvalidEnumValue_ListsAllowedValues
+                  - ConfigLoader_Parse_ListIndentNotTwoOrFour_Reported
+                  - ConfigLoader_Parse_IntegerNotPlainDecimal_Reported
+                  - ConfigLoader_Parse_LineLengthOutOfRange_Reported
+                  - ConfigLoader_Parse_MaxBlankLinesZero_Reported
+                  - ConfigLoader_Parse_BooleanYesNoOnQuoted_Reported
+                  - ConfigLoader_Parse_MappingOrSequenceForScalar_Reported
+                  - ConfigLoader_Parse_ScalarForMappingOrSequence_Reported
+                  - ConfigLoader_Parse_LinkRefactorNumberOutOfRange_Reported
+                  - ConfigLoader_Parse_LinkRefactorEnabledNotBoolean_Reported
+                  - ConfigLoader_Parse_LinkRefactorMarkerNotComment_Reported
+                  - ConfigLoader_Parse_LinkRefactorMarkerMultiline_Reported
+                  - ConfigLoader_Parse_RulesValueNotBoolean_Reported
+                  - ConfigLoader_Parse_IgnoreInvalidElement_Reported
+
+              - id: LintMark-Configuration-ConfigLoader-NullValues
+                title: >-
+                  The ConfigLoader class shall report a setting that has no value, or the value null in any
+                  spelling, as a problem at the setting, instead of using the default.
+                justification: |
+                  A half-edited file must not silently revert to the defaults.
+                tests:
+                  - ConfigLoader_Parse_NullValue_EmptyTildeAndNull_Reported
+                  - ConfigLoader_Parse_EmptyRulesLinkRefactorIgnore_Reported
+                children:
+                  - LintMark-OTS-YamlDotNet-ScalarStyles
+
+              - id: LintMark-Configuration-ConfigLoader-DuplicateSettings
+                title: >-
+                  The ConfigLoader class shall report a setting or link conversion option that is given more than
+                  once as a problem at its second and later occurrences, naming the line of the first.
+                justification: |
+                  Which of two values would win is not obvious, and silently taking the last one hides
+                  mistakes.
+                tests:
+                  - ConfigLoader_Parse_DuplicateKey_ReportsAtSecondOccurrence
+                  - ConfigLoader_Parse_DuplicateSubKey_Reported
+                  - ConfigLoader_Parse_DuplicateKeyWithInvalidFirstValue_ReportsBoth
+                children:
+                  - LintMark-OTS-YamlDotNet-DuplicateKeys
+
+              - id: LintMark-Configuration-ConfigLoader-RuleConflicts
+                title: >-
+                  The ConfigLoader class shall report two entries that name the same rule, by name, by legacy
+                  number, or in different letter case, as a problem at every entry after the first in the file,
+                  independent of the order in which entries are processed.
+                justification: |
+                  The two entries may disagree, and the outcome must depend only on the content of the file.
+                tests:
+                  - ConfigLoader_Parse_RulesAliasAndKebabConflict_ReportedAtLaterOccurrence
+                  - ConfigLoader_Parse_RulesKebabThenAlias_ConflictReportedAtAlias
+                  - ConfigLoader_Parse_RulesAliasThenKebab_ConflictReportedAtKebab
+                  - ConfigLoader_Parse_RulesDifferentCaseConflict_Reported
+                  - ConfigLoader_Parse_RulesDroppedAliasRepeatedOrInvalid_Reported
+
+              - id: LintMark-Configuration-ConfigLoader-InvalidSyntax
+                title: >-
+                  The ConfigLoader class shall report content that is not valid YAML as a problem at the position
+                  where the content stopped making sense, however the content is malformed.
+                justification: |
+                  Every malformed file must produce a positioned report, never a crash and never a silent
+                  default.
+                tests:
+                  - ConfigLoader_Parse_MalformedYamlUnclosedFlowSequence_ReportsInvalidYaml
+                  - ConfigLoader_Parse_MalformedYamlTabIndentation_ReportsInvalidYaml
+                  - ConfigLoader_Parse_MalformedYamlUnterminatedQuote_ReportsInvalidYaml
+                  - ConfigLoader_Parse_MalformedYaml_PositionIsAtLeastLineOneColumnOne
+                children:
+                  - LintMark-OTS-YamlDotNet-Errors
+
+              - id: LintMark-Configuration-ConfigLoader-InvalidStructure
+                title: >-
+                  The ConfigLoader class shall report a configuration that is not a single mapping of settings,
+                  that has more than one document, or that uses anchors, aliases, tags, or non-text keys, as a
+                  problem at the construct.
+                justification: |
+                  The meaning of a setting must be readable where it is written, so constructs that refer to
+                  other places or add hidden types are not supported.
+                tests:
+                  - ConfigLoader_Parse_RootSequenceOrScalar_Reported
+                  - ConfigLoader_Parse_MultipleDocuments_ReportedAtSecondDocument
+                  - ConfigLoader_Parse_AnchorAliasOrTag_Reported
+                  - ConfigLoader_Parse_ComplexKey_Reported
+                children:
+                  - LintMark-OTS-YamlDotNet-Features
+
+              - id: LintMark-Configuration-ConfigLoader-NestingLimit
+                title: >-
+                  The ConfigLoader class shall report bracketed collections nested more than 64 levels deep as a
+                  problem at the first bracket beyond the limit, without parsing them.
+                justification: |
+                  No valid configuration nests that deeply, and parsing such input takes time that grows
+                  steeply with the depth, so a damaged or hostile file could stall a run.
+                tests:
+                  - ConfigLoader_Parse_NestingBeyondLimit_ReportsPositionOfOffendingBracket
+                  - ConfigLoader_Parse_NestingAtLimit_IsParsed
+                  - ConfigLoader_Parse_DeeplyNestedUnknownValue_ReportsOneErrorWithoutCrash
+                children:
+                  - LintMark-OTS-YamlDotNet-Nesting
+
+              - id: LintMark-Configuration-ConfigLoader-FileEncoding
+                title: >-
+                  The ConfigLoader class shall report a configuration file that is not valid UTF-8, or that
+                  begins with a UTF-16 or UTF-32 byte order mark, as a problem at the position of the fault.
+                justification: |
+                  Damaged or unsupported files must be named with enough precision to repair them instead of
+                  being read incorrectly.
+                tests:
+                  - ConfigLoader_Parse_InvalidUtf8_ReportedAtOffendingPosition
+                  - ConfigLoader_Parse_Utf16Bom_Rejected
+                  - ConfigLoader_Parse_Utf8BomThenInvalidUtf8_PositionAccountsForBomStrip
+
+              - id: LintMark-Configuration-ConfigLoader-NoPartialResult
+                title: >-
+                  The ConfigLoader class shall return either a complete valid configuration or the problems found,
+                  never both and never neither, and shall never throw for a problem in the environment or the
+                  content of a configuration file.
+                justification: |
+                  Using the settings of a file that was reported as invalid would defeat the purpose of
+                  validating it, and a loader that throws would stop a run over many files.
+                tests:
+                  - ConfigLoadResult_InconsistentState_Throws
+                  - ConfigError_InvalidArguments_Throw
+                  - ConfigLoader_Parse_NullOrEmptyPath_Throws
+                  - ConfigLoader_Parse_UnknownKey_ReportsAtKey
+
+              - id: LintMark-Configuration-ConfigLoader-ErrorPositions
+                title: >-
+                  The ConfigLoader class shall report each problem with the path of the configuration file and
+                  the 1-based line and column of the offending text, counting a tab as one column, for LF and
+                  CRLF files alike.
+                justification: |
+                  A user repairing a file is taken to the exact place, and an editor can jump to it.
+                tests:
+                  - ConfigLoader_Parse_UnknownKey_ReportsAtKey
+                  - ConfigLoader_Parse_DuplicateKey_ReportsAtSecondOccurrence
+                  - ConfigLoader_Parse_InvalidEnumValue_ListsAllowedValues
+                  - ConfigLoader_Parse_CrlfLineEndings_ParsesAndNumbersLinesCorrectly
+                  - ConfigLoader_Parse_Errors_CarryTheGivenPath
+                children:
+                  - LintMark-OTS-YamlDotNet-Positions
+
+              - id: LintMark-Configuration-ConfigLoader-AllErrorsReported
+                title: >-
+                  The ConfigLoader class shall report every problem of a configuration file that can be found in
+                  one pass, ordered by line, column, and message, with the same result every time.
+                justification: |
+                  Fixing problems one run at a time is slow, and an order that varies makes reports hard to
+                  compare.
+                tests:
+                  - ConfigLoader_Parse_SeveralUnknownKeys_AllReportedInPositionOrder
+                  - ConfigLoader_Parse_SeveralErrors_SortedByPositionThenMessage
+                  - ConfigLoader_Parse_Errors_AreDeterministicAcrossRepeatedCalls
+
+              - id: LintMark-Configuration-ConfigLoader-ConcurrentLoads
+                title: >-
+                  The ConfigLoader class shall give every thread the same result for the same Markdown file,
+                  reading and checking each configuration file once, however many threads ask at the same time.
+                justification: |
+                  Parallel workers ask for configurations at the same time. Results that depended on timing
+                  would make reports differ between runs, and reading a file repeatedly would waste work.
+                tests:
+                  - ConfigLoader_ForDiscovery_Load_ManyThreads_ResultsEqualSequential
+                  - ConfigLoader_ForDiscovery_Load_SameDirectoryTwice_ReturnsSameResultInstance
+                  - ConfigLoader_ForDiscovery_Load_ConfigChangedAfterFirstLoad_CachedResultKept
+                children:
+                  - LintMark-OTS-YamlDotNet-Concurrency
+
+              - id: LintMark-Configuration-ConfigLoader-ImmutableResults
+                title: >-
+                  The ConfigLoader class shall return problem lists that their holders cannot change.
+                justification: |
+                  The same result is shared by every file that uses a configuration.
+                tests:
+                  - ConfigLoader_Parse_ErrorsCastToMutableTypes_CannotBeModified

@@ -722,6 +722,153 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that the config option exposes the file it was given.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigFlag_SetsConfigFile()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--config", "conf/lint.yaml", "a.md"]);
+
+        // Assert: the value is exposed as written and is not mistaken for a path
+        Assert.Equal("conf/lint.yaml", context.ConfigFile);
+        Assert.False(context.NoConfig);
+        Assert.Equal(["a.md"], context.Paths);
+    }
+
+    /// <summary>
+    ///     Test that the config option without a value is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigFlag_WithoutValue_ThrowsArgumentException()
+    {
+        // Act & Assert: the missing value is reported by name
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config"]));
+        Assert.Contains("--config requires a configuration filename argument", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that a blank value for the config option is a usage error.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Context_Create_ConfigFlag_BlankValue_ThrowsArgumentException(string value)
+    {
+        // Act & Assert: the blank value is rejected like a missing one
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config", value]));
+        Assert.Contains("--config requires a configuration filename argument", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that repeating the config option keeps the last value.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigFlag_Repeated_LastWins()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--config", "first.yaml", "--config", "second.yaml"]);
+
+        // Assert: the last value is used
+        Assert.Equal("second.yaml", context.ConfigFile);
+    }
+
+    /// <summary>
+    ///     Test that the no-config flag is exposed.
+    /// </summary>
+    [Fact]
+    public void Context_Create_NoConfigFlag_SetsNoConfig()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--no-config"]);
+
+        // Assert: the flag is set and no configuration file is named
+        Assert.True(context.NoConfig);
+        Assert.Null(context.ConfigFile);
+        Assert.Empty(context.Paths);
+    }
+
+    /// <summary>
+    ///     Test that neither configuration option is set by default.
+    /// </summary>
+    [Fact]
+    public void Context_Create_NoArguments_ConfigFileNullAndNoConfigFalse()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create([]);
+
+        // Assert: both are at their defaults
+        Assert.Null(context.ConfigFile);
+        Assert.False(context.NoConfig);
+    }
+
+    /// <summary>
+    ///     Test that naming a configuration file and disabling configuration contradict each other.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigWithNoConfig_ThrowsArgumentException()
+    {
+        // Act & Assert: the contradiction is a usage error naming both options
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config", "a.yaml", "--no-config"]));
+        Assert.Contains("--config", exception.Message);
+        Assert.Contains("--no-config", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with the config option is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithConfig_ThrowsArgumentException()
+    {
+        // Act & Assert: the combination is rejected with a message naming the option
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--config", "a.yaml"]));
+        Assert.Contains("--config", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with the no-config flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithNoConfig_ThrowsArgumentException()
+    {
+        // Act & Assert: the combination is rejected with a message naming the flag
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--no-config", "--validate"]));
+        Assert.Contains("--no-config", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that version and help may be combined with the configuration options.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigWithHelpOrVersion_DoesNotThrow()
+    {
+        // Act: execute the operation being tested
+        using var help = Context.Create(["--help", "--config", "a.yaml"]);
+        using var version = Context.Create(["--no-config", "--version"]);
+
+        // Assert: both are accepted
+        Assert.True(help.Help);
+        Assert.Equal("a.yaml", help.ConfigFile);
+        Assert.True(version.Version);
+        Assert.True(version.NoConfig);
+    }
+
+    /// <summary>
+    ///     Test that the config option combines with paths and other options in any order.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ConfigAndPaths_ParsesBoth()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["a.md", "--config", "c.yaml", "--silent", "b.md"]);
+
+        // Assert: the option value is not a path and both paths are kept
+        Assert.Equal("c.yaml", context.ConfigFile);
+        Assert.Equal(["a.md", "b.md"], context.Paths);
+        Assert.True(context.Silent);
+    }
+
+    /// <summary>
     ///     Test that a lone dash and other unknown dashed tokens are still unsupported arguments rather than paths.
     /// </summary>
     [Theory]

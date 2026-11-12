@@ -18,11 +18,12 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 - *Contract*: Parses `string[] args` into flag properties and, if `--log` is present, opens the log file for
   writing (an existing file is truncated). Returns a fully
   initialized `Context`. Accepts `--result` as a legacy alias for
-  `--results`, `--check`, and positional path arguments. Every argument that does not start with a
-  dash is a path; they are exposed in order through `Paths`.
+  `--results`, `--check`, `--config <file>`, `--no-config`, and positional path arguments. Every argument that
+  does not start with a dash is a path; they are exposed in order through `Paths`.
 - *Constraints*: Throws `ArgumentException` for unknown or malformed arguments (every unrecognized
-  dash-leading token, including a lone `-`, and an empty argument) and for `--validate` combined with
-  a path or `--check`; the latter is raised before the log file is opened. Throws
+  dash-leading token, including a lone `-`, and an empty argument), for `--config` with a missing or blank
+  filename, for `--config` combined with `--no-config`, and for `--validate` combined with a path, `--check`,
+  `--config`, or `--no-config`; the combinations are raised before the log file is opened. Throws
   `InvalidOperationException` when the log file cannot be opened.
 
 **Context.WriteLine**: Writes a message to stdout and to the log file.
@@ -60,6 +61,17 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 - *Constraints*: Read-only; a caller cannot change `Paths` even by casting it. Phase 1 processing is
   identical with and without `Check`.
 
+**Context.ConfigFile** and **Context.NoConfig**: Parsed configuration options.
+
+- *Type*: In-process .NET properties.
+- *Role*: Provider.
+- *Contract*: `ConfigFile` is the filename given with `--config`, as written on the command line (a relative path
+  is relative to the current directory), or `null` when the option was not given; when `--config` is repeated
+  the last value wins. `NoConfig` is true when `--no-config` was present. Both are fixed after `Create`. The
+  `Engine` subsystem uses them to choose between discovery, one explicit file, and the built-in defaults.
+- *Constraints*: Read-only. `ConfigFile` and `NoConfig` are never both set, because `Create` rejects the
+  combination.
+
 **Context.Dispose**: Closes the log file.
 
 - *Type*: In-process .NET method (`IDisposable`).
@@ -77,7 +89,9 @@ of each invocation and passes it to all other units that produce output or need 
 arguments.
 
 The subsystem has no dependencies on other tool subsystems; it uses only .NET BCL types
-(`Console`, `StreamWriter`, `System.Threading.Lock`).
+(`Console`, `StreamWriter`, `System.Threading.Lock`). The configuration options (`--config`, `--no-config`) are
+only parsed and validated here; selecting and reading configuration files belongs to the `Configuration` and
+`Engine` subsystems.
 
 Error handling flows from `Context.Create` to `Program.Main`: argument parsing errors propagate
 as `ArgumentException`; log-file errors propagate as `InvalidOperationException`. Both are

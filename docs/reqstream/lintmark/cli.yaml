@@ -167,15 +167,52 @@ sections:
               - CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged
 
           - id: LintMark-Cli-ValidateExclusive
-            title: The Cli subsystem shall reject `--validate` combined with positional paths or `--check`.
+            title: >-
+              The Cli subsystem shall reject `--validate` combined with positional paths, `--check`, `--config`,
+              or `--no-config`.
             justification: |
-              Self-validation ignores file arguments, so accepting them would silently discard part of
-              the command line. Rejecting the combination as a usage error prevents a misleading
-              success.
+              Self-validation ignores file and configuration arguments, so accepting them would silently
+              discard part of the command line. Rejecting the combination as a usage error prevents a
+              misleading success.
             children:
               - LintMark-Cli-Context-ValidateExclusive
             tests:
               - CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero
+              - CliSubsystem_ValidateWithConfig_ContextAndProgram_RejectsAndExitsNonZero
+
+          - id: LintMark-Cli-ConfigOption
+            title: >-
+              The Cli subsystem shall support the `--config` option to name the configuration file to use, and
+              make the name available to the program.
+            justification: |
+              Users need to point the tool at a configuration file that is not in the place where discovery
+              would look, for example one that is shared by several projects.
+            children:
+              - LintMark-Cli-Context-ConfigFile
+            tests:
+              - CliSubsystem_ConfigFlow_ContextAndProgram_ReportsConfigErrorAndExitsNonZero
+
+          - id: LintMark-Cli-NoConfigOption
+            title: >-
+              The Cli subsystem shall support the `--no-config` flag to request that no configuration file or
+              editor setting is used, and make the request available to the program.
+            justification: |
+              Users need a way to run the tool exactly as shipped, independent of whatever configuration
+              happens to be around.
+            children:
+              - LintMark-Cli-Context-NoConfig
+            tests:
+              - CliSubsystem_NoConfigFlow_ContextAndProgram_IgnoresInvalidConfig
+
+          - id: LintMark-Cli-ConfigExclusive
+            title: The Cli subsystem shall reject `--config` combined with `--no-config`.
+            justification: |
+              Naming a configuration file and asking for none contradict each other. Choosing one silently
+              would hide the contradiction from the user.
+            children:
+              - LintMark-Cli-Context-ConfigExclusive
+            tests:
+              - CliSubsystem_ConfigAndNoConfig_ContextAndProgram_RejectsAndExitsNonZero
 
           - id: LintMark-Cli-ThreadSafeOutput
             title: >-

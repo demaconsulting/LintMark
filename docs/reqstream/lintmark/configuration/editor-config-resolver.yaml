@@ -1,0 +1,163 @@
+---
+# Software Unit Requirements for the EditorConfigResolver Class
+#
+# The EditorConfigResolver class determines the line ending that the .editorconfig files give for a
+# Markdown file. Requirements that depend on the behavior of the editor-settings library list the matching
+# OTS requirements as children.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: EditorConfigResolver Requirements
+            requirements:
+              - id: LintMark-Configuration-EditorConfigResolver-EndOfLine
+                title: >-
+                  The EditorConfigResolver class shall report the line ending `lf` or `crlf` that the editor
+                  settings give for a Markdown file, with the setting name and the value in any letter case.
+                justification: |
+                  Editor settings are written by many people in many styles, and a line ending they give must
+                  be honored however it is spelled.
+                tests:
+                  - EditorConfigResolver_Resolve_LfSection_ReturnsLf
+                  - EditorConfigResolver_Resolve_CrLfSection_ReturnsCrLf
+                  - EditorConfigResolver_Resolve_UpperCaseValueAndKey_Accepted
+                children:
+                  - LintMark-OTS-EditorConfig-RawProperties
+
+              - id: LintMark-Configuration-EditorConfigResolver-UnsupportedValues
+                title: >-
+                  The EditorConfigResolver class shall report the line ending as not specified, without an error,
+                  when the editor settings give `cr`, unset the value, give an unknown value, give none, or have
+                  no section for the file, and shall let a value of that kind in a nearer file hide a farther one.
+                justification: |
+                  Editor settings are shared with other file types and tools. Values that LintMark cannot use
+                  must not break its run, and a nearer file that unsets or replaces a value means that the
+                  farther value no longer applies.
+                tests:
+                  - EditorConfigResolver_Resolve_CrValue_NotSpecified
+                  - EditorConfigResolver_Resolve_UnsetValue_NotSpecified
+                  - EditorConfigResolver_Resolve_UnsetInNearerFile_HidesFartherValue
+                  - EditorConfigResolver_Resolve_InvalidValue_NotSpecified
+                  - EditorConfigResolver_Resolve_InvalidValueInNearerFile_HidesFartherValue
+                  - EditorConfigResolver_Resolve_NoEndOfLineSetting_NotSpecified
+                  - EditorConfigResolver_Resolve_FileOutsideAnySection_NotSpecified
+                children:
+                  - LintMark-OTS-EditorConfig-RawProperties
+
+              - id: LintMark-Configuration-EditorConfigResolver-NearestWins
+                title: >-
+                  The EditorConfigResolver class shall use the value from the nearest editor settings file that
+                  gives one, and the value from a farther file when the nearer ones do not give it.
+                justification: |
+                  This is the layering that every editor honors, and following it makes the tool agree with
+                  the user's editor.
+                tests:
+                  - EditorConfigResolver_Resolve_NearestFileWinsPerProperty
+                  - EditorConfigResolver_Resolve_NoRoot_NearerFileLacksProperty_UsesFartherFile
+                children:
+                  - LintMark-OTS-EditorConfig-Precedence
+
+              - id: LintMark-Configuration-EditorConfigResolver-SectionOrder
+                title: >-
+                  The EditorConfigResolver class shall let a later section of an editor settings file override an
+                  earlier one, however specific either is.
+                justification: |
+                  Later sections override earlier ones in the editor settings format, and users order their
+                  sections on that understanding.
+                tests:
+                  - EditorConfigResolver_Resolve_LaterSectionWins
+                  - EditorConfigResolver_Resolve_LaterSectionOverridesEarlierRegardlessOfSpecificity
+                children:
+                  - LintMark-OTS-EditorConfig-Precedence
+
+              - id: LintMark-Configuration-EditorConfigResolver-RootFile
+                title: >-
+                  The EditorConfigResolver class shall ignore every editor settings file above a file that
+                  declares itself the root.
+                justification: |
+                  Declaring a root is how a project says that settings from outside it must not apply.
+                tests:
+                  - EditorConfigResolver_Resolve_RootTrue_StopsSearch
+                children:
+                  - LintMark-OTS-EditorConfig-Precedence
+
+              - id: LintMark-Configuration-EditorConfigResolver-SectionPatterns
+                title: >-
+                  The EditorConfigResolver class shall select the sections that apply to a file using the
+                  patterns of the editor settings format, with patterns that contain a slash relative to the
+                  directory of the settings file.
+                justification: |
+                  Sections apply to files by pattern, and a file must get the settings that its editor gives it.
+                tests:
+                  - EditorConfigResolver_Resolve_SectionPatterns_MatchPerSpecification
+                  - EditorConfigResolver_Resolve_NestedDirectory_PatternIsRelativeToEditorConfigDirectory
+                children:
+                  - LintMark-OTS-EditorConfig-Sections
+
+              - id: LintMark-Configuration-EditorConfigResolver-CaseSensitivity
+                title: >-
+                  The EditorConfigResolver class shall match section patterns against file names with letter case
+                  significant, on every platform.
+                justification: |
+                  Results must not differ between platforms. A section for one spelling of a file name must not
+                  apply to another spelling.
+                tests:
+                  - EditorConfigResolver_Resolve_SectionPatternCase_IsCaseSensitiveOnEveryPlatform
+                children:
+                  - LintMark-OTS-EditorConfig-Sections
+
+              - id: LintMark-Configuration-EditorConfigResolver-MalformedContent
+                title: >-
+                  The EditorConfigResolver class shall ignore malformed lines in an editor settings file, still
+                  apply the valid sections that follow them, and not report an error.
+                justification: |
+                  Editor settings files are maintained for other tools. Their mistakes are not LintMark's
+                  business and must not stop it.
+                tests:
+                  - EditorConfigResolver_Resolve_MalformedEditorConfig_BadLinesIgnored_LaterSectionApplies
+                children:
+                  - LintMark-OTS-EditorConfig-Leniency
+
+              - id: LintMark-Configuration-EditorConfigResolver-UnreadableFile
+                title: >-
+                  The EditorConfigResolver class shall report, as a one-line message instead of throwing, that
+                  the editor settings could not be read when a settings file that applies cannot be read, and
+                  shall give no line ending in that case.
+                justification: |
+                  A file that cannot be read may contain the setting that matters, so the user must be told
+                  rather than have the tool continue as if the setting were absent.
+                tests:
+                  - EditorConfigResolver_Resolve_UnreadableEditorConfig_ReturnsErrorMessage
+                  - EditorConfigResult_InvalidCombination_Throws
+
+              - id: LintMark-Configuration-EditorConfigResolver-PathForms
+                title: >-
+                  The EditorConfigResolver class shall accept Markdown file paths that are relative to the
+                  current directory, that use either kind of slash, or that name a file or directory that does not
+                  exist, and shall reject a null or empty path.
+                justification: |
+                  Users and scripts write paths in the style of their own platform, and files that are about to
+                  be created must be treated like existing ones.
+                tests:
+                  - EditorConfigResolver_Resolve_NonexistentFileInMissingDirectory_StillResolves
+                  - EditorConfigResolver_Resolve_RelativePath_ResolvedAgainstCurrentDirectory
+                  - EditorConfigResolver_Resolve_BackslashSeparators_AreNormalized
+                  - EditorConfigResolver_Resolve_NullOrEmptyPath_Throws
+                children:
+                  - LintMark-OTS-EditorConfig-RawProperties
+
+              - id: LintMark-Configuration-EditorConfigResolver-ConcurrentLookups
+                title: >-
+                  The EditorConfigResolver class shall give every thread the same result for the same Markdown
+                  file, however many threads ask at the same time, and shall read the settings files of a directory
+                  once.
+                justification: |
+                  Parallel workers ask for line endings at the same time, and results that depended on timing
+                  would make reports differ between runs.
+                tests:
+                  - EditorConfigResolver_Resolve_ManyThreads_ResultsEqualSequential
+                  - EditorConfigResolver_Resolve_SameDirectoryRepeated_UsesCachedChain
+                children:
+                  - LintMark-OTS-EditorConfig-Concurrency

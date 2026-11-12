@@ -9,6 +9,18 @@ code and combined console output. The tests treat the tool as a black box and as
 outputs; no internal implementation details are assumed. Tests that process files create them in a
 temporary directory (the `TemporaryDirectory` test helper) and pass their paths as arguments.
 
+The configuration scenarios write `.lintmark.yaml` and `.editorconfig` files into the temporary directory, run
+the tool with absolute paths for the Markdown files and for any file named with `--config`, and assert on the
+combined output with the path tail that the report prints (for example `docs/.lintmark.yaml:1:14`). The report
+prints each path relative to the current directory of the tool process, so the assertions match on the part of the
+path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
+check the observable outcome that exists today: whether a configuration problem is reported, where, in what form,
+and with what exit status. The line ending that the editor settings give takes effect only once files are
+rewritten, so the system-level evidence for the precedence of the configured line ending over the editor settings
+is acceptance only: the system scenario shows that settings that LintMark cannot use never break a run, and the
+outcome itself is observable at the Configuration subsystem, the `Engine` subsystem, and the unit level, where it
+is verified.
+
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made
 against the combined output.
@@ -17,7 +29,11 @@ against the combined output.
 
 Integration tests run on .NET 10.0 and .NET 11.0 across Windows, Linux, and macOS.
 All scenarios are expected to produce identical results on all supported runtime and platform
-combinations. Temporary files and directories are created and cleaned up within each test.
+combinations. Temporary files and directories are created and cleaned up within each test. Each temporary directory
+holds an empty `.git` directory, so configuration discovery that starts inside it stops there and never reaches a
+`.lintmark.yaml` or `.editorconfig` file that exists above the system temporary directory; the scenario about the
+repository boundary builds a tree without that marker and adds its own `.git` directory below an invalid
+configuration file. Every tree that holds editor settings starts them with `root = true`.
 
 ## Acceptance Criteria
 
@@ -31,6 +47,21 @@ combinations. Temporary files and directories are created and cleaned up within 
 - Files from `node_modules` and `.git` folders are processed only when named explicitly.
 - Failures are reported in path order, and `--check` leaves files byte-identical.
 - `--validate` combined with paths or `--check` is rejected with exit code 1 and without running validation.
+- `--validate` combined with `--config` or `--no-config` is rejected with exit code 1 and without running
+  validation, and `--config` combined with `--no-config` is rejected with exit code 1.
+- Each Markdown file is processed with the nearest `.lintmark.yaml` file up to the repository root: an invalid
+  nearer file is reported, an invalid farther file is never read, and a file above a `.git` directory is never used.
+- `--config` makes the named file govern every file instead of discovery, and a missing named file is reported
+  at line 1, column 1 with exit code 1; `--no-config` ignores an invalid configuration file.
+- A tree without a configuration file, an empty file, a file with some settings, and the documented full sample are
+  all accepted with exit code 0 and no report.
+- An unknown setting, an invalid value, and malformed YAML are each reported as
+  `path:line:col: config-error message` at their position, once per problem and one per line, with exit code 1; the
+  files themselves are still read and their own failures reported.
+- Configuration problems are reported in path order whatever the order of the arguments.
+- Editor settings that LintMark cannot use (`cr`, `unset`, settings meant for other tools) are accepted with exit
+  code 0 and no report.
+- `--help` lists `--config <file>` and `--no-config`.
 
 ## Test Scenarios
 
@@ -90,6 +121,47 @@ passed; every file is read and parsed, the exit code is 0, and nothing is report
 **Check flag lints without writing**: `--check` is passed with a valid file that has CRLF line endings and no
 final newline; the exit code is 0 and the file's bytes and last-write time are unchanged.
 
+**Help lists the configuration options**: The `--help` output contains `--config <file>` and `--no-config`, and the
+exit code is 0.
+
+**Nearest configuration file is used and its problems are reported**: A valid `.lintmark.yaml` in the root and an
+invalid one in `docs` (with `line-length: wide`) are created, and `docs/a.md` is passed; the exit code is 1 and the
+output contains `docs/.lintmark.yaml:1:14: config-error Invalid value 'wide' for setting 'line-length'`, so the
+nearer file governs the file.
+
+**Farther invalid configuration is never read when a nearer valid one exists**: An invalid file with an unknown
+setting in the root and a valid file in `docs` are created, and `docs/a.md` is passed; the exit code is 0 and the
+output contains no `config-error`.
+
+**Configuration above the repository root is not used**: An invalid `.lintmark.yaml` is created above a folder that
+holds a `.git` directory, and a file inside that folder is passed; the exit code is 0 and nothing is reported.
+
+**Named configuration file is used instead of discovery**: An invalid discoverable file and a valid file in
+`custom/settings.yaml` are created; with `--config` naming the valid file by its absolute path, the exit code is 0
+and nothing is reported.
+
+**No-config option ignores an invalid configuration file**: An invalid file sits beside the Markdown file; with
+`--no-config` the exit code is 0 and no `config-error` appears, while the same run without the flag exits with 1
+and reports a `config-error`.
+
+**Tree without a configuration file runs with the defaults**: A valid file in a tree without any configuration
+file gives exit code 0 and no report.
+
+**Empty configuration file means the defaults**: An empty `.lintmark.yaml` gives exit code 0 and no report.
+
+**Configuration file with only some settings is accepted**: A file that sets only `wrap: semantic` gives exit code
+0 and no report.
+
+**Documented full sample configuration is accepted**: The sample that sets every formatting and linting setting,
+nested link conversion options, rule toggles by name and by legacy number, and ignore patterns gives exit code 0
+and no report.
+
+**Editor settings that cannot be used are accepted without error**: A root `.editorconfig` gives `cr` to one file,
+`unset` to another, and unrelated settings (tab indentation and a maximum line length) to all; both files are
+passed, and the exit code is 0 and nothing is reported. This scenario is acceptance only for the precedence of the
+editor settings: which line ending they give is not observable until formatting exists, and is verified by the
+Configuration subsystem, `EditorConfigResolver`, `Engine` subsystem, and `LintMarkEngine` tests.
+
 ### Boundary conditions
 
 **Glob and exclusion skip the excluded files**: An absolute glob and an absolute `!` exclusion are passed so
@@ -102,6 +174,10 @@ code is 0 in each case.
 
 **Several failing files are reported in path order**: Three invalid files are passed in non-sorted order; the exit
 code is 1 and the diagnostics appear in path order.
+
+**Configuration problems of several folders are reported in path order**: Invalid configurations in `b` and `a` are
+used by files that are passed in the order `b`, `a`; the exit code is 1 and the problem of `a` appears before the
+problem of `b`.
 
 ### Error handling
 
@@ -121,3 +197,37 @@ contains `missing.md:1:1: file-read-error File not found`.
 `--validate`, and validation does not run.
 
 **Validate combined with check is rejected**: The exit code is 1 and the output contains an error.
+
+**Validate combined with the config option is rejected**: `--validate --config a.yaml` gives exit code 1, an error
+that names `--config`, and no validation output.
+
+**Validate combined with the no-config flag is rejected**: `--validate --no-config` gives exit code 1, an error
+that names `--no-config`, and no validation output.
+
+**Config option combined with the no-config flag is rejected**: The exit code is 1 and the error names both
+options.
+
+**Missing named configuration file is reported**: `--config` names a file that does not exist; the exit code is 1
+and the output contains `missing.yaml:1:1: config-error Configuration file not found`.
+
+**Unknown setting is rejected instead of ignored**: A configuration with a misspelled name for the line length
+setting gives exit code 1 and a line at `.lintmark.yaml:1:1` that starts with `config-error Unknown setting` and
+names the misspelled word.
+
+**Invalid value is rejected and the allowed values are named**: `bullet: star` gives exit code 1 and
+`.lintmark.yaml:1:9: config-error Invalid value 'star' for setting 'bullet'; expected one of: dash, asterisk, plus`.
+
+**Malformed YAML is rejected with a position**: A file with an unterminated quote gives exit code 1 and a line that
+matches `.lintmark.yaml:<line>:<col>: config-error Invalid YAML`.
+
+**Configuration problems are reported one per line in the documented form**: A file with an unknown setting on line
+1 and an invalid value on line 2 gives exit code 1 and exactly two `config-error` lines, in that order: one ending
+in `:1:1: config-error Unknown setting` followed by the offending name and one ending in
+`:2:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic`.
+
+**Files are still checked when the configuration is invalid**: An invalid configuration and a file that cannot be
+decoded are processed; the exit code is 1 and the output contains both the configuration problem and
+`bad.md:1:1: file-encoding-error`.
+
+**Reported configuration problem gives a non-zero exit code**: A file with an invalid value (`final-newline: maybe`)
+beside a valid Markdown file gives exit code 1.

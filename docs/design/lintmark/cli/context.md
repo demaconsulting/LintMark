@@ -35,6 +35,13 @@ explicit statement of the default behavior and does not change processing.
 `!` exclusions) in the order given; empty when none were supplied. Backed by an immutable array, so a caller
 cannot change it by casting.
 
+**ConfigFile**: `string?` — Filename supplied after `--config`, as written on the command line, or `null` if the
+option was not present; when the option is repeated, the last value wins. A relative path is relative to the
+current directory. Never blank: a missing or blank filename is rejected by `Create`.
+
+**NoConfig**: `bool` — `true` when `--no-config` was present: both `.lintmark.yaml` and `.editorconfig` are ignored
+and the built-in defaults apply.
+
 **ResultsFile**: `string?` — Path supplied after `--results` or `--result`, or `null` if
 neither flag was present.
 
@@ -55,14 +62,17 @@ is read under `_outputLock`.
   file has been opened for writing (an existing file is truncated).
 
 Delegates to the private `ArgumentParser` helper to parse flags, then rejects `--validate` combined
-with `--check` or with any path, and only then, if `--log` was present, opens the log file with
+with `--check`, `--config`, `--no-config`, or any path, rejects `--config` combined with `--no-config`, and only
+then, if `--log` was present, opens the log file with
 `OpenLogFile` (`StreamWriter` with `append: false` and `AutoFlush` on, so an existing file is truncated, as in
-the other DEMA Consulting tools). The parser
+the other DEMA Consulting tools). `--config` takes the next argument as its value (a missing or blank value is an
+error) and a repeated `--config` replaces the earlier value; `--no-config` is a plain flag. The parser
 treats a token that does not start with a dash as a positional
 path. Every other token (including a lone `-` and the empty string) that is not a recognized
 option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together
-with paths; the dispatcher then ignores the paths. Throws `ArgumentException` for unknown or
-malformed arguments and for the `--validate` combination; throws `InvalidOperationException` if
+with paths, `--config`, and `--no-config`; the dispatcher then ignores them. Throws `ArgumentException` for
+unknown or malformed arguments and for the `--validate` and `--config`/`--no-config` combinations; throws
+`InvalidOperationException` if
 the log file cannot be opened.
 
 **WriteLine**: Writes a message to standard output and to the log file.
@@ -101,8 +111,10 @@ Takes `_outputLock` so the writer is never disposed while another thread is writ
 `Create` throws `ArgumentException` ("Unsupported argument '{arg}'") for any unrecognized
 dash-leading argument (including a lone `-`) and for an empty argument (the message is then
 "Unsupported argument ''"; an empty string is never a path), ("{arg} requires {description}") for an
-option whose required value is missing or not an accepted integer, and
-("--validate cannot be combined with paths or --check") for the self-validation conflict. It throws
+option whose required value is missing or not an accepted integer ("--config requires a configuration filename
+argument" when the value of `--config` is missing or blank), ("--validate cannot be combined with paths, --check,
+--config, or --no-config") for the self-validation conflict, and
+("--config cannot be combined with --no-config") for the contradictory configuration options. It throws
 `InvalidOperationException` ("Failed to open log file '{path}': {detail}", with the underlying exception as
 the inner exception) when the `--log` file cannot be opened. Both exceptions propagate to
 `Program.Main`, which reports them as `Error: {message}`.
@@ -120,4 +132,4 @@ Consulting tools. `Dispose` closes the writer and can likewise throw if the fina
 
 - **Program** — creates `Context` via `Context.Create` and calls `WriteLine` and `WriteError`.
 - **Validation** — receives `Context` from `Program` and calls `WriteLine` and `WriteError`.
-- **LintMarkEngine** — reads `Paths` and reports failures with `WriteError`.
+- **LintMarkEngine** — reads `Paths`, `ConfigFile`, and `NoConfig`, and reports failures with `WriteError`.

@@ -25,17 +25,28 @@ namespace DemaConsulting.LintMark.Tests;
 /// </summary>
 /// <remarks>
 ///     Used by tests that need real files (discovery, engine, command line). Each instance owns
-///     its own directory, so tests using it do not share state.
+///     its own directory, so tests using it do not share state. By default the directory looks like
+///     the root of a repository (it holds an empty <c>.git</c> directory), so configuration discovery
+///     started inside it never reaches a configuration file that happens to exist above the system
+///     temporary directory and tests do not depend on the machine they run on.
 /// </remarks>
 internal sealed class TemporaryDirectory : IDisposable
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="TemporaryDirectory"/> class and creates the directory.
     /// </summary>
-    public TemporaryDirectory()
+    /// <param name="repositoryRoot">
+    ///     <see langword="true"/> (the default) to mark the directory as a repository root with an empty
+    ///     <c>.git</c> directory; <see langword="false"/> for a directory with no marker.
+    /// </param>
+    public TemporaryDirectory(bool repositoryRoot = true)
     {
         FullPath = Path.Combine(Path.GetTempPath(), "lintmark-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(FullPath);
+        if (repositoryRoot)
+        {
+            Directory.CreateDirectory(Path.Combine(FullPath, ".git"));
+        }
     }
 
     /// <summary>

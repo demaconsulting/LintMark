@@ -49,7 +49,9 @@ processes, and reports the files.
 
 **PrintHelp**: Writes the usage synopsis (`Usage: lintmark [options] [paths...]`), the description
 of the path arguments (including the `!` exclusion prefix and the `**/*.md` default), and the
-options table (including `--check`) to `context`.
+options table (including `--check`, `--config <file>`, which uses a named configuration file instead of
+discovering `.lintmark.yaml`, and `--no-config`, which ignores `.lintmark.yaml` and `.editorconfig` and uses the
+built-in defaults) to `context`.
 
 - *Parameters*: `Context context` — output target.
 - *Returns*: `void`.
@@ -58,12 +60,14 @@ options table (including `--check`) to `context`.
 
 `Main` handles errors at two levels. Expected errors (`ArgumentException` and
 `InvalidOperationException`) are written to stderr as `"Error: {message}"` and cause exit
-code 1 without a stack trace; this includes the usage error raised by `Context.Create` when
-`--validate` is combined with paths or `--check`. Unexpected errors (`Exception`) are written to
+code 1 without a stack trace; this includes the usage errors raised by `Context.Create` when
+`--validate` is combined with paths, `--check`, `--config`, or `--no-config`, when `--config` is combined with
+`--no-config`, or when `--config` has no filename. Unexpected errors (`Exception`) are written to
 stderr as `"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
 `Run`, `PrintBanner`, and `PrintHelp` do not catch exceptions; all errors
 propagate to `Main`. Failures of individual files are not exceptions: `LintMarkEngine` reports them
-through `Context.WriteError`, which makes the exit code 1.
+through `Context.WriteError`, which makes the exit code 1; so are configuration problems, which are also reported by
+the engine.
 
 ### Dependencies
 
@@ -71,7 +75,8 @@ through `Context.WriteError`, which makes the exit code 1.
   `Context.WriteError` for all output.
 - **Validation** — `Program.Run` calls `Validation.Run(context)` when the `--validate` flag is
   set.
-- **LintMarkEngine** — `Run` calls `LintMarkEngine.Run(context)` to process the selected Markdown files.
+- **LintMarkEngine** — `Run` calls `LintMarkEngine.Run(context)` to process the selected Markdown files; the
+  engine chooses the configuration sources from the `--config` and `--no-config` options.
 
 ### Callers
 

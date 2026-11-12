@@ -625,6 +625,435 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that combining validate with the config option is a usage error.
+    /// </summary>
+    [Fact]
+    public void LintMark_ValidateWithConfig_Combined_ReturnsError()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run the tool with validate and a configuration file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--config", "a.yaml");
+
+        // Assert: error exit code and a message naming the option; validation did not run
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error", output);
+        Assert.Contains("--config", output);
+        Assert.DoesNotContain("Total Tests", output);
+    }
+
+    /// <summary>
+    ///     Test that combining validate with the no-config flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void LintMark_ValidateWithNoConfig_Combined_ReturnsError()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run the tool with validate and no-config
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--no-config");
+
+        // Assert: error exit code and a message naming the flag; validation did not run
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error", output);
+        Assert.Contains("--no-config", output);
+        Assert.DoesNotContain("Total Tests", output);
+    }
+
+    /// <summary>
+    ///     Test that help lists the configuration options.
+    /// </summary>
+    [Fact]
+    public void LintMark_HelpFlag_Provided_ListsConfigOptions()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run the tool with help flag
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--help");
+
+        // Assert: usage mentions both configuration options
+        Assert.Equal(0, exitCode);
+        Assert.Contains("--config <file>", output);
+        Assert.Contains("--no-config", output);
+    }
+
+    /// <summary>
+    ///     Test that combining the config option with the no-config flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigAndNoConfig_Combined_ReturnsError()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run the tool with both options
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", "a.yaml", "--no-config");
+
+        // Assert: error exit code and a message naming both options
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error", output);
+        Assert.Contains("--config", output);
+        Assert.Contains("--no-config", output);
+    }
+
+    /// <summary>
+    ///     Test that the nearest configuration is used and its problems are reported with their position.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDiscovery_NearestConfigInvalid_ReportsItsErrors()
+    {
+        // Arrange: a valid configuration in the root and an invalid one nearer the file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 100\n");
+        directory.WriteFile("docs/.lintmark.yaml", "line-length: wide\n");
+        var file = directory.WriteFile("docs/a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: the nearer file's problem is reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("docs/.lintmark.yaml:1:14: config-error Invalid value 'wide' for setting 'line-length'", output);
+    }
+
+    /// <summary>
+    ///     Test that a farther invalid configuration is never read when a nearer valid one exists.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDiscovery_FartherConfigInvalidNearestValid_ReturnsSuccess()
+    {
+        // Arrange: an invalid configuration in the root and a valid one nearer the file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        directory.WriteFile("docs/.lintmark.yaml", "line-length: 90\n");
+        var file = directory.WriteFile("docs/a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that a configuration above the repository root is not used.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDiscovery_ConfigAboveRepositoryRoot_IsNotUsed()
+    {
+        // Arrange: an invalid configuration above a folder that holds a .git directory
+        using var directory = new TemporaryDirectory(repositoryRoot: false);
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        Directory.CreateDirectory(directory.PathOf("repo/.git"));
+        var file = directory.WriteFile("repo/docs/a.md");
+
+        // Act: run the tool with the file inside the repository
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: the file above the repository is not used
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that the config option uses the named file instead of discovery.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigOption_FileProvided_UsesItInsteadOfDiscovery()
+    {
+        // Arrange: an invalid discoverable file and a valid explicit file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var config = directory.WriteFile("custom/settings.yaml", "line-length: 100\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the explicit file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", config, file);
+
+        // Assert: the discoverable file is not used
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that a missing explicit configuration is reported and gives a non-zero exit code.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigOption_MissingFile_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a Markdown file and a configuration path that does not exist
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("a.md");
+        var missing = directory.PathOf("missing.yaml");
+
+        // Act: run the tool with the missing file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", missing, file);
+
+        // Assert: reported at 1:1
+        Assert.Equal(1, exitCode);
+        Assert.Contains("missing.yaml:1:1: config-error Configuration file not found", output);
+    }
+
+    /// <summary>
+    ///     Test that no-config ignores an invalid configuration.
+    /// </summary>
+    [Fact]
+    public void LintMark_NoConfigOption_InvalidConfigPresent_IgnoresIt()
+    {
+        // Arrange: an invalid configuration beside the Markdown file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with and without --no-config
+        var ignoredExit = Runner.Run(out var ignored, "dotnet", _dllPath, "--no-config", file);
+        var usedExit = Runner.Run(out var used, "dotnet", _dllPath, file);
+
+        // Assert: ignored with the flag, reported without it
+        Assert.Equal(0, ignoredExit);
+        Assert.DoesNotContain("config-error", ignored);
+        Assert.Equal(1, usedExit);
+        Assert.Contains("config-error", used);
+    }
+
+    /// <summary>
+    ///     Test that an empty configuration file means the defaults.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDefaults_EmptyConfigFile_ReturnsSuccess()
+    {
+        // Arrange: an empty configuration file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", string.Empty);
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that a configuration with only some settings is accepted.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDefaults_PartialConfigFile_ReturnsSuccess()
+    {
+        // Arrange: a configuration that sets one setting
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "wrap: semantic\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that a tree without any configuration file works.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigDefaults_NoConfigFile_ReturnsSuccess()
+    {
+        // Arrange: a tree without configuration files
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that the documented sample configuration is accepted.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess()
+    {
+        // Arrange: the documented sample with every setting, rule alias and ignore patterns
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", ConfigLoaderParseTests.FullSample);
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
+    ///     Test that an unknown setting is rejected instead of ignored.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_UnknownKey_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration with a misspelled setting
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-width: 100\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the key
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:1:1: config-error Unknown setting 'line-width'", output);
+    }
+
+    /// <summary>
+    ///     Test that an invalid value is rejected with the allowed values.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_InvalidValue_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration with an invalid value
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bullet: star\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the value, naming the allowed values
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:1:9: config-error Invalid value 'star' for setting 'bullet'; expected one of: dash, asterisk, plus", output);
+    }
+
+    /// <summary>
+    ///     Test that malformed YAML is reported with a position.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_MalformedYaml_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration with an unterminated quote
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "wrap: \"fill\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported as invalid YAML with a position
+        Assert.Equal(1, exitCode);
+        Assert.Matches(@"\.lintmark\.yaml:\d+:\d+: config-error Invalid YAML", output);
+    }
+
+    /// <summary>
+    ///     Test that configuration problems are reported in the documented one-line form.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage()
+    {
+        // Arrange: a configuration with two problems
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "color: red\nwrap: nope\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: one line per problem, in the documented form
+        Assert.Equal(1, exitCode);
+        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(l => l.Contains("config-error", StringComparison.Ordinal))
+            .ToList();
+        Assert.Equal(2, lines.Count);
+        Assert.Matches(@"\.lintmark\.yaml:1:1: config-error Unknown setting 'color'$", lines[0]);
+        Assert.Matches(@"\.lintmark\.yaml:2:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic$", lines[1]);
+    }
+
+    /// <summary>
+    ///     Test that problems of several configuration files are reported in path order.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder()
+    {
+        // Arrange: invalid configurations in two folders, passed in reverse order
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("b/.lintmark.yaml", "bogus: 1\n");
+        directory.WriteFile("a/.lintmark.yaml", "bogus: 1\n");
+        var fileB = directory.WriteFile("b/x.md");
+        var fileA = directory.WriteFile("a/x.md");
+
+        // Act: run the tool
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, fileB, fileA);
+
+        // Assert: reported in path order
+        Assert.Equal(1, exitCode);
+        var indexA = output.IndexOf("a/.lintmark.yaml:1:1", StringComparison.Ordinal);
+        var indexB = output.IndexOf("b/.lintmark.yaml:1:1", StringComparison.Ordinal);
+        Assert.True(indexA >= 0 && indexA < indexB, output);
+    }
+
+    /// <summary>
+    ///     Test that files are still checked when their configuration has a problem.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_InvalidConfig_StillReportsFileFailures()
+    {
+        // Arrange: an invalid configuration and a file that cannot be decoded
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var file = directory.WriteBytes("bad.md", [0xFF]);
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: both the configuration problem and the file failure are reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("config-error Unknown setting 'bogus'", output);
+        Assert.Contains("bad.md:1:1: file-encoding-error", output);
+    }
+
+    /// <summary>
+    ///     Test that a reported configuration problem gives a non-zero exit code.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_Reported_ReturnsError()
+    {
+        // Arrange: an invalid configuration and a valid Markdown file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "final-newline: maybe\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out _, "dotnet", _dllPath, file);
+
+        // Assert: the exit code is one
+        Assert.Equal(1, exitCode);
+    }
+
+    /// <summary>
+    ///     Test that unsupported or unrelated editor settings are accepted without an error.
+    /// </summary>
+    [Fact]
+    public void LintMark_EditorConfig_UnsupportedOrUnusedSettings_Provided_ReturnsSuccess()
+    {
+        // Arrange: editor settings with cr, unset, an unknown word and unrelated settings
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".editorconfig", "root = true\n\n[a.md]\nend_of_line = cr\n\n[b.md]\nend_of_line = unset\n\n[*]\nindent_style = tab\nmax_line_length = 80\n");
+        var fileA = directory.WriteFile("a.md");
+        var fileB = directory.WriteFile("b.md");
+
+        // Act: run the tool with both files
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, fileA, fileB);
+
+        // Assert: success without a report
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+    }
+
+    /// <summary>
     ///     Test that the tool processes this repository's own documentation successfully.
     /// </summary>
     [Fact]
