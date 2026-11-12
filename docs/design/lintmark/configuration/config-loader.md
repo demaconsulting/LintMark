@@ -39,7 +39,9 @@ comparer — the discovery caches, keyed by start directory and by configuration
 apply. Invariant (checked by the constructor, `ArgumentException` on violation): `Config` is set exactly when
 `Errors` is empty, the array is initialized, and a source path is not empty. The constructor stores the errors
 sorted by line, column, and message (ordinal), so the report never depends on discovery order. A load can
-therefore never yield a half-valid configuration.
+therefore never yield a half-valid configuration. This invariant, the argument checks of the loader and the
+problem type, and the per-directory sharing of results are construction details that no user can observe
+directly; they are verified by tests that are not linked to a requirement.
 
 **ConfigError**: A sealed record `(string Path, int Line, int Column, string Message)`. The path is non-empty,
 line and column are at least one, and the message is non-blank; line breaks in the message are replaced by
@@ -150,6 +152,17 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
   grows quadratically with flow nesting, so the loader rejects deeper input before parsing rather than letting a
   small file consume unbounded time. The scan counts every opening and closing bracket, even inside quoted text
   or comments, which only matters for input that is invalid anyway.
+
+**Guards against pathological files**: The requirements state the need as observable behavior: a file that is
+implausibly large or implausibly deeply nested is reported as a problem promptly, with a position, instead of
+stalling or failing the run. The numbers live here and in the user guide, not in the requirements. The size limit
+is 1 MiB (no valid configuration is anywhere near it, and the reader stops a little beyond the limit, so a huge
+unrelated file is never loaded). The nesting limit is 64 levels, applied by a scan before the YAML library sees the
+text: measurement showed that unguarded input nested 100,000 levels deep occupied the parser for about a minute,
+while the scan rejects it in milliseconds. The documented range of the numeric settings (up to 100000) is not a
+guard; it is the range that the `LintMarkConfig` checks enforce so that later width calculations cannot overflow.
+The system and subsystem tests for the two guards use a generous time bound (10 seconds) so that they do not depend
+on the speed of the machine.
 
 **Error catalog**: Every message is reported with the rule id `config-error` against the path of the
 configuration file. Positions are 1-based. Errors about a null or empty value are reported at the **key**; every

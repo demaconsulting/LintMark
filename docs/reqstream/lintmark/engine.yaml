@@ -5,6 +5,8 @@
 # - Define requirements for the LintMark Engine subsystem
 # - The Engine subsystem selects the files to process, processes them and reports failures
 # - Subsystem requirements describe the externally visible file-selection and reporting behavior
+# - Using the line ending that the configuration or the editor settings give is not observable until files
+#   are rewritten, so the formatting phase adds the matching requirements
 
 sections:
   - title: LintMark Requirements
@@ -135,36 +137,55 @@ sections:
           - id: LintMark-Engine-EffectiveConfiguration
             title: >-
               The Engine subsystem shall process each selected file with the configuration that applies to
-              that file, independent of the other files, the order in which files are processed, and the number
-              processed at once.
+              that file.
             justification: |
-              Different folders of one run can have different configurations, and the settings of one file
-              must never leak into another or depend on scheduling.
+              Different folders of one run can have different configurations, and each file must be
+              processed with its own.
             children:
               - LintMark-Engine-LintMarkEngine-ConfigPerFile
               - LintMark-Engine-LintMarkEngine-ImmutableConfigResults
             tests:
               - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
+
+          - id: LintMark-Engine-ConfigurationIndependence
+            title: >-
+              The Engine subsystem shall process each selected file with the same configuration regardless of
+              the other files, the order in which files are processed, and the number processed at once.
+            justification: |
+              The settings of one file must never leak into another or depend on scheduling.
+            children:
+              - LintMark-Engine-LintMarkEngine-ConfigIndependentOfScheduling
+            tests:
               - EngineSubsystem_ConfigErrors_ParallelAndSequential_ProduceIdenticalOutput
 
           - id: LintMark-Engine-ExplicitConfiguration
             title: >-
               The Engine subsystem shall process every selected file with the configuration file named on the
-              command line, when there is one, instead of a discovered configuration, and report its problems
-              even when no file is selected.
+              command line, when there is one, instead of a discovered configuration.
             justification: |
-              Naming a configuration file is a deliberate choice, and a problem with it matters whether or not
-              the selection happens to contain files.
+              Naming a configuration file is a deliberate choice that overrides discovery.
             children:
               - LintMark-Engine-LintMarkEngine-ExplicitConfig
-              - LintMark-Engine-LintMarkEngine-ExplicitConfigProblems
             tests:
               - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles
 
+          - id: LintMark-Engine-ExplicitConfigurationProblems
+            title: >-
+              The Engine subsystem shall report the problems of the configuration file named on the command line
+              even when no file is selected.
+            justification: |
+              A problem with the named configuration matters whether or not the selection happens to
+              contain files.
+            children:
+              - LintMark-Engine-LintMarkEngine-ExplicitConfigProblems
+            tests:
+              - EngineSubsystem_ExplicitConfig_NoFilesSelected_ReportsProblem
+
           - id: LintMark-Engine-NoConfig
             title: >-
-              The Engine subsystem shall process every selected file with the default configuration, without
-              reading any configuration file or editor settings, when the no-config option is given.
+              The Engine subsystem shall process every selected file with the default configuration, unaffected
+              by any configuration file or editor settings however invalid or unreadable, when the no-config
+              option is given.
             justification: |
               Users need a way to run the tool exactly as shipped, independent of whatever configuration
               happens to be around, for example to rule it out as the cause of a surprise.
@@ -173,39 +194,40 @@ sections:
             tests:
               - EngineSubsystem_NoConfig_InvalidConfigPresent_ReportsNothing
 
-          - id: LintMark-Engine-EditorConfigFallback
+          - id: LintMark-Engine-ConfigErrorFormat
             title: >-
-              The Engine subsystem shall take the line ending of a file from its configuration when the
-              configuration gives one, otherwise from the editor settings when they give one, and otherwise
-              leave it unspecified.
-            justification: |
-              Users state the line ending once, in the place that suits them, and the tool must not make them
-              state it twice. The explicit configuration takes precedence over a setting shared with other
-              tools.
-            children:
-              - LintMark-Engine-LintMarkEngine-EndOfLinePrecedence
-              - LintMark-Engine-LintMarkEngine-EndOfLineFallback
-            tests:
-              - EngineSubsystem_EditorConfig_ConfigAndEditorSettings_ResolveLineEndingPerFile
-              - EngineSubsystem_EditorConfig_UnsupportedValues_ReportsNothing
-
-          - id: LintMark-Engine-ConfigErrorReport
-            title: >-
-              The Engine subsystem shall report each configuration problem once, on its own line as
-              `path:line:col: config-error message`, ordered together with the file failures by path and
-              position.
+              The Engine subsystem shall report each configuration problem on its own line as
+              `path:line:col: config-error message`.
             justification: |
               Configuration problems are as actionable as file problems and belong in the same regular
-              report. One broken configuration used by hundreds of files must be reported once.
+              report, so that editors and build systems can read them.
             children:
               - LintMark-Engine-LintMarkEngine-ConfigErrorFormat
-              - LintMark-Engine-LintMarkEngine-ConfigErrorOnce
-              - LintMark-Engine-LintMarkEngine-ConfigErrorOrder
               - LintMark-Engine-LintMarkEngine-EditorConfigFailure
             tests:
               - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-              - EngineSubsystem_ConfigErrors_ParallelAndSequential_ProduceIdenticalOutput
+
+          - id: LintMark-Engine-ConfigErrorOnce
+            title: >-
+              The Engine subsystem shall report a configuration problem once, however many files use the
+              configuration that has it.
+            justification: |
+              One broken configuration used by hundreds of files would otherwise bury the report.
+            children:
+              - LintMark-Engine-LintMarkEngine-ConfigErrorOnce
+            tests:
               - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles
+
+          - id: LintMark-Engine-ConfigErrorOrder
+            title: >-
+              The Engine subsystem shall order configuration problems together with the file failures by path
+              and position, with the same output for any number of files processed at once.
+            justification: |
+              Reproducible output is required for comparing runs and for stable build logs.
+            children:
+              - LintMark-Engine-LintMarkEngine-ConfigErrorOrder
+            tests:
+              - EngineSubsystem_ConfigErrors_ParallelAndSequential_ProduceIdenticalOutput
 
           - id: LintMark-Engine-ConfigErrorIsolation
             title: >-
@@ -228,4 +250,4 @@ sections:
               - LintMark-Engine-LintMarkEngine-ConfigErrorExitStatus
             tests:
               - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-              - EngineSubsystem_NoConfig_InvalidConfigPresent_ReportsNothing
+              - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles

@@ -16,10 +16,10 @@ prints each path relative to the current directory of the tool process, so the a
 path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
 check the observable outcome that exists today: whether a configuration problem is reported, where, in what form,
 and with what exit status. The line ending that the editor settings give takes effect only once files are
-rewritten, so the system-level evidence for the precedence of the configured line ending over the editor settings
-is acceptance only: the system scenario shows that settings that LintMark cannot use never break a run, and the
-outcome itself is observable at the Configuration subsystem, the `Engine` subsystem, and the unit level, where it
-is verified.
+rewritten, so no system requirement asserts its use in this phase: the system scenario shows that settings that
+LintMark cannot use never break a run, and the formatting phase adds the system requirement and the scenario that
+observe the line ending that the editor settings give. Until then that outcome is verified, without a requirement,
+by tests at the Configuration subsystem, `Engine` subsystem, and unit level.
 
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made
@@ -52,12 +52,16 @@ configuration file. Every tree that holds editor settings starts them with `root
 - Each Markdown file is processed with the nearest `.lintmark.yaml` file up to the repository root: an invalid
   nearer file is reported, an invalid farther file is never read, and a file above a `.git` directory is never used.
 - `--config` makes the named file govern every file instead of discovery, and a missing named file is reported
-  at line 1, column 1 with exit code 1; `--no-config` ignores an invalid configuration file.
+  at line 1, column 1 with exit code 1, also when no Markdown file is selected; `--no-config` ignores an invalid
+  configuration file.
 - A tree without a configuration file, an empty file, a file with some settings, and the documented full sample are
   all accepted with exit code 0 and no report.
-- An unknown setting, an invalid value, and malformed YAML are each reported as
-  `path:line:col: config-error message` at their position, once per problem and one per line, with exit code 1; the
-  files themselves are still read and their own failures reported.
+- A malformed file, a file holding two configurations, a file saved as UTF-16, an unknown setting, an invalid value,
+  and a setting given twice are each reported as `path:line:col: config-error message` at their position, once per
+  problem and one per line, with exit code 1; the files themselves are still read and their own failures reported.
+- A configuration file larger than 1 MiB and one nested 100,000 levels deep are each reported as a configuration
+  problem with exit code 1, and the nested file within 10 seconds.
+- A configuration problem is reported once however many Markdown files use that configuration.
 - Configuration problems are reported in path order whatever the order of the arguments.
 - Editor settings that LintMark cannot use (`cr`, `unset`, settings meant for other tools) are accepted with exit
   code 0 and no report.
@@ -158,9 +162,8 @@ and no report.
 
 **Editor settings that cannot be used are accepted without error**: A root `.editorconfig` gives `cr` to one file,
 `unset` to another, and unrelated settings (tab indentation and a maximum line length) to all; both files are
-passed, and the exit code is 0 and nothing is reported. This scenario is acceptance only for the precedence of the
-editor settings: which line ending they give is not observable until formatting exists, and is verified by the
-Configuration subsystem, `EditorConfigResolver`, `Engine` subsystem, and `LintMarkEngine` tests.
+passed, and the exit code is 0 and nothing is reported. The line ending that editor settings do give is not
+observable until formatting exists, so no scenario here asserts its use.
 
 ### Boundary conditions
 
@@ -210,6 +213,10 @@ options.
 **Missing named configuration file is reported**: `--config` names a file that does not exist; the exit code is 1
 and the output contains `missing.yaml:1:1: config-error Configuration file not found`.
 
+**Missing named configuration file is reported when no Markdown file is selected**: `--config` names a file that
+does not exist and the only path is a directory without Markdown files; the exit code is 1 and the output contains
+`missing.yaml:1:1: config-error Configuration file not found`.
+
 **Unknown setting is rejected instead of ignored**: A configuration with a misspelled name for the line length
 setting gives exit code 1 and a line at `.lintmark.yaml:1:1` that starts with `config-error Unknown setting` and
 names the misspelled word.
@@ -217,13 +224,31 @@ names the misspelled word.
 **Invalid value is rejected and the allowed values are named**: `bullet: star` gives exit code 1 and
 `.lintmark.yaml:1:9: config-error Invalid value 'star' for setting 'bullet'; expected one of: dash, asterisk, plus`.
 
+**Setting given twice is reported at its second occurrence**: A file that sets `line-length` on lines 1 and 3
+gives exit code 1 and `.lintmark.yaml:3:1: config-error Duplicate setting 'line-length' (first defined on line 1)`.
+
 **Malformed YAML is rejected with a position**: A file with an unterminated quote gives exit code 1 and a line that
 matches `.lintmark.yaml:<line>:<col>: config-error Invalid YAML`.
+
+**File holding two configurations is rejected at the second**: A file with a document marker between two groups of
+settings gives exit code 1 and `.lintmark.yaml:2:1: config-error Only one YAML document is allowed`.
+
+**File saved as UTF-16 is rejected at its start**: A configuration file with a UTF-16 byte order mark gives exit
+code 1 and a line that starts `.lintmark.yaml:1:1: config-error Unsupported byte order mark`.
+
+**Oversized configuration file is rejected**: A file one byte larger than 1 MiB gives exit code 1 and a line that
+starts `.lintmark.yaml:1:1: config-error` and names the limit of 1 MiB.
+
+**Deeply nested configuration file is rejected promptly**: A file whose value is nested 100,000 levels deep gives
+exit code 1 and a `config-error Nesting is too deep` line on line 1, and the whole run takes less than 10 seconds.
 
 **Configuration problems are reported one per line in the documented form**: A file with an unknown setting on line
 1 and an invalid value on line 2 gives exit code 1 and exactly two `config-error` lines, in that order: one ending
 in `:1:1: config-error Unknown setting` followed by the offending name and one ending in
 `:2:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic`.
+
+**Configuration problem is reported once for many files**: One invalid configuration is used by twelve Markdown
+files in three folders, all passed in one run; the exit code is 1 and exactly one `config-error` line appears.
 
 **Files are still checked when the configuration is invalid**: An invalid configuration and a file that cannot be
 decoded are processed; the exit code is 1 and the output contains both the configuration problem and

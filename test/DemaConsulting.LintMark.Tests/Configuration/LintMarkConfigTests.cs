@@ -163,6 +163,89 @@ public class LintMarkConfigTests
     }
 
     /// <summary>
+    ///     Test that changing the rule table a configuration was created from does not change the configuration.
+    /// </summary>
+    [Fact]
+    public void LintMarkConfig_Rules_SourceDictionaryChangedAfterAssignment_ConfigUnchanged()
+    {
+        // Arrange: a builder whose snapshot is assigned to the configuration
+        var builder = LintMarkConfig.Default.Rules.ToBuilder();
+        builder.Remove("line-length");
+        builder.Add("line-length", false);
+        var config = LintMarkConfig.Default with { Rules = builder.ToImmutable() };
+
+        // Act: change the builder after the assignment
+        builder.Remove("line-length");
+        builder.Add("line-length", true);
+        builder.Remove("link-empty");
+
+        // Assert: the configuration still holds the assigned states, and every rule
+        Assert.False(config.Rules["line-length"]);
+        Assert.True(config.Rules["link-empty"]);
+        Assert.Equal(LintMarkConfig.Default.Rules.Count, config.Rules.Count);
+    }
+
+    /// <summary>
+    ///     Test that every setting reads back the value it was given.
+    /// </summary>
+    [Fact]
+    public void LintMarkConfig_Init_EverySetting_ReadsBackGivenValue()
+    {
+        // Arrange: a non-default value for every setting
+        var rules = LintMarkConfig.Default.Rules.SetItem("line-length", false);
+        var linkRefactor = new LinkRefactorOptions(true, 30, false, true, 20, "<!-- Links -->");
+
+        // Act: set every setting
+        var config = new LintMarkConfig
+        {
+            LineLength = 100,
+            Wrap = WrapMode.Semantic,
+            EndOfLine = LineEnding.CrLf,
+            FinalNewline = false,
+            Headings = HeadingStyle.Atx,
+            Bullet = BulletMarker.Plus,
+            ListIndent = 4,
+            OrderedStyle = OrderedStyle.One,
+            Emphasis = EmphasisMarker.Underscore,
+            Strong = EmphasisMarker.Underscore,
+            CodeFence = FenceMarker.Tilde,
+            CodeBlockStyle = CodeBlockStyle.Fenced,
+            HardBreak = HardBreakStyle.Backslash,
+            ThematicBreak = ThematicBreakStyle.Asterisks,
+            Tables = TableStyle.Aligned,
+            BareUrls = BareUrlStyle.Leave,
+            MaxBlankLines = 2,
+            TrailingWhitespace = TrailingWhitespaceStyle.Strip,
+            LinkRefactor = linkRefactor,
+            Rules = rules,
+            Ignore = ["a/**"]
+        };
+
+        // Assert: every setting holds the given value
+        Assert.Equal(100, config.LineLength);
+        Assert.Equal(WrapMode.Semantic, config.Wrap);
+        Assert.Equal(LineEnding.CrLf, config.EndOfLine);
+        Assert.False(config.FinalNewline);
+        Assert.Equal(HeadingStyle.Atx, config.Headings);
+        Assert.Equal(BulletMarker.Plus, config.Bullet);
+        Assert.Equal(4, config.ListIndent);
+        Assert.Equal(OrderedStyle.One, config.OrderedStyle);
+        Assert.Equal(EmphasisMarker.Underscore, config.Emphasis);
+        Assert.Equal(EmphasisMarker.Underscore, config.Strong);
+        Assert.Equal(FenceMarker.Tilde, config.CodeFence);
+        Assert.Equal(CodeBlockStyle.Fenced, config.CodeBlockStyle);
+        Assert.Equal(HardBreakStyle.Backslash, config.HardBreak);
+        Assert.Equal(ThematicBreakStyle.Asterisks, config.ThematicBreak);
+        Assert.Equal(TableStyle.Aligned, config.Tables);
+        Assert.Equal(BareUrlStyle.Leave, config.BareUrls);
+        Assert.Equal(2, config.MaxBlankLines);
+        Assert.Equal(TrailingWhitespaceStyle.Strip, config.TrailingWhitespace);
+        Assert.Equal(linkRefactor, config.LinkRefactor);
+        Assert.Equal(rules, config.Rules);
+        Assert.Equal(["a/**"], config.Ignore);
+    }
+
+    /// <summary>
     ///     Test that a modified copy leaves the original untouched.
     /// </summary>
     [Fact]

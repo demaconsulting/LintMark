@@ -151,20 +151,34 @@ sections:
 
               - id: LintMark-Cli-Context-ConfigFile
                 title: >-
-                  The Context class shall expose the file named with `--config` as written on the command line,
-                  keep the last one when the option is repeated, and reject the option when its value is missing
-                  or blank.
+                  The Context class shall expose the file named with `--config` as written on the command line.
                 justification: |
-                  The configuration file is chosen by the user, and a missing name must be reported instead of
-                  consuming the next argument or being silently ignored.
+                  The configuration file is chosen by the user, and the rest of the tool needs the name exactly
+                  as given.
                 tests:
                   - Context_Create_ConfigFlag_SetsConfigFile
+                  - Context_Create_ConfigAndPaths_ParsesBoth
+                  - Context_Create_NoArguments_ConfigFileNullAndNoConfigFalse
+                  - Context_Create_ConfigWithHelpOrVersion_DoesNotThrow
+
+              - id: LintMark-Cli-Context-ConfigFileRepeated
+                title: >-
+                  The Context class shall keep the last file named when the `--config` option is repeated.
+                justification: |
+                  A later option overriding an earlier one is the usual command-line rule, and it lets a script
+                  override an option it was given.
+                tests:
+                  - Context_Create_ConfigFlag_Repeated_LastWins
+
+              - id: LintMark-Cli-Context-ConfigFileValueRequired
+                title: >-
+                  The Context class shall reject the `--config` option when its value is missing or blank.
+                justification: |
+                  A missing name must be reported instead of consuming the next argument or being silently
+                  ignored.
+                tests:
                   - Context_Create_ConfigFlag_WithoutValue_ThrowsArgumentException
                   - Context_Create_ConfigFlag_BlankValue_ThrowsArgumentException
-                  - Context_Create_ConfigFlag_Repeated_LastWins
-                  - Context_Create_ConfigAndPaths_ParsesBoth
-                  - Context_Create_ConfigWithHelpOrVersion_DoesNotThrow
-                  - Context_Create_NoArguments_ConfigFileNullAndNoConfigFalse
 
               - id: LintMark-Cli-Context-NoConfig
                 title: The Context class shall expose whether the `--no-config` flag was specified.

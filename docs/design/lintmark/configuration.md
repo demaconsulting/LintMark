@@ -132,3 +132,16 @@ scalar styles, anchors, and tags that the schema checks need (see *YamlDotNet In
 design documents); `.editorconfig` discovery and section matching are delegated to the EditorConfig library
 (see *EditorConfig Integration Design* in the OTS design documents). Both libraries have quirks that the units
 compensate for; the compensation is described in the unit designs.
+
+**Scope of the requirements in this phase**: The line ending that the editor settings or the configuration give is
+stored on each file's effective configuration but nothing consumes it before the formatter exists, so it cannot be
+observed from outside the tool. The requirements therefore state only what is observable now: editor settings that
+cannot be used never produce an error, and settings that cannot be read are reported. Determining the line ending
+(nearest file, sections, root file, patterns, letter case, the `end-of-line` setting taking precedence) is verified
+by tests that have no requirement. The formatting phase adds the system requirement that the tool uses the line
+ending given by the editor settings when the configuration gives none, together with the subsystem and unit
+requirements that decompose it, and links the existing tests to them.
+
+**Guards against pathological files**: A configuration file that is implausibly large or implausibly deeply nested
+is reported as a problem with a position, promptly. The limits and the reasons for them are described in
+*ConfigLoader Design*.

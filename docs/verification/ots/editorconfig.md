@@ -6,10 +6,11 @@ package). Requirements for this OTS item are defined in the EditorConfig OTS Sof
 ### Required Functionality
 
 EditorConfig finds and evaluates `.editorconfig` files. LintMark depends on it to learn, through the raw text of
-the `end_of_line` property, which line ending the editor settings give for a Markdown file: it relies on the
-library for the layering of files and sections, for the section patterns, and for leniency toward malformed lines,
-and it relies on being able to resolve a directory chain once and evaluate many files against it, from many
-threads.
+the `end_of_line` property, which line ending the editor settings give for a Markdown file: in this phase it relies
+on the library to expose the raw property text (including `unset`), to ignore malformed lines, and to be used from
+many threads. It also relies on it for the layering of files and sections, for the section patterns, and for
+resolving a directory chain once and evaluating many files against it; those capabilities are pinned by tests and
+required once the formatting phase uses the line ending.
 
 ### Verification Approach
 
@@ -23,6 +24,11 @@ the typed line-ending accessor still reports a farther file's value when a neare
 word (which is why LintMark interprets the raw text itself), and section patterns are matched with letter case
 significant on every platform. The behavior of LintMark's own interpretation of the raw text (for example `cr` as
 "not specified") is verified in the `EditorConfigResolver` unit tests.
+
+The scenarios for section patterns, letter case, layering, the root file, chain evaluation, the typed accessor, and
+files that do not exist describe pinned library behavior and are not linked to a requirement in this phase,
+because the line ending that they lead to is not observable until files are rewritten. The scenarios for the raw
+`unset` property, malformed lines, and concurrent use are required.
 
 ### Test Scenarios
 

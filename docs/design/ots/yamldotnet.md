@@ -57,3 +57,7 @@ flow style, CRLF handling, scalar styles, empty and comment-only streams, null v
 anchors, aliases and tags, multiple documents, accepted duplicate keys, positioned and non-positioned syntax
 errors, tab indentation, deeply nested flow input, the retained byte order mark, and parallel parsing with
 independent parsers.
+
+The retained byte order mark is pinned by a test without a requirement: what LintMark needs, that a UTF-8 marker at
+the start of a configuration file is accepted, is a requirement of `ConfigLoader`, and the way the loader achieves
+it is a design decision described above.

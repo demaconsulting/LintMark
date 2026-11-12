@@ -111,7 +111,9 @@ editor settings are not consulted; (2) when the configuration has no `EndOfLine`
 and gets one `ConfigError` at line 1, column 1 of the Markdown file; (4) when it returns a line ending, the
 configuration is copied with that line ending using a `with` expression on the immutable record; (5) otherwise the
 configuration is attached unchanged. The precedence is therefore: the configuration's `end-of-line`, then the
-editor settings, then unspecified.
+editor settings, then unspecified. Nothing consumes the line ending before the formatter exists, so this
+precedence is verified by tests that have no requirement in this phase; the formatting phase adds the requirements
+that make it observable.
 
 #### Error Handling
 

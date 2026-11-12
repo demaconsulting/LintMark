@@ -7,8 +7,10 @@ builds a real temporary directory tree (using the `TemporaryDirectory` test help
 `ConfigLoader`, `LintMarkConfig`, and `EditorConfigResolver` together, as the `Engine` subsystem does: it loads the
 configuration for Markdown files at several depths, or resolves the line ending that the editor settings give, and
 asserts on the returned configuration, the positioned problems, and the line ending. The editorconfig library
-behind `EditorConfigResolver` is the real library; the injected seams of the resolver are not used at this level,
-because they are verified in the `EditorConfigResolver` unit. No mocking is used.
+behind `EditorConfigResolver` is the real library. The injected seams of the resolver are not used at this level,
+with one exception: the scenario about editor settings that cannot be read has no portable way to make a real file
+unreadable, so it injects a failing settings lookup, which is the failure the real lookup produces. No mocking is
+used.
 
 The subsystem does not lint or format anything and writes no output, so the observable interface is the values
 that its units return. The scenarios therefore check the combined behavior that no single unit can show: that
@@ -30,16 +32,29 @@ are therefore run sequentially with the other tests that touch process-wide stat
 
 - All integration tests pass with zero failures.
 - The nearest `.lintmark.yaml` file up to and including the repository root is used and nothing above the
-  repository root is read; no configuration is merged.
-- An explicitly named file is used instead of discovery, also when it is given as a relative path.
+  repository root is read; no other configuration file influences the result.
+- An explicitly named file is used instead of discovery, also when it is given as a relative path; a named file
+  that is missing or cannot be read is reported at line 1, column 1, before any Markdown file is processed.
 - A tree without a configuration file and a tree with an empty file both give the documented defaults.
 - The documented full sample file applies every setting, including a rule given by its legacy number.
+- Equivalent files in block style, in flow style, with the settings in another order, with CRLF line endings, and
+  with a UTF-8 marker give equal settings.
+- A file with malformed YAML, with an unsupported structure (a list, two configurations, a reference, or a
+  non-text name), with invalid UTF-8, or saved as UTF-16 gives no configuration and a problem at the position of
+  the fault.
 - An invalid file gives no configuration and one problem per fault, each at its line and column in the file, ordered
   by position.
-- The editor settings give the line ending per file, honoring sections and `root = true`; values that cannot be
-  used (`cr`, `unset`, unknown, malformed lines, unrelated settings) are "not specified" and never an error.
+- A setting given twice and a rule named twice are reported at the later entry.
+- A file larger than 1 MiB is reported at line 1, column 1, and a file nested 100,000 levels deep is reported with a
+  position within 10 seconds.
+- Editor settings that cannot be used (`cr`, `unset`, unknown, malformed lines, unrelated settings) are "not
+  specified" and never an error, and editor settings that cannot be read are reported as a one-line message.
 - Many threads that use one loader and one resolver get results identical to sequential use.
 - Configurations and problem lists cannot be changed by their holders.
+
+The line ending that the editor settings give is resolved per file, honoring sections and `root = true`, and one
+scenario below shows this. It supports the later formatting phase and has no requirement here, because the line
+ending is not observable until files are rewritten; the formatting phase adds the requirements that it verifies.
 
 ### Test Scenarios
 
@@ -63,12 +78,23 @@ link conversion off).
 non-default value is loaded; there are no problems, the settings have the sample's values, the rule named by its
 legacy number is switched off under its rule name, and the ignore patterns replace the defaults.
 
-**Editor settings give the line ending per file**: A root `.editorconfig` gives `lf` to all files and `crlf` to
-Markdown files, and a second file in a sub folder declares `root = true` without any line-ending setting. A
-Markdown file gets `crlf`, a text file gets `lf`, and a Markdown file in the sub folder gets no line ending,
-because the nested root hides the outer file.
+**Editor settings give the line ending per file (supporting evidence for the formatting phase)**: A root
+`.editorconfig` gives `lf` to all files and `crlf` to Markdown files, and a second file in a sub folder declares
+`root = true` without any line-ending setting. A Markdown file gets `crlf`, a text file gets `lf`, and a Markdown
+file in the sub folder gets no line ending, because the nested root hides the outer file.
+
+**Equivalent files give equal settings whatever their layout**: The same settings are written in block style, in
+flow style (using a legacy rule number), with the settings in the opposite order, with CRLF line endings, and with a
+UTF-8 marker at the start; all five give no problems and a configuration that equals the first and differs from the
+defaults.
 
 #### Boundary conditions
+
+**A file larger than the limit is reported at its first line**: A file one byte larger than 1 MiB gives no
+configuration and one problem at line 1, column 1 that names the limit.
+
+**A deeply nested file is reported promptly**: A file whose value is nested 100,000 levels deep gives no
+configuration and one problem on line 1 that starts `Nesting is too deep`, and loading takes less than 10 seconds.
 
 **Many threads get the sequential results**: Configuration and editor settings in several folders (one
 configuration invalid) are used by 16 threads over 48 files, each looked up ten times through one shared loader and
@@ -84,9 +110,31 @@ specified" result and none carries an error message.
 
 #### Error handling
 
+**A missing or unreadable explicit file is reported at line 1**: A path that does not exist and a directory where a
+file is expected are each given to the explicit-file loader; each reports one problem at line 1, column 1 as soon as
+the loader is created, and a Markdown file loaded through it gets no configuration.
+
 **An invalid file reports every problem at its position and yields no configuration**: A file with an unknown
 setting, a wrong type, and an invalid value gives no configuration and three problems at line 1 column 1, line 2
 column 14, and line 3 column 7 of that file.
+
+**Malformed YAML is reported with a position**: A file with an unterminated quote gives no configuration and one
+problem that starts `Invalid YAML`, on or after the line of the quote.
+
+**Unsupported structure is reported at the construct**: A list, two configurations, a reference to another part of
+the file, and a non-text name, each in its own folder, give no configuration and one problem each, at the position of
+the construct (1:1, 2:1, 1:14, and 1:3).
+
+**Unsupported text is reported at the fault**: A file with an invalid byte after two characters of its second line
+is reported at 2:3 as invalid UTF-8; a file saved as UTF-16 is reported at 1:1 as an unsupported encoding.
+
+**A setting given twice and a rule named twice are reported at the later entry**: A rule named by its legacy number
+and then by its name, and a setting given again at the end of the file, give no configuration and problems at the
+rule's second entry (4:3) and at the repeated setting (5:1), each naming the earlier line.
+
+**Editor settings that cannot be read are reported as a message**: A resolver whose lookup of the settings fails
+with a line break in its message gives no line ending and the one-line message
+`Cannot read .editorconfig settings: disk failure`.
 
 **Results cannot be changed through casts**: The rule table and the ignore patterns of a valid configuration, and the
 problem list of an invalid one, refuse every change attempted through the mutable collection interfaces.

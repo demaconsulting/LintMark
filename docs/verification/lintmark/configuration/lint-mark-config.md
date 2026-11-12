@@ -24,16 +24,17 @@ culture when it ends.
   three documented as off, the six default ignore patterns in their documented order, link conversion off with its
   documented option values, and no line ending chosen.
 - The smallest and largest value of every numeric range, an empty ignore list, and the shortest valid marker are
-  accepted.
+  accepted, and every setting reads back the value it was given.
 - A value outside its range, an undefined enumeration value, a malformed ignore pattern, an incomplete or
   mistaken rule table, and a marker that is not a single-line HTML comment are refused with the documented
   exception type.
 - A rule is identified by its name or legacy number in any letter case, in every culture; the legacy numbers of
   removed rules are recognized but are not rules.
-- A copy made with `with` differs from the original only in the chosen setting; equal content gives equal
-  configurations and equal hash codes.
-- Rule states and ignore patterns cannot be changed through casts, and later changes to the array they were built
-  from do not reach the configuration.
+- Rule states and ignore patterns cannot be changed through casts, and later changes to the array or the rule
+  table they were built from do not reach the configuration.
+- Supporting: a copy made with `with` differs from the original only in the chosen setting, and equal content gives
+  equal configurations and equal hash codes. This is needed once the line ending from the editor settings is
+  applied, so it has no requirement until the formatting phase.
 
 #### Test Scenarios
 
@@ -60,12 +61,17 @@ conversion in tables on, link-text breaking off, label length 40, and the marker
 **The identifier table disables exactly the documented three rules by default**: The default table of the identifier
 class turns off only those three rules.
 
-**A modified copy leaves the original unchanged**: A copy with a line ending differs from the default, and the
-default still has none.
+**A modified copy leaves the original unchanged (supporting)**: A copy with a line ending differs from the default,
+and the default still has none.
 
-**Equal content gives equal configurations**: Two configurations built separately with equal ignore patterns and
-an equal rule change are equal and have equal hash codes; changing a pattern, or changing from the default, makes
-them unequal.
+**Equal content gives equal configurations (supporting)**: Two configurations built separately with equal ignore
+patterns and an equal rule change are equal and have equal hash codes; changing a pattern, or changing from the
+default, makes them unequal.
+
+**Every setting reads back the value it was given**: A configuration with a non-default value for every setting
+(line length, wrap mode, line ending, final newline, headings, bullet, list indent, ordered style, emphasis,
+strong, code fence, code block style, hard break, thematic break, tables, bare URLs, maximum blank lines, trailing
+whitespace, link conversion options, rule states, and ignore patterns) returns each value.
 
 **A rule name or legacy number resolves to its canonical rule name**: The name `heading-increment` resolves to
 itself, and each of the 16 documented legacy numbers (for example `MD013`) resolves to its documented rule name.
@@ -96,6 +102,10 @@ that is ready for use.
 **A changed source array does not reach the configuration**: After patterns are assigned from a mutable array, a
 change to the array leaves the stored patterns as they were.
 
+**A changed source rule table does not reach the configuration**: After a rule table is assigned from a builder's
+snapshot, changes to the builder (a rule switched, a rule removed) leave the stored rule states and their count as
+they were.
+
 **Legacy numbers of removed rules are recognized but are not rules**: `MD002`, `MD006`, `MD008`, `MD025`, `MD033`,
 `MD041`, `MD043`, `MD044`, and `MD057` (and a lower-case spelling) do not resolve to a rule but are reported as
 dropped.
@@ -103,8 +113,8 @@ dropped.
 **An unknown name is neither a rule nor dropped**: An empty name, `no-such-rule`, `MD009` (a rule that the formatter
 always applies), and `MD999` do not resolve and are not dropped.
 
-**A rule table with a case-insensitive comparer is stored with an ordinal one**: Looking up `LINE-LENGTH` fails after
-the table is assigned, while `line-length` succeeds.
+**A rule table with a case-insensitive comparer is stored with an ordinal one (supporting)**: Looking up
+`LINE-LENGTH` fails after the table is assigned, while `line-length` succeeds.
 
 ##### Error handling
 
@@ -137,8 +147,8 @@ rule name, or a missing rule throws `ArgumentException`, and a null table throws
 unopened comment, `<!-->`, and markers with a line break throw `ArgumentException`, and a null marker throws
 `ArgumentNullException`.
 
-**A null name is refused by the rule lookups**: Resolving null, and asking whether null is dropped, throw
-`ArgumentNullException`.
+**A null name is refused by the rule lookups (supporting)**: Resolving null, and asking whether null is dropped,
+throw `ArgumentNullException`.
 
 **The rule table cannot be changed through a cast**: Every attempted change through the mutable dictionary
 interface throws `NotSupportedException`.

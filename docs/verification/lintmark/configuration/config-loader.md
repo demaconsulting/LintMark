@@ -41,16 +41,19 @@ repeat every lookup ten times.
 - Defaults apply without a file, for an empty or comment-only file, and for every setting that a file omits; the
   defaults-only loader never reads or probes the file system.
 - Every documented value of every setting is accepted, written with or without quotes, in block or flow style, in
-  any order, with LF or CRLF line endings, and with or without a UTF-8 byte order mark.
+  any order, with LF or CRLF line endings, and with or without a UTF-8 marker at the start of the file.
 - Unknown settings (including wrong-case names), wrong kinds of values, out-of-range numbers, null values,
-  duplicates, rule conflicts, invalid YAML, unsupported structure, excessive nesting, and invalid encodings are each
-  reported as a problem at the right position; none is ignored or partially applied.
-- A result holds a complete valid configuration or the problems, never both and never neither; no environment or
-  content problem throws.
+  duplicates, rule conflicts, invalid YAML, unsupported structure, implausibly deep nesting, an implausibly large
+  file, and invalid or unsupported encodings are each reported as a problem at the right position; none is ignored
+  or partially applied, and a pathological file is rejected promptly.
 - Problems carry the file path and a 1-based line and column, are ordered by line, column, and message, and are the
   same on every run, for LF and CRLF files alike.
-- Many threads get results identical to sequential use, and each configuration file is read once.
+- Many threads get results identical to sequential use.
 - Problem lists cannot be changed through casts.
+
+The scenarios headed "supporting" pin behavior that is described in the design (a result is never both a
+configuration and problems, argument validation, and the caching of results per directory). They are tests without
+a requirement, because that behavior is construction and not an observable need.
 
 #### Test Scenarios
 
@@ -140,16 +143,16 @@ says the file cannot be read, instead of an exception. The scenario is skipped o
 initial problems, and loading any file returns the same problems; the discovery and defaults-only loaders have no
 initial problems.
 
-**File larger than 1 MiB is reported without being parsed**: A file one byte over the limit gives one problem at
-1:1 that says it is larger than 1 MiB; direct loading and parsing of the same size behave the same.
+**File larger than 1 MiB is reported without being read to the end**: A file one byte over the limit gives one
+problem at 1:1 that says it is larger than 1 MiB; direct loading and parsing of the same size behave the same.
 
 **File of exactly 1 MiB is accepted**: Content of exactly the limit (a long comment) is a valid, empty
 configuration.
 
-**Null and blank arguments are rejected**: The explicit-file factory throws `ArgumentNullException` for null and
-`ArgumentException` for a blank name; direct loading throws for null and for an empty name; the discovery and
-defaults-only loaders throw for a null or empty Markdown path; the discovery walk throws for a null or empty
-directory.
+**Null and blank arguments are rejected (supporting)**: The explicit-file factory throws `ArgumentNullException`
+for null and `ArgumentException` for a blank name; direct loading throws for null and for an empty name; the
+discovery and defaults-only loaders throw for a null or empty Markdown path; the discovery walk throws for a null
+or empty directory.
 
 ##### Defaults and omitted settings
 
@@ -217,7 +220,8 @@ normalizing a backslash) keeps the first occurrences in their original order.
 
 **Patterns that differ in letter case are distinct**: `Docs/**` and `docs/**` are both kept.
 
-**UTF-8 byte order mark is ignored**: A file that starts with the three-byte mark has its first key recognized.
+**UTF-8 marker at the start of the file is ignored**: A file that starts with the three-byte marker has its first
+key recognized.
 
 **CRLF line endings parse and number lines like LF**: The same three-line content with LF and with CRLF gives
 the same problems at the same positions, on lines 2 and 3.
@@ -308,7 +312,8 @@ reported at the second entry and names the first.
 **Name then alias conflicts at the alias**: `line-length` followed by `MD013` is reported at the alias.
 
 **Alias then name with reversed values conflicts at the name**: `MD013: true` followed by `line-length: false` is
-reported at the name, so the outcome follows the content of the file and not an order of processing.
+reported at the name, so the outcome follows the content of the file and not the order in which entries are
+examined.
 
 **Spellings that differ in case conflict**: `MD013` and `md013` are reported at the second.
 
@@ -343,13 +348,13 @@ and an anchor on a list) are each reported at the construct with "Anchors, alias
 
 **Complex key is reported**: A key that is a list is reported at 1:3.
 
-##### Nesting limit
+##### Implausibly deep nesting
 
 **Block nesting below the limit inside an unknown setting gives one problem**: Fifty levels inside an unknown
 setting give only the unknown-setting problem and no crash.
 
 **Flow nesting beyond the limit is reported at the offending bracket**: Sixty-five nested `[` and sixty-five nested
-`{` are each reported at the first bracket beyond 64 levels, at column 3 + 64 + 1, without being parsed.
+`{` are each reported at the first bracket beyond 64 levels, at column 3 + 64 + 1, instead of being parsed.
 
 **Flow nesting exactly at the limit is parsed**: Sixty-four nested brackets are accepted, so only the unknown
 setting is reported.
@@ -359,43 +364,45 @@ setting is reported.
 **Invalid UTF-8 is reported at the offending position**: An invalid byte after two characters on line 2 is
 reported at 2:3 as "Invalid UTF-8 byte sequence", with no configuration.
 
-**UTF-16 and UTF-32 byte order marks are rejected**: UTF-16 little endian, UTF-16 big endian, and a UTF-32 mark are
-each reported at 1:1 as an unsupported byte order mark.
+**UTF-16 and UTF-32 encodings are rejected**: A UTF-16 little endian mark, a UTF-16 big endian mark, and a UTF-32
+mark at the start are each reported at 1:1 as an unsupported byte order mark.
 
-**Position of an invalid byte does not count the UTF-8 byte order mark**: A UTF-8 mark followed by an invalid byte
-is reported at 1:1, as an editor would show it.
+**Position of an invalid byte does not count the UTF-8 marker**: A UTF-8 marker followed by an invalid byte is
+reported at 1:1, as an editor would show it.
 
 ##### Problem positions, ordering, and consistency
 
 **Problems are sorted by position and then by message**: A file whose faults arise from different checks gives
 four problems in ascending line and column order.
 
-**Problems are the same on every run**: Parsing the same faulty content 21 times gives identical positions and
-messages every time.
+**Problems are the same on every run (supporting)**: Parsing the same faulty content 21 times gives identical
+positions and messages every time.
 
 **Every problem carries the path it was given**: Parsing under another path names that path in every problem and
 in the result's source.
 
-**A result holds a configuration or problems, never both and never neither**: Constructing a result with a
-configuration and problems, with neither, with an uninitialized problem list, or with an empty source name throws
-`ArgumentException`.
+**A result holds a configuration or problems, never both and never neither (supporting)**: Constructing a result
+with a configuration and problems, with neither, with an uninitialized problem list, or with an empty source name
+throws `ArgumentException`.
 
-**A problem rejects invalid arguments and flattens line breaks**: A null path or a null message throws
+**A problem rejects invalid arguments and flattens line breaks (supporting)**: A null path or a null message throws
 `ArgumentNullException`; an empty path or a blank message throws `ArgumentException`; a line or column of zero
 throws `ArgumentOutOfRangeException`; a message with a line break is stored on one line.
 
-**Parse rejects a null or empty path**: Null throws `ArgumentNullException` and empty throws `ArgumentException`.
+**Parse rejects a null or empty path (supporting)**: Null throws `ArgumentNullException` and empty throws
+`ArgumentException`.
 
 ##### Concurrency and caching
 
-**Many threads get the sequential results and one result per file**: A root file, a nested file, and an invalid
-nested file serve 60 files in many folders plus 20 files elsewhere; 16 threads load every file ten times; every
-result equals the sequential one and exactly three distinct result instances exist.
+**Many threads get the sequential results**: A root file, a nested file, and an invalid nested file serve 60 files
+in many folders plus 20 files elsewhere; 16 threads load every file ten times; every result equals the sequential
+one.
 
-**Files of one directory share one result instance**: Two files in the same folder get the same instance.
+**Files of one directory share one result instance (supporting)**: Two files in the same folder get the same
+instance, which shows that a configuration file is read once per directory.
 
-**A file changed after the first load keeps its cached result**: After the file is rewritten, a second file in the
-same folder still gets the first result with the original settings.
+**A file changed after the first load keeps its cached result (supporting)**: After the file is rewritten, a second
+file in the same folder still gets the first result with the original settings.
 
 ##### Immutability
 

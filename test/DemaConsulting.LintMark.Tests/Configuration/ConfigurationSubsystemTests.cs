@@ -82,6 +82,229 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
+    ///     Test that an explicit file that is missing or cannot be read is reported at its first line.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_ExplicitFile_MissingOrUnreadableFile_ReportedAtLineOne()
+    {
+        // Arrange: a path that does not exist and a directory where a file is expected
+        using var directory = new TemporaryDirectory();
+        var missing = directory.PathOf("missing.yaml");
+
+        // Act: create explicit loaders and load a Markdown file through each
+        var missingLoader = ConfigLoader.ForFile(missing);
+        var directoryLoader = ConfigLoader.ForFile(directory.FullPath);
+        var missingResult = missingLoader.Load("a.md");
+        var directoryResult = directoryLoader.Load("a.md");
+
+        // Assert: each problem is known up front, is reported at 1:1, and gives no configuration
+        var notFound = Assert.Single(missingLoader.InitialErrors);
+        Assert.Equal((missing, 1, 1, "Configuration file not found"), (notFound.Path, notFound.Line, notFound.Column, notFound.Message));
+        Assert.Null(missingResult.Config);
+        var unreadable = Assert.Single(directoryLoader.InitialErrors);
+        Assert.Equal((1, 1), (unreadable.Line, unreadable.Column));
+        Assert.StartsWith("Cannot read configuration file", unreadable.Message, StringComparison.Ordinal);
+        Assert.Null(directoryResult.Config);
+    }
+
+    /// <summary>
+    ///     Test that equivalent files give equal settings whatever their layout.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Layouts_EquivalentFiles_GiveEqualSettings()
+    {
+        // Arrange: the same settings as block style, flow style, reversed key order, CRLF lines and with a UTF-8 marker
+        const string block = "line-length: 100\nwrap: sentence\nrules:\n  line-length: false\n  link-reversed: false\nignore:\n  - a/**\n  - b/**\n";
+        const string flow = "{wrap: sentence, line-length: 100, rules: {link-reversed: false, MD013: false}, ignore: [a/**, b/**]}\n";
+        const string reversed = "ignore:\n  - a/**\n  - b/**\nrules:\n  link-reversed: false\n  line-length: false\nwrap: sentence\nline-length: 100\n";
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("block/.lintmark.yaml", block);
+        directory.WriteFile("flow/.lintmark.yaml", flow);
+        directory.WriteFile("reversed/.lintmark.yaml", reversed);
+        directory.WriteBytes("crlf/.lintmark.yaml", System.Text.Encoding.UTF8.GetBytes(block.Replace("\n", "\r\n", StringComparison.Ordinal)));
+        directory.WriteBytes("marker/.lintmark.yaml", [0xEF, 0xBB, 0xBF, .. System.Text.Encoding.UTF8.GetBytes(block)]);
+        var loader = ConfigLoader.ForDiscovery();
+
+        // Act: load a file beside each configuration
+        var results = new[] { "block", "flow", "reversed", "crlf", "marker" }
+            .Select(folder => loader.Load(directory.PathOf($"{folder}/a.md")))
+            .ToList();
+
+        // Assert: no problems, the settings are not the defaults, and all five are equal
+        Assert.All(results, r => Assert.Empty(r.Errors));
+        var expected = results[0].Config!;
+        Assert.NotEqual(LintMarkConfig.Default, expected);
+        Assert.Equal(100, expected.LineLength);
+        Assert.All(results, r => Assert.Equal(expected, r.Config));
+    }
+
+    /// <summary>
+    ///     Test that malformed YAML is reported with a position and gives no configuration.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_MalformedYaml_ReportedWithPosition()
+    {
+        // Arrange: a file with an unterminated quote
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile(".lintmark.yaml", "line-length: 80\nwrap: \"fill\n");
+
+        // Act: load a file
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+
+        // Assert: one syntax problem at or after the quote, and no configuration
+        Assert.Null(result.Config);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(file, error.Path);
+        Assert.StartsWith("Invalid YAML", error.Message, StringComparison.Ordinal);
+        Assert.True(error.Line >= 2 && error.Column >= 1);
+    }
+
+    /// <summary>
+    ///     Test that files that are not a single set of settings are reported with a position.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_UnsupportedStructure_ReportedWithPosition()
+    {
+        // Arrange: a list, two configurations, a reference and a non-text name, each in its own folder
+        using var directory = new TemporaryDirectory();
+        var cases = new (string Folder, string Content, int Line, int Column, string Message)[]
+        {
+            ("list", "- a\n- b\n", 1, 1, "The configuration must be a mapping of settings"),
+            ("two", "line-length: 80\n---\nwrap: fill\n", 2, 1, "Only one YAML document is allowed"),
+            ("reference", "line-length: &x 80\n", 1, 14, "Anchors, aliases and tags are not supported"),
+            ("key", "? [a, b]\n: 1\n", 1, 3, "Complex keys are not supported")
+        };
+        foreach (var c in cases)
+        {
+            directory.WriteFile($"{c.Folder}/.lintmark.yaml", c.Content);
+        }
+
+        // Act: load a file beside each configuration
+        var loader = ConfigLoader.ForDiscovery();
+
+        // Assert: each is reported once at its position and gives no configuration
+        foreach (var c in cases)
+        {
+            var result = loader.Load(directory.PathOf($"{c.Folder}/a.md"));
+            Assert.Null(result.Config);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal((c.Line, c.Column, c.Message), (error.Line, error.Column, error.Message));
+        }
+    }
+
+    /// <summary>
+    ///     Test that files that are not valid UTF-8 text are reported with a position.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_UnsupportedText_ReportedWithPosition()
+    {
+        // Arrange: a file with an invalid byte on its second line, and a file saved as UTF-16
+        using var directory = new TemporaryDirectory();
+        directory.WriteBytes("invalid/.lintmark.yaml", [.. "wrap: fill\nab"u8, 0xFF, .. "\n"u8]);
+        var utf16 = System.Text.Encoding.Unicode;
+        directory.WriteBytes("utf16/.lintmark.yaml", [.. utf16.GetPreamble(), .. utf16.GetBytes("wrap: fill\n")]);
+        var loader = ConfigLoader.ForDiscovery();
+
+        // Act: load a file beside each configuration
+        var invalid = loader.Load(directory.PathOf("invalid/a.md"));
+        var encoded = loader.Load(directory.PathOf("utf16/a.md"));
+
+        // Assert: the invalid byte is reported where it is, the encoding at the start, and neither gives a configuration
+        Assert.Null(invalid.Config);
+        var invalidError = Assert.Single(invalid.Errors);
+        Assert.Equal((2, 3, "Invalid UTF-8 byte sequence"), (invalidError.Line, invalidError.Column, invalidError.Message));
+        Assert.Null(encoded.Config);
+        var encodedError = Assert.Single(encoded.Errors);
+        Assert.Equal((1, 1), (encodedError.Line, encodedError.Column));
+        Assert.StartsWith("Unsupported byte order mark", encodedError.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a setting given twice and a rule named twice are reported at the later entry.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Validation_ConflictingEntries_ReportedAtLaterEntry()
+    {
+        // Arrange: a rule named by its legacy number and by its name, and a setting given twice
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 80\nrules:\n  MD013: false\n  line-length: true\nline-length: 90\n");
+
+        // Act: load a file
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+
+        // Assert: both conflicts are reported at the later entry, naming the earlier one
+        Assert.Null(result.Config);
+        Assert.Equal(
+            [(4, 3, "Rule 'line-length' is already configured as 'MD013' on line 3"), (5, 1, "Duplicate setting 'line-length' (first defined on line 1)")],
+            result.Errors.Select(e => (e.Line, e.Column, e.Message)));
+    }
+
+    /// <summary>
+    ///     Test that an implausibly large file is reported at its first line.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Limits_OversizedFile_ReportedAtLineOne()
+    {
+        // Arrange: a file one byte larger than the supported size
+        using var directory = new TemporaryDirectory();
+        var content = new byte[ConfigLoader.MaxFileBytes + 1];
+        Array.Fill(content, (byte)'#');
+        directory.WriteBytes(".lintmark.yaml", content);
+
+        // Act: load a file
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+
+        // Assert: one problem at 1:1 and no configuration
+        Assert.Null(result.Config);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal((1, 1), (error.Line, error.Column));
+        Assert.Contains("larger than 1 MiB", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that an implausibly deeply nested file is reported promptly with a position.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_Limits_DeeplyNestedFile_ReportedWithinTimeBound()
+    {
+        // Arrange: a value nested 100,000 levels deep
+        using var directory = new TemporaryDirectory();
+        const int depth = 100_000;
+        directory.WriteFile(".lintmark.yaml", "a: " + new string('[', depth) + new string(']', depth) + "\n");
+
+        // Act: load a file and time it
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a.md"));
+        stopwatch.Stop();
+
+        // Assert: one positioned problem, well before an unguarded parse could finish
+        Assert.Null(result.Config);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(1, error.Line);
+        Assert.StartsWith("Nesting is too deep", error.Message, StringComparison.Ordinal);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"Loading took {stopwatch.Elapsed}");
+    }
+
+    /// <summary>
+    ///     Test that editor settings that cannot be read are reported as a message and give no line ending.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_EditorConfig_UnreadableSettings_ReportedAsMessage()
+    {
+        // Arrange: a resolver whose settings lookup fails, as when a settings file cannot be read
+        var resolver = new EditorConfigResolver(
+            _ => throw new IOException("disk\nfailure"),
+            (_, _) => throw new InvalidOperationException("must not be reached"));
+
+        // Act: resolve a file
+        var result = resolver.Resolve(Path.Combine(Path.GetTempPath(), "a.md"));
+
+        // Assert: a one-line message and no line ending
+        Assert.Null(result.EndOfLine);
+        Assert.Equal("Cannot read .editorconfig settings: disk failure", result.ErrorMessage);
+    }
+
+    /// <summary>
     ///     Test that the documented defaults apply without a file, with an empty file and for omitted settings.
     /// </summary>
     [Fact]

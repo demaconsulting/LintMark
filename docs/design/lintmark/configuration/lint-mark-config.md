@@ -154,6 +154,15 @@ on which files are processed.
   key order, `Ignore` element by element with an ordinal comparison, so order matters). `GetHashCode` combines
   the same content and is therefore consistent with `Equals`.
 
+**Scope of the requirements in this phase**: The requirements state what the configuration holds and refuses:
+the documented defaults, every value within its range, rule identification, refused values, and collections that
+holders and source collections cannot change. They state the refusal as an observable outcome (the value cannot be
+set); that it is raised as an exception from the initializer is a design decision described above. Deriving a copy
+that differs in chosen settings, and equality by content, are needed only to fill in the line ending that the
+editor settings give, which takes effect with the formatter. Their tests are kept as tests without a requirement,
+and the formatting phase re-creates the requirement together with the system requirement that observes the line
+ending.
+
 #### Key Methods
 
 **Default** (static property): The configuration with every documented default.

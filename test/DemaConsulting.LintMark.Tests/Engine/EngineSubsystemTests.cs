@@ -349,6 +349,24 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a problem with an explicit configuration is reported even when no Markdown file is selected.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_ExplicitConfig_NoFilesSelected_ReportsProblem()
+    {
+        // Arrange: a directory without Markdown files
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("notes.txt", "not markdown");
+
+        // Act: run the engine with a configuration file that does not exist
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--config", "missing.yaml");
+
+        // Assert: the problem is reported at the start of the named file
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["missing.yaml:1:1: config-error Configuration file not found"], lines);
+    }
+
+    /// <summary>
     ///     Test that the line ending of each file comes from the configuration, else the editor settings, else stays unspecified.
     /// </summary>
     [Fact]

@@ -141,16 +141,23 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-ConfigPerFile
                 title: >-
                   The LintMarkEngine class shall give each file the settings of the configuration that applies to
-                  it, with the built-in defaults when none applies, regardless of the other files, the order of
-                  processing, and the number of files processed at once.
+                  it, with the built-in defaults when none applies.
                 justification: |
-                  Files in different folders can have different configurations, and the settings of one file
-                  must never leak into another.
+                  Files in different folders can have different configurations, and a file for which no
+                  configuration exists must still be processed.
                 tests:
                   - LintMarkEngine_Process_Files_AttachDefaultConfig
                   - LintMarkEngine_Process_DiscoveredConfigs_EachFileGetsItsNearestConfig
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigIndependentOfScheduling
+                title: >-
+                  The LintMarkEngine class shall give each file the same settings regardless of the other files,
+                  the order of processing, and the number of files processed at once.
+                justification: |
+                  The settings of one file must never leak into another, and scheduling must never be visible
+                  in the result.
+                tests:
                   - LintMarkEngine_Process_ParallelWithConfigs_EqualsSequential
-                  - LintMarkEngine_Process_NullLoader_Throws
 
               - id: LintMark-Engine-LintMarkEngine-ImmutableConfigResults
                 title: >-
@@ -165,14 +172,11 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-ExplicitConfig
                 title: >-
                   The LintMarkEngine class shall give every file the settings of the configuration file named on
-                  the command line instead of a discovered configuration, and shall show that file's path
-                  relative to the current directory in reports.
+                  the command line instead of a discovered configuration.
                 justification: |
-                  Naming a configuration file is a deliberate choice that overrides discovery, and the user
-                  recognizes the file by the path they typed.
+                  Naming a configuration file is a deliberate choice that overrides discovery.
                 tests:
                   - LintMarkEngine_Process_ExplicitConfig_UsedInsteadOfDiscoveredConfig
-                  - LintMarkEngine_Run_ExplicitConfigRelative_ReportedWithRelativeDisplayPath
 
               - id: LintMark-Engine-LintMarkEngine-ExplicitConfigProblems
                 title: >-
@@ -186,40 +190,15 @@ sections:
 
               - id: LintMark-Engine-LintMarkEngine-NoConfig
                 title: >-
-                  The LintMarkEngine class shall give every file the default configuration, without reading any
-                  configuration file or editor settings, when the no-config option is given.
+                  The LintMarkEngine class shall give every file the default configuration, unaffected by any
+                  configuration file or editor settings however invalid or unreadable, when the no-config option
+                  is given.
                 justification: |
-                  The option exists to run the tool exactly as shipped. Any configuration source that is read
-                  could change the result, or fail.
+                  The option exists to run the tool exactly as shipped. Any configuration source that
+                  influenced the result, or made it fail, would defeat that purpose.
                 tests:
                   - LintMarkEngine_Run_NoConfig_InvalidConfigAndUnreadableEditorConfig_ReportsNothing
                   - LintMarkEngine_Process_NoEditorConfigResolver_EndOfLineStaysNull
-
-              - id: LintMark-Engine-LintMarkEngine-EndOfLinePrecedence
-                title: >-
-                  The LintMarkEngine class shall use the line ending of the configuration for a file when the
-                  configuration gives one, and not consult the editor settings in that case.
-                justification: |
-                  An explicit setting in the tool's own configuration takes precedence over a setting that is
-                  shared with other tools.
-                tests:
-                  - LintMarkEngine_Process_ConfigEndOfLine_WinsOverEditorConfig
-                  - LintMarkEngine_Process_ConfigEndOfLine_EditorConfigNotConsulted
-
-              - id: LintMark-Engine-LintMarkEngine-EndOfLineFallback
-                title: >-
-                  The LintMarkEngine class shall take the line ending of a file from the editor settings when
-                  the configuration gives none, and leave it unspecified when neither gives one, including when
-                  an explicit configuration file is used.
-                justification: |
-                  Users should not have to state the line ending twice, and an unsupported value in the editor
-                  settings must leave the choice open instead of forcing one.
-                tests:
-                  - LintMarkEngine_Process_ConfigSilent_FallsBackToEditorConfig
-                  - LintMarkEngine_Process_NeitherSpecifiesEndOfLine_StaysNull
-                  - LintMarkEngine_Process_EditorConfigCr_EndOfLineStaysNull
-                  - LintMarkEngine_Process_ExplicitConfig_StillConsultsEditorConfig
-                  - LintMarkEngine_Run_ExplicitConfig_StillConsultsEditorConfig
 
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorFormat
                 title: >-
@@ -268,13 +247,11 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-EditorConfigFailure
                 title: >-
                   The LintMarkEngine class shall report editor settings that cannot be read as a configuration
-                  problem at line 1 and column 1 of the Markdown file they were read for, and leave the line
-                  ending of that file unspecified.
+                  problem at line 1 and column 1 of the Markdown file they were read for.
                 justification: |
                   Settings that cannot be read may contain the line ending that matters, so the user must be
                   told, and the problem belongs to the file that was affected.
                 tests:
-                  - LintMarkEngine_Process_EditorConfigUnreadable_AddsConfigErrorAtMarkdownFileAndKeepsConfig
                   - LintMarkEngine_Run_EditorConfigUnreadable_ReportsConfigErrorAtMarkdownFile
 
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorExitStatus

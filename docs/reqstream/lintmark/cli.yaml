@@ -189,6 +189,8 @@ sections:
               would look, for example one that is shared by several projects.
             children:
               - LintMark-Cli-Context-ConfigFile
+              - LintMark-Cli-Context-ConfigFileRepeated
+              - LintMark-Cli-Context-ConfigFileValueRequired
             tests:
               - CliSubsystem_ConfigFlow_ContextAndProgram_ReportsConfigErrorAndExitsNonZero
 

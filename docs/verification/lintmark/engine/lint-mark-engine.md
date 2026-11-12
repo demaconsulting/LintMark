@@ -45,15 +45,16 @@ Tests that change the current directory or capture console output run in the seq
 - A file result cannot be modified through its failure list or its configuration problem list.
 - Each file carries the configuration of its own nearest file, the defaults when none applies, and the one named
   with `--config` when there is one; no configuration file and no editor settings are read with `--no-config`.
-- The line ending of a file is the configuration's when it gives one (the editor settings are then not consulted),
-  otherwise the editor settings', otherwise unspecified, also with an explicit configuration file; `cr` and other
-  unusable editor values leave it unspecified.
 - A configuration problem is written once, however many files share it, as `path:line:col: config-error message`
   with a forward-slash path relative to the current directory (including `../` paths), merged with file failures in
   path and position order, with exit code 1; the files of an invalid configuration are still read.
 - A problem of a named configuration file is reported even when no Markdown file is selected, and editor settings
   that cannot be read are reported at line 1, column 1 of the Markdown file they were read for.
 - One worker and many workers give identical results and output.
+- Supporting: the line ending of a file is the configuration's when it gives one (the editor settings are then not
+  consulted), otherwise the editor settings', otherwise unspecified, also with an explicit configuration file; `cr`
+  and other unusable editor values leave it unspecified. The line ending is not observable until files are
+  rewritten, so these scenarios are tests without a requirement until the formatting phase.
 
 #### Test Scenarios
 
@@ -99,18 +100,18 @@ length exists beside the files.
 (80), and a folder without its own are processed with four workers; the files get 100 (root), 80 (nested folder and
 below), and 100 (plain folder).
 
-**Configuration line ending wins over the editor settings**: A configuration that chooses `lf` and editor settings
-that choose `crlf` give `lf`.
+**Configuration line ending wins over the editor settings (supporting)**: A configuration that chooses `lf` and
+editor settings that choose `crlf` give `lf`.
 
-**Editor settings are not consulted when the configuration gives a line ending**: A configuration that chooses
-`crlf` and a resolver whose two delegates throw give `crlf` and no configuration problem, so the resolver was never
-asked.
+**Editor settings are not consulted when the configuration gives a line ending (supporting)**: A configuration that
+chooses `crlf` and a resolver whose two delegates throw give `crlf` and no configuration problem, so the resolver
+was never asked.
 
-**Editor settings fill in the line ending when the configuration gives none**: A configuration with only a line
-length of 90 and editor settings that choose `crlf` give `crlf`, and the line length is kept.
+**Editor settings fill in the line ending when the configuration gives none (supporting)**: A configuration with
+only a line length of 90 and editor settings that choose `crlf` give `crlf`, and the line length is kept.
 
-**Explicit configuration still consults the editor settings**: A named configuration without a line ending and
-editor settings that choose `crlf` give `crlf` and keep the named file's line length of 70.
+**Explicit configuration still consults the editor settings (supporting)**: A named configuration without a line
+ending and editor settings that choose `crlf` give `crlf` and keep the named file's line length of 70.
 
 **Explicit configuration is used instead of a discovered one**: An invalid discoverable file and a valid named file
 give the named file's line length (77) and no configuration problem.
@@ -127,9 +128,10 @@ change through the mutable list interfaces.
 whose editor-settings factory throws when it is asked for a resolver are run with `--no-config`; the exit code is
 0 and nothing is written.
 
-**Explicit configuration still consults the editor settings during a run**: A valid named configuration and an
-engine whose resolver throws when consulted are run with `--config`; the resolver's failure is reported as
-`a.md:1:1: config-error Cannot read .editorconfig settings: consulted`, which shows that it was consulted.
+**Explicit configuration still consults the editor settings during a run (supporting)**: A valid named
+configuration and an engine whose resolver throws when consulted are run with `--config`; the resolver's failure is
+reported as `a.md:1:1: config-error Cannot read .editorconfig settings: consulted`, which shows that it was
+consulted.
 
 **Configuration problems give identical output for any degree of parallelism**: Invalid configurations in several
 folders (an invalid value, an unknown setting, and a conflict between a rule's legacy number and its name), forty
@@ -138,14 +140,14 @@ the exit code are identical, no line is repeated, and there are four lines.
 
 ##### Boundary conditions
 
-**Line ending specified nowhere stays unspecified**: Editor settings that only give an indentation style, with no
-configuration file, leave the line ending unspecified and report no problem.
+**Line ending specified nowhere stays unspecified (supporting)**: Editor settings that only give an indentation
+style, with no configuration file, leave the line ending unspecified and report no problem.
 
-**Unsupported editor value leaves the line ending unspecified**: Editor settings that choose `cr` leave the line
-ending unspecified, with no problem.
+**Unsupported editor value leaves the line ending unspecified (supporting)**: Editor settings that choose `cr` leave
+the line ending unspecified, with no problem.
 
-**Without a resolver the editor settings are not read**: Editor settings that choose `crlf` have no effect when no
-resolver is passed.
+**Without a resolver the editor settings are not read (supporting)**: Editor settings that choose `crlf` have no
+effect when no resolver is passed.
 
 **Named configuration with a relative path is reported by its relative display path**: An invalid file named with
 backslashes, `conf\custom.yaml`, is reported as `conf/custom.yaml:1:1: config-error Unknown setting 'bogus'` and the
@@ -185,7 +187,7 @@ is written as a `file-parse-error` line by `Run`.
 **Degree of parallelism below one is rejected**: The constructor throws `ArgumentOutOfRangeException`.
 
 **Null arguments are rejected**: Null arguments to `Run` and `Process` throw `ArgumentNullException`, and a null
-loader passed to the `Process` overload that takes one throws as well.
+loader passed to the `Process` overload that takes one throws as well (supporting for the loader).
 
 **Invalid configuration is written as one positioned line and exits with one**: A valid file beside
 `line-length: abc` gives exactly one line,

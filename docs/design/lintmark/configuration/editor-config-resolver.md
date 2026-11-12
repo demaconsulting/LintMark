@@ -56,6 +56,15 @@ for a directory whose chain was already resolved.
 **Thread safety**: One library parser is created per resolver and shared; it is safe for concurrent use. The cache
 gives every concurrent caller the same chain, so results are identical to sequential use.
 
+**Scope of the requirements in this phase**: What a user can observe before files are rewritten is that editor
+settings that cannot be used (a `cr` or `unset` value, an unknown word, a missing setting, no applicable section,
+malformed lines) never produce an error, and that settings that cannot be read are reported. Those are the
+behaviors the resolver's requirements state. Which line ending a given set of settings gives (the layering of
+files and sections, the root file, the section patterns, letter case, and the per-directory cache) takes effect
+with the formatter. Their tests are kept as tests without a requirement, and the formatting phase adds the system
+requirement that the tool uses the line ending given by the editor settings, together with the requirements that
+decompose it for this unit.
+
 **Test seam**: The internal constructor takes two delegates, one that resolves the chain for a directory and one
 that evaluates a file against a chain. The public constructor binds them to one shared library parser. The seam lets
 a test simulate unreadable editor settings without making a real file unreadable.

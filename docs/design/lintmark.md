@@ -280,6 +280,9 @@ N/A - not a safety-classified software item.
   `crlf`). The line ending of a file's effective configuration is chosen by precedence: the `end-of-line` setting
   of the configuration file, then `end_of_line` from the `.editorconfig` settings, then not specified (the
   file's own majority line ending is applied later, when formatting exists). `--no-config` ignores both sources;
-  `--config` replaces only the discovery of `.lintmark.yaml` and does not disable `.editorconfig`.
+  `--config` replaces only the discovery of `.lintmark.yaml` and does not disable `.editorconfig`. The line ending
+  is stored but not consumed before the formatter exists, so it cannot be observed from outside the tool in this
+  phase; the formatting phase adds the system requirement that the tool uses it, and until then only the
+  tolerance of editor settings that cannot be used is a system requirement.
 - Configuration scope: the `ignore` setting is validated and stored, but the engine does not apply it yet, and no
   setting other than the line ending changes behavior until linting and formatting are added.

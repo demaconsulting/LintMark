@@ -21,8 +21,10 @@ The scenarios that record places where the library does less than the loader nee
 pin the behavior that the `ConfigLoader` unit compensates for, so that a library update that changes it is
 noticed: a leading byte order mark is not stripped and becomes part of the first key, repeated keys are delivered
 instead of being rejected, and an unclosed flow sequence fails with an exception that is not a YAML exception and
-carries no position. The behaviors that belong to the loader's own handling (what is reported for each fault, and
-the nesting limit that the loader applies before parsing) are verified in the `ConfigLoader` unit tests.
+carries no position. The byte-order-mark scenario pins library behavior and is not linked to a requirement, because
+what LintMark needs (a UTF-8 marker at the start of a file is accepted) is verified in the `ConfigLoader` unit.
+The behaviors that belong to the loader's own handling (what is reported for each fault, and the limit on the
+nesting depth that the loader applies before parsing) are verified in the `ConfigLoader` unit tests.
 
 ### Test Scenarios
 
@@ -115,11 +117,11 @@ exception from the parser as invalid input.
 **Scenario**: A flow sequence nested 3,000 levels deep is read on a thread with a 256 KiB stack, so that any
 recursion in the parser would fail.
 
-**Expected**: Reading finishes within the time allowed without an exception, and the deepest level seen is 3,000.
-The nesting limit that LintMark applies protects against the running time that grows steeply with depth, not
-against a crash.
+**Expected**: Reading finishes within the time allowed without an exception, and the deepest level seen is 3,000,
+well above the depth that LintMark admits. The limit that LintMark applies protects against the running time that
+grows steeply with depth, not against a crash.
 
-#### A leading byte order mark becomes part of the first key
+#### A leading byte order mark becomes part of the first key (pinned library behavior, not a requirement)
 
 **Scenario**: A text that starts with the byte order mark character followed by `line-length: 100` is read.
 

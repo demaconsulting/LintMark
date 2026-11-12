@@ -17,6 +17,11 @@ Every scenario that reads settings from the file system starts its tree with a r
 the temporary tree. Section patterns are exercised through one data-driven test whose cases are the pattern forms
 of the editor settings specification; each case is a separate test case.
 
+The behavior that is required in this phase is the tolerance of settings that cannot be used, the report of
+settings that cannot be read, and the same results under concurrent use. Which line ending the settings give is not
+observable until files are rewritten, so the scenarios that verify it (marked supporting below) are tests without a
+requirement; the formatting phase adds the requirements that they then verify.
+
 #### Test Environment
 
 Temporary directories are created and removed by each test. The tests that resolve a relative path change the
@@ -27,24 +32,51 @@ and repeat every lookup ten times through one shared resolver.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the value in any
-  letter case and with spaces around the equals sign.
 - `cr`, `unset`, an unknown word, an empty value, no `end_of_line` setting, and no applicable section all give "not
-  specified" without an error message; such a value in a nearer file hides a value in a farther file.
-- The nearest file that gives a value wins, a farther file is used when the nearer ones give none, and a file that
-  declares `root = true` ends the search.
-- A later section overrides an earlier one however specific either is.
-- Section patterns follow the editor settings format (wildcards, character sets, alternatives, numeric ranges,
-  slash patterns relative to the settings file, escapes), with letter case significant on every platform.
-- Malformed lines are ignored, valid sections after them still apply, and no error is reported.
+  specified" without an error message.
+- Malformed lines are ignored and no error is reported.
 - Settings that cannot be read give a one-line message and no line ending, never an exception.
-- Relative paths, backslash separators, and paths of files and folders that do not exist are accepted; null and
-  empty paths are rejected.
-- Many threads get the sequential results, and the settings chain of a directory is read once.
+- Many threads get the sequential results.
+- Supporting: `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
+  value in any letter case; the nearest file that gives a value wins, a value that cannot be used in a nearer file
+  hides a farther one, a file that declares `root = true` ends the search, and a later section overrides an
+  earlier one; section patterns follow the editor settings format with letter case significant on every platform;
+  relative paths, backslash separators, and paths that do not exist are accepted and null and empty paths are
+  rejected; the settings chain of a directory is read once.
 
 #### Test Scenarios
 
-##### Normal operation
+##### Settings that cannot be used
+
+**Value `cr` is not specified**: A section with `cr` gives the "not specified" result, with no error.
+
+**Value `unset` is not specified**: The same with `unset`.
+
+**Unknown value is not specified**: `banana`, an empty value, and `lf crlf` each give "not specified" with no
+error.
+
+**File without an `end_of_line` setting is not specified**: A section that sets only another property gives the
+"not specified" result.
+
+**File that no section matches is not specified**: A section for `*.txt` does not apply to a Markdown file.
+
+**Malformed lines are ignored and later sections still apply**: A file with `[[[`, a bare property name, a bare
+equals sign, and a line of text before a valid `[*.md]` section gives `crlf` and no error message.
+
+##### Settings that cannot be read
+
+**Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
+whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
+settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
+"Cannot read .editorconfig settings: denied". Nothing is thrown.
+
+##### Concurrency
+
+**Many threads get the sequential results**: Nested settings files with different sections and 60 files in three
+folders are resolved ten times each from 16 threads through one shared resolver; every result equals the result of
+a fresh resolver used sequentially.
+
+##### Supporting scenarios (no requirement until the formatting phase)
 
 **Section that gives `lf` resolves to `lf`**: A `[*]` section with `end_of_line = lf` gives `lf` for a Markdown file,
 with no error message.
@@ -74,35 +106,17 @@ applies exactly when the pattern is specified to match.
 **Pattern with a folder is relative to the folder of its settings file**: A nested file in `docs` with the section
 `[guide/*.md]` applies to `docs/guide/a.md` and not to `guide/a.md` at the root.
 
-**Chain of settings files is cached per directory**: After one file is resolved, the root settings file is changed on
-disk and another file of the same folder is resolved; the earlier line ending is still reported, which shows that
-the chain was not read again.
-
-##### Boundary conditions
+**Section patterns are case-sensitive on every platform**: With sections `[*.md]` and `[*.TXT]`, the files `A.MD` and
+`a.txt` get nothing and `a.TXT` gets `crlf`.
 
 **File that declares `root = true` stops the search**: A nested root file that says nothing about line endings hides
 the outer `crlf`, so the line ending is not specified below it.
 
-**Value `cr` is not specified**: A section with `cr` gives the "not specified" result, with no error.
-
-**Value `unset` is not specified**: The same with `unset`.
-
 **`unset` in a nearer file hides a farther value**: `crlf` in the root file and `unset` in a nested file give
 nothing below the nested folder, while a file beside the root file keeps `crlf`.
 
-**Unknown value is not specified**: `banana`, an empty value, and `lf crlf` each give "not specified" with no
-error.
-
 **Unknown value in a nearer file hides a farther valid value**: `banana` in a nested file hides the root file's
 `crlf`.
-
-**File without an `end_of_line` setting is not specified**: A section that sets only another property gives the
-"not specified" result.
-
-**File that no section matches is not specified**: A section for `*.txt` does not apply to a Markdown file.
-
-**Section patterns are case-sensitive on every platform**: With sections `[*.md]` and `[*.TXT]`, the files `A.MD` and
-`a.txt` get nothing and `a.TXT` gets `crlf`.
 
 **File in folders that do not exist is still resolved**: A catch-all section applies to a path in missing folders.
 
@@ -112,24 +126,12 @@ the nested file's `crlf`.
 **Backslash separators are accepted on every platform**: A path written with backslashes gets the nested file's
 `crlf`.
 
-##### Error handling
-
-**Malformed lines are ignored and later sections still apply**: A file with `[[[`, a bare property name, a bare
-equals sign, and a line of text before a valid `[*.md]` section gives `crlf` and no error message.
-
-**Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
-whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
-settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
-"Cannot read .editorconfig settings: denied". Nothing is thrown.
+**Chain of settings files is cached per directory**: After one file is resolved, the root settings file is changed on
+disk and another file of the same folder is resolved; the earlier line ending is still reported, which shows that
+the chain was not read again.
 
 **Null and empty arguments are rejected**: A null path throws `ArgumentNullException`, an empty path throws
 `ArgumentException`, and a null chain delegate in the constructor throws `ArgumentNullException`.
 
 **Result rejects invalid combinations**: A result with both a line ending and an error, with a blank error, or with
 an undefined line ending throws `ArgumentException`, and an error message with a line break is stored on one line.
-
-##### Concurrency
-
-**Many threads get the sequential results**: Nested settings files with different sections and 60 files in three
-folders are resolved ten times each from 16 threads through one shared resolver; every result equals the result of
-a fresh resolver used sequentially.

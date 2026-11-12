@@ -795,6 +795,24 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that a missing explicit configuration is reported even when no Markdown file is selected.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigOption_MissingFileNoMarkdownFiles_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a directory without Markdown files and a configuration path that does not exist
+        using var directory = new TemporaryDirectory();
+        var missing = directory.PathOf("missing.yaml");
+
+        // Act: run the tool on the empty directory with the missing file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", missing, directory.FullPath);
+
+        // Assert: the problem is still reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("missing.yaml:1:1: config-error Configuration file not found", output);
+    }
+
+    /// <summary>
     ///     Test that no-config ignores an invalid configuration.
     /// </summary>
     [Fact]
@@ -949,6 +967,110 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that a file holding more than one configuration is reported with a position.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_TwoDocuments_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration file with a second configuration after a document marker
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 80\n---\nwrap: fill\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the second configuration
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:2:1: config-error Only one YAML document is allowed", output);
+    }
+
+    /// <summary>
+    ///     Test that a configuration file saved in a UTF-16 encoding is reported.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_Utf16File_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration file saved as UTF-16 with its byte order mark
+        using var directory = new TemporaryDirectory();
+        var encoding = System.Text.Encoding.Unicode;
+        directory.WriteBytes(".lintmark.yaml", [.. encoding.GetPreamble(), .. encoding.GetBytes("wrap: fill\n")]);
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the start of the file
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:1:1: config-error Unsupported byte order mark", output);
+    }
+
+    /// <summary>
+    ///     Test that a setting given twice is reported at its second occurrence.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigValidation_DuplicateSetting_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration that sets one setting twice
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 80\nwrap: fill\nline-length: 90\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the second occurrence
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:3:1: config-error Duplicate setting 'line-length' (first defined on line 1)", output);
+    }
+
+    /// <summary>
+    ///     Test that an implausibly large configuration file is reported.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigLimits_OversizedFile_ReportsErrorAndReturnsError()
+    {
+        // Arrange: a configuration file one byte larger than the supported size
+        using var directory = new TemporaryDirectory();
+        var content = new byte[1_048_577];
+        Array.Fill(content, (byte)'#');
+        directory.WriteBytes(".lintmark.yaml", content);
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: reported at the start of the file
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:1:1: config-error", output);
+        Assert.Contains("larger than 1 MiB", output);
+    }
+
+    /// <summary>
+    ///     Test that an implausibly deeply nested configuration file is reported promptly instead of stalling the run.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigLimits_DeeplyNestedFile_ReportsErrorWithinTimeBound()
+    {
+        // Arrange: a configuration file whose value is nested 100,000 levels deep
+        using var directory = new TemporaryDirectory();
+        const int depth = 100_000;
+        directory.WriteFile(".lintmark.yaml", "a: " + new string('[', depth) + new string(']', depth) + "\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: run the tool with the file and time it
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+        stopwatch.Stop();
+
+        // Assert: reported as a configuration problem, well before an unguarded parse could finish
+        Assert.Equal(1, exitCode);
+        Assert.Contains(".lintmark.yaml:1:", output);
+        Assert.Contains("config-error Nesting is too deep", output);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"The run took {stopwatch.Elapsed}");
+    }
+
+    /// <summary>
     ///     Test that configuration problems are reported in the documented one-line form.
     /// </summary>
     [Fact]
@@ -970,6 +1092,27 @@ public class IntegrationTests
         Assert.Equal(2, lines.Count);
         Assert.Matches(@"\.lintmark\.yaml:1:1: config-error Unknown setting 'color'$", lines[0]);
         Assert.Matches(@"\.lintmark\.yaml:2:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic$", lines[1]);
+    }
+
+    /// <summary>
+    ///     Test that a configuration problem is reported once however many files use that configuration.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_SharedByManyFiles_ReportedOnce()
+    {
+        // Arrange: one invalid configuration used by many Markdown files in several folders
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var files = Enumerable.Range(0, 12).Select(i => directory.WriteFile($"d{i % 3}/f{i}.md")).ToArray();
+
+        // Act: run the tool with all the files
+        var exitCode = Runner.Run(out var output, "dotnet", [_dllPath, .. files]);
+
+        // Assert: the problem appears on exactly one line
+        Assert.Equal(1, exitCode);
+        var reported = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Count(l => l.Contains("config-error", StringComparison.Ordinal));
+        Assert.Equal(1, reported);
     }
 
     /// <summary>
