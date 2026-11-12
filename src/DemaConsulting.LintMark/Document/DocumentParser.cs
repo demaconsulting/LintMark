@@ -483,6 +483,16 @@ internal static partial class DocumentParser
         private readonly List<LinkReferenceDefinition> _definitions = [];
 
         /// <summary>
+        ///     Index of the leaf and footnote blocks, built while the dropped footnotes are detected.
+        /// </summary>
+        private IntervalIndex _leafOrFootnoteCoverage = IntervalIndex.Empty;
+
+        /// <summary>
+        ///     Index of all blocks, built while the dropped footnotes are detected.
+        /// </summary>
+        private IntervalIndex _anyBlockCoverage = IntervalIndex.Empty;
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="Flattener"/> class.
         /// </summary>
         /// <param name="source">The source document.</param>
@@ -501,6 +511,7 @@ internal static partial class DocumentParser
             // Walk the tree, add the definitions (their containers are only known now), correct the
             // paragraphs that begin with definitions, then add the footnotes the parser dropped
             Walk(ast, parent: null, depth: 0);
+            ExtendContainersToChildren();
             AddDefinitions();
             TrimParagraphsAfterDefinitions();
             AddUnreferencedFootnotes();
@@ -597,6 +608,40 @@ internal static partial class DocumentParser
         }
 
         /// <summary>
+        ///     Extends the end of every container to the end of its last emitted child.
+        /// </summary>
+        /// <remarks>
+        ///     The parser's span of a container can end before a child that it nests (for example a
+        ///     footnote followed by an indented HTML block), which would leave the child partly outside
+        ///     its parent. The walk emits every block before its children, so visiting the blocks in
+        ///     reverse order finishes each child (and its own children) before its parent is updated,
+        ///     and an extension cascades through nested containers. Ends are only ever extended, so
+        ///     the end remains the last visible character of the child.
+        /// </remarks>
+        private void ExtendContainersToChildren()
+        {
+            var indexes = new Dictionary<Block, int>(ReferenceEqualityComparer.Instance);
+            for (var i = 0; i < _blocks.Count; i++)
+            {
+                if (_blocks[i].Node is { } node)
+                {
+                    indexes[node] = i;
+                }
+            }
+
+            for (var i = _blocks.Count - 1; i >= 0; i--)
+            {
+                var child = _blocks[i];
+                if (child.Parent is { } parent
+                    && indexes.TryGetValue(parent, out var index)
+                    && _blocks[index].EndInclusive < child.EndInclusive)
+                {
+                    _blocks[index] = _blocks[index] with { EndInclusive = child.EndInclusive };
+                }
+            }
+        }
+
+        /// <summary>
         ///     Finds the start of the <c>[^label]:</c> marker of a footnote.
         /// </summary>
         /// <param name="footnote">The parser's footnote block.</param>
@@ -620,23 +665,69 @@ internal static partial class DocumentParser
         ///     The parser keeps every definition in a group at the document root even when the definition
         ///     stands inside a quote or list item, but the definition's range lies inside the container's
         ///     range. The parent is therefore the innermost block quote, list, list item or footnote that
-        ///     contains the definition; top level when none does.
+        ///     contains the definition; top level when none does. The containers and the definitions are
+        ///     both visited in order of their start with a stack of the containers that are still open, so
+        ///     the cost is O(n log n) in the number of blocks instead of one scan of all containers per definition.
         /// </remarks>
         private void AddDefinitions()
         {
-            // Containers are all emitted by now; only they can be parents
-            var containers = _blocks
-                .Where(static b => b.Node != null && b.Kind is BlockKind.BlockQuote or BlockKind.List or BlockKind.ListItem or BlockKind.Footnote)
-                .ToList();
-            foreach (var definition in _definitions)
+            if (_definitions.Count == 0)
             {
-                // The effective range of a definition is its own span (it is never a container)
-                var start = Math.Clamp(definition.Span.Start, 0, Math.Max(0, _source.Text.Length - 1));
-                var end = Math.Clamp(definition.Span.End, start, Math.Max(0, _source.Text.Length - 1));
-                var owner = containers
-                    .Where(c => c.Start <= start && end <= c.EndInclusive)
-                    .MaxBy(static c => c.Depth);
-                Add(definition, owner?.Node, owner is null ? 0 : owner.Depth + 1);
+                return;
+            }
+
+            // Containers are all emitted by now; only they can be parents. Keep the emission order to break ties as a scan would.
+            var containers = _blocks
+                .Select(static (b, order) => (Block: b, Order: order))
+                .Where(static c => c.Block.Node != null && c.Block.Kind is BlockKind.BlockQuote or BlockKind.List or BlockKind.ListItem or BlockKind.Footnote)
+                .OrderBy(static c => c.Block.Start)
+                .ToList();
+
+            // The effective range of a definition is its own span (it is never a container)
+            var limit = Math.Max(0, _source.Text.Length - 1);
+            var ranges = new List<(int Start, int End, int Index)>(_definitions.Count);
+            for (var i = 0; i < _definitions.Count; i++)
+            {
+                var start = Math.Clamp(_definitions[i].Span.Start, 0, limit);
+                ranges.Add((start, Math.Clamp(_definitions[i].Span.End, start, limit), i));
+            }
+
+            ranges.Sort(static (a, b) => a.Start.CompareTo(b.Start));
+
+            // Sweep the definitions in order of start with the stack of containers that start at or before the definition
+            var owners = new BlockInfo?[_definitions.Count];
+            var open = new List<(BlockInfo Block, int Order)>();
+            var next = 0;
+            foreach (var (start, end, index) in ranges)
+            {
+                while (next < containers.Count && containers[next].Block.Start <= start)
+                {
+                    open.Add(containers[next++]);
+                }
+
+                // A container that ended before this definition ends before every later one too
+                open.RemoveAll(c => c.Block.EndInclusive < start);
+
+                // Innermost = deepest; the earlier emitted block wins a tie
+                (BlockInfo Block, int Order)? owner = null;
+                foreach (var candidate in open)
+                {
+                    if (end <= candidate.Block.EndInclusive
+                        && (owner is null || candidate.Block.Depth > owner.Value.Block.Depth
+                            || (candidate.Block.Depth == owner.Value.Block.Depth && candidate.Order < owner.Value.Order)))
+                    {
+                        owner = candidate;
+                    }
+                }
+
+                owners[index] = owner?.Block;
+            }
+
+            // Emit in the order the walk found the definitions
+            for (var i = 0; i < _definitions.Count; i++)
+            {
+                var owner = owners[i];
+                Add(_definitions[i], owner?.Node, owner is null ? 0 : owner.Depth + 1);
             }
         }
 
@@ -652,12 +743,14 @@ internal static partial class DocumentParser
         private void TrimParagraphsAfterDefinitions()
         {
             var text = _source.Text;
-            var definitions = _blocks.Where(static b => b.Node is LinkReferenceDefinition).ToList();
+            var definitions = _blocks.Where(static b => b.Node is LinkReferenceDefinition).OrderBy(static b => b.Start).ToList();
             if (definitions.Count == 0)
             {
                 return;
             }
 
+            // The definitions are sorted by start, so those inside a paragraph follow a binary search of its start
+            var definitionStarts = definitions.Select(static d => d.Start).ToArray();
             for (var i = 0; i < _blocks.Count; i++)
             {
                 var paragraph = _blocks[i];
@@ -667,11 +760,15 @@ internal static partial class DocumentParser
                 }
 
                 // The paragraph's real text starts at the line after its last definition (past the container prefix)
-                var lastEnd = definitions
-                    .Where(d => d.Start >= paragraph.Start && d.EndInclusive <= paragraph.EndInclusive)
-                    .Select(static d => d.EndInclusive)
-                    .DefaultIfEmpty(-1)
-                    .Max();
+                var lastEnd = -1;
+                for (var d = LowerBound(definitionStarts, paragraph.Start); d < definitions.Count && definitions[d].Start <= paragraph.EndInclusive; d++)
+                {
+                    if (definitions[d].EndInclusive <= paragraph.EndInclusive)
+                    {
+                        lastEnd = Math.Max(lastEnd, definitions[d].EndInclusive);
+                    }
+                }
+
                 var newline = lastEnd < 0 ? -1 : text.IndexOf('\n', lastEnd);
                 if (newline < 0)
                 {
@@ -752,6 +849,8 @@ internal static partial class DocumentParser
             }
 
             var found = new List<BlockInfo>();
+            _leafOrFootnoteCoverage = new IntervalIndex(_blocks.Where(static b => IsLeaf(b.Kind) || b.Kind == BlockKind.Footnote));
+            _anyBlockCoverage = new IntervalIndex(_blocks);
             var lineStarts = _source.LineStarts;
             for (var line = 0; line < lineStarts.Count; line++)
             {
@@ -845,15 +944,14 @@ internal static partial class DocumentParser
         /// </summary>
         /// <param name="offset">The offset.</param>
         /// <returns><see langword="true"/> when such a block covers the offset.</returns>
-        private bool IsCoveredByLeafOrFootnote(int offset) =>
-            _blocks.Any(b => (IsLeaf(b.Kind) || b.Kind == BlockKind.Footnote) && b.Start <= offset && offset <= b.EndInclusive);
+        private bool IsCoveredByLeafOrFootnote(int offset) => _leafOrFootnoteCoverage.Contains(offset);
 
         /// <summary>
         ///     Determines whether an offset lies inside any block.
         /// </summary>
         /// <param name="offset">The offset.</param>
         /// <returns><see langword="true"/> when a block covers the offset.</returns>
-        private bool IsInsideAnyBlock(int offset) => _blocks.Any(b => b.Start <= offset && offset <= b.EndInclusive);
+        private bool IsInsideAnyBlock(int offset) => _anyBlockCoverage.Contains(offset);
 
         /// <summary>
         ///     Determines whether a kind is a leaf (not a container) block.
@@ -862,5 +960,87 @@ internal static partial class DocumentParser
         /// <returns><see langword="true"/> for leaf kinds.</returns>
         private static bool IsLeaf(BlockKind kind) =>
             kind is not (BlockKind.BlockQuote or BlockKind.List or BlockKind.ListItem or BlockKind.Footnote);
+
+        /// <summary>
+        ///     Finds the first position in a sorted array whose value is not less than a key.
+        /// </summary>
+        /// <param name="sorted">The values in ascending order.</param>
+        /// <param name="key">The key.</param>
+        /// <returns>The index of the first value that is at least <paramref name="key"/>, or the length when there is none.</returns>
+        private static int LowerBound(int[] sorted, int key)
+        {
+            var low = 0;
+            var high = sorted.Length;
+            while (low < high)
+            {
+                var middle = low + ((high - low) / 2);
+                if (sorted[middle] < key)
+                {
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+
+            return low;
+        }
+
+        /// <summary>
+        ///     Answers whether an offset lies inside any of a set of inclusive ranges in O(log n).
+        /// </summary>
+        /// <remarks>
+        ///     The ranges are sorted by start and each position keeps the largest end seen up to it, so an
+        ///     offset is covered exactly when the largest end among the ranges that start at or before the
+        ///     offset reaches it. The ranges may overlap or nest.
+        /// </remarks>
+        private sealed class IntervalIndex
+        {
+            /// <summary>
+            ///     The starts in ascending order.
+            /// </summary>
+            private readonly int[] _starts;
+
+            /// <summary>
+            ///     For each position, the largest inclusive end of the ranges up to and including it.
+            /// </summary>
+            private readonly int[] _maxEnds;
+
+            /// <summary>
+            ///     Initializes a new instance of the <see cref="IntervalIndex"/> class.
+            /// </summary>
+            /// <param name="blocks">The blocks whose ranges are indexed.</param>
+            public IntervalIndex(IEnumerable<BlockInfo> blocks)
+            {
+                var ordered = blocks.OrderBy(static b => b.Start).ToArray();
+                _starts = new int[ordered.Length];
+                _maxEnds = new int[ordered.Length];
+                var maxEnd = int.MinValue;
+                for (var i = 0; i < ordered.Length; i++)
+                {
+                    maxEnd = Math.Max(maxEnd, ordered[i].EndInclusive);
+                    _starts[i] = ordered[i].Start;
+                    _maxEnds[i] = maxEnd;
+                }
+            }
+
+            /// <summary>
+            ///     Gets an index that covers nothing.
+            /// </summary>
+            public static IntervalIndex Empty { get; } = new([]);
+
+            /// <summary>
+            ///     Determines whether an offset lies inside one of the ranges.
+            /// </summary>
+            /// <param name="offset">The offset.</param>
+            /// <returns><see langword="true"/> when a range covers the offset.</returns>
+            public bool Contains(int offset)
+            {
+                // The last range that starts at or before the offset carries the largest end of all candidates
+                var last = LowerBound(_starts, offset + 1) - 1;
+                return last >= 0 && _maxEnds[last] >= offset;
+            }
+        }
     }
 }

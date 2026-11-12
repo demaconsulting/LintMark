@@ -102,9 +102,11 @@ these names.
   `LinkReferenceDefinition` node; its range is that definition's own range. Continuation lines of such a
   footnote are separate paragraph blocks (a known limitation: the parser does not report them as part of the
   definition). Because the kind is not `LinkReferenceDefinition`, the `ReferenceIndex` does not list it.
-- **Footnote followed by an HTML block (known limitation)**: A referenced footnote whose body is
-  directly followed by an HTML block ends before that block, although the parser nests the block in the
-  footnote. The parser's span is used as is, so the footnote's range may not contain such a child.
+- **Container ends before its last child**: The parser's span of a container can end before a child that it
+  nests; a footnote followed by an indented HTML block is the known case, where the footnote's span ends inside
+  the block. After the walk, the end of each container is extended to the end of its last emitted child,
+  innermost first, so that the extension cascades through nested containers and every block lies inside its
+  parent. Ends are only extended, never shortened.
 - **CRLF code-span difference**: Multi-line code spans parse differently for LF and CRLF input. Only
   LF-normalized text is ever parsed, which `SourceDocument` guarantees.
 - **Lazy continuation lines**: A lazy line (a continuation that omits the container prefix) looks like any other
@@ -128,7 +130,8 @@ stop of four; the lazy-line comparison therefore measures prefix width with tab 
 - *Returns*: `ParsedDocument`.
 - *Preconditions*: `source` is not null.
 - *Postconditions*: `Blocks` is sorted by (`Start`, `Depth`) with enclosing blocks first; siblings do not
-  overlap and every block lies inside its parent; `Suppressions` and `References` describe the same parse.
+  overlap and every block lies inside its parent (a container ends no earlier than its last child);
+  `Suppressions` and `References` describe the same parse.
 
 Steps: parse `source.Text` with the shared pipeline, then flatten the syntax tree with a private flattener:
 
@@ -137,20 +140,32 @@ Steps: parse `source.Text` with the shared pipeline, then flatten the syntax tre
    its marker, extend an unclosed fence to the end of its parent, and trim trailing line feeds. The effective
    end of each block is remembered so that an unclosed fence inside it can end with it. Table rows and cells
    are not walked. Link reference definitions found in the groups are collected, not emitted.
-2. **Add the definitions**. Every collected definition is emitted with its parent resolved from containment:
+2. **Extend the containers**. In reverse emission order (every block is emitted before its children, so each
+   child is final before its parent is updated), the end of a block's parent is raised to the block's end when
+   the parent ends earlier (see *Container ends before its last child*).
+3. **Add the definitions**. Every collected definition is emitted with its parent resolved from containment:
    the innermost emitted block quote, list, list item, or footnote whose range contains the definition's
    range, and depth one more than that block (top level, depth 0, when none contains it). A definition whose
    label starts with `^` is classified `UnreferencedFootnote` (see *Footnote definitions read as link
    definitions*).
-3. **Trim paragraphs and headings after definitions**. For each paragraph or heading that contains definition
+4. **Trim paragraphs and headings after definitions**. For each paragraph or heading that contains definition
    blocks, `Start` moves to the first line after its last definition, past the container prefix: whitespace
    and at most one `>` per enclosing block quote, so a `>` that is text (an indented line after a definition
    outside any quote) stays in the block.
-4. **Add the dropped footnotes** (below).
-5. **Sort** by (`Start`, `Depth`). The sort is stable, so blocks with the same start and depth keep their
+5. **Add the dropped footnotes** (below).
+6. **Sort** by (`Start`, `Depth`). The sort is stable, so blocks with the same start and depth keep their
    emission order.
 
 Then `SuppressionMap` and `ReferenceIndex` are built from the blocks and the tree.
+
+*Complexity*: the flattener is O(n log n) in the number of blocks (and lines). No step scans the block list once
+per definition, paragraph, or footnote: the containers and the definitions are visited in order of their start
+with a stack of the containers that are still open (step 3); the definitions are sorted by start and a binary
+search finds those inside a paragraph (step 4); and the leaf, footnote, and all-block ranges are indexed by start
+with a running maximum of the end, so "is this offset inside a block" is a binary search (step 5 and
+`FindDefinitionEnd`). Each line is examined a bounded number of times, because the scan that extends a dropped
+footnote stops at the next block or definition marker. The results are identical to those of a plain scan. A
+document with 160000 blocks (about 0.8 MB) is parsed in about a second, most of which is the Markdown parser.
 
 *Dropped footnote detection* is coverage based; labels are not compared with each other, so letter case and
 repeated labels need no special handling. It runs only when the text contains `[^`. A line is a footnote

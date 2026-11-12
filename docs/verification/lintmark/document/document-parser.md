@@ -16,6 +16,10 @@ fixture. The structure over a large corpus is verified separately at subsystem l
 The scenarios for `GetLines` and `GetContinuationPrefix` are supporting verification: the line geometry has no
 requirement and no production caller yet, and its tests protect the behavior until the first consumer exists.
 
+Line-ending style and the byte order mark are handled by `SourceDocument`, not by the parser, so the tests that
+need bytes (the same blocks for LF and CRLF text, and offsets that ignore a byte order mark) are in the `Document`
+subsystem and `SourceDocument` verification. The parser is given only LF-normalized text.
+
 #### Test Environment
 
 N/A - standard test environment.
@@ -30,7 +34,8 @@ N/A - standard test environment.
   and wherever it stands; footnote-like text in code is not reported.
 - A link reference definition reports its enclosing container, and the paragraph or setext heading that follows
   a definition does not overlap it.
-- Parsing LF and CRLF input gives the same structure.
+- A footnote whose body ends with an indented HTML block ends with that block, so no block lies outside its parent.
+- A very large document is parsed within a generous time bound (a check against quadratic behavior).
 - Concurrent calls give identical results.
 - Invalid arguments are rejected with the documented exception.
 
@@ -89,9 +94,12 @@ reported with that item as its parent and the next depth.
 **Paragraph after a definition does not overlap it**: A paragraph that directly follows a definition starts at its
 own text, and the definition keeps its own range.
 
-**Paragraph after a definition in a container does not overlap it**: The same for a definition in a quote and for
-two stacked definitions in a list item; the paragraph excludes the container prefix of its first line and
-nests next to the definitions.
+**Paragraph after a definition in a block quote does not overlap it**: A paragraph that directly follows a
+definition in a quote starts at its own text, excluding the quote marker, and nests next to the definition.
+
+**Paragraph after stacked definitions in a list item does not overlap them**: A paragraph that follows two
+stacked definitions in a list item starts at its own text, excluding the item's indentation, and nests next to
+the definitions.
 
 **Setext heading after a definition does not overlap it**: A setext heading that directly follows a definition
 starts at its own first line, the definition keeps its own range, and the heading's lines are rebuilt as the text
@@ -109,8 +117,9 @@ letter case, the second one is also reported as an `UnreferencedFootnote` block.
 **Adjacent unreferenced footnotes are both reported**: Two definitions with the same label on consecutive lines
 give two blocks, each with its own range.
 
-**CRLF input gives the same blocks as LF**: A document with a multi-line code span gives identical block kinds
-and ranges for CRLF and LF text.
+**Footnote that ends with an indented HTML block contains it**: A referenced footnote whose body is followed by an
+indented HTML block (alone, followed by a top-level paragraph, and after a nested list) ends on the last visible
+character of the block, the block is a child at the next depth, and the span-tiling check reports no violation.
 
 **Parse populates suppressions and references**: A document with a suppression comment and a link reference
 definition produces a suppression map and a reference index that contain them.
@@ -155,8 +164,12 @@ begins with `>` and is not in a block quote starts the paragraph at the `>`.
 contains a tab, and a tab-indented code block report the exact kind, depth, and source text, using a tab stop of
 four.
 
-**Byte order mark is excluded from offsets**: A document loaded from bytes with a byte order mark reports
-offsets relative to the text without the mark.
+**Large document is parsed within a time bound**: A generated document of 20000 groups (a definition with text, an
+unreferenced footnote, a quote, and a list item, plus a referenced footnote in every fiftieth group; 161200
+blocks, about 0.8 MB) is parsed; every construct is found, the blocks are in source order, and parsing takes under
+ten seconds. The time is the supporting check for the linear-time design (see *Complexity* in the design); a scan of
+all blocks for each definition or footnote needs about a minute for this input. No requirement states a time, so
+this scenario has no requirement link.
 
 ##### Error handling
 

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using DemaConsulting.LintMark.Document;
 using Markdig.Extensions.Alerts;
@@ -493,6 +495,31 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that a referenced footnote that holds an indented HTML block ends with that block, so the block lies inside its parent.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expectedFootnote">The text expected from the footnote marker to its last visible character.</param>
+    [Theory]
+    [InlineData("T[^n].\n\n[^n]: body\n\n    <div>\n    x\n    </div>\n", "[^n]: body\n\n    <div>\n    x\n    </div>")]
+    [InlineData("T[^n].\n\n[^n]: body\n\n    <div>\n    x\n    </div>\n\nAfter.\n", "[^n]: body\n\n    <div>\n    x\n    </div>")]
+    [InlineData("T[^n].\n\n[^n]: body\n\n    - item\n\n      <div>\n      x\n      </div>\n", "[^n]: body\n\n    - item\n\n      <div>\n      x\n      </div>")]
+    public void DocumentParser_Parse_FootnoteFollowedByIndentedHtmlBlock_FootnoteContainsHtmlBlock(string text, string expectedFootnote)
+    {
+        // Arrange / Act: parse a footnote whose body ends with an indented HTML block
+        var document = Parse(text);
+        var footnote = Single(document, BlockKind.Footnote);
+        var html = Single(document, BlockKind.HtmlBlock);
+
+        // Assert: the footnote covers the whole block, which is its child, and nothing overlaps
+        Assert.Equal(expectedFootnote, TextOf(document, footnote));
+        Assert.Equal("<div>", TextOf(document, html)[..5]);
+        Assert.Same(footnote.Node, html.Parent);
+        Assert.Equal(footnote.Depth + 1, html.Depth);
+        Assert.True(footnote.Start <= html.Start && html.EndInclusive <= footnote.EndInclusive);
+        Assert.Empty(SpanTilingAssertions.Check(document));
+    }
+
+    /// <summary>
     ///     Test that a link reference definition inside a block quote reports the quote as its parent and the next depth.
     /// </summary>
     [Fact]
@@ -571,27 +598,41 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that a paragraph directly after a definition inside a container does not overlap it and excludes the container prefix.
+    ///     Test that a paragraph directly after a definition inside a block quote does not overlap it and excludes the quote marker.
     /// </summary>
     [Fact]
     public void DocumentParser_Parse_DefinitionInBlockQuoteFollowedByText_ParagraphDoesNotOverlapDefinition()
     {
-        // Arrange: a quoted definition immediately followed by quoted text, and two stacked definitions in a list item
-        var quoted = Parse("> [a]: http://x\n> text\n");
-        var listed = Parse("- [a]: http://x\n  [b]: http://y\n  text\n");
+        // Arrange: a quoted definition immediately followed by quoted text
+        var document = Parse("> [a]: http://x\n> text\n");
 
         // Act: summarize
-        var quotedSummary = SummarizeWithDepth(quoted);
-        var listedSummary = SummarizeWithDepth(listed);
+        var summary = SummarizeWithDepth(document);
 
-        // Assert: the paragraph holds only its own text and nests next to the definitions
+        // Assert: the paragraph holds only its own text and nests next to the definition
         Assert.Equal(
             [
                 (BlockKind.BlockQuote, 0, "> [a]: http://x\n> text"),
                 (BlockKind.LinkReferenceDefinition, 1, "[a]: http://x"),
                 (BlockKind.Paragraph, 1, "text")
             ],
-            quotedSummary);
+            summary);
+        Assert.Empty(SpanTilingAssertions.Check(document));
+    }
+
+    /// <summary>
+    ///     Test that a paragraph directly after two stacked definitions inside a list item does not overlap them.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_DefinitionsInListItemFollowedByText_ParagraphDoesNotOverlapDefinitions()
+    {
+        // Arrange: two stacked definitions in a list item, immediately followed by text of the item
+        var document = Parse("- [a]: http://x\n  [b]: http://y\n  text\n");
+
+        // Act: summarize
+        var summary = SummarizeWithDepth(document);
+
+        // Assert: the paragraph holds only its own text and nests next to the definitions
         Assert.Equal(
             [
                 (BlockKind.List, 0, "- [a]: http://x\n  [b]: http://y\n  text"),
@@ -600,9 +641,8 @@ public class DocumentParserTests
                 (BlockKind.LinkReferenceDefinition, 2, "[b]: http://y"),
                 (BlockKind.Paragraph, 2, "text")
             ],
-            listedSummary);
-        Assert.Empty(SpanTilingAssertions.Check(quoted));
-        Assert.Empty(SpanTilingAssertions.Check(listed));
+            summary);
+        Assert.Empty(SpanTilingAssertions.Check(document));
     }
 
     /// <summary>
@@ -798,28 +838,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that parsing is independent of the original line-ending style.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_CrLfInput_GivesSameBlocksAsLf()
-    {
-        // Arrange: a multi-line code span ending a line, as bytes in LF and CRLF form
-        const string lf = "Use `X`\n  removes\n\n- a\n  b\n";
-        var crlf = lf.Replace("\n", "\r\n", StringComparison.Ordinal);
-
-        // Act: parse both from bytes
-        var fromLf = DocumentParser.Parse(SourceDocument.Create("a.md", Encoding.UTF8.GetBytes(lf)));
-        var fromCrLf = DocumentParser.Parse(SourceDocument.Create("a.md", Encoding.UTF8.GetBytes(crlf)));
-
-        // Assert: identical text and identical block lists
-        Assert.Equal(fromLf.Source.Text, fromCrLf.Source.Text);
-        Assert.Equal(Summarize(fromLf), Summarize(fromCrLf));
-        Assert.Equal(
-            fromLf.Blocks.Select(b => (b.Kind, b.Start, b.EndInclusive, b.Depth)).ToList(),
-            fromCrLf.Blocks.Select(b => (b.Kind, b.Start, b.EndInclusive, b.Depth)).ToList());
-    }
-
-    /// <summary>
     ///     Test that a lazy continuation line is flagged lazy and explicit prefixes are not.
     /// </summary>
     [Fact]
@@ -977,24 +995,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that a UTF-8 BOM fixture parses with offsets relative to the text without the mark.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_Bom_OffsetsExcludeByteOrderMark()
-    {
-        // Arrange: a BOM followed by a heading
-        byte[] bytes = [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes("# Title\n\ntext\n")];
-
-        // Act: parse
-        var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
-
-        // Assert: the heading starts at offset 0 and the BOM is remembered
-        Assert.Equal(0, Single(document, BlockKind.Heading).Start);
-        Assert.True(document.Source.HasBom);
-        Assert.Equal("# Title", Summarize(document)[0].Text);
-    }
-
-    /// <summary>
     ///     Test that tab-indented list items, code and text inside a paragraph parse with exact ranges.
     /// </summary>
     [Fact]
@@ -1047,6 +1047,44 @@ public class DocumentParserTests
         {
             Assert.Equal(expected[i % texts.Length], results[i]);
         }
+    }
+
+    /// <summary>
+    ///     Test that a very large document with many definitions, footnotes, quotes and list items parses in time proportional to its size.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_LargeDocument_CompletesWithinTimeBound()
+    {
+        // Arrange: 20000 groups of a definition with text, an unreferenced footnote, a quote and a list item
+        // (160000 blocks, about 0.8 MB), plus a referenced footnote in every fiftieth group. A scan of all
+        // blocks per definition or footnote takes about a minute on this input; linear or logarithmic lookups take about a second.
+        const int groups = 20_000;
+        var builder = new StringBuilder();
+        for (var i = 0; i < groups; i++)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"[r{i}]: /u\ntext\n\n[^u{i}]: x\n\n> q\n\n- i\n\n");
+            if (i % 50 == 0)
+            {
+                builder.Append(CultureInfo.InvariantCulture, $"T[^f{i}].\n\n[^f{i}]: n\n\n");
+            }
+        }
+
+        var source = SourceDocument.FromText("large.md", builder.ToString());
+
+        // Act: parse and time it
+        var stopwatch = Stopwatch.StartNew();
+        var document = DocumentParser.Parse(source);
+        stopwatch.Stop();
+
+        // Assert: every construct was found, the blocks are in source order, and the time is far below that of a quadratic scan
+        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.LinkReferenceDefinition));
+        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.UnreferencedFootnote));
+        Assert.Equal(groups / 50, document.Blocks.Count(b => b.Kind == BlockKind.Footnote));
+        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.BlockQuote));
+        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.ListItem));
+        Assert.Equal(161_200, document.Blocks.Count);
+        Assert.True(document.Blocks.Zip(document.Blocks.Skip(1)).All(pair => pair.First.Start <= pair.Second.Start), "blocks are not in source order");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"parsing took {stopwatch.Elapsed.TotalSeconds:F1} s");
     }
 
     /// <summary>

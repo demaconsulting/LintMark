@@ -71,7 +71,8 @@ that all three views describe the same parse.
 Block ranges produced by the parser are not trustworthy as they are, and `DocumentParser` compensates for the
 behaviors listed by name in *DocumentParser Design* (*Parser Behaviors Compensated*): unclosed fences, trailing
 line feeds, synthetic group nodes, definitions reported at the document root, dropped and misplaced footnote
-definitions, paragraphs that overlap definitions, the difference between LF and CRLF in multi-line code spans,
+definitions, containers that end before their last child, paragraphs that overlap definitions, the difference
+between LF and CRLF in multi-line code spans,
 lazy continuation lines, and released paragraph lines. The result is a block list in which siblings never
 overlap, every block lies inside its parent, and no document text is left unaccounted for outside the block
 ranges other than whitespace and container prefixes (quote markers and list markers). The span-tiling tests of

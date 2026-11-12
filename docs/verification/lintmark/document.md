@@ -19,7 +19,8 @@ Markdown. No mocking is used. Four kinds of evidence are produced:
 - **Synthetic footnotes and definitions**: top-level documents with footnote definitions in the shapes that the
   parser treats differently (referenced, unreferenced, repeated label with the same and with another letter
   case, adjacent definitions, several paragraphs, lazy continuation, body on the next line, indented marker,
-  an indented line that looks like a definition, a definition-like line in code, and definitions mixed with
+  an indented line that looks like a definition, a definition-like line in code, a footnote followed by an
+  indented HTML block alone, followed by a paragraph, and after a nested list, and definitions mixed with
   link reference definitions) are checked for the same properties, in LF and CRLF.
 - **Workflow and contracts**: documents built from bytes show that invalid content is rejected with its
   position, that block offsets convert to line and column, that the whole dialect is recognized, and that
@@ -53,7 +54,8 @@ skipping it, so coverage cannot be lost silently. Otherwise the standard test en
 - All subsystem tests pass with zero failures on every supported runtime and platform.
 - No tiling violation is reported for any repository file in any of the three line-ending variants, or for any
   synthetic nesting or footnote document.
-- The normalized text and block structure of the LF, CRLF, and mixed variants of every file are identical, and
+- The normalized text and block structure of the LF, CRLF, and mixed variants of every file are identical (also for
+  a code span that ends a line), and
   `ToBytes` restores the original bytes for LF and CRLF.
 - Parsing the repository corpus concurrently gives results identical to sequential parsing.
 - A link reference definition in any container chain reports the depth and enclosing blocks of that chain.
@@ -73,6 +75,10 @@ line endings and the tiling assertions report no violations.
 **Line-ending variants give identical blocks and restore the original bytes**: The normalized text and block
 structure of the three variants of each file are equal, and writing the normalized text back with the
 original style restores the original bytes for LF and CRLF.
+
+**Multi-line code span gives the same blocks for LF and CRLF**: A document whose paragraph ends a line inside a
+code span (which the Markdown parser reads differently for CRLF text) is loaded from LF bytes and from CRLF bytes;
+the normalized text and the block lists are equal, so the normalization hides the difference.
 
 **Parallel parsing of the corpus matches sequential parsing**: The repository corpus is parsed on many threads
 with the shared pipeline, and the results equal those of a sequential run.

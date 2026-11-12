@@ -93,7 +93,10 @@ internal static class SyntheticDocuments
         ("then-quote-and-list", "T[^n].\n\n[^n]: x\n\n> quoted\n\n- item\n"),
         ("indented-lookalike", "T[^n].\n\n[^n]: one\n\n    [^n]: two\n"),
         ("code-lookalike", "```\n[^n]: code\n```\n\nText[^n].\n\n[^n]: Note\n"),
-        ("definition-then-footnote", "T[^n] [a].\n\n[a]: http://x\ntext\n\n[^n]: Note\n")
+        ("definition-then-footnote", "T[^n] [a].\n\n[a]: http://x\ntext\n\n[^n]: Note\n"),
+        ("then-indented-html", "T[^n].\n\n[^n]: body\n\n    <div>\n    x\n    </div>\n"),
+        ("then-indented-html-and-text", "T[^n].\n\n[^n]: body\n\n    <div>\n    x\n    </div>\n\nAfter.\n"),
+        ("then-list-and-indented-html", "T[^n].\n\n[^n]: body\n\n    - item\n\n      <div>\n      x\n      </div>\n")
     ];
 
     /// <summary>

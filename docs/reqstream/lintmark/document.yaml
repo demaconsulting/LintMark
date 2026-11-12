@@ -25,6 +25,7 @@ sections:
               - LintMark-Document-SourceDocument-ByteOrderMark
             tests:
               - DocumentSubsystem_LineEndingVariants_RepositoryMarkdown_IdenticalBlocksAndRoundTrip
+              - DocumentSubsystem_LineEndingVariants_MultiLineCodeSpan_GivesSameBlocksForLfAndCrLf
               - DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults
 
           - id: LintMark-Document-InvalidContent
@@ -107,6 +108,7 @@ sections:
               - DocumentSubsystem_SpanTiling_RepositoryMarkdownCrLf_HasNoViolations
               - DocumentSubsystem_SpanTiling_RepositoryMarkdownMixed_HasNoViolations
               - DocumentSubsystem_LineEndingVariants_RepositoryMarkdown_IdenticalBlocksAndRoundTrip
+              - DocumentSubsystem_LineEndingVariants_MultiLineCodeSpan_GivesSameBlocksForLfAndCrLf
               - DocumentSubsystem_SyntheticNesting_ContainerChainsLf_HaveNoSpanViolations
               - DocumentSubsystem_SyntheticNesting_ContainerChainsCrLf_HaveNoSpanViolations
               - DocumentSubsystem_SyntheticDefinitionsAndFootnotes_Lf_HaveNoSpanViolations

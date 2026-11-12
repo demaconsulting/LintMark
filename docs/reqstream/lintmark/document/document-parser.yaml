@@ -60,9 +60,11 @@ sections:
                   - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
                   - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
                   - DocumentParser_Parse_DefinitionInBlockQuoteFollowedByText_ParagraphDoesNotOverlapDefinition
+                  - DocumentParser_Parse_DefinitionsInListItemFollowedByText_ParagraphDoesNotOverlapDefinitions
                   - DocumentParser_Parse_DefinitionFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
                   - DocumentParser_Parse_DefinitionInContainerFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
                   - DocumentParser_Parse_DefinitionFollowedByLiteralGreaterThan_ParagraphKeepsTheCharacter
+                  - DocumentParser_Parse_FootnoteFollowedByIndentedHtmlBlock_FootnoteContainsHtmlBlock
 
               - id: LintMark-Document-DocumentParser-NestingDepth
                 title: >-

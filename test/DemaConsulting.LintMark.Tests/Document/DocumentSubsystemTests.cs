@@ -197,6 +197,27 @@ public class DocumentSubsystemTests
     }
 
     /// <summary>
+    ///     Test that text parsed from LF and from CRLF bytes gives identical blocks, including a code span that ends a line.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_LineEndingVariants_MultiLineCodeSpan_GivesSameBlocksForLfAndCrLf()
+    {
+        // Arrange: a multi-line code span ending a line (Markdig reads it differently for CRLF text), as LF and CRLF bytes
+        const string text = "Use `X`\n  removes\n\n- a\n  b\n";
+
+        // Act: parse both from bytes
+        var fromLf = DocumentParser.Parse(SourceDocument.Create("a.md", ToVariantBytes(text, Variant.Lf)));
+        var fromCrLf = DocumentParser.Parse(SourceDocument.Create("a.md", ToVariantBytes(text, Variant.CrLf)));
+
+        // Assert: identical normalized text and identical block lists
+        Assert.Equal(fromLf.Source.Text, fromCrLf.Source.Text);
+        Assert.Equal(Structure(fromLf), Structure(fromCrLf));
+        Assert.Equal(
+            [BlockKind.Paragraph, BlockKind.List, BlockKind.ListItem, BlockKind.Paragraph],
+            fromCrLf.Blocks.Select(b => b.Kind).ToList());
+    }
+
+    /// <summary>
     ///     Test that parsing the whole corpus in parallel gives the same blocks as parsing sequentially.
     /// </summary>
     [Fact]
