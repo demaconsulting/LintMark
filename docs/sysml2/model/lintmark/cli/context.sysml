@@ -5,7 +5,6 @@ package LintMark {
         doc /* Command-line argument parser and I/O owner for one tool invocation. */
 
         metadata info : SoftwareInfo {
-            description = "Command-line argument parser and I/O owner for one tool invocation.";
             sourceFiles = ("src/DemaConsulting.LintMark/Cli/Context.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Cli/ContextTests.cs");
             designFiles = ("docs/design/lintmark/cli/context.md");
