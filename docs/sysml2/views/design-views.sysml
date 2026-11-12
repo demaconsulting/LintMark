@@ -5,7 +5,8 @@
 // 'render' - is what scopes the rendered diagram content.
 package LintMark {
     view SoftwareStructureView {
-        expose LintMark;
+        expose LintMark::**;
+        render asInterconnectionDiagram;
     }
 
     view LintMarkView {
