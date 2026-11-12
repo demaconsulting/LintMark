@@ -27,7 +27,6 @@ only by case, so the tests behave the same on case-insensitive and case-sensitiv
 - Failures are reported in the documented format, in path order, with exit code 1.
 - One worker and eight workers produce identical output and exit code.
 - A file selected by several arguments is reported once, and exclusions keep files from being read.
-- A log file inside the selection is refused with its content intact, and accepted when it is excluded.
 
 ### Test Scenarios
 
@@ -61,11 +60,6 @@ reported, and the exit code is 0.
 directory, and by glob; its failure is reported exactly once.
 
 #### Error handling
-
-**A log file inside the selection is refused unless it is excluded**: A tree with an undecodable `bad.md` and a
-valid `notes.md` that is given as the log with default discovery: the run throws `InvalidOperationException` and
-`notes.md` is unchanged. With `!notes.md` added the run reports the `bad.md` failure, exits with 1, and `notes.md`
-then holds the log.
 
 **Failures from several files are reported with position, rule, and message**: A valid file, a file with invalid
 UTF-8, and a file with a bare carriage return are processed; the two failures are reported in path order in the

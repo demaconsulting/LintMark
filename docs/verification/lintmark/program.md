@@ -20,8 +20,6 @@ N/A - standard test environment.
 - `Program.Version` returns a non-empty, non-null string.
 - With a path argument, `Program.Run` processes the file with the real engine and reports failures through
   the context (exit code 1).
-- A log file that is also a selected file is refused before the banner is written, so it is never created or
-  replaced; the same applies to version, help, and validation when the log file already exists.
 
 ### Test Scenarios
 
@@ -62,14 +60,3 @@ code 1 without throwing.
 
 **Undecodable file is reported through the context**: A context for an undecodable file makes the exit code 1
 and writes `file-encoding-error` to the error stream; the former "not yet implemented" text no longer appears.
-
-**A log file that is also an input is refused before any output**: With an existing Markdown file, and with a
-file that does not exist yet, each named both as the log and as the input, `Program.Run` throws
-`InvalidOperationException`, writes nothing to the console, leaves the existing file's content unchanged, and
-creates no file. `Program.Main` with the same arguments returns 1 and writes a message that contains
-"refusing to overwrite" to standard error, and the file is unchanged.
-
-**Version, help, and validate refuse an existing log file in the selection**: With `--version`, `--help`, or
-`--validate` and an existing `README.md` in the current directory named as the log, `Program.Run` throws
-`InvalidOperationException`, writes nothing to the console, and the file keeps its content after the context is
-disposed.

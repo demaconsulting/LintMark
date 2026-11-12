@@ -23,19 +23,11 @@ report. It contains two units: `FileDiscovery` and `LintMarkEngine`.
   for an empty or whitespace-only argument. A pattern that matches nothing is not an error. Either separator
   style is accepted on every platform.
 
-**LintMarkEngine.Select**: Selects the files and protects the log file.
-
-- *Type*: In-process .NET static method.
-- *Role*: Provider.
-- *Contract*: Discovers the files named by `Context.Paths` against the current directory and throws
-  `InvalidOperationException` when `Context.LogFile` is one of them, before anything is read or written.
-- *Constraints*: The log file is never touched. Callers with output to write call it before the first write.
-
 **LintMarkEngine.Run**: Discovers, processes, and reports.
 
 - *Type*: In-process .NET instance method.
 - *Role*: Provider.
-- *Contract*: Selects the files (or takes the files from `Select`), processes them, and
+- *Contract*: Discovers the files named by `Context.Paths` against the current directory, processes them, and
   writes one `Context.WriteError` line per failure in a deterministic order.
 - *Constraints*: Writes nothing for files that are processed successfully; never writes any file.
 
@@ -69,10 +61,7 @@ for example to invert completion order) and `documentParser` (replaces the parse
 the parser fail). They are not user options. The degree of parallelism is also not a user option.
 
 In this phase nothing is ever written to a file by the engine, so the `--check` option is accepted and behaves
-exactly like the default. The one file the tool does write, the `--log` file, is replaced when the context is
-disposed if anything was written; `Select` therefore refuses a run whose selection contains the log file, so that a
-source file can never be replaced by being named as the log (the user can exclude the log file with a `!`
-pattern).
+exactly like the default.
 
 Files from `node_modules` and `.git` folders belong to other parties and are never selected by a directory,
 glob, or default expansion, including when such a folder is itself the argument or the root of a glob. The

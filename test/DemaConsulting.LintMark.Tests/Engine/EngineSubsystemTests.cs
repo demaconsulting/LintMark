@@ -217,46 +217,4 @@ public class EngineSubsystemTests
         Assert.Equal(1, exitCode);
         Assert.Single(lines);
     }
-
-    /// <summary>
-    ///     Test that a log file inside the selection is refused with its content intact, and accepted once it is excluded.
-    /// </summary>
-    [Fact]
-    public void EngineSubsystem_LogFileInSelection_IsRefusedUnlessExcluded()
-    {
-        // Arrange: a failing file and a source file that would be selected by the default pattern
-        using var directory = new TemporaryDirectory();
-        directory.WriteBytes("bad.md", [0xFF]);
-        var notes = directory.WriteFile("notes.md", "# Precious\n");
-        var originalDirectory = Directory.GetCurrentDirectory();
-        try
-        {
-            Directory.SetCurrentDirectory(directory.FullPath);
-
-            // Act: run with the source file as the log, which must be refused
-            using (var refused = Context.Create(["--silent", "--log", notes]))
-            {
-                Assert.Throws<InvalidOperationException>(() => new LintMarkEngine().Run(refused));
-            }
-
-            // Assert: the source file survived the refused run
-            Assert.Equal("# Precious\n", File.ReadAllText(notes));
-
-            // Act: run again with the log file excluded from the selection
-            int exitCode;
-            using (var accepted = Context.Create(["--silent", "--log", notes, "!notes.md"]))
-            {
-                new LintMarkEngine().Run(accepted);
-                exitCode = accepted.ExitCode;
-            }
-
-            // Assert: the failure was processed and written to the log, which is now the file's content
-            Assert.Equal(1, exitCode);
-            Assert.Equal(["bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], File.ReadAllLines(notes));
-        }
-        finally
-        {
-            Directory.SetCurrentDirectory(originalDirectory);
-        }
-    }
 }

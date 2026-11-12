@@ -21,9 +21,10 @@ N/A - standard test environment.
 - Silent mode suppresses console output but does not affect the log file.
 - Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
   arguments, are rejected.
-- `--validate` combined with paths or `--check` is rejected before the log path is checked.
-- Creating a context never creates or changes the log file; disposal replaces it by moving a temporary file over
-  it, never by truncating it in place, and nothing is opened after disposal.
+- `--validate` combined with paths or `--check` is rejected before the log file is opened.
+- The log file is opened (and so created or truncated) when the context is created, written by `WriteLine` and
+  `WriteError`, and closed by disposal; a log file that cannot be opened is reported as a wrapped
+  `InvalidOperationException`.
 - `Paths` cannot be modified by a caller that casts it.
 - Concurrent writers never interleave lines and never lose the error state.
 
@@ -55,24 +56,12 @@ does.
 
 **Log flag opens the log file**: `--log <tmp>.log` followed by `WriteLine` creates the file with the message.
 
-**Log file is left alone until disposal**: With `--log` naming an existing file, creating the context and writing
-leave its content intact (also when it is read while the context is open), `LogFile` exposes the full path, and
-disposal replaces the content with the log. With a file that does not exist, nothing is created before disposal, and
-no temporary file remains afterwards.
+**Existing log file is truncated when the context is created**: With `--log` naming an existing file that has
+content, the file is empty as soon as `Context.Create` returns (the same behavior as the other DEMA Consulting
+tools), and it then holds only what the context writes.
 
-**Log file that is a hard link is replaced, not truncated**: With the log named through a second name (a hard
-link) of an existing file, disposal gives that name the log, and the original name keeps its content.
-
-**Log file that is a symbolic link is replaced, not followed**: With the log named through a symbolic link to an
-existing file, disposal replaces the link with a regular file holding the log, and the target keeps its content
-(skipped where the environment cannot create links).
-
-**Log that cannot be moved into place is kept and reported**: If the log path has become a directory by the time
-the context is disposed, `Dispose` throws `InvalidOperationException` naming the temporary file, which holds the
-log.
-
-**Log file is not reopened after disposal**: A `WriteLine` after `Dispose` leaves the log as the first session
-left it.
+**Log file is closed by disposal**: After `Dispose`, a further `WriteLine` leaves the log as it was, and the
+log file can be deleted because its handle has been released.
 
 **Positional arguments are collected in order**: Several non-dash arguments, including a `!` exclusion pattern,
 appear in `Paths` in the order given and no flag is set.
@@ -137,5 +126,6 @@ names the flag.
 **Rejected validate combination creates no log file**: With `--log` pointing at a file that does not exist, the
 `--validate` conflict is raised and the log file is never created.
 
-**Log file that cannot be used is rejected**: `--log` with an invalid path, a directory, or a path in a
-directory that does not exist throws `InvalidOperationException`, and nothing is created.
+**Log file that cannot be opened is rejected**: `--log` with a directory, or a path in a directory that does not
+exist, throws `InvalidOperationException` whose message starts with "Failed to open log file" and names the
+path, and nothing is created.

@@ -61,11 +61,6 @@ internal sealed class LintMarkEngine
     public const string ParseErrorRuleId = "file-parse-error";
 
     /// <summary>
-    ///     Maximum number of link targets followed when resolving a path (a guard against pathological link structures).
-    /// </summary>
-    private const int MaxLinkDepth = 32;
-
-    /// <summary>
     ///     Maximum number of files processed concurrently.
     /// </summary>
     private readonly int _maxDegreeOfParallelism;
@@ -118,33 +113,19 @@ internal sealed class LintMarkEngine
     /// <param name="context">The context supplying the path arguments and receiving the failure reports. Must not be null.</param>
     /// <remarks>
     ///     Failures are written through <see cref="Context.WriteError"/>, which makes the exit code 1.
-    ///     Discovery runs against the current directory (see <see cref="Select"/>).
+    ///     Discovery runs against the current directory.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the log file is one of the selected files.</exception>
     public void Run(Context context)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(context);
 
-        Run(context, Select(context));
-    }
-
-    /// <summary>
-    ///     Processes and reports the given files.
-    /// </summary>
-    /// <param name="context">The context receiving the failure reports. Must not be null.</param>
-    /// <param name="files">The files to process, as returned by <see cref="Select"/>. Must not be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    public void Run(Context context, IReadOnlyList<string> files)
-    {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(files);
-
-        // Process the files; no output happens until all workers are done
+        // Discover the files against the current directory, then process them; no output happens until all
+        // workers are done
         var baseDirectory = Directory.GetCurrentDirectory();
+        var files = FileDiscovery.Discover(context.Paths, baseDirectory);
         var results = Process(files);
 
         // Emit in display-path order, and within a file by position, so output is deterministic
@@ -159,105 +140,6 @@ internal sealed class LintMarkEngine
             {
                 context.WriteError($"{displayPath}:{failure.Line}:{failure.Column}: {failure.RuleId} {failure.Message}");
             }
-        }
-    }
-
-    /// <summary>
-    ///     Selects the files named by the context and refuses a run that would overwrite one of them with the log.
-    /// </summary>
-    /// <param name="context">The context supplying the path arguments and the log file path. Must not be null.</param>
-    /// <returns>The selected files (distinct full paths in ordinal order).</returns>
-    /// <remarks>
-    ///     Nothing is read or written, and the log file is not touched. A caller that has output to write
-    ///     should call this before the first write: a context that has written anything replaces the log file
-    ///     when it is disposed, so a refused run must have written nothing.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
-    /// <exception cref="InvalidOperationException">
-    ///     Thrown when <see cref="Context.LogFile"/> is one of the selected files; the log would replace that
-    ///     input, so the run is refused instead.
-    /// </exception>
-    public static IReadOnlyList<string> Select(Context context)
-    {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(context);
-
-        // Discover the files against the current directory
-        var files = FileDiscovery.Discover(context.Paths, Directory.GetCurrentDirectory());
-
-        // Replacing the log file would destroy an input that is also the log, so refuse such a run.
-        // The comparison is by real path: a path that reaches a file through a link (for example the /var to
-        // /private/var link of macOS temporary folders, or a symbolic link to a source file) names the same file.
-        // Hard links cannot be recognized, but the log is written to a temporary file and moved over the log path
-        // (see Context), which leaves the other names of the old file untouched
-        if (context.LogFile is { } logFile)
-        {
-            var cache = new Dictionary<string, string>(StringComparer.Ordinal);
-            var realLog = ResolveLinks(logFile, cache);
-            if (files.Any(file => string.Equals(ResolveLinks(file, cache), realLog, FileDiscovery.PathComparison)))
-            {
-                throw new InvalidOperationException(
-                    $"Log file '{logFile}' is also selected as an input file; refusing to overwrite it. " +
-                    "Choose a different --log path or exclude the file with a ! pattern.");
-            }
-        }
-
-        return files;
-    }
-
-    /// <summary>
-    ///     Resolves every symbolic link or junction along a full path.
-    /// </summary>
-    /// <param name="path">The full path.</param>
-    /// <param name="cache">Resolved paths by path, shared between calls to save repeated work.</param>
-    /// <param name="depth">The number of link targets followed so far (guards against pathological link structures).</param>
-    /// <returns>The full path with every link replaced by its target; the path itself when nothing is a link.</returns>
-    /// <remarks>
-    ///     The parent is resolved first, then the last segment, which may itself be a link. The target of a
-    ///     link is resolved again, because it may be written through further links (a link to
-    ///     <c>/var/x</c> still lies below the <c>/private/var</c> link). Hard links cannot be recognized this
-    ///     way; a log file that is a hard link to an input is not detected.
-    /// </remarks>
-    private static string ResolveLinks(string path, Dictionary<string, string> cache, int depth = 0)
-    {
-        if (cache.TryGetValue(path, out var known))
-        {
-            return known;
-        }
-
-        var parent = Path.GetDirectoryName(path);
-        string resolved;
-        if (parent is null)
-        {
-            resolved = path;
-        }
-        else
-        {
-            var combined = Path.Combine(ResolveLinks(parent, cache, depth), Path.GetFileName(path));
-            var target = GetLinkTarget(combined);
-            resolved = target is null || depth >= MaxLinkDepth ? combined : ResolveLinks(target, cache, depth + 1);
-        }
-
-        cache[path] = resolved;
-        return resolved;
-    }
-
-    /// <summary>
-    ///     Gets the final target of a link at the end of a path.
-    /// </summary>
-    /// <param name="path">The full path whose parent directories are already resolved.</param>
-    /// <returns>The full path of the final target, or <see langword="null"/> when the path is not a link.</returns>
-    private static string? GetLinkTarget(string path)
-    {
-        try
-        {
-            return new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
-        {
-            // A path that cannot be examined (or a link loop) is compared as it is
-            return null;
         }
     }
 

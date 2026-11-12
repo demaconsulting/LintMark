@@ -128,24 +128,6 @@ sections:
                   - LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted
                   - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults
 
-              - id: LintMark-Engine-LintMarkEngine-LogNotInput
-                title: >-
-                  The LintMarkEngine class shall refuse, before reading or writing any file, a selection that
-                  contains the log file of the Context, including when the two paths differ only through
-                  symbolic links, and shall not touch that file.
-                justification: |
-                  The log file is replaced when the run ends, so a source file that is also the log would be
-                  destroyed. Refusing the run is the only outcome that can never lose data; a user can still
-                  log to a file in the selection by excluding it with a `!` pattern.
-                tests:
-                  - LintMarkEngine_Select_LogFileNamedAsInput_ThrowsAndLeavesFileUntouched
-                  - LintMarkEngine_Run_LogFileFoundByDiscovery_ThrowsAndLeavesFileUntouched
-                  - LintMarkEngine_Select_LogFileExcluded_SelectsOtherFiles
-                  - LintMarkEngine_Select_LogFileNotSelected_SelectsFiles
-                  - LintMarkEngine_Select_LogFileIsSymbolicLinkToInput_ThrowsAndLeavesFileUntouched
-                  - LintMarkEngine_Select_LogFileThroughLinkedDirectory_ThrowsAndLeavesFileUntouched
-                  - LintMarkEngine_Select_NullContext_ThrowsArgumentNullException
-
               - id: LintMark-Engine-LintMarkEngine-ImmutableResults
                 title: >-
                   The LintMarkEngine class shall return file results whose failure lists cannot be changed by

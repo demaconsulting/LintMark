@@ -62,13 +62,19 @@ sections:
                   - Context_WriteError_NotSilent_WritesToConsole
 
               - id: LintMark-Cli-Context-LogOutput
-                title: The Context class shall additionally write output to a log file when the log flag is set.
+                title: >-
+                  The Context class shall open the file named by the log flag when the context is created, write
+                  output to it, and close it when disposed.
                 justification: |
                   Provides persistent logging for debugging and audit trails, enabling post-run
-                  inspection of tool output without requiring console capture.
+                  inspection of tool output without requiring console capture. The file is opened for
+                  writing when the context is created and replaces any previous content, as in the other
+                  DEMA Consulting tools.
                 tests:
                   - Context_Create_LogFlag_OpensLogFile
+                  - Context_Create_LogFlag_ExistingFile_TruncatesFile
                   - Context_WriteError_WritesToLogFile
+                  - Context_Dispose_ClosesLogFile
 
               - id: LintMark-Cli-Context-Silent
                 title: The Context class shall suppress console output when the silent flag is set.
@@ -97,36 +103,15 @@ sections:
                   - Context_WriteError_SetsErrorExitCode
 
               - id: LintMark-Cli-Context-LogFailure
-                title: The Context class shall report an error when the specified log file path cannot be used.
+                title: The Context class shall report an error when the specified log file cannot be opened.
                 justification: |
-                  Failure to use a log file must be surfaced as early as possible so that users know their
+                  Failure to open a log file must be surfaced as early as possible so that users know their
                   log output will not be captured, preventing silent data loss in audit or
-                  compliance workflows. A path that is invalid, names a directory, or lies in a missing
-                  directory is rejected when the context is created; any other failure to create the
-                  temporary log file is reported by the first write, and a failure to replace the log file by
-                  disposal (the log then stays in the temporary file named in the message).
+                  compliance workflows. The failure is reported when the context is created, as an
+                  exception that names the path and keeps the underlying file-system exception.
                 tests:
                   - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
                   - Context_Create_LogFlag_MissingDirectory_ThrowsInvalidOperationException
-                  - Context_Dispose_LogFileCannotBeReplaced_ThrowsAndKeepsLogInTemporaryFile
-
-              - id: LintMark-Cli-Context-LogDeferred
-                title: >-
-                  The Context class shall expose the full path of the log file, shall neither create nor change
-                  that file while arguments are parsed or lines are written, and shall replace it, by moving a
-                  temporary file over it and never by truncating it in place, only when disposed.
-                justification: |
-                  Replacing a log file while the arguments are parsed would destroy a source file that was also
-                  given as an input before anyone could notice. Exposing the path lets the caller compare it
-                  with the files it is about to read and refuse the run first, and moving a file over the path
-                  instead of truncating leaves every other name of the old file (a hard link) unchanged, so
-                  even an alias that cannot be recognized cannot lose data.
-                tests:
-                  - Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilDispose
-                  - Context_Create_LogFlag_MissingFile_IsNotCreatedUntilDispose
-                  - Context_Dispose_LogFileIsHardLinkToInput_LeavesTheOtherNameUntouched
-                  - Context_Dispose_LogFileIsSymbolicLink_ReplacesLinkAndLeavesTargetUntouched
-                  - Context_WriteLine_AfterDispose_DoesNotReopenLogFile
 
               - id: LintMark-Cli-Context-Paths
                 title: >-
