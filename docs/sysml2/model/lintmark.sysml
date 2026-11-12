@@ -11,7 +11,6 @@ package LintMark {
         doc /* The LintMark system as a whole. */
 
         metadata info : SoftwareInfo {
-            description = "The LintMark system as a whole.";
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/IntegrationTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Runner.cs",

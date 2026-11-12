@@ -10,10 +10,9 @@ package LintMark {
     }
 
     part def SourceDocument {
-        doc /* Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged. */
+        doc /* Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged (also documents the LineEnding and LineEndingInfo supporting types). */
 
         metadata info : SoftwareInfo {
-            description = "Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged (also documents the LineEnding and LineEndingInfo supporting types).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Document/SourceDocument.cs",
                 "src/DemaConsulting.LintMark/Document/SourceDocumentException.cs",

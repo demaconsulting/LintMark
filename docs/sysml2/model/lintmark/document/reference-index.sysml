@@ -2,10 +2,9 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def ReferenceIndex {
-        doc /* Indexes the link reference definitions of a document and resolves references by label. */
+        doc /* Indexes the link reference definitions of a document and resolves references by label (also documents the ReferenceDefinition supporting type). */
 
         metadata info : SoftwareInfo {
-            description = "Indexes the link reference definitions of a document and resolves references by label (also documents the ReferenceDefinition supporting type).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Document/ReferenceIndex.cs",
                 "src/DemaConsulting.LintMark/Document/ReferenceDefinition.cs");

@@ -5,7 +5,6 @@ package LintMark {
         doc /* Expands path, directory, glob and exclusion arguments into the list of Markdown files to process. */
 
         metadata info : SoftwareInfo {
-            description = "Expands path, directory, glob and exclusion arguments into the list of Markdown files to process.";
             sourceFiles = ("src/DemaConsulting.LintMark/Engine/FileDiscovery.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Engine/FileDiscoveryTests.cs");
             designFiles = ("docs/design/lintmark/engine/file-discovery.md");

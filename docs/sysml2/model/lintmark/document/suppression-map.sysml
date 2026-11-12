@@ -2,10 +2,9 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def SuppressionMap {
-        doc /* Resolves suppression comments into offset ranges and answers whether a rule is suppressed at a position. */
+        doc /* Resolves suppression comments into offset ranges and answers whether a rule is suppressed at a position (also documents the SuppressionRange and RuleSet supporting types). */
 
         metadata info : SoftwareInfo {
-            description = "Resolves suppression comments into offset ranges and answers whether a rule is suppressed at a position (also documents the SuppressionRange and RuleSet supporting types).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Document/SuppressionMap.cs",
                 "src/DemaConsulting.LintMark/Document/SuppressionRange.cs",

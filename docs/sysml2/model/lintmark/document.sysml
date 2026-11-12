@@ -5,7 +5,6 @@ package LintMark {
         doc /* Loads Markdown files into a normalized, source-accurate document model with suppression directives and reference definitions. */
 
         metadata info : SoftwareInfo {
-            description = "Loads Markdown files into a normalized, source-accurate document model with suppression directives and reference definitions.";
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/Document/DocumentSubsystemTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Document/SpanTilingAssertions.cs",

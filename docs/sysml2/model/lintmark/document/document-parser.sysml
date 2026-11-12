@@ -57,10 +57,9 @@ package LintMark {
     }
 
     part def DocumentParser {
-        doc /* Parses a source document with the fixed Markdown pipeline into a source-ordered block list with corrected ranges. */
+        doc /* Parses a source document with the fixed Markdown pipeline into a source-ordered block list with corrected ranges (also documents the ParsedDocument, BlockInfo, BlockKind and LeafLine supporting types). */
 
         metadata info : SoftwareInfo {
-            description = "Parses a source document with the fixed Markdown pipeline into a source-ordered block list with corrected ranges (also documents the ParsedDocument, BlockInfo, BlockKind and LeafLine supporting types).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Document/DocumentParser.cs",
                 "src/DemaConsulting.LintMark/Document/ParsedDocument.cs",

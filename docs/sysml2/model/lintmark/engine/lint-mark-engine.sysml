@@ -2,10 +2,9 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def LintMarkEngine {
-        doc /* Discovers the selected files, processes them in parallel and reports failures in a deterministic order. */
+        doc /* Discovers the selected files, processes them in parallel and reports failures in a deterministic order (also documents the FileResult and FileFailure supporting types). */
 
         metadata info : SoftwareInfo {
-            description = "Discovers the selected files, processes them in parallel and reports failures in a deterministic order (also documents the FileResult and FileFailure supporting types).";
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Engine/LintMarkEngine.cs",
                 "src/DemaConsulting.LintMark/Engine/FileResult.cs",
