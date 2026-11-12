@@ -339,7 +339,7 @@ public class LintMarkConfigTests
     ///     Test that an undefined enumeration value is rejected by every enumeration setting.
     /// </summary>
     [Fact]
-    public void LintMarkConfig_EnumSetting_UndefinedValue_Throws()
+    public void LintMarkConfig_Init_EnumSettings_UndefinedValue_ThrowsArgumentOutOfRange()
     {
         // Arrange: the default configuration
         var config = LintMarkConfig.Default;
@@ -451,7 +451,7 @@ public class LintMarkConfigTests
     [InlineData(0)]
     [InlineData(-1)]
     [InlineData(100_001)]
-    public void LinkRefactorOptions_ThresholdOrLabelLengthOutOfRange_Throws(int value)
+    public void LinkRefactorOptions_Constructor_ThresholdOrLabelLengthOutOfRange_ThrowsArgumentOutOfRange(int value)
     {
         // Arrange: the default options
         var options = LinkRefactorOptions.Disabled;
@@ -473,7 +473,7 @@ public class LintMarkConfigTests
     [InlineData("<!-->")]
     [InlineData("<!-- a\nb -->")]
     [InlineData("<!-- a\r\nb -->")]
-    public void LinkRefactorOptions_MarkerNotSingleLineHtmlComment_Throws(string marker)
+    public void LinkRefactorOptions_DefinitionsMarker_NotSingleLineHtmlComment_ThrowsException(string marker)
     {
         // Act & Assert: the marker is rejected
         Assert.Throws<ArgumentException>(() => LinkRefactorOptions.Disabled with { DefinitionsMarker = marker });
@@ -484,7 +484,7 @@ public class LintMarkConfigTests
     ///     Test that the shortest valid marker, an empty comment, is accepted.
     /// </summary>
     [Fact]
-    public void LinkRefactorOptions_MarkerEmptyComment_Accepted()
+    public void LinkRefactorOptions_DefinitionsMarker_EmptyComment_IsAccepted()
     {
         // Act: set the shortest valid marker
         var options = LinkRefactorOptions.Disabled with { DefinitionsMarker = "<!---->" };
@@ -494,10 +494,10 @@ public class LintMarkConfigTests
     }
 
     /// <summary>
-    ///     Test that the ignore patterns of a derived configuration are an immutable array value.
+    ///     Test that the default ignore patterns are an initialized immutable array value.
     /// </summary>
     [Fact]
-    public void LintMarkConfig_DefaultIgnore_IsImmutableArray()
+    public void LintMarkConfig_DefaultIgnore_Value_IsInitializedImmutableArray()
     {
         // Act & Assert: the shared default list is an initialized immutable array
         Assert.False(LintMarkConfig.DefaultIgnore.IsDefault);

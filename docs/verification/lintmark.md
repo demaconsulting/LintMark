@@ -62,6 +62,8 @@ configuration file. Every tree that holds editor settings starts them with `root
 - A malformed file, a file holding two configurations, a file saved as UTF-16, an unknown setting, an invalid value,
   and a setting given twice are each reported as `path:line:col: config-error message` at their position, once per
   problem and one per line, with exit code 1; the files themselves are still read and their own failures reported.
+- A configuration file outside the current directory is reported with a forward-slash path relative to the current
+  directory.
 - A configuration file larger than 1 MiB and one nested 100,000 levels deep are each reported as a configuration
   problem with exit code 1, and the nested file within 10 seconds.
 - A configuration problem is reported once however many Markdown files use that configuration.
@@ -252,6 +254,12 @@ in `:1:1: config-error Unknown setting` followed by the offending name and one e
 
 **Configuration problem is reported once for many files**: One invalid configuration is used by twelve Markdown
 files in three folders, all passed in one run; the exit code is 1 and exactly one `config-error` line appears.
+
+**Configuration file outside the current directory is reported with a relative, forward-slash path**: An invalid
+configuration in a temporary directory, which lies outside the current directory of the tool process, is named with
+`--config` by its absolute path; the exit code is 1 and exactly one `config-error` line appears, whose path is the
+path relative to the current directory with forward slashes and without backslashes, followed by
+`:1:1: config-error Unknown setting` and the offending name.
 
 **Files are still checked when the configuration is invalid**: An invalid configuration and a file that cannot be
 decoded are processed; the exit code is 1 and the output contains both the configuration problem and

@@ -248,6 +248,26 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a configuration outside the current directory is reported with a parent-relative path.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithParentRelativePath()
+    {
+        // Arrange: the current directory is a sub folder, the invalid configuration sits beside it
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("other.yaml", "bogus: 1\n");
+        directory.WriteFile("sub/a.md");
+
+        // Act: run the engine inside the sub folder with a configuration in the parent
+        var (exitCode, lines) = LintMarkEngineTests.ExecuteIn(directory, "sub", new LintMarkEngine(), "--config", "../other.yaml");
+
+        // Assert: reported relative to the current directory, in the regular line format
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["../other.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
+        Assert.All(lines, l => Assert.Matches(FailureFormat, l));
+    }
+
+    /// <summary>
     ///     Test that no-config ignores an invalid configuration and unusable editor settings.
     /// </summary>
     [Fact]

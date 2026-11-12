@@ -41,7 +41,7 @@ sections:
                   - LintMarkConfig_Init_EverySetting_ReadsBackGivenValue
                   - LintMarkConfig_LineLength_ZeroAndMax_Accepted
                   - LintMarkConfig_Ignore_EmptyList_Accepted
-                  - LinkRefactorOptions_MarkerEmptyComment_Accepted
+                  - LinkRefactorOptions_DefinitionsMarker_EmptyComment_IsAccepted
 
               - id: LintMark-Configuration-LintMarkConfig-RuleIdentifiers
                 title: >-
@@ -55,8 +55,8 @@ sections:
                   - RuleIdentifiers_TryResolve_AnyLetterCase_ReturnsCanonical
                   - RuleIdentifiers_TryResolve_TurkishCulture_StillMatches
                   - RuleIdentifiers_TryResolve_UnknownName_ReturnsFalse
-                  - RuleIdentifiers_ConfigurableRules_AreSortedOrdinalAndCoveredByDefaults
-                  - RuleIdentifiers_Aliases_AreUniqueAndMapToConfigurableRules
+                  - RuleIdentifiers_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults
+                  - RuleIdentifiers_Aliases_AllAliases_UniqueAndMapToConfigurableRules
 
               - id: LintMark-Configuration-LintMarkConfig-RemovedRuleNumbers
                 title: >-
@@ -77,7 +77,7 @@ sections:
                   - LintMarkConfig_LineLength_OutOfRange_ThrowsArgumentOutOfRangeException
                   - LintMarkConfig_ListIndent_NotTwoOrFour_Throws
                   - LintMarkConfig_MaxBlankLines_OutOfRange_Throws
-                  - LinkRefactorOptions_ThresholdOrLabelLengthOutOfRange_Throws
+                  - LinkRefactorOptions_Constructor_ThresholdOrLabelLengthOutOfRange_ThrowsArgumentOutOfRange
 
               - id: LintMark-Configuration-LintMarkConfig-ChoiceChecks
                 title: >-
@@ -85,7 +85,7 @@ sections:
                 justification: |
                   A choice that is not defined cannot be honored by a formatter.
                 tests:
-                  - LintMarkConfig_EnumSetting_UndefinedValue_Throws
+                  - LintMarkConfig_Init_EnumSettings_UndefinedValue_ThrowsArgumentOutOfRange
 
               - id: LintMark-Configuration-LintMarkConfig-WellFormedChecks
                 title: >-
@@ -99,7 +99,7 @@ sections:
                   - LintMarkConfig_Ignore_InvalidElement_Throws
                   - LintMarkConfig_Rules_InvalidKeyOrMissingRule_Throws
                   - LintMarkConfig_LinkRefactor_Null_Throws
-                  - LinkRefactorOptions_MarkerNotSingleLineHtmlComment_Throws
+                  - LinkRefactorOptions_DefinitionsMarker_NotSingleLineHtmlComment_ThrowsException
 
               - id: LintMark-Configuration-LintMarkConfig-ImmutableSettings
                 title: >-
@@ -111,7 +111,7 @@ sections:
                 tests:
                   - LintMarkConfig_Rules_CastToMutableTypes_CannotBeModified
                   - LintMarkConfig_Ignore_CastToMutableTypes_CannotBeModified
-                  - LintMarkConfig_DefaultIgnore_IsImmutableArray
+                  - LintMarkConfig_DefaultIgnore_Value_IsInitializedImmutableArray
 
               - id: LintMark-Configuration-LintMarkConfig-IndependentOfSources
                 title: >-

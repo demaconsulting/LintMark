@@ -182,8 +182,7 @@ sections:
 
           - id: LintMark-Cli-ConfigOption
             title: >-
-              The Cli subsystem shall support the `--config` option to name the configuration file to use, and
-              make the name available to the program.
+              The Cli subsystem shall support the `--config` option to name the configuration file to use.
             justification: |
               Users need to point the tool at a configuration file that is not in the place where discovery
               would look, for example one that is shared by several projects.
@@ -197,7 +196,7 @@ sections:
           - id: LintMark-Cli-NoConfigOption
             title: >-
               The Cli subsystem shall support the `--no-config` flag to request that no configuration file or
-              editor setting is used, and make the request available to the program.
+              editor setting is used.
             justification: |
               Users need a way to run the tool exactly as shipped, independent of whatever configuration
               happens to be around.

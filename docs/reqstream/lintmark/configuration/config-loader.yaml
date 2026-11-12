@@ -121,7 +121,7 @@ sections:
                 justification: |
                   Naming a configuration file is a deliberate choice that must override discovery.
                 tests:
-                  - ConfigLoader_ForFile_IgnoresDiscoverableFile
+                  - ConfigLoader_ForFile_DiscoverableFilePresent_IgnoresDiscoverableFile
 
               - id: LintMark-Configuration-ConfigLoader-ExplicitRelativePath
                 title: >-
@@ -313,7 +313,7 @@ sections:
                   The list says which files the user does not want processed. A configuration that names its
                   own list means exactly that list.
                 tests:
-                  - ConfigLoader_Parse_IgnoreReplacesDefaults
+                  - ConfigLoader_Parse_IgnoreList_ReplacesDefaultsInGivenOrder
                   - ConfigLoader_Parse_IgnoreEmptyList_ClearsDefaults
 
               - id: LintMark-Configuration-ConfigLoader-IgnorePatternSlashes
@@ -323,7 +323,7 @@ sections:
                   Users on some platforms write path separators as backslashes, and patterns must mean the same
                   on every platform.
                 tests:
-                  - ConfigLoader_Parse_IgnoreBackslashesNormalized
+                  - ConfigLoader_Parse_IgnoreBackslash_StoredAsForwardSlash
 
               - id: LintMark-Configuration-ConfigLoader-IgnorePatternDuplicates
                 title: >-

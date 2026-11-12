@@ -266,7 +266,7 @@ public class EditorConfigResolverTests
     ///     Test that the nearest file wins for the property.
     /// </summary>
     [Fact]
-    public void EditorConfigResolver_Resolve_NearestFileWinsPerProperty()
+    public void EditorConfigResolver_Resolve_NestedEditorConfigFiles_NearestFileWinsPerProperty()
     {
         // Arrange: lf in the outer file and crlf in the nested one
         using var directory = Tree("[*]\nend_of_line = lf\n");
@@ -285,7 +285,7 @@ public class EditorConfigResolverTests
     ///     Test that a later section in a file overrides an earlier one.
     /// </summary>
     [Fact]
-    public void EditorConfigResolver_Resolve_LaterSectionWins()
+    public void EditorConfigResolver_Resolve_LessSpecificLaterSection_LaterSectionWins()
     {
         // Arrange: a specific section followed by a broader one
         using var directory = Tree("[*.md]\nend_of_line = lf\n\n[*]\nend_of_line = crlf\n");
@@ -301,7 +301,7 @@ public class EditorConfigResolverTests
     ///     Test that the later section wins regardless of how specific the earlier one is.
     /// </summary>
     [Fact]
-    public void EditorConfigResolver_Resolve_LaterSectionOverridesEarlierRegardlessOfSpecificity()
+    public void EditorConfigResolver_Resolve_MoreSpecificEarlierSection_LaterSectionOverrides()
     {
         // Arrange: a broad section followed by an exact file name section
         using var directory = Tree("[*]\nend_of_line = crlf\n\n[a.md]\nend_of_line = lf\n");
@@ -559,7 +559,7 @@ public class EditorConfigResolverTests
     ///     Test that a result cannot carry both a line ending and an error, or a blank error.
     /// </summary>
     [Fact]
-    public void EditorConfigResult_InvalidCombination_Throws()
+    public void EditorConfigResult_Constructor_InvalidCombination_ThrowsArgumentException()
     {
         // Act & Assert: the invalid combinations are rejected
         Assert.Throws<ArgumentException>(() => new EditorConfigResult(LineEnding.Lf, "problem"));

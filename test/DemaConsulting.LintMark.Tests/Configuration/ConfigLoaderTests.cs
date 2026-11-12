@@ -554,7 +554,7 @@ public class ConfigLoaderTests
     ///     Test that an explicit file is used even when a discoverable file exists.
     /// </summary>
     [Fact]
-    public void ConfigLoader_ForFile_IgnoresDiscoverableFile()
+    public void ConfigLoader_ForFile_DiscoverableFilePresent_IgnoresDiscoverableFile()
     {
         // Arrange: a discoverable file beside the Markdown file and a different explicit file
         using var directory = new TemporaryDirectory();

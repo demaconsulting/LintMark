@@ -987,7 +987,7 @@ public class ConfigLoaderParseTests
     ///     Test that an ignore list replaces the defaults and is used exactly as given, in the given order.
     /// </summary>
     [Fact]
-    public void ConfigLoader_Parse_IgnoreReplacesDefaults()
+    public void ConfigLoader_Parse_IgnoreList_ReplacesDefaultsInGivenOrder()
     {
         // Act: parse an ignore list whose order is not alphabetical
         var config = Valid("ignore:\n  - zeta/**\n  - alpha/**\n  - build/**\n");
@@ -1013,7 +1013,7 @@ public class ConfigLoaderParseTests
     ///     Test that backslashes in ignore patterns are normalized to forward slashes.
     /// </summary>
     [Fact]
-    public void ConfigLoader_Parse_IgnoreBackslashesNormalized()
+    public void ConfigLoader_Parse_IgnoreBackslash_StoredAsForwardSlash()
     {
         // Act: parse patterns written with Windows separators
         var config = Valid("ignore:\n  - 'docs\\generated\\**'\n");
@@ -1416,7 +1416,7 @@ public class ConfigLoaderParseTests
     ///     Test that a loader result with errors and a configuration, or neither, is rejected.
     /// </summary>
     [Fact]
-    public void ConfigLoadResult_InconsistentState_Throws()
+    public void ConfigLoadResult_Constructor_InconsistentState_ThrowsArgumentException()
     {
         // Arrange: one error and an empty list
         var error = new ConfigError("a.yaml", 1, 1, "problem");
@@ -1432,7 +1432,7 @@ public class ConfigLoaderParseTests
     ///     Test that an error rejects an invalid path, position or message, and flattens line breaks.
     /// </summary>
     [Fact]
-    public void ConfigError_InvalidArguments_Throw()
+    public void ConfigError_Constructor_InvalidArguments_ThrowsException()
     {
         // Act & Assert: every argument is validated
         Assert.Throws<ArgumentNullException>(() => new ConfigError(null!, 1, 1, "m"));

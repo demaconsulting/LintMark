@@ -206,6 +206,18 @@ sections:
             tests:
               - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
 
+          - id: LintMark-Engine-ConfigErrorPathDisplay
+            title: >-
+              The Engine subsystem shall show the path of a configuration problem relative to the current
+              directory with forward slashes, also when the file lies outside the current directory.
+            justification: |
+              The user must be able to open the named file from where the tool was run, whatever the
+              platform separator.
+            children:
+              - LintMark-Engine-LintMarkEngine-ConfigErrorPathDisplay
+            tests:
+              - EngineSubsystem_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithParentRelativePath
+
           - id: LintMark-Engine-ConfigErrorOnce
             title: >-
               The Engine subsystem shall report a configuration problem once, however many files use the

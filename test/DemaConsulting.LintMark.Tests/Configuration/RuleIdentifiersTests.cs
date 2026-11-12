@@ -181,7 +181,7 @@ public class RuleIdentifiersTests
     ///     Test that the configurable rules are sorted in ordinal order and covered by the defaults.
     /// </summary>
     [Fact]
-    public void RuleIdentifiers_ConfigurableRules_AreSortedOrdinalAndCoveredByDefaults()
+    public void RuleIdentifiers_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults()
     {
         // Act: take the rule list
         var rules = RuleIdentifiers.ConfigurableRules;
@@ -198,7 +198,7 @@ public class RuleIdentifiersTests
     ///     Test that aliases are unique and map to configurable rules.
     /// </summary>
     [Fact]
-    public void RuleIdentifiers_Aliases_AreUniqueAndMapToConfigurableRules()
+    public void RuleIdentifiers_Aliases_AllAliases_UniqueAndMapToConfigurableRules()
     {
         // Act & Assert: every alias target is a configurable rule, and no alias is also dropped
         Assert.All(RuleIdentifiers.Aliases, pair => Assert.Contains(pair.Value, RuleIdentifiers.ConfigurableRules));

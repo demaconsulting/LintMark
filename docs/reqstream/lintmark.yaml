@@ -483,6 +483,19 @@ sections:
         tests:
           - LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage
 
+      - id: LintMark-System-ConfigErrorPathDisplay
+        title: >-
+          The tool shall show the path of a configuration problem relative to the current directory with
+          forward slashes, also when the file lies outside the current directory.
+        tags: [system]
+        justification: |
+          The user must be able to open the named file from where the tool was run, whatever the platform
+          separator.
+        children:
+          - LintMark-Engine-ConfigErrorPathDisplay
+        tests:
+          - LintMark_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithRelativeForwardSlashPath
+
       - id: LintMark-System-ConfigErrorOnce
         title: >-
           The tool shall report a configuration problem once, however many Markdown files use that

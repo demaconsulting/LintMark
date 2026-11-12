@@ -45,6 +45,8 @@ scenario writes declares `root = true`.
   selected; `--no-config` reads no configuration file and no editor settings, so invalid ones are never reported.
 - Editor-settings values that cannot be used are never an error.
 - Configuration problems and file failures are merged in path order and, within a file, in position order.
+- A configuration file outside the current directory is reported with a forward-slash path relative to the current
+  directory, starting with `../`.
 - A file is processed with the same configuration, and gives the same configuration problems and exit code, for one
   worker and for eight workers.
 - Supporting: the line ending of a file comes from its configuration, else from the editor settings, else stays
@@ -82,6 +84,11 @@ semantic`, in the documented failure format.
 `custom.yaml`, and nine Markdown files in three folders are processed with `--config custom.yaml`; the exit code
 is 1 and the only output is `custom.yaml:1:1: config-error Unknown setting` followed by the offending name, so the
 discoverable file is not involved and the problem is not repeated for every file.
+
+**A configuration outside the current directory is reported with a parent-relative path**: With a sub folder as the
+current directory, an invalid `other.yaml` in its parent named as `../other.yaml` with `--config`, and a Markdown file
+in the sub folder, the exit code is 1 and the only output is `../other.yaml:1:1: config-error Unknown setting` followed
+by the offending name, in the documented failure format.
 
 **The no-config option reads no configuration and no editor settings**: An invalid `.lintmark.yaml` and an
 `.editorconfig` with a malformed line and an unknown `end_of_line` value are present; with `--no-config` the

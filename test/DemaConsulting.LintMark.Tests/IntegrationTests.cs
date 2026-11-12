@@ -1095,6 +1095,31 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that a configuration file outside the current directory is reported with a relative forward-slash path.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithRelativeForwardSlashPath()
+    {
+        // Arrange: an invalid configuration in a temporary directory, which lies outside the current directory
+        using var directory = new TemporaryDirectory();
+        var config = directory.WriteFile("settings/outside.yaml", "bogus: 1\n");
+        var file = directory.WriteFile("a.md");
+        var expectedPath = Path.GetRelativePath(Environment.CurrentDirectory, config).Replace('\\', '/');
+
+        // Act: run the tool with the absolute configuration path
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", config, file);
+
+        // Assert: reported once, relative to the current directory and with forward slashes only
+        Assert.Equal(1, exitCode);
+        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(l => l.Contains("config-error", StringComparison.Ordinal))
+            .ToList();
+        var line = Assert.Single(lines);
+        Assert.Equal($"{expectedPath}:1:1: config-error Unknown setting 'bogus'", line);
+        Assert.DoesNotContain('\\', line);
+    }
+
+    /// <summary>
     ///     Test that a configuration problem is reported once however many files use that configuration.
     /// </summary>
     [Fact]

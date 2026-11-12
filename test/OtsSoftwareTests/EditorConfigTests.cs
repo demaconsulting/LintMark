@@ -165,7 +165,7 @@ public sealed class EditorConfigTests : IDisposable
     ///     Validates that a later section in one file overrides an earlier one.
     /// </summary>
     [Fact]
-    public void EditorConfig_Parser_LaterSectionOverridesEarlier()
+    public void EditorConfig_Parser_LessSpecificLaterSection_OverridesEarlier()
     {
         // Arrange: a specific section followed by a broader one
         Write(".editorconfig", "root = true\n\n[*.md]\nend_of_line = lf\n\n[*]\nend_of_line = crlf\n");
@@ -181,7 +181,7 @@ public sealed class EditorConfigTests : IDisposable
     ///     Validates that a nearer file overrides a farther file property by property.
     /// </summary>
     [Fact]
-    public void EditorConfig_Parser_NearerFileOverridesFartherFile()
+    public void EditorConfig_Parser_NestedFiles_NearerFileOverridesFarther()
     {
         // Arrange: a parent file setting two properties and a nearer file overriding one of them
         Write(".editorconfig", "root = true\n\n[*]\nend_of_line = lf\nindent_style = space\n");
