@@ -20,6 +20,7 @@
 
 using System.Reflection;
 using DemaConsulting.LintMark.Cli;
+using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.SelfTest;
 
 namespace DemaConsulting.LintMark;
@@ -103,9 +104,21 @@ internal static class Program
     /// <remarks>
     ///     Dispatch is priority-ordered: version check first, then help, then self-validation,
     ///     then main tool logic. Only the highest-priority matching action is executed per invocation.
+    ///     Before any output the files are selected (see <see cref="LintMarkEngine.Select"/>), for the tool logic
+    ///     always and for the other actions when the log file already exists, so that a log file that is also a
+    ///     selected file is refused instead of being replaced by the output.
     /// </remarks>
     public static void Run(Context context)
     {
+        // Select the files before any output: a context that has written anything replaces the log file when it is
+        // disposed, which must never happen to a file that is selected as an input. Version, help and validation
+        // read no files, but still replace an existing log file, so the guard applies to them too whenever the log
+        // file exists (a log file that does not exist yet has nothing to lose).
+        var lint = !context.Version && !context.Help && !context.Validate;
+        var guardLog = context.LogFile is { } logFile && File.Exists(logFile);
+        var engine = new LintMarkEngine();
+        IReadOnlyList<string> files = lint || guardLog ? LintMarkEngine.Select(context) : [];
+
         // Priority 1: Version query
         if (context.Version)
         {
@@ -131,7 +144,7 @@ internal static class Program
         }
 
         // Priority 4: Main tool functionality
-        RunToolLogic(context);
+        engine.Run(context, files);
     }
 
     /// <summary>
@@ -151,25 +164,21 @@ internal static class Program
     /// <param name="context">The context for output.</param>
     private static void PrintHelp(Context context)
     {
-        context.WriteLine("Usage: lintmark [options]");
+        context.WriteLine("Usage: lintmark [options] [paths...]");
+        context.WriteLine("");
+        context.WriteLine("Paths:");
+        context.WriteLine("  paths...                   Files, directories, or globs of Markdown files to process;");
+        context.WriteLine("                             prefix a pattern with ! to exclude matches");
+        context.WriteLine("                             (default: **/*.md under the current directory)");
         context.WriteLine("");
         context.WriteLine("Options:");
         context.WriteLine("  -v, --version              Display version information");
         context.WriteLine("  -?, -h, --help             Display this help message");
+        context.WriteLine("  --check                    Report problems without writing any file (default)");
         context.WriteLine("  --silent                   Suppress console output");
         context.WriteLine("  --validate                 Run self-validation");
         context.WriteLine("  --results <file>           Write validation results to file (.trx or .xml)");
         context.WriteLine("  --depth <#>                Set heading depth for markdown output (default: 1)");
         context.WriteLine("  --log <file>               Write output to log file");
-    }
-
-    /// <summary>
-    ///     Runs the main tool logic.
-    /// </summary>
-    /// <param name="context">The context containing command line arguments and program state.</param>
-    private static void RunToolLogic(Context context)
-    {
-        context.WriteLine("LintMark - Markdown linting and formatting");
-        context.WriteLine("Markdown linting and formatting are not yet implemented.");
     }
 }

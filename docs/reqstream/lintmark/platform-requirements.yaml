@@ -16,54 +16,56 @@
 #   dotnet11.x@TestName   - proves the self-validation test ran with .NET 11.x runtime
 
 sections:
-  - title: Platform Support
-    requirements:
-      - id: LintMark-Platform-Windows
-        title: The tool shall execute successfully on Windows platforms.
-        tags: [system]
-        justification: |
-          DEMA Consulting tools must support Windows as a major development platform.
-        tests:
-          # Tests link to "windows" to ensure results come from Windows platform
-          - "windows@LintMark_VersionDisplay"
-          - "windows@LintMark_HelpDisplay"
+  - title: LintMark Requirements
+    sections:
+      - title: Platform Support
+        requirements:
+          - id: LintMark-Platform-Windows
+            title: The tool shall execute successfully on Windows platforms.
+            tags: [system]
+            justification: |
+              DEMA Consulting tools must support Windows as a major development platform.
+            tests:
+              # Tests link to "windows" to ensure results come from Windows platform
+              - "windows@LintMark_VersionDisplay"
+              - "windows@LintMark_HelpDisplay"
 
-      - id: LintMark-Platform-Linux
-        title: The tool shall execute successfully on Linux platforms.
-        tags: [system]
-        justification: |
-          DEMA Consulting tools must support Linux for CI/CD and containerized environments.
-        tests:
-          # Tests link to "ubuntu" to ensure results come from Linux platform
-          - "ubuntu@LintMark_VersionDisplay"
-          - "ubuntu@LintMark_HelpDisplay"
+          - id: LintMark-Platform-Linux
+            title: The tool shall execute successfully on Linux platforms.
+            tags: [system]
+            justification: |
+              DEMA Consulting tools must support Linux for CI/CD and containerized environments.
+            tests:
+              # Tests link to "ubuntu" to ensure results come from Linux platform
+              - "ubuntu@LintMark_VersionDisplay"
+              - "ubuntu@LintMark_HelpDisplay"
 
-      - id: LintMark-Platform-MacOS
-        title: The tool shall execute successfully on macOS platforms.
-        tags: [system]
-        justification: |
-          DEMA Consulting tools must support macOS for developers using Apple platforms.
-        tests:
-          # Tests link to "macos" to ensure results come from macOS platform
-          - "macos@LintMark_VersionDisplay"
-          - "macos@LintMark_HelpDisplay"
+          - id: LintMark-Platform-MacOS
+            title: The tool shall execute successfully on macOS platforms.
+            tags: [system]
+            justification: |
+              DEMA Consulting tools must support macOS for developers using Apple platforms.
+            tests:
+              # Tests link to "macos" to ensure results come from macOS platform
+              - "macos@LintMark_VersionDisplay"
+              - "macos@LintMark_HelpDisplay"
 
-      - id: LintMark-Platform-Net10
-        title: The tool shall support .NET 10 runtime.
-        tags: [system]
-        justification: |
-          .NET 10 is a Long-Term Support (LTS) release and the oldest supported .NET runtime,
-          providing long-term stability for enterprise users.
-        tests:
-          - "dotnet10.x@LintMark_VersionDisplay"
-          - "dotnet10.x@LintMark_HelpDisplay"
+          - id: LintMark-Platform-Net10
+            title: The tool shall support .NET 10 runtime.
+            tags: [system]
+            justification: |
+              .NET 10 is a Long-Term Support (LTS) release and the oldest supported .NET runtime,
+              providing long-term stability for enterprise users.
+            tests:
+              - "dotnet10.x@LintMark_VersionDisplay"
+              - "dotnet10.x@LintMark_HelpDisplay"
 
-      - id: LintMark-Platform-Net11
-        title: The tool shall support .NET 11 runtime.
-        tags: [system]
-        justification: |
-          .NET 11 support enables users to leverage the latest .NET features and performance
-          improvements.
-        tests:
-          - "dotnet11.x@LintMark_VersionDisplay"
-          - "dotnet11.x@LintMark_HelpDisplay"
+          - id: LintMark-Platform-Net11
+            title: The tool shall support .NET 11 runtime.
+            tags: [system]
+            justification: |
+              .NET 11 support enables users to leverage the latest .NET features and performance
+              improvements.
+            tests:
+              - "dotnet11.x@LintMark_VersionDisplay"
+              - "dotnet11.x@LintMark_HelpDisplay"

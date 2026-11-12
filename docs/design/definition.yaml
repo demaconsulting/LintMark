@@ -3,6 +3,8 @@ resource-path:
   - docs/design
   - docs/design/lintmark
   - docs/design/lintmark/cli
+  - docs/design/lintmark/document
+  - docs/design/lintmark/engine
   - docs/design/lintmark/self-test
   - docs/design/lintmark/utilities
   - docs/design/ots
@@ -16,6 +18,14 @@ input-files:
   - docs/design/lintmark/program.md
   - docs/design/lintmark/cli.md
   - docs/design/lintmark/cli/context.md
+  - docs/design/lintmark/document.md
+  - docs/design/lintmark/document/source-document.md
+  - docs/design/lintmark/document/document-parser.md
+  - docs/design/lintmark/document/suppression-map.md
+  - docs/design/lintmark/document/reference-index.md
+  - docs/design/lintmark/engine.md
+  - docs/design/lintmark/engine/file-discovery.md
+  - docs/design/lintmark/engine/lint-mark-engine.md
   - docs/design/lintmark/self-test.md
   - docs/design/lintmark/self-test/validation.md
   - docs/design/lintmark/utilities.md
@@ -23,6 +33,8 @@ input-files:
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md
+  - docs/design/ots/filesystemglobbing.md
+  - docs/design/ots/markdig.md
   - docs/design/ots/pandoc.md
   - docs/design/ots/reqstream.md
   - docs/design/ots/reviewmark.md

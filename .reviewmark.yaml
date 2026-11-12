@@ -36,7 +36,7 @@ context:
 reviews:
   # Purpose
   - id: Purpose
-    title: Review of user-facing capabilities and system promises
+    title: Review that README and User Guide are Coherent and Complete
     context:
       - "!docs/design/introduction.md"
     paths:
@@ -57,7 +57,7 @@ reviews:
 
   # LintMark - Specials
   - id: LintMark-Architecture
-    title: Review of LintMark system architecture and operational validation
+    title: Review that LintMark Architecture Satisfies Requirements
     context:
       - README.md
       - "docs/user_guide/**/*.md"
@@ -68,9 +68,13 @@ reviews:
       - "docs/verification/introduction.md"
       - "docs/verification/lintmark.md"
       - "test/**/IntegrationTests.cs"
+      - "test/**/TemporaryDirectory.cs"
+      - "test/**/AssemblyInfo.cs"
+      - "test/**/Runner.cs"
+      - "test/**/ReadOnlyAssertions.cs"
 
   - id: LintMark-Design
-    title: Review of LintMark architectural and design consistency
+    title: Review that LintMark Design is Consistent and Complete
     context:
       - docs/reqstream/lintmark.yaml
     paths:
@@ -81,7 +85,7 @@ reviews:
       - "docs/verification/ots.md"
 
   - id: LintMark-AllRequirements
-    title: Review of LintMark requirements quality and traceability
+    title: Review that All LintMark Requirements are Complete
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -90,7 +94,7 @@ reviews:
 
   # LintMark - Program
   - id: LintMark-Program
-    title: Review of LintMark Program unit implementation
+    title: Review that LintMark Program Implementation is Correct
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -103,7 +107,7 @@ reviews:
 
   # LintMark - Cli
   - id: LintMark-Cli
-    title: Review of LintMark Cli subsystem architecture and interfaces
+    title: Review that LintMark Cli Satisfies Subsystem Requirements
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -114,7 +118,7 @@ reviews:
       - "test/**/Cli/CliSubsystemTests.cs"
 
   - id: LintMark-Cli-Context
-    title: Review of LintMark Context unit implementation
+    title: Review that LintMark Cli Context Implementation is Correct
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -127,9 +131,135 @@ reviews:
       - "src/**/Cli/Context.cs"
       - "test/**/Cli/ContextTests.cs"
 
+  # LintMark - Document
+  - id: LintMark-Document
+    title: Review that LintMark Document Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/document.yaml"
+      - "docs/design/lintmark/document.md"
+      - "docs/verification/lintmark/document.md"
+      - "test/**/Document/DocumentSubsystemTests.cs"
+      - "test/**/Document/SpanTilingAssertions.cs"
+      - "test/**/Document/SyntheticDocument.cs"
+      - "test/**/Document/SyntheticDocuments.cs"
+      - "test/**/Document/RandomDocuments.cs"
+      - "test/**/Document/RepositoryMarkdownFiles.cs"
+
+  - id: LintMark-Document-SourceDocument
+    title: Review that LintMark Document SourceDocument Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/source-document.yaml"
+      - "docs/design/lintmark/document/source-document.md"
+      - "docs/verification/lintmark/document/source-document.md"
+      - "src/**/Document/SourceDocument.cs"
+      - "src/**/Document/SourceDocumentException.cs"
+      - "src/**/Document/LineEnding.cs"
+      - "src/**/Document/LineEndingInfo.cs"
+      - "test/**/Document/SourceDocumentTests.cs"
+
+  - id: LintMark-Document-DocumentParser
+    title: Review that LintMark Document DocumentParser Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/document-parser.yaml"
+      - "docs/design/lintmark/document/document-parser.md"
+      - "docs/verification/lintmark/document/document-parser.md"
+      - "src/**/Document/DocumentParser.cs"
+      - "src/**/Document/ParsedDocument.cs"
+      - "src/**/Document/BlockInfo.cs"
+      - "src/**/Document/BlockKind.cs"
+      - "src/**/Document/LeafLine.cs"
+      - "test/**/Document/DocumentParserTests.cs"
+
+  - id: LintMark-Document-SuppressionMap
+    title: Review that LintMark Document SuppressionMap Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/suppression-map.yaml"
+      - "docs/design/lintmark/document/suppression-map.md"
+      - "docs/verification/lintmark/document/suppression-map.md"
+      - "src/**/Document/SuppressionMap.cs"
+      - "src/**/Document/SuppressionRange.cs"
+      - "src/**/Document/RuleSet.cs"
+      - "src/**/Document/RuleSetKind.cs"
+      - "test/**/Document/SuppressionMapTests.cs"
+
+  - id: LintMark-Document-ReferenceIndex
+    title: Review that LintMark Document ReferenceIndex Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/document.md
+      - docs/reqstream/lintmark/document.yaml
+    paths:
+      - "docs/reqstream/lintmark/document/reference-index.yaml"
+      - "docs/design/lintmark/document/reference-index.md"
+      - "docs/verification/lintmark/document/reference-index.md"
+      - "src/**/Document/ReferenceIndex.cs"
+      - "src/**/Document/ReferenceDefinition.cs"
+      - "test/**/Document/ReferenceIndexTests.cs"
+
+  # LintMark - Engine
+  - id: LintMark-Engine
+    title: Review that LintMark Engine Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine.yaml"
+      - "docs/design/lintmark/engine.md"
+      - "docs/verification/lintmark/engine.md"
+      - "test/**/Engine/EngineSubsystemTests.cs"
+
+  - id: LintMark-Engine-FileDiscovery
+    title: Review that LintMark Engine FileDiscovery Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/engine.md
+      - docs/reqstream/lintmark/engine.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine/file-discovery.yaml"
+      - "docs/design/lintmark/engine/file-discovery.md"
+      - "docs/verification/lintmark/engine/file-discovery.md"
+      - "src/**/Engine/FileDiscovery.cs"
+      - "test/**/Engine/FileDiscoveryTests.cs"
+
+  - id: LintMark-Engine-LintMarkEngine
+    title: Review that LintMark Engine LintMarkEngine Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/engine.md
+      - docs/reqstream/lintmark/engine.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine/lint-mark-engine.yaml"
+      - "docs/design/lintmark/engine/lint-mark-engine.md"
+      - "docs/verification/lintmark/engine/lint-mark-engine.md"
+      - "src/**/Engine/LintMarkEngine.cs"
+      - "src/**/Engine/FileResult.cs"
+      - "src/**/Engine/FileFailure.cs"
+      - "test/**/Engine/LintMarkEngineTests.cs"
+
   # LintMark - SelfTest
   - id: LintMark-SelfTest
-    title: Review of LintMark SelfTest subsystem architecture and interfaces
+    title: Review that LintMark SelfTest Satisfies Subsystem Requirements
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -140,7 +270,7 @@ reviews:
       - "test/**/SelfTest/SelfTestSubsystemTests.cs"
 
   - id: LintMark-SelfTest-Validation
-    title: Review of LintMark Validation unit implementation
+    title: Review that LintMark SelfTest Validation Implementation is Correct
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -155,7 +285,7 @@ reviews:
 
   # LintMark - Utilities
   - id: LintMark-Utilities
-    title: Review of LintMark Utilities subsystem architecture and interfaces
+    title: Review that LintMark Utilities Satisfies Subsystem Requirements
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -166,7 +296,7 @@ reviews:
       - "test/**/Utilities/UtilitiesSubsystemTests.cs"
 
   - id: LintMark-Utilities-PathHelpers
-    title: Review of LintMark PathHelpers unit implementation
+    title: Review that LintMark Utilities PathHelpers Implementation is Correct
     context:
       - docs/design/lintmark.md
       - docs/reqstream/lintmark.yaml
@@ -181,77 +311,93 @@ reviews:
 
   # OTS Items
   - id: OTS-BuildMark
-    title: Review of BuildMark OTS verification evidence
+    title: Review that BuildMark Provides Required Functionality
     paths:
       - "docs/reqstream/ots/buildmark.yaml"
       - "docs/design/ots/buildmark.md"
       - "docs/verification/ots/buildmark.md"
 
   - id: OTS-FileAssert
-    title: Review of FileAssert OTS verification evidence
+    title: Review that FileAssert Provides Required Functionality
     paths:
       - "docs/reqstream/ots/fileassert.yaml"
       - "docs/design/ots/fileassert.md"
       - "docs/verification/ots/fileassert.md"
 
+  - id: OTS-FileSystemGlobbing
+    title: Review that FileSystemGlobbing Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/filesystemglobbing.yaml"
+      - "docs/design/ots/filesystemglobbing.md"
+      - "docs/verification/ots/filesystemglobbing.md"
+      - "test/OtsSoftwareTests/FileSystemGlobbingTests.cs"
+
+  - id: OTS-Markdig
+    title: Review that Markdig Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/markdig.yaml"
+      - "docs/design/ots/markdig.md"
+      - "docs/verification/ots/markdig.md"
+      - "test/OtsSoftwareTests/MarkdigTests.cs"
+
   - id: OTS-Pandoc
-    title: Review of Pandoc OTS verification evidence
+    title: Review that Pandoc Provides Required Functionality
     paths:
       - "docs/reqstream/ots/pandoc.yaml"
       - "docs/design/ots/pandoc.md"
       - "docs/verification/ots/pandoc.md"
 
   - id: OTS-ReqStream
-    title: Review of ReqStream OTS verification evidence
+    title: Review that ReqStream Provides Required Functionality
     paths:
       - "docs/reqstream/ots/reqstream.yaml"
       - "docs/design/ots/reqstream.md"
       - "docs/verification/ots/reqstream.md"
 
   - id: OTS-ReviewMark
-    title: Review of ReviewMark OTS verification evidence
+    title: Review that ReviewMark Provides Required Functionality
     paths:
       - "docs/reqstream/ots/reviewmark.yaml"
       - "docs/design/ots/reviewmark.md"
       - "docs/verification/ots/reviewmark.md"
 
   - id: OTS-SarifMark
-    title: Review of SarifMark OTS verification evidence
+    title: Review that SarifMark Provides Required Functionality
     paths:
       - "docs/reqstream/ots/sarifmark.yaml"
       - "docs/design/ots/sarifmark.md"
       - "docs/verification/ots/sarifmark.md"
 
   - id: OTS-SonarMark
-    title: Review of SonarMark OTS verification evidence
+    title: Review that SonarMark Provides Required Functionality
     paths:
       - "docs/reqstream/ots/sonarmark.yaml"
       - "docs/design/ots/sonarmark.md"
       - "docs/verification/ots/sonarmark.md"
 
   - id: OTS-SysML2Tools
-    title: Review of SysML2Tools OTS verification evidence
+    title: Review that SysML2Tools Provides Required Functionality
     paths:
       - "docs/reqstream/ots/sysml2tools.yaml"
       - "docs/design/ots/sysml2tools.md"
       - "docs/verification/ots/sysml2tools.md"
 
   - id: OTS-VersionMark
-    title: Review of VersionMark OTS verification evidence
+    title: Review that VersionMark Provides Required Functionality
     paths:
       - "docs/reqstream/ots/versionmark.yaml"
       - "docs/design/ots/versionmark.md"
       - "docs/verification/ots/versionmark.md"
 
   - id: OTS-WeasyPrint
-    title: Review of WeasyPrint OTS verification evidence
+    title: Review that WeasyPrint Provides Required Functionality
     paths:
       - "docs/reqstream/ots/weasyprint.yaml"
       - "docs/design/ots/weasyprint.md"
       - "docs/verification/ots/weasyprint.md"
 
   - id: OTS-xUnit
-    title: Review of xUnit OTS verification evidence
+    title: Review that xUnit Provides Required Functionality
     paths:
       - "docs/reqstream/ots/xunit.yaml"
       - "docs/design/ots/xunit.md"

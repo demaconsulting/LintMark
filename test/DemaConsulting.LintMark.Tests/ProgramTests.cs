@@ -269,5 +269,172 @@ public class ProgramTests
             Console.SetOut(originalOut);
         }
     }
+
+    /// <summary>
+    ///     Test that Run with help flag lists the paths argument and the check option.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithHelpFlag_ListsCheckOptionAndPaths()
+    {
+        // Arrange: setup test conditions
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var context = Context.Create(["--help"]);
+
+            // Act: execute the operation being tested
+            Program.Run(context);
+
+            // Assert: verify expected behavior
+            var output = outWriter.ToString();
+            Assert.Contains("[paths...]", output);
+            Assert.Contains("--check", output);
+            Assert.Contains("**/*.md", output);
+            Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run with a path argument runs the engine on that file.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithPathArgument_RunsEngine()
+    {
+        // Arrange: a valid file and an invalid file; capture the error stream
+        using var directory = new TemporaryDirectory();
+        var good = directory.WriteFile("good.md");
+        var bad = directory.WriteBytes("bad.md", [0xFF]);
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        try
+        {
+            using var outWriter = new StringWriter();
+            using var errorWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            Console.SetError(errorWriter);
+            using var cleanContext = Context.Create([good]);
+            using var failingContext = Context.Create([bad]);
+
+            // Act: execute the operation being tested
+            Program.Run(cleanContext);
+            Program.Run(failingContext);
+
+            // Assert: the valid file is clean; the invalid file is reported and sets the exit code
+            Assert.Equal(0, cleanContext.ExitCode);
+            Assert.Equal(1, failingContext.ExitCode);
+            Assert.Contains("file-encoding-error", errorWriter.ToString());
+            Assert.DoesNotContain("not yet implemented", outWriter.ToString());
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run refuses a log file that is also an input before the banner opens (and so truncates) it.
+    /// </summary>
+    [Fact]
+    public void Program_Run_LogFileIsSelectedInput_ThrowsBeforeAnyOutputAndKeepsFile()
+    {
+        // Arrange: an existing source file and a not yet existing file, each named as log and as input
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var missing = directory.PathOf("new.md");
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var existingContext = Context.Create(["--log", existing, existing]);
+            using var missingContext = Context.Create(["--log", missing, missing]);
+
+            // Act / Assert: both runs are refused
+            Assert.Throws<InvalidOperationException>(() => Program.Run(existingContext));
+            Assert.Throws<InvalidOperationException>(() => Program.Run(missingContext));
+
+            // Assert: nothing was written to the console, the source is intact and no file was created
+            Assert.Empty(outWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+            Assert.False(File.Exists(missing));
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that version, help and validate refuse an existing log file that the default selection would process.
+    /// </summary>
+    /// <param name="flag">The action flag.</param>
+    [Theory]
+    [InlineData("--version")]
+    [InlineData("--help")]
+    [InlineData("--validate")]
+    public void Program_Run_ActionFlagWithLogFileInSelection_ThrowsAndKeepsFile(string flag)
+    {
+        // Arrange: an existing Markdown file in the current directory that is named as the log
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var originalDirectory = Directory.GetCurrentDirectory();
+        var originalOut = Console.Out;
+        try
+        {
+            Directory.SetCurrentDirectory(directory.FullPath);
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+
+            // Act / Assert: the run is refused before anything is written, and disposal leaves the file alone
+            using (var context = Context.Create([flag, "--log", existing]))
+            {
+                Assert.Throws<InvalidOperationException>(() => Program.Run(context));
+            }
+
+            Assert.Empty(outWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Directory.SetCurrentDirectory(originalDirectory);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Main reports a log file that is also an input as an error with exit code one.
+    /// </summary>
+    [Fact]
+    public void Program_Main_LogFileIsSelectedInput_ReturnsOneAndKeepsFile()
+    {
+        // Arrange: an existing source file named as the log and as the input
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: run the entry point
+            var exitCode = Program.Main(["--silent", "--log", existing, existing]);
+
+            // Assert: failure with an explanation, and the file is untouched
+            Assert.Equal(1, exitCode);
+            Assert.Contains("refusing to overwrite", errorWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
 }
 

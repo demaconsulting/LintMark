@@ -4,40 +4,70 @@
 # The Program unit is the top-level command dispatcher for the tool.
 
 sections:
-  - title: Program Unit Requirements
-    requirements:
-      - id: LintMark-Program-Version
-        title: The Program class shall support -v and --version flags to display version information.
-        justification: |
-          Users need to quickly identify the version of the tool they are using for
-          troubleshooting and compatibility verification.
-        tests:
-          - Program_Run_WithVersionFlag_DisplaysVersionOnly
-          - Program_Run_WithShortVersionFlag_DisplaysVersion
-          - Program_Version_ReturnsNonEmptyString
+  - title: LintMark Requirements
+    sections:
+      - title: Program Requirements
+        requirements:
+          - id: LintMark-Program-Version
+            title: The Program class shall support -v and --version flags to display version information.
+            justification: |
+              Users need to quickly identify the version of the tool they are using for
+              troubleshooting and compatibility verification.
+            tests:
+              - Program_Run_WithVersionFlag_DisplaysVersionOnly
+              - Program_Run_WithShortVersionFlag_DisplaysVersion
+              - Program_Version_ReturnsNonEmptyString
 
-      - id: LintMark-Program-Help
-        title: The Program class shall support -?, -h, and --help flags to display usage information.
-        justification: |
-          Users need access to command-line usage documentation without requiring
-          external resources.
-        tests:
-          - Program_Run_WithHelpFlag_DisplaysUsageInformation
-          - Program_Run_WithShortHelpFlag_DisplaysUsage
-          - Program_Run_WithQuestionMarkFlag_DisplaysUsage
+          - id: LintMark-Program-Help
+            title: The Program class shall support -?, -h, and --help flags to display usage information.
+            justification: |
+              Users need access to command-line usage documentation without requiring
+              external resources.
+            tests:
+              - Program_Run_WithHelpFlag_DisplaysUsageInformation
+              - Program_Run_WithShortHelpFlag_DisplaysUsage
+              - Program_Run_WithQuestionMarkFlag_DisplaysUsage
+              - Program_Run_WithHelpFlag_ListsCheckOptionAndPaths
 
-      - id: LintMark-Program-Validate
-        title: The Program class shall support --validate flag to invoke the self-validation framework.
-        justification: |
-          Provides a built-in mechanism to verify the tool is functioning correctly
-          in the deployment environment.
-        tests:
-          - Program_Run_WithValidateFlag_RunsValidation
+          - id: LintMark-Program-Validate
+            title: The Program class shall support --validate flag to invoke the self-validation framework.
+            justification: |
+              Provides a built-in mechanism to verify the tool is functioning correctly
+              in the deployment environment.
+            tests:
+              - Program_Run_WithValidateFlag_RunsValidation
 
-      - id: LintMark-Program-ExitCode
-        title: The Program class shall return a non-zero exit code on failure.
-        justification: |
-          Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
-          programmatically via the process exit code.
-        tests:
-          - Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode
+          - id: LintMark-Program-Lint
+            title: >-
+              The Program class shall lint the Markdown files selected on the command line when no version,
+              help, or validate option is given.
+            justification: |
+              Linting Markdown files is the primary purpose of the tool, so running it with only file
+              selections must do the obvious thing instead of printing nothing or failing.
+            tests:
+              - Program_Run_WithPathArgument_RunsEngine
+              - Program_Run_NoArguments_DisplaysDefaultBehavior
+
+          - id: LintMark-Program-ExitCode
+            title: The Program class shall return a non-zero exit code on failure.
+            justification: |
+              Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
+              programmatically via the process exit code.
+            tests:
+              - Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode
+
+          - id: LintMark-Program-LogNotInput
+            title: >-
+              The Program class shall select the files to lint before writing any output, so that a log file
+              that is also a selected file is refused before it is replaced, for every action when the log
+              file already exists.
+            justification: |
+              A context that has written anything replaces the log file when it is disposed. Writing the banner
+              before checking the selection would therefore destroy a source file named as the log, so the check must
+              come first and the failure must be reported as an ordinary error with exit code one. Version, help
+              and validation print output too, so they are guarded as well; only a log file that does not exist yet
+              has nothing to lose, which keeps those actions from enumerating files needlessly.
+            tests:
+              - Program_Run_LogFileIsSelectedInput_ThrowsBeforeAnyOutputAndKeepsFile
+              - Program_Run_ActionFlagWithLogFileInSelection_ThrowsAndKeepsFile
+              - Program_Main_LogFileIsSelectedInput_ReturnsOneAndKeepsFile

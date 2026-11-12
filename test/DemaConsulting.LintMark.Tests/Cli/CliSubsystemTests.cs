@@ -445,4 +445,175 @@ public class CliSubsystemTests
             }
         }
     }
+
+    /// <summary>
+    ///     Test that Context and Program refuse a log file that is also an input, leaving the file intact.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_LogFlow_LogFileSelectedAsInput_RefusesAndKeepsFile()
+    {
+        // Arrange: a source file named as the log and as the input, and a context that holds it until first write
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("README.md", "# Precious\n");
+        var originalError = Console.Error;
+        try
+        {
+            using var capturedError = new StringWriter();
+            Console.SetError(capturedError);
+
+            // Act: run the entry point, then create a context only to show that creation alone is harmless
+            using (var context = Context.Create(["--log", file, file]))
+            {
+                Assert.Equal("# Precious\n", File.ReadAllText(file));
+            }
+
+            var exitCode = Program.Main(["--log", file, file]);
+
+            // Assert: refused with exit code one and an explanation; the file is intact
+            Assert.Equal(1, exitCode);
+            Assert.Contains("refusing to overwrite", capturedError.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(file));
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Context and Program work together to process positional paths and exit successfully.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_PathsFlow_ContextAndProgram_ParsesFilesAndExitsZero()
+    {
+        // Arrange: a valid Markdown file given as a positional argument; the log captures output
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("ok.md");
+        var logFile = directory.PathOf("run.log");
+
+        // Act: create context and run program logic
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--log", logFile, file]))
+        {
+            Program.Run(context);
+            exitCode = context.ExitCode;
+            Assert.Equal([file], context.Paths);
+        }
+
+        // Assert: success and no failure output (only the banner is logged)
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("file-", File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that a file that cannot be decoded is reported as a diagnostic and gives a non-zero exit code.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_PathsFlow_UnreadableFile_ReportsDiagnosticAndExitsNonZero()
+    {
+        // Arrange: a file that is not valid UTF-8
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("bad.md", [0x61, 0xFF]);
+        var logFile = directory.PathOf("run.log");
+
+        // Act: create context and run program logic
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--log", logFile, file]))
+        {
+            Program.Run(context);
+            exitCode = context.ExitCode;
+        }
+
+        // Assert: non-zero exit code and a diagnostic in path:line:col: rule-id message form
+        Assert.Equal(1, exitCode);
+        Assert.Matches(@"bad\.md:1:2: file-encoding-error Invalid UTF-8", File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that the check flag flows through Context and Program without writing or failing.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged()
+    {
+        // Arrange: a valid file and its original bytes
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("ok.md", "# Title\r\n\r\ntext\r\n");
+        var before = File.ReadAllBytes(file);
+        var timestamp = File.GetLastWriteTimeUtc(file);
+
+        // Act: run with --check
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--check", file]))
+        {
+            Program.Run(context);
+            exitCode = context.ExitCode;
+            Assert.True(context.Check);
+        }
+
+        // Assert: success and the file is untouched
+        Assert.Equal(0, exitCode);
+        Assert.Equal(before, File.ReadAllBytes(file));
+        Assert.Equal(timestamp, File.GetLastWriteTimeUtc(file));
+    }
+
+    /// <summary>
+    ///     Test that combining validate with paths is rejected by Context and reported by Main with a non-zero exit code.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero()
+    {
+        // Arrange: capture stderr produced by Main
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: invoke Main with the invalid combination
+            var exitCode = Program.Main(["--validate", "docs"]);
+
+            // Assert: usage error and exit code one
+            Assert.Equal(1, exitCode);
+            Assert.Contains("--validate", errorWriter.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
+    ///     Test that concurrent writers on one context keep the output intact end to end.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_OutputFlow_ConcurrentWriters_KeepsLinesIntactAndSetsExitCode()
+    {
+        // Arrange: a context writing to a log file
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.PathOf("out.log");
+
+        // Act: write mixed lines and errors from many threads
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--log", logFile]))
+        {
+            Parallel.For(0, 200, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i =>
+            {
+                if (i % 2 == 0)
+                {
+                    context.WriteLine($"info-{i}");
+                }
+                else
+                {
+                    context.WriteError($"error-{i}");
+                }
+            });
+            exitCode = context.ExitCode;
+        }
+
+        // Assert: all lines present and intact; the exit code reflects the errors
+        var lines = File.ReadAllLines(logFile);
+        Assert.Equal(1, exitCode);
+        Assert.Equal(200, lines.Length);
+        Assert.All(lines, l => Assert.Matches(@"^(info|error)-\d+$", l));
+    }
 }

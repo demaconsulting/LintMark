@@ -5,7 +5,7 @@
 # from third-party tools, not user-visible tool functionality) are not reported
 # as orphans by `dotnet reqstream --requirements requirements.yaml --enforce`.
 sections:
-  - title: Quality Requirements
+  - title: Repository Quality Requirements
     requirements:
       - id: Quality-TestInfrastructure
         title: The repository shall rely on xUnit to execute and report automated test results.

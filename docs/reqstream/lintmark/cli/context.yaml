@@ -6,92 +6,167 @@
 # the tool's internal logic.
 
 sections:
-  - title: Context Unit Requirements
-    requirements:
-      - id: LintMark-Context-ArgumentParsing
-        title: The Context class shall parse command-line arguments into structured properties.
-        justification: |
-          Provides a standardized approach to command-line argument parsing and output
-          handling across all DEMA Consulting DotNet Tools.
-        tests:
-          - Context_Create_NoArguments_ReturnsDefaultContext
-          - Context_Create_VersionFlag_SetsVersionTrue
-          - Context_Create_ShortVersionFlag_SetsVersionTrue
-          - Context_Create_HelpFlag_SetsHelpTrue
-          - Context_Create_ShortHelpFlag_H_SetsHelpTrue
-          - Context_Create_ShortHelpFlag_Question_SetsHelpTrue
-          - Context_Create_SilentFlag_SetsSilentTrue
-          - Context_Create_ValidateFlag_SetsValidateTrue
-          - Context_Create_ResultsFlag_SetsResultsFile
-          - Context_Create_LogFlag_OpensLogFile
-          - Context_Create_ResultAliasFlag_SetsResultsFile
-          - Context_Create_DepthFlag_SetsHeadingDepth
-          - Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth
+  - title: LintMark Requirements
+    sections:
+      - title: Cli Requirements
+        sections:
+          - title: Context Requirements
+            requirements:
+              - id: LintMark-Cli-Context-ArgumentParsing
+                title: The Context class shall parse command-line arguments into structured properties.
+                justification: |
+                  Provides a standardized approach to command-line argument parsing and output
+                  handling across all DEMA Consulting DotNet Tools.
+                tests:
+                  - Context_Create_NoArguments_ReturnsDefaultContext
+                  - Context_Create_VersionFlag_SetsVersionTrue
+                  - Context_Create_ShortVersionFlag_SetsVersionTrue
+                  - Context_Create_HelpFlag_SetsHelpTrue
+                  - Context_Create_ShortHelpFlag_H_SetsHelpTrue
+                  - Context_Create_ShortHelpFlag_Question_SetsHelpTrue
+                  - Context_Create_SilentFlag_SetsSilentTrue
+                  - Context_Create_ValidateFlag_SetsValidateTrue
+                  - Context_Create_ResultsFlag_SetsResultsFile
+                  - Context_Create_LogFlag_OpensLogFile
+                  - Context_Create_ResultAliasFlag_SetsResultsFile
+                  - Context_Create_DepthFlag_SetsHeadingDepth
+                  - Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth
 
-      - id: LintMark-Context-InvalidArgs
-        title: The Context class shall reject unknown or malformed command-line arguments with a descriptive error.
-        justification: |
-          Providing clear feedback for invalid arguments helps users quickly correct
-          mistakes and prevents silent misconfiguration.
-        tests:
-          - Context_Create_UnknownArgument_ThrowsArgumentException
-          - Context_Create_LogFlag_WithoutValue_ThrowsArgumentException
-          - Context_Create_ResultsFlag_WithoutValue_ThrowsArgumentException
-          - Context_Create_ResultAliasFlag_WithoutValue_ThrowsArgumentException
-          - Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException
-          - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
-          - Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException
-          - Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException
+              - id: LintMark-Cli-Context-InvalidArgs
+                title: >-
+                  The Context class shall reject unknown or malformed command-line arguments with a descriptive
+                  error.
+                justification: |
+                  Providing clear feedback for invalid arguments helps users quickly correct
+                  mistakes and prevents silent misconfiguration. Mistyped options must be reported
+                  instead of being taken for file names.
+                tests:
+                  - Context_Create_UnknownArgument_ThrowsArgumentException
+                  - Context_Create_LogFlag_WithoutValue_ThrowsArgumentException
+                  - Context_Create_ResultsFlag_WithoutValue_ThrowsArgumentException
+                  - Context_Create_ResultAliasFlag_WithoutValue_ThrowsArgumentException
+                  - Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException
+                  - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
+                  - Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException
+                  - Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException
+                  - Context_Create_DashedUnknownToken_ThrowsArgumentException
+                  - Context_Create_EmptyArgument_ThrowsArgumentException
 
-      - id: LintMark-Context-ConsoleOutput
-        title: The Context class shall write output to the console unless the silent flag is set.
-        justification: |
-          Provides visible output to users running the tool interactively, while allowing
-          automated environments to suppress console output via the silent flag.
-        tests:
-          - Context_WriteLine_NotSilent_WritesToConsole
-          - Context_WriteError_NotSilent_WritesToConsole
+              - id: LintMark-Cli-Context-ConsoleOutput
+                title: The Context class shall write output to the console unless the silent flag is set.
+                justification: |
+                  Provides visible output to users running the tool interactively, while allowing
+                  automated environments to suppress console output via the silent flag.
+                tests:
+                  - Context_WriteLine_NotSilent_WritesToConsole
+                  - Context_WriteError_NotSilent_WritesToConsole
 
-      - id: LintMark-Context-LogOutput
-        title: The Context class shall additionally write output to a log file when the log flag is set.
-        justification: |
-          Provides persistent logging for debugging and audit trails, enabling post-run
-          inspection of tool output without requiring console capture.
-        tests:
-          - Context_Create_LogFlag_OpensLogFile
-          - Context_WriteError_WritesToLogFile
+              - id: LintMark-Cli-Context-LogOutput
+                title: The Context class shall additionally write output to a log file when the log flag is set.
+                justification: |
+                  Provides persistent logging for debugging and audit trails, enabling post-run
+                  inspection of tool output without requiring console capture.
+                tests:
+                  - Context_Create_LogFlag_OpensLogFile
+                  - Context_WriteError_WritesToLogFile
 
-      - id: LintMark-Context-Silent
-        title: The Context class shall suppress console output when the silent flag is set.
-        justification: |
-          Enables automated scripts and CI/CD pipelines to run the tool without
-          cluttering output logs.
-        tests:
-          - Context_Create_SilentFlag_SetsSilentTrue
-          - Context_WriteLine_Silent_DoesNotWriteToConsole
-          - Context_WriteError_Silent_DoesNotWriteToConsole
+              - id: LintMark-Cli-Context-Silent
+                title: The Context class shall suppress console output when the silent flag is set.
+                justification: |
+                  Enables automated scripts and CI/CD pipelines to run the tool without
+                  cluttering output logs.
+                tests:
+                  - Context_Create_SilentFlag_SetsSilentTrue
+                  - Context_WriteLine_Silent_DoesNotWriteToConsole
+                  - Context_WriteError_Silent_DoesNotWriteToConsole
 
-      - id: LintMark-Context-ErrorOutput
-        title: The Context class shall write error messages to stderr.
-        justification: |
-          Error messages must be written to stderr so they remain visible to the user
-          without polluting stdout, which consumers may pipe or redirect for data capture.
-        tests:
-          - Context_WriteError_NotSilent_WritesToConsole
+              - id: LintMark-Cli-Context-ErrorOutput
+                title: The Context class shall write error messages to stderr.
+                justification: |
+                  Error messages must be written to stderr so they remain visible to the user
+                  without polluting stdout, which consumers may pipe or redirect for data capture.
+                tests:
+                  - Context_WriteError_NotSilent_WritesToConsole
 
-      - id: LintMark-Context-ExitCode
-        title: The Context class shall track errors and expose a non-zero exit code when errors have occurred.
-        justification: |
-          Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
-          programmatically via the process exit code.
-        tests:
-          - Context_WriteError_SetsErrorExitCode
+              - id: LintMark-Cli-Context-ExitCode
+                title: The Context class shall track errors and expose a non-zero exit code when errors have occurred.
+                justification: |
+                  Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
+                  programmatically via the process exit code.
+                tests:
+                  - Context_WriteError_SetsErrorExitCode
 
-      - id: LintMark-Context-LogFailure
-        title: The Context class shall report an error when the specified log file cannot be opened.
-        justification: |
-          Failure to open a log file must be surfaced immediately so that users know their
-          log output will not be captured, preventing silent data loss in audit or
-          compliance workflows.
-        tests:
-          - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
+              - id: LintMark-Cli-Context-LogFailure
+                title: The Context class shall report an error when the specified log file path cannot be used.
+                justification: |
+                  Failure to use a log file must be surfaced as early as possible so that users know their
+                  log output will not be captured, preventing silent data loss in audit or
+                  compliance workflows. A path that is invalid, names a directory, or lies in a missing
+                  directory is rejected when the context is created; any other failure to create the
+                  temporary log file is reported by the first write, and a failure to replace the log file by
+                  disposal (the log then stays in the temporary file named in the message).
+                tests:
+                  - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
+                  - Context_Create_LogFlag_MissingDirectory_ThrowsInvalidOperationException
+                  - Context_Dispose_LogFileCannotBeReplaced_ThrowsAndKeepsLogInTemporaryFile
+
+              - id: LintMark-Cli-Context-LogDeferred
+                title: >-
+                  The Context class shall expose the full path of the log file, shall neither create nor change
+                  that file while arguments are parsed or lines are written, and shall replace it, by moving a
+                  temporary file over it and never by truncating it in place, only when disposed.
+                justification: |
+                  Replacing a log file while the arguments are parsed would destroy a source file that was also
+                  given as an input before anyone could notice. Exposing the path lets the caller compare it
+                  with the files it is about to read and refuse the run first, and moving a file over the path
+                  instead of truncating leaves every other name of the old file (a hard link) unchanged, so
+                  even an alias that cannot be recognized cannot lose data.
+                tests:
+                  - Context_Create_LogFlag_ExistingFile_IsNotModifiedUntilDispose
+                  - Context_Create_LogFlag_MissingFile_IsNotCreatedUntilDispose
+                  - Context_Dispose_LogFileIsHardLinkToInput_LeavesTheOtherNameUntouched
+                  - Context_Dispose_LogFileIsSymbolicLink_ReplacesLinkAndLeavesTargetUntouched
+                  - Context_WriteLine_AfterDispose_DoesNotReopenLogFile
+
+              - id: LintMark-Cli-Context-Paths
+                title: >-
+                  The Context class shall expose every argument that does not start with a dash as a positional
+                  path, in the order given.
+                justification: |
+                  Positional arguments select the files to process. Treating only dash-leading tokens as
+                  options keeps file names, directories, globs, and `!` exclusions usable as given.
+                tests:
+                  - Context_Create_PositionalPaths_SetsPathsInOrder
+                  - Context_Create_NoPaths_PathsEmpty
+                  - Context_Create_PathsMixedWithFlags_ParsesBoth
+                  - Context_Create_HelpOrVersionWithPaths_DoesNotThrow
+                  - Context_Paths_CastToMutableTypes_CannotBeModified
+
+              - id: LintMark-Cli-Context-Check
+                title: The Context class shall expose whether the `--check` flag was specified.
+                justification: |
+                  The flag states that files must only be checked. Exposing it lets the rest of the tool
+                  honor the request, now and when file-modifying modes exist.
+                tests:
+                  - Context_Create_CheckFlag_SetsCheckTrue
+
+              - id: LintMark-Cli-Context-ValidateExclusive
+                title: The Context class shall reject `--validate` combined with positional paths or `--check`.
+                justification: |
+                  Self-validation does not process files, so such a combination is a usage error that
+                  must be reported instead of silently discarding part of the command line.
+                tests:
+                  - Context_Create_ValidateWithPaths_ThrowsArgumentException
+                  - Context_Create_ValidateWithCheck_ThrowsArgumentException
+                  - Context_Create_ValidateWithItsOwnOptions_DoesNotThrow
+
+              - id: LintMark-Cli-Context-ThreadSafeOutput
+                title: >-
+                  The Context class shall serialize concurrent calls that write output or record errors so that
+                  lines stay intact on the console and in the log file and no error is lost.
+                justification: |
+                  The shared output channels may be written from several threads. Serializing the writes
+                  protects against interleaved lines, torn console color changes, and a lost error flag.
+                tests:
+                  - Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact
+                  - Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact

@@ -6,8 +6,9 @@ The `Cli` subsystem is verified by integration tests defined in `CliSubsystemTes
 test exercises `Context.Create` and `Program.Run` together, treating the pair as the observable
 subsystem interface. Tests pass controlled argument arrays and assert on captured console output,
 file-system side-effects, and exit codes. `Validation` (part of the `SelfTest` subsystem)
-executes its real logic in scenarios that exercise the `--validate` path; no mocking is applied
-at any level.
+executes its real logic in scenarios that exercise the `--validate` path, and the real `LintMarkEngine`
+processes the files in the scenarios that pass paths; temporary files come from the `TemporaryDirectory` test
+helper. No mocking is applied at any level.
 
 ### Test Environment
 
@@ -20,68 +21,68 @@ N/A - standard test environment.
   and `Program.Run`.
 - Invalid arguments produce exit code 1 and an error message.
 - Log files and results files are created at the specified paths when the corresponding flags
-  are used.
+  are used; a log file that is also an input is refused and left intact.
+- Positional paths flow from `Context.Create` to the engine; an undecodable file gives a diagnostic and
+  exit code 1, and `--check` leaves files unchanged.
+- `--validate` combined with paths is rejected with exit code 1.
+- Concurrent writers to one `Context` produce intact lines and exit code 1.
 
 ### Test Scenarios
 
-**CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits**: Arguments `["--version"]`
-are passed through `Context.Create` and `Program.Run`; standard output contains the version
-string and exit code is 0. This scenario is tested by
-`CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits`.
+#### Normal operation
 
-**CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits_WithShortVFlag**: Arguments
-`["-v"]` are passed through `Context.Create` and `Program.Run`; standard output contains the
-version string and exit code is 0. This scenario is tested by
-`CliSubsystem_VersionFlow_ContextAndProgram_DisplaysVersionAndExits_WithShortVFlag`.
+**Long version flag displays the version**: `["--version"]` is passed through `Context.Create` and `Program.Run`;
+standard output contains the version string and the exit code is 0.
 
-**CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits**: Arguments `["--help"]` are
-passed through `Context.Create` and `Program.Run`; standard output contains help text and exit
-code is 0. This scenario is tested by
-`CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits`.
+**Short version flag displays the version**: `["-v"]` gives the same result.
 
-**CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag**: Arguments
-`["-?"]` are passed; standard output contains help text and exit code is 0. This scenario is
-tested by
-`CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortQuestionFlag`.
+**Long help flag displays the help text**: `["--help"]` gives help text on standard output and exit code 0.
 
-**CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag**: Arguments
-`["-h"]` are passed; standard output contains help text and exit code is 0. This scenario is
-tested by `CliSubsystem_HelpFlow_ContextAndProgram_DisplaysHelpAndExits_WithShortHFlag`.
+**Short help flags display the help text**: `["-?"]` and `["-h"]` give help text and exit code 0.
 
-**CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits**: Arguments `["--validate"]`
-are passed; standard output contains `"Total Tests:"` and exit code is 0. This scenario is
-tested by `CliSubsystem_ValidateFlow_ContextAndProgram_RunsValidationAndExits`.
+**Validate flag runs the self-validation**: `["--validate"]` gives output that contains `"Total Tests:"` and exit
+code 0.
 
-**CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput**: Arguments `["--version", "--silent"]`
-are passed; standard output is empty and exit code is 0, confirming `--silent` suppresses all
-console output. This scenario is tested by
-`CliSubsystem_SilentFlow_ContextAndProgram_SuppressesOutput`.
+**Silent flag suppresses console output**: `["--version", "--silent"]` gives empty standard output and exit
+code 0.
 
-**CliSubsystem_ResultsFlow_ContextAndProgram_WritesResultsFile**: Arguments
-`["--validate", "--results", "<tmp>.trx"]` are passed; a results file is created at the
-specified path and exit code is 0. This scenario is tested by
-`CliSubsystem_ResultsFlow_ContextAndProgram_WritesResultsFile`.
+**Results flag writes a results file**: `["--validate", "--results", "<tmp>.trx"]` creates a results file at the
+specified path and exits with 0.
 
-**CliSubsystem_LogFlow_ContextAndProgram_WritesLogFile**: Arguments `["--log", "<tmp>.log"]` are
-passed; a log file is created at the specified path and exit code is 0. This scenario is tested
-by `CliSubsystem_LogFlow_ContextAndProgram_WritesLogFile`.
+**Legacy result alias writes a results file**: `["--validate", "--result", "<tmp>.trx"]` behaves the same.
 
-**CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero**: Arguments
-`["--unknown-flag"]` are passed directly to `Program.Main`; exit code is 1 and standard error
-contains an error message including the unknown flag. This scenario is tested by
-`CliSubsystem_InvalidArgs_ContextAndProgram_RejectsUnknownArgumentsAndExitsNonZero`.
+**Log flag writes a log file**: `["--log", "<tmp>.log"]` creates a log file at the specified path and exits
+with 0.
 
-**CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr**: A `Context` is created with
-no arguments and `WriteError` is called with a known message; standard error receives the
-message and exit code is non-zero. This scenario is tested by
-`CliSubsystem_ErrorOutput_ContextAndProgram_WritesErrorToStderr`.
+**A log file that is also an input is refused and survives**: A Markdown file is named both as the log and as the
+input. Creating the context leaves the file's content intact, and `Program.Main` returns 1 with a message that
+contains "refusing to overwrite" while the content is still unchanged.
 
-**CliSubsystem_ResultAliasFlow_ContextAndProgram_WritesResultsFile**: Arguments
-`["--validate", "--result", "<tmp>.trx"]` (legacy alias) are passed; a results file is created
-at the specified path and exit code is 0. This scenario is tested by
-`CliSubsystem_ResultAliasFlow_ContextAndProgram_WritesResultsFile`.
+**Depth flag sets the heading depth**: `["--depth", "2"]` is parsed and propagated through `Context`, and the exit
+code is 0.
 
-**CliSubsystem_DepthFlow_ContextAndProgram_AdjustsHeadingDepth**: Arguments `["--depth", "2"]`
-are passed; the heading depth is set to 2 and exit code is 0, confirming the `--depth` flag is
-correctly parsed and propagated through `Context`. This scenario is tested by
-`CliSubsystem_DepthFlow_ContextAndProgram_AdjustsHeadingDepth`.
+**Paths flow to the engine and a valid file exits with zero**: A valid temporary Markdown file is passed as a
+positional argument with `--silent` and `--log`; `Context.Paths` holds the file, the real engine processes it, the
+log contains no diagnostic, and the exit code is 0.
+
+**Check flag leaves files unchanged**: `--check` and a file path are passed; `Context.Check` is true, the exit
+code is 0, and the file's bytes and last-write time are unchanged.
+
+#### Boundary conditions
+
+**Concurrent writers keep lines intact**: Many threads write lines and errors to one silent `Context` with a log
+file; all 200 lines are present and intact in the log and the exit code is 1.
+
+#### Error handling
+
+**Error output goes to standard error and sets the exit code**: A `Context` created with no arguments writes a
+known message with `WriteError`; standard error receives it and the exit code is non-zero.
+
+**Unknown flag is rejected with exit code 1**: `["--unknown-flag"]` passed to `Program.Main` gives exit code 1
+and an error on standard error that names the flag.
+
+**Undecodable file is reported and exits non-zero**: A file that is not valid UTF-8 is passed with `--silent` and
+`--log`; the log contains `bad.md:1:2: file-encoding-error Invalid UTF-8 byte sequence` and the exit code is 1.
+
+**Validate combined with paths is rejected**: `["--validate", "docs"]` passed to `Program.Main` gives exit code 1
+and an error on standard error that names `--validate`.

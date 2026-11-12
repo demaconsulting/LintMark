@@ -1,0 +1,207 @@
+---
+# Software Unit Requirements for the FileDiscovery Class
+#
+# The FileDiscovery class expands the path, directory, glob and exclusion arguments of the
+# command line into the list of Markdown files to process.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Engine Requirements
+        sections:
+          - title: FileDiscovery Requirements
+            requirements:
+              - id: LintMark-Engine-FileDiscovery-NamedFile
+                title: >-
+                  The FileDiscovery class shall select an existing file named as an argument exactly as given,
+                  whether or not it is a Markdown file.
+                justification: |
+                  Naming a file explicitly is a deliberate choice. Honoring it as given lets users process
+                  files with unusual names or extensions without extra options.
+                tests:
+                  - FileDiscovery_Discover_ExistingFile_ReturnsFullPath
+                  - FileDiscovery_Discover_ExplicitFile_IsNotSubjectToDefaultExcludesOrExtension
+
+              - id: LintMark-Engine-FileDiscovery-Directory
+                title: >-
+                  The FileDiscovery class shall select every Markdown file beneath an existing directory named
+                  as an argument.
+                justification: |
+                  Users point the tool at a whole documentation folder instead of listing each file.
+                tests:
+                  - FileDiscovery_Discover_Directory_ReturnsMarkdownFilesBeneathIt
+
+              - id: LintMark-Engine-FileDiscovery-Glob
+                title: >-
+                  The FileDiscovery class shall select the files matching a glob pattern with `*` and `**`
+                  wildcards, written with either path separator, relative to the current directory or to a
+                  parent directory, or absolute.
+                justification: |
+                  Users and scripts name files in many ways. Supporting patterns in the forms people naturally
+                  type, on every platform, makes the tool usable without quoting or translation rules.
+                children:
+                  - LintMark-OTS-FileSystemGlobbing-Match
+                tests:
+                  - FileDiscovery_Discover_RecursiveGlob_ReturnsMatchingFiles
+                  - FileDiscovery_Discover_SingleSegmentGlob_DoesNotDescend
+                  - FileDiscovery_Discover_BackslashGlob_IsAccepted
+                  - FileDiscovery_Discover_AbsoluteGlob_ReturnsMatchingFiles
+                  - FileDiscovery_Discover_ParentRelativeGlob_ReturnsMatchingFiles
+
+              - id: LintMark-Engine-FileDiscovery-MissingPath
+                title: >-
+                  The FileDiscovery class shall pass a path without wildcards that does not exist through to the
+                  result.
+                justification: |
+                  A mistyped file name must be reported to the user, which only happens if it reaches the
+                  step that reads files.
+                tests:
+                  - FileDiscovery_Discover_MissingLiteralPath_PassesThrough
+
+              - id: LintMark-Engine-FileDiscovery-NoMatch
+                title: >-
+                  The FileDiscovery class shall return nothing, without an error, for a glob that matches no
+                  file.
+                justification: |
+                  A pattern that happens to match nothing, such as one for an empty folder, is a normal
+                  situation and not a failure.
+                tests:
+                  - FileDiscovery_Discover_GlobWithoutMatches_ReturnsEmpty
+
+              - id: LintMark-Engine-FileDiscovery-Default
+                title: >-
+                  The FileDiscovery class shall select every Markdown file under the base directory when no
+                  argument selects files, applying any exclusions to that default selection.
+                justification: |
+                  Running the tool without arguments should do the obvious thing for a documentation
+                  repository, and a list of exceptions on its own should mean everything except those
+                  exceptions.
+                tests:
+                  - FileDiscovery_Discover_NoArguments_UsesDefaultPatternAndAppliesBuiltInExcludes
+                  - FileDiscovery_Discover_ExcludeDirectoryName_RemovesEverythingBeneath
+
+              - id: LintMark-Engine-FileDiscovery-Exclude
+                title: >-
+                  The FileDiscovery class shall remove the files matched by exclusion arguments, written as a
+                  pattern prefixed with an exclamation mark, including absolute exclusions and exclusions that
+                  lie outside the base directory, even when the file was named explicitly.
+                justification: |
+                  Generated or vendored documents must be easy to leave out, and an explicit exclusion must
+                  win even over a file that was named explicitly.
+                tests:
+                  - FileDiscovery_Discover_ExcludeGlob_RemovesMatches
+                  - FileDiscovery_Discover_AbsoluteExclude_RemovesMatches
+                  - FileDiscovery_Discover_ExcludeMatchingExplicitFile_RemovesIt
+
+              - id: LintMark-Engine-FileDiscovery-ExcludeDirectory
+                title: >-
+                  The FileDiscovery class shall remove everything beneath a directory that is named by an
+                  exclusion argument.
+                justification: |
+                  Excluding a whole folder by its name is the natural way to leave out generated or vendored
+                  documents without listing their files.
+                tests:
+                  - FileDiscovery_Discover_ExcludeDirectoryName_RemovesEverythingBeneath
+
+              - id: LintMark-Engine-FileDiscovery-DefaultExcludes
+                title: >-
+                  The FileDiscovery class shall not select a file below a `node_modules` or `.git` folder through
+                  a directory, glob, or default selection, whether the folder is named in the argument or found
+                  beneath the folder searched, but disregarding such a folder that only contains the base directory.
+                justification: |
+                  Package and version-control folders contain Markdown that the user does not own. The rule
+                  must hold however the user reaches the folder, and it must not stop the tool from working
+                  when it is run from inside such a folder.
+                tests:
+                  - FileDiscovery_Discover_DirectoryAndGlob_SkipNodeModulesAndGit
+                  - FileDiscovery_Discover_NoArguments_UsesDefaultPatternAndAppliesBuiltInExcludes
+                  - FileDiscovery_Discover_NodeModulesDirectoryArgument_ReturnsNothing
+                  - FileDiscovery_Discover_GitDirectoryArgument_ReturnsNothing
+                  - FileDiscovery_Discover_NestedNodeModulesDirectoryArgument_ReturnsNothing
+                  - FileDiscovery_Discover_GlobRootedInNodeModules_ReturnsNothing
+                  - FileDiscovery_Discover_AbsoluteNodeModulesDirectory_ReturnsNothing
+                  - FileDiscovery_Discover_BaseDirectoryInsideNodeModules_StillFindsItsFiles
+                  - FileDiscovery_Discover_ParentOfBaseDirectoryInsideNodeModules_ReturnsNothing
+
+              - id: LintMark-Engine-FileDiscovery-ExplicitFileOverride
+                title: >-
+                  The FileDiscovery class shall select a file below a `node_modules` or `.git` folder when the
+                  file itself is named as an argument.
+                justification: |
+                  Naming a file explicitly is a deliberate choice that must be honored, even inside a folder
+                  that directory and glob selections skip.
+                tests:
+                  - FileDiscovery_Discover_ExplicitFile_IsNotSubjectToDefaultExcludesOrExtension
+                  - FileDiscovery_Discover_DirectoryAndExplicitFileInNodeModules_ReturnsOnlyTheFile
+
+              - id: LintMark-Engine-FileDiscovery-DistinctFiles
+                title: >-
+                  The FileDiscovery class shall return each selected file once, however many arguments select
+                  it.
+                justification: |
+                  A file matched by several arguments must not be processed or reported twice.
+                tests:
+                  - FileDiscovery_Discover_OverlappingArguments_ReturnsDistinctFiles
+
+              - id: LintMark-Engine-FileDiscovery-StableOrder
+                title: >-
+                  The FileDiscovery class shall return the selected files in ordinal path order, independent of
+                  the order of the arguments.
+                justification: |
+                  A stable order is the basis for reproducible output.
+                tests:
+                  - FileDiscovery_Discover_ArgumentOrder_DoesNotAffectSortedResult
+
+              - id: LintMark-Engine-FileDiscovery-CaseRules
+                title: >-
+                  The FileDiscovery class shall match glob patterns without regard to letter case on Windows and
+                  macOS and with regard to letter case elsewhere.
+                justification: |
+                  The same command line should select the same files as the platform's own file-name rules
+                  would.
+                children:
+                  - LintMark-OTS-FileSystemGlobbing-CaseSensitivity
+                tests:
+                  - FileDiscovery_Discover_GlobCase_FollowsPlatformComparison
+
+              - id: LintMark-Engine-FileDiscovery-BlankArgument
+                title: The FileDiscovery class shall reject an empty or whitespace-only argument.
+                justification: |
+                  An empty pattern is a command-line mistake, often a failed variable expansion in a script.
+                  Matching everything or nothing for it would hide the mistake.
+                tests:
+                  - FileDiscovery_Discover_BlankPattern_ThrowsArgumentException
+
+              - id: LintMark-Engine-FileDiscovery-NullArgument
+                title: >-
+                  The FileDiscovery class shall reject a null argument, and a null element of the argument list,
+                  as a null argument before interpreting any other argument.
+                justification: |
+                  A null element is a programming error that must be reported as such, whatever the other
+                  arguments are, instead of being mistaken for an empty pattern.
+                tests:
+                  - FileDiscovery_Discover_NullArguments_ThrowArgumentNullException
+                  - FileDiscovery_Discover_NullElement_ThrowsArgumentNullException
+
+              - id: LintMark-Engine-FileDiscovery-SpellingChoice
+                title: >-
+                  The FileDiscovery class shall, where file names are compared without regard to case and one
+                  file is selected under spellings that differ only in case, return the smallest-in-ordinal-order
+                  spelling, independent of the order of the arguments.
+                justification: |
+                  The reported path of a file must not depend on how the user ordered the arguments, or the
+                  output is not reproducible.
+                tests:
+                  - FileDiscovery_Discover_CaseVariantSpellings_ReturnSameSpellingForAnyOrder
+
+              - id: LintMark-Engine-FileDiscovery-Separators
+                title: >-
+                  The FileDiscovery class shall accept both `/` and `\` as path separators in every argument on
+                  every platform.
+                justification: |
+                  A command line written on Windows must select the same files on Linux and macOS, for literal
+                  paths and directories as well as for patterns and exclusions.
+                tests:
+                  - FileDiscovery_Discover_BackslashGlob_IsAccepted
+                  - FileDiscovery_Discover_BackslashLiteralPath_FindsFile
+                  - FileDiscovery_Discover_BackslashLiteralExclude_RemovesFiles

@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/DemaConsulting.LintMark.Tests/DemaConsulting.LintMark.Tests.csproj" />
+    <Project Path="test/OtsSoftwareTests/OtsSoftwareTests.csproj" />
   </Folder>
 </Solution>

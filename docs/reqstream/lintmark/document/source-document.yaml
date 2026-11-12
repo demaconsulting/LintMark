@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for the SourceDocument Class
+#
+# The SourceDocument class turns the bytes of a file into LF-normalized text and records what
+# is needed to write the file back exactly as it was found.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Document Requirements
+        sections:
+          - title: SourceDocument Requirements
+            requirements:
+              - id: LintMark-Document-SourceDocument-LineEndings
+                title: >-
+                  The SourceDocument class shall present every line ending of the file as a single line feed,
+                  whether the file used LF, CRLF, or both.
+                justification: |
+                  One canonical line-ending form makes parsing and position arithmetic independent of the
+                  file's style.
+                tests:
+                  - SourceDocument_Create_LfOnly_KeepsTextAndCountsLf
+                  - SourceDocument_Create_CrLf_NormalizesToLfAndCountsCrLf
+                  - SourceDocument_Create_MixedEndings_IsMixedAndMajorityResolved
+                  - SourceDocument_FromText_Crlf_NormalizesLikeCreate
+
+              - id: LintMark-Document-SourceDocument-ByteOrderMark
+                title: >-
+                  The SourceDocument class shall exclude a leading UTF-8 byte order mark from the text and from
+                  every offset and position.
+                justification: |
+                  A byte order mark is not content. Reported positions and rewrites refer to the text as the
+                  author sees it, and a hidden mark would shift every position by one.
+                tests:
+                  - SourceDocument_Create_Utf8Bom_IsStrippedAndPreserved
+
+              - id: LintMark-Document-SourceDocument-Encoding
+                title: >-
+                  The SourceDocument class shall report a file that is not valid UTF-8, or that begins with a
+                  UTF-16 or UTF-32 byte order mark, as an encoding failure at the position of the first problem.
+                justification: |
+                  Silently substituting replacement characters for damaged bytes would corrupt a file the
+                  next time it is written. Reporting the exact position lets the author repair the file.
+                tests:
+                  - SourceDocument_Create_Utf16Bom_ThrowsEncodingError
+                  - SourceDocument_Create_InvalidUtf8_ThrowsWithPosition
+
+              - id: LintMark-Document-SourceDocument-LoneCr
+                title: >-
+                  The SourceDocument class shall report a carriage return that is not part of a CRLF line
+                  ending as a line-ending failure with its position.
+                justification: |
+                  Only LF and CRLF line endings can be restored faithfully. Rewriting a bare carriage return
+                  would silently change the file's meaning for some editors, so it is reported instead.
+                tests:
+                  - SourceDocument_Create_LoneCr_ThrowsLineEndingErrorWithPosition
+                  - SourceDocument_FromText_TrailingCr_ThrowsLineEndingError
+
+              - id: LintMark-Document-SourceDocument-Positions
+                title: >-
+                  The SourceDocument class shall convert between character offsets and 1-based line and column
+                  positions, counting UTF-16 code units and counting a tab as one column.
+                justification: |
+                  Reports are given as line and column. A single, documented column definition keeps
+                  positions stable and reproducible across platforms and tools.
+                tests:
+                  - SourceDocument_PositionOf_TabsAndSurrogates_CountsUtf16UnitsWithTabAsOne
+                  - SourceDocument_OffsetOf_RoundTripsWithPositionOf
+                  - SourceDocument_PositionAndOffset_OutOfRange_Throw
+
+              - id: LintMark-Document-SourceDocument-MajorityEnding
+                title: >-
+                  The SourceDocument class shall identify the line ending that occurs most often in the file,
+                  treating a tie or a file without line endings as LF.
+                justification: |
+                  Files with mixed line endings must still be restored to one consistent style. Choosing the
+                  majority style changes the fewest lines and gives a deterministic answer in every case.
+                tests:
+                  - SourceDocument_Create_MixedEndings_IsMixedAndMajorityResolved
+                  - SourceDocument_MajorityLineEnding_Tie_IsLf
+                  - SourceDocument_MajorityLineEnding_NoTerminators_IsLf
+
+              - id: LintMark-Document-SourceDocument-RoundTrip
+                title: >-
+                  The SourceDocument class shall restore the exact original bytes (encoding, byte order mark,
+                  and line endings) of a file whose line endings are all of one style from its unchanged
+                  text, and shall write the unchanged text of a file with mixed line endings in its
+                  majority style.
+                justification: |
+                  A formatter must never alter a file that needs no change. Restoring the exact original
+                  bytes proves that normalization loses no information. Mixed line endings are a formatting
+                  violation that is fixed by writing one consistent style, and only the counts of the two
+                  styles are kept, so a mixed file is deliberately written in its majority style, which
+                  changes the fewest lines.
+                tests:
+                  - SourceDocument_ToBytes_Lf_RestoresOriginalBytes
+                  - SourceDocument_ToBytes_CrLf_RestoresOriginalBytes
+                  - SourceDocument_ToBytes_BomAndCrLf_RestoresOriginalBytes
+                  - SourceDocument_ToBytes_MixedFile_WritesMajorityStyle
+                  - SourceDocument_Create_NoBom_WritesNoBom
+                  - SourceDocument_Create_FinalNewline_IsDetected
+
+              - id: LintMark-Document-SourceDocument-LineEndingConversion
+                title: >-
+                  The SourceDocument class shall convert the text to a requested line-ending style when writing
+                  it back.
+                justification: |
+                  A file with mixed line endings, or one that a project wants in another style, must be
+                  written out in one consistent style chosen by the caller.
+                tests:
+                  - SourceDocument_ToDisk_Target_ConvertsLineEndings
+
+              - id: LintMark-Document-SourceDocument-ImmutableLineTable
+                title: >-
+                  The SourceDocument class shall expose its table of line starts in a form that its holders
+                  cannot change.
+                justification: |
+                  Every position and line computation of a document depends on this table, and documents
+                  are shared between the stages of the pipeline. A table that a caller could modify, even
+                  through a cast of the read-only interface, would corrupt every later result.
+                tests:
+                  - SourceDocument_LineStarts_CastToMutableTypes_CannotBeModified

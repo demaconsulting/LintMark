@@ -22,6 +22,10 @@ enableGlobDot: true
 words:
   - Dema
   - demaconsulting
+  - filesystemglobbing
+  - Inlines
+  - Markdig
+  - mklink
   - ncipollo
   - nestings
   - netstandard

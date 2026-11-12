@@ -5,7 +5,8 @@
 `Context` is verified with unit tests defined in `ContextTests.cs`. Because `Context` depends
 only on .NET BCL types (`Console`, `StreamWriter`), no mocking or test doubles are required.
 Tests call `Context.Create` with controlled argument arrays, inspect the resulting properties
-and exit codes, and verify output written to captured streams.
+and exit codes, and verify output written to captured streams and to log files in temporary locations.
+The tests that capture the console run in the sequential test collection.
 
 #### Test Environment
 
@@ -18,120 +19,123 @@ N/A - standard test environment.
 - `ArgumentException` is thrown for all unknown or malformed arguments.
 - `ExitCode` is 1 after `WriteError` is called and 0 otherwise.
 - Silent mode suppresses console output but does not affect the log file.
+- Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
+  arguments, are rejected.
+- `--validate` combined with paths or `--check` is rejected before the log path is checked.
+- Creating a context never creates or changes the log file; disposal replaces it by moving a temporary file over
+  it, never by truncating it in place, and nothing is opened after disposal.
+- `Paths` cannot be modified by a caller that casts it.
+- Concurrent writers never interleave lines and never lose the error state.
 
 #### Test Scenarios
 
-**Context_Create_NoArguments_ReturnsDefaultContext**: `Context.Create` is called with an empty
-argument array; all boolean flags are false, `ResultsFile` is null, `HeadingDepth` is 1, and
-exit code is 0. This scenario is tested by `Context_Create_NoArguments_ReturnsDefaultContext`.
+##### Normal operation
 
-**Context_Create_VersionFlag_SetsVersionTrue**: `Context.Create` is called with `["--version"]`;
-the `Version` property is true. This scenario is tested by
-`Context_Create_VersionFlag_SetsVersionTrue`.
+**No arguments give the default context**: All boolean flags are false, `ResultsFile` is null, `HeadingDepth` is
+1, and the exit code is 0.
 
-**Context_Create_ShortVersionFlag_SetsVersionTrue**: `Context.Create` is called with `["-v"]`;
-the `Version` property is true. This scenario is tested by
-`Context_Create_ShortVersionFlag_SetsVersionTrue`.
+**Long and short version flags set the version flag**: `--version` and `-v` set `Version`.
 
-**Context_Create_HelpFlag_SetsHelpTrue**: `Context.Create` is called with `["--help"]`; the
-`Help` property is true. This scenario is tested by `Context_Create_HelpFlag_SetsHelpTrue`.
+**Help flags set the help flag**: `--help`, `-h`, and `-?` set `Help`.
 
-**Context_Create_ShortHelpFlag_H_SetsHelpTrue**: `Context.Create` is called with `["-h"]`; the
-`Help` property is true. This scenario is tested by
-`Context_Create_ShortHelpFlag_H_SetsHelpTrue`.
+**Silent flag sets silent mode**: `--silent` sets `Silent`.
 
-**Context_Create_ShortHelpFlag_Question_SetsHelpTrue**: `Context.Create` is called with `["-?"]`;
-the `Help` property is true. This scenario is tested by
-`Context_Create_ShortHelpFlag_Question_SetsHelpTrue`.
+**Validate flag sets validation**: `--validate` sets `Validate`.
 
-**Context_Create_SilentFlag_SetsSilentTrue**: `Context.Create` is called with `["--silent"]`;
-the `Silent` property is true. This scenario is tested by
-`Context_Create_SilentFlag_SetsSilentTrue`.
+**Check flag sets check mode**: `--check` sets `Check` and changes no other flag.
 
-**Context_Create_ValidateFlag_SetsValidateTrue**: `Context.Create` is called with
-`["--validate"]`; the `Validate` property is true. This scenario is tested by
-`Context_Create_ValidateFlag_SetsValidateTrue`.
+**Results flag sets the results file**: `--results output.trx` sets `ResultsFile`.
 
-**Context_Create_ResultsFlag_SetsResultsFile**: `Context.Create` is called with
-`["--results", "output.trx"]`; `ResultsFile` equals `"output.trx"`. This scenario is tested by
-`Context_Create_ResultsFlag_SetsResultsFile`.
+**Legacy result alias sets the results file**: `--result output.trx` sets `ResultsFile` exactly as `--results`
+does.
 
-**Context_Create_LogFlag_OpensLogFile**: `Context.Create` is called with
-`["--log", "<tmp>.log"]` and then `WriteLine` is called with a test message; the log file is
-created and contains the test message. This scenario is tested by
-`Context_Create_LogFlag_OpensLogFile`.
+**Depth flag sets the heading depth**: `--depth 3` sets `HeadingDepth` to 3.
 
-**Context_Create_UnknownArgument_ThrowsArgumentException**: `Context.Create` is called with
-`["--unknown"]`; an `ArgumentException` containing "Unsupported argument" is thrown. This
-scenario is tested by `Context_Create_UnknownArgument_ThrowsArgumentException`.
+**Heading depth defaults to one**: Without `--depth`, `HeadingDepth` is 1.
 
-**Context_Create_LogFlag_WithoutValue_ThrowsArgumentException**: `Context.Create` is called
-with `["--log"]` (value missing); an `ArgumentException` is thrown. This scenario is tested by
-`Context_Create_LogFlag_WithoutValue_ThrowsArgumentException`.
+**Log flag opens the log file**: `--log <tmp>.log` followed by `WriteLine` creates the file with the message.
 
-**Context_Create_ResultsFlag_WithoutValue_ThrowsArgumentException**: `Context.Create` is called
-with `["--results"]` (value missing); an `ArgumentException` is thrown. This scenario is tested
-by `Context_Create_ResultsFlag_WithoutValue_ThrowsArgumentException`.
+**Log file is left alone until disposal**: With `--log` naming an existing file, creating the context and writing
+leave its content intact (also when it is read while the context is open), `LogFile` exposes the full path, and
+disposal replaces the content with the log. With a file that does not exist, nothing is created before disposal, and
+no temporary file remains afterwards.
 
-**Context_Create_ResultAliasFlag_SetsResultsFile**: `Context.Create` is called with
-`["--result", "output.trx"]` (legacy alias); `ResultsFile` equals `"output.trx"`, identical to
-the `--results` flag behavior. This scenario is tested by
-`Context_Create_ResultAliasFlag_SetsResultsFile`.
+**Log file that is a hard link is replaced, not truncated**: With the log named through a second name (a hard
+link) of an existing file, disposal gives that name the log, and the original name keeps its content.
 
-**Context_Create_ResultAliasFlag_WithoutValue_ThrowsArgumentException**: `Context.Create` is
-called with `["--result"]` (value missing); an `ArgumentException` is thrown. This scenario is
-tested by `Context_Create_ResultAliasFlag_WithoutValue_ThrowsArgumentException`.
+**Log file that is a symbolic link is replaced, not followed**: With the log named through a symbolic link to an
+existing file, disposal replaces the link with a regular file holding the log, and the target keeps its content
+(skipped where the environment cannot create links).
 
-**Context_Create_DepthFlag_SetsHeadingDepth**: `Context.Create` is called with
-`["--depth", "3"]`; `HeadingDepth` equals 3. This scenario is tested by
-`Context_Create_DepthFlag_SetsHeadingDepth`.
+**Log that cannot be moved into place is kept and reported**: If the log path has become a directory by the time
+the context is disposed, `Dispose` throws `InvalidOperationException` naming the temporary file, which holds the
+log.
 
-**Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth**: `Context.Create` is called with an
-empty argument array; `HeadingDepth` equals 1 (the default; valid range is 1–6). This scenario
-is tested by `Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth`.
+**Log file is not reopened after disposal**: A `WriteLine` after `Dispose` leaves the log as the first session
+left it.
 
-**Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException**: `Context.Create` is called
-with `["--depth"]` (value missing); an `ArgumentException` is thrown. This scenario is tested
-by `Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException`.
+**Positional arguments are collected in order**: Several non-dash arguments, including a `!` exclusion pattern,
+appear in `Paths` in the order given and no flag is set.
 
-**Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException**: `Context.Create` is
-called with `["--depth", "abc"]`; an `ArgumentException` is thrown. This scenario is tested by
-`Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException`.
+**Paths cannot be changed through a cast**: `Paths` is not a `List<string>` or an array, and every attempt to add,
+replace, remove, or clear an element through `IList<string>` throws `NotSupportedException`.
 
-**Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException**: `Context.Create` is called with
-`["--depth", "0"]` (below the minimum of 1); an `ArgumentException` is thrown. This scenario
-is tested by `Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException`.
+**Paths and options can be interleaved**: Options (including a `--log` value that must not be taken as a path) and
+paths mixed in one list give only the positional arguments in `Paths` and the parsed options.
 
-**Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException**: `Context.Create` is
-called with `["--depth", "7"]` (above the maximum of 6); an `ArgumentException` is thrown.
-This scenario is tested by `Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException`.
+**Help and version are accepted together with paths**: `--help` and `--version` combined with paths do not
+throw.
 
-**Context_WriteLine_NotSilent_WritesToConsole**: A non-silent `Context` calls `WriteLine` with
-a test message; the message appears on standard output. This scenario is tested by
-`Context_WriteLine_NotSilent_WritesToConsole`.
+**Validate with its own options is accepted**: `--validate` combined with `--results`, `--depth`, and `--silent`
+parses as before.
 
-**Context_WriteLine_Silent_DoesNotWriteToConsole**: A silent `Context` (created with
-`["--silent"]`) calls `WriteLine`; standard output receives nothing, confirming `--silent`
-suppresses normal output. This scenario is tested by
-`Context_WriteLine_Silent_DoesNotWriteToConsole`.
+**Output goes to the console unless silent**: `WriteLine` and `WriteError` on a non-silent context put the
+message on standard output and standard error, respectively.
 
-**Context_WriteError_Silent_DoesNotWriteToConsole**: A silent `Context` calls `WriteError`;
-standard error receives nothing, confirming `--silent` also suppresses error output. This
-scenario is tested by `Context_WriteError_Silent_DoesNotWriteToConsole`.
+**Silent mode suppresses console output**: `WriteLine` and `WriteError` on a silent context write nothing to
+the console.
 
-**Context_WriteError_SetsErrorExitCode**: A `Context` calls `WriteError`; `ExitCode` is 1
-after the call. This scenario is tested by `Context_WriteError_SetsErrorExitCode`.
+**Errors are always written to the log file**: With `--silent --log`, `WriteError` still writes the message
+to the log file.
 
-**Context_WriteError_NotSilent_WritesToConsole**: A non-silent `Context` calls `WriteError`
-with a test message; the message appears on standard error. This scenario is tested by
-`Context_WriteError_NotSilent_WritesToConsole`.
+##### Boundary conditions
 
-**Context_WriteError_WritesToLogFile**: A `Context` created with
-`["--silent", "--log", "<tmp>.log"]` calls `WriteError` with a test message; the message appears
-in the log file, confirming errors are always written to the log regardless of `--silent`. This
-scenario is tested by `Context_WriteError_WritesToLogFile`.
+**No paths give an empty path list**: Without positional arguments `Paths` is empty.
 
-**Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException**:
-`Context.Create` is called with `["--log", "/invalid/\x00path.log"]`; an
-`InvalidOperationException` is thrown because the log file cannot be opened. This
-scenario is tested by `Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException`.
+**Depth below the minimum is rejected**: `--depth 0` throws `ArgumentException`.
+
+**Depth above the maximum is rejected**: `--depth 7` throws `ArgumentException`.
+
+**Empty argument is rejected as unsupported**: An empty string throws `ArgumentException` with the message
+"Unsupported argument ''"; it is never taken as a path.
+
+**Lone dash and dash-leading tokens are rejected**: `-`, `-x`, and `--unknown` each throw `ArgumentException`,
+because a dash-leading token is never a path.
+
+**Error state makes the exit code one**: After `WriteError`, `ExitCode` is 1.
+
+**Concurrent writers keep every error line intact**: Many threads call `WriteError` with long lines; every line
+appears exactly once and intact in the log file, and the exit code is 1.
+
+**Concurrent writers keep every line intact**: Many threads call `WriteLine` with long lines; every line appears
+exactly once and intact in the log file, and no error is recorded.
+
+##### Error handling
+
+**Unknown argument is rejected**: `--unknown` throws `ArgumentException` that contains "Unsupported argument".
+
+**Option without a value is rejected**: `--log`, `--results`, `--result`, and `--depth` without a value each
+throw `ArgumentException`.
+
+**Non-integer depth is rejected**: `--depth abc` throws `ArgumentException`.
+
+**Validate combined with a path is rejected**: `--validate` and a path throw `ArgumentException` whose message
+names the flag.
+
+**Validate combined with check is rejected**: `--validate` and `--check` throw `ArgumentException`.
+
+**Rejected validate combination creates no log file**: With `--log` pointing at a file that does not exist, the
+`--validate` conflict is raised and the log file is never created.
+
+**Log file that cannot be used is rejected**: `--log` with an invalid path, a directory, or a path in a
+directory that does not exist throws `InvalidOperationException`, and nothing is created.

@@ -1,0 +1,145 @@
+---
+# Engine Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Engine subsystem
+# - The Engine subsystem selects the files to process, processes them and reports failures
+# - Subsystem requirements describe the externally visible file-selection and reporting behavior
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Engine Requirements
+        requirements:
+          - id: LintMark-Engine-Discovery
+            title: >-
+              The Engine subsystem shall expand path, directory, glob, and exclusion arguments into the distinct
+              set of Markdown files to process, using every Markdown file under the current directory when no
+              selection is given.
+            justification: |
+              Users select files in the way that suits them: by name, by folder, or by pattern, with
+              exceptions. A file named by several arguments must be processed once, and a selection that
+              matches nothing must not be an error.
+            children:
+              - LintMark-Engine-FileDiscovery-NamedFile
+              - LintMark-Engine-FileDiscovery-Directory
+              - LintMark-Engine-FileDiscovery-Glob
+              - LintMark-Engine-FileDiscovery-MissingPath
+              - LintMark-Engine-FileDiscovery-NoMatch
+              - LintMark-Engine-FileDiscovery-Default
+              - LintMark-Engine-FileDiscovery-Exclude
+              - LintMark-Engine-FileDiscovery-ExcludeDirectory
+              - LintMark-Engine-FileDiscovery-DistinctFiles
+              - LintMark-Engine-FileDiscovery-StableOrder
+              - LintMark-Engine-FileDiscovery-CaseRules
+              - LintMark-Engine-FileDiscovery-BlankArgument
+              - LintMark-Engine-FileDiscovery-NullArgument
+              - LintMark-Engine-FileDiscovery-SpellingChoice
+              - LintMark-Engine-FileDiscovery-Separators
+            tests:
+              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+              - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
+              - EngineSubsystem_ExcludePattern_SkipsExcludedFiles
+              - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce
+
+          - id: LintMark-Engine-ThirdPartyFolders
+            title: >-
+              The Engine subsystem shall not select files from `node_modules` or `.git` folders below the
+              current directory unless the file itself is named on the command line.
+            justification: |
+              Package and version-control folders contain Markdown that the user does not own and that must
+              not be changed or reported on, even when the user points the tool at the folder or at a pattern
+              inside it. Naming a file explicitly is a deliberate choice that must still be honored.
+            children:
+              - LintMark-Engine-FileDiscovery-DefaultExcludes
+              - LintMark-Engine-FileDiscovery-ExplicitFileOverride
+            tests:
+              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+              - EngineSubsystem_ThirdPartyFolderNamed_IsNotProcessed
+              - EngineSubsystem_ExplicitFileInThirdPartyFolder_IsProcessed
+
+          - id: LintMark-Engine-Processing
+            title: >-
+              The Engine subsystem shall read and parse every selected file without a problem in one file
+              preventing the others from being processed.
+            justification: |
+              Independent files must stay independent, so that one broken file never hides the state of
+              the rest of a documentation set.
+            children:
+              - LintMark-Engine-LintMarkEngine-ProcessEach
+              - LintMark-Engine-LintMarkEngine-IsolatedFailures
+              - LintMark-Engine-LintMarkEngine-ImmutableResults
+            tests:
+              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+
+          - id: LintMark-Engine-LogNotInput
+            title: >-
+              The Engine subsystem shall refuse a run whose selection contains the log file, without touching
+              that file.
+            justification: |
+              The log file is replaced when it is first written, so a source file that is also the log would
+              be destroyed. Refusing the run guarantees that logging never costs the user a file.
+            children:
+              - LintMark-Engine-LintMarkEngine-LogNotInput
+            tests:
+              - EngineSubsystem_LogFileInSelection_IsRefusedUnlessExcluded
+
+          - id: LintMark-Engine-FailureReport
+            title: >-
+              The Engine subsystem shall report each file that cannot be read, decoded, or processed on its own
+              line as `path:line:col: rule-id message`, with a path relative to the current directory using
+              forward slashes.
+            justification: |
+              A single, regular line format can be read by people, editors, and build systems alike.
+              Relative paths with one separator style make output reproducible across platforms and
+              machines.
+            children:
+              - LintMark-Engine-LintMarkEngine-ReadFailure
+              - LintMark-Engine-LintMarkEngine-EncodingFailure
+              - LintMark-Engine-LintMarkEngine-LineEndingFailure
+              - LintMark-Engine-LintMarkEngine-ProcessingFailure
+              - LintMark-Engine-LintMarkEngine-FailureFormat
+              - LintMark-Engine-LintMarkEngine-FailureOrderWithinFile
+            tests:
+              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+              - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
+
+          - id: LintMark-Engine-FailureExitStatus
+            title: >-
+              The Engine subsystem shall exit with a non-zero status when any file failed and with zero
+              otherwise.
+            justification: |
+              Scripts and build pipelines act on the exit status alone.
+            children:
+              - LintMark-Engine-LintMarkEngine-ExitStatus
+            tests:
+              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+
+          - id: LintMark-Engine-SilentOnSuccess
+            title: >-
+              The Engine subsystem shall write nothing for files that were processed successfully, including
+              when no file is selected.
+            justification: |
+              Silence on success keeps the output of large runs readable, and an empty selection is a
+              valid outcome rather than a failure.
+            children:
+              - LintMark-Engine-LintMarkEngine-SilentOnSuccess
+            tests:
+              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
+              - EngineSubsystem_ExcludePattern_SkipsExcludedFiles
+
+          - id: LintMark-Engine-DeterministicOrder
+            title: >-
+              The Engine subsystem shall report failures ordered by path and then by position, independent of
+              the order of the arguments, the number of files processed at once, and the order in which files
+              finish.
+            justification: |
+              Reproducible output is required for comparing runs, for stable build logs, and for tests.
+              Scheduling must never be visible to the user.
+            children:
+              - LintMark-Engine-LintMarkEngine-OrderedResults
+            tests:
+              - EngineSubsystem_ParallelAndSequential_ProduceIdenticalOutput
+              - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce
