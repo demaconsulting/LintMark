@@ -372,6 +372,43 @@ public class ProgramTests
     }
 
     /// <summary>
+    ///     Test that version, help and validate refuse an existing log file that the default selection would process.
+    /// </summary>
+    /// <param name="flag">The action flag.</param>
+    [Theory]
+    [InlineData("--version")]
+    [InlineData("--help")]
+    [InlineData("--validate")]
+    public void Program_Run_ActionFlagWithLogFileInSelection_ThrowsAndKeepsFile(string flag)
+    {
+        // Arrange: an existing Markdown file in the current directory that is named as the log
+        using var directory = new TemporaryDirectory();
+        var existing = directory.WriteFile("README.md", "# Precious\n");
+        var originalDirectory = Directory.GetCurrentDirectory();
+        var originalOut = Console.Out;
+        try
+        {
+            Directory.SetCurrentDirectory(directory.FullPath);
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+
+            // Act / Assert: the run is refused before anything is written, and disposal leaves the file alone
+            using (var context = Context.Create([flag, "--log", existing]))
+            {
+                Assert.Throws<InvalidOperationException>(() => Program.Run(context));
+            }
+
+            Assert.Empty(outWriter.ToString());
+            Assert.Equal("# Precious\n", File.ReadAllText(existing));
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Directory.SetCurrentDirectory(originalDirectory);
+        }
+    }
+
+    /// <summary>
     ///     Test that Main reports a log file that is also an input as an error with exit code one.
     /// </summary>
     [Fact]

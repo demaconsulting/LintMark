@@ -59,11 +59,15 @@ sections:
           - id: LintMark-Program-LogNotInput
             title: >-
               The Program class shall select the files to lint before writing any output, so that a log file
-              that is also a selected file is refused before it is created or replaced.
+              that is also a selected file is refused before it is replaced, for every action when the log
+              file already exists.
             justification: |
               A context that has written anything replaces the log file when it is disposed. Writing the banner
               before checking the selection would therefore destroy a source file named as the log, so the check must
-              come first and the failure must be reported as an ordinary error with exit code one.
+              come first and the failure must be reported as an ordinary error with exit code one. Version, help
+              and validation print output too, so they are guarded as well; only a log file that does not exist yet
+              has nothing to lose, which keeps those actions from enumerating files needlessly.
             tests:
               - Program_Run_LogFileIsSelectedInput_ThrowsBeforeAnyOutputAndKeepsFile
+              - Program_Run_ActionFlagWithLogFileInSelection_ThrowsAndKeepsFile
               - Program_Main_LogFileIsSelectedInput_ReturnsOneAndKeepsFile

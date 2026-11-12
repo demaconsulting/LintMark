@@ -104,20 +104,27 @@ internal static class Program
     /// <remarks>
     ///     Dispatch is priority-ordered: version check first, then help, then self-validation,
     ///     then main tool logic. Only the highest-priority matching action is executed per invocation.
+    ///     Before any output the files are selected (see <see cref="LintMarkEngine.Select"/>), for the tool logic
+    ///     always and for the other actions when the log file already exists, so that a log file that is also a
+    ///     selected file is refused instead of being replaced by the output.
     /// </remarks>
     public static void Run(Context context)
     {
+        // Select the files before any output: a context that has written anything replaces the log file when it is
+        // disposed, which must never happen to a file that is selected as an input. Version, help and validation
+        // read no files, but still replace an existing log file, so the guard applies to them too whenever the log
+        // file exists (a log file that does not exist yet has nothing to lose).
+        var lint = !context.Version && !context.Help && !context.Validate;
+        var guardLog = context.LogFile is { } logFile && File.Exists(logFile);
+        var engine = new LintMarkEngine();
+        IReadOnlyList<string> files = lint || guardLog ? LintMarkEngine.Select(context) : [];
+
         // Priority 1: Version query
         if (context.Version)
         {
             context.WriteLine(Version);
             return;
         }
-
-        // Select the files before any output: the first line written opens (and so replaces) the log file,
-        // which must never happen to a file that is about to be read as an input
-        var engine = new LintMarkEngine();
-        IReadOnlyList<string> files = context.Help || context.Validate ? [] : LintMarkEngine.Select(context);
 
         // Print application banner
         PrintBanner(context);

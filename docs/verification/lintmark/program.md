@@ -21,7 +21,7 @@ N/A - standard test environment.
 - With a path argument, `Program.Run` processes the file with the real engine and reports failures through
   the context (exit code 1).
 - A log file that is also a selected file is refused before the banner is written, so it is never created or
-  replaced.
+  replaced; the same applies to version, help, and validation when the log file already exists.
 
 ### Test Scenarios
 
@@ -68,3 +68,8 @@ file that does not exist yet, each named both as the log and as the input, `Prog
 `InvalidOperationException`, writes nothing to the console, leaves the existing file's content unchanged, and
 creates no file. `Program.Main` with the same arguments returns 1 and writes a message that contains
 "refusing to overwrite" to standard error, and the file is unchanged.
+
+**Version, help, and validate refuse an existing log file in the selection**: With `--version`, `--help`, or
+`--validate` and an existing `README.md` in the current directory named as the log, `Program.Run` throws
+`InvalidOperationException`, writes nothing to the console, and the file keeps its content after the context is
+disposed.

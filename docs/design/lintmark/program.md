@@ -36,13 +36,14 @@ Creates a `Context` using `Context.Create(args)`, calls `Run(context)`, and retu
 - *Preconditions*: `context` is not null.
 - *Postconditions*: Exactly one handler has been called.
 
-Inspects flags in priority order: (1) if `context.Version` is true, calls
-`context.WriteLine(Version)` and returns; (2) unless `Help` or `Validate` is set, selects the files with
-`LintMarkEngine.Select(context)` — before any output, because a context that has written anything replaces
-the log file when it is disposed, and `Select` refuses the run when the log file is one of the selected files; (3) calls
-`PrintBanner`; (4) if `context.Help` is true, calls `PrintHelp` and returns; (5) if `context.Validate` is
-true, calls `Validation.Run(context)`; (6) otherwise calls `LintMarkEngine.Run(context, files)` with the
-files selected in step 2, which processes and reports them.
+Before dispatching, and before any output, selects the files with `LintMarkEngine.Select(context)` when no
+action flag is set (the files are then processed) or when the log file already exists (a guard only, for
+version, help, and validation): a context that has written anything replaces the log file when it is disposed,
+and `Select` refuses the run when the log file is one of the selected files. Then inspects flags in priority
+order: (1) if `context.Version` is true, calls `context.WriteLine(Version)` and returns; (2) calls
+`PrintBanner`; (3) if `context.Help` is true, calls `PrintHelp` and returns; (4) if `context.Validate` is
+true, calls `Validation.Run(context)`; (5) otherwise calls `LintMarkEngine.Run(context, files)` with the
+files selected before dispatching, which processes and reports them.
 
 **PrintBanner**: Writes the tool name, version, and copyright line to `context`.
 

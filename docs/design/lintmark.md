@@ -158,12 +158,13 @@ N/A - not a safety-classified software item.
    `InvalidOperationException` at this point (including `--validate` combined with a path or
    `--check`, which is rejected before the log path is checked) is caught, written to stderr, and
    causes exit code 1.
-3. `Program.Run(context)` inspects the parsed flags and dispatches to one handler:
+3. `Program.Run(context)` first selects the files, before any output: `LintMarkEngine.Select(context)`
+   discovers the files (step 4) and refuses the run with an `InvalidOperationException` when the log file
+   is one of them. This happens when no action flag is given and, as a guard, for `--version`, `--help`, and
+   `--validate` when the log file already exists, because a context that has written anything replaces the log
+   file when it is disposed. Then it inspects the parsed flags and dispatches to one handler:
    - `--version` flag → `context.WriteLine(Version)`, then return.
-   - Otherwise, unless `--help` or `--validate` was given, `LintMarkEngine.Select(context)` first
-     discovers the files (steps 4) and refuses the run with an `InvalidOperationException` when the
-     log file is one of them; this happens before any output, because a context that has written anything
-     replaces the log file when it is disposed. Then `PrintBanner` is called; then:
+   - Otherwise `PrintBanner` is called; then:
      - `--help` flag → `PrintHelp(context)`, then return.
      - `--validate` flag → `Validation.Run(context)`.
      - Otherwise → `LintMarkEngine.Run(context, files)` with the files already selected.
