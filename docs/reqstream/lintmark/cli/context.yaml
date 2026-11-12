@@ -72,6 +72,7 @@ sections:
                   DEMA Consulting tools.
                 tests:
                   - Context_Create_LogFlag_OpensLogFile
+                  - Context_Create_LogFlag_ExistingFile_TruncatesFile
                   - Context_WriteError_WritesToLogFile
                   - Context_Dispose_ClosesLogFile
 

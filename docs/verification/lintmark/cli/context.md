@@ -56,6 +56,10 @@ does.
 
 **Log flag opens the log file**: `--log <tmp>.log` followed by `WriteLine` creates the file with the message.
 
+**Existing log file is truncated when the context is created**: With `--log` naming an existing file that has
+content, the file is empty as soon as `Context.Create` returns (the same behavior as the other DEMA Consulting
+tools), and it then holds only what the context writes.
+
 **Log file is closed by disposal**: After `Dispose`, a further `WriteLine` leaves the log as it was, and the
 log file can be deleted because its handle has been released.
 

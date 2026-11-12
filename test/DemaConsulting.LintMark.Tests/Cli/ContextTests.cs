@@ -525,6 +525,29 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that an existing file named as the log is truncated when the context is created, as in the other tools.
+    /// </summary>
+    [Fact]
+    public void Context_Create_LogFlag_ExistingFile_TruncatesFile()
+    {
+        // Arrange: an existing file with content
+        using var directory = new TemporaryDirectory();
+        var logFile = directory.WriteFile("existing.md", "# Existing\n");
+
+        // Act: create the context, and inspect the file before anything is written
+        long lengthAfterCreate;
+        using (var context = Context.Create(["--silent", "--log", logFile]))
+        {
+            lengthAfterCreate = new FileInfo(logFile).Length;
+            context.WriteLine("log line");
+        }
+
+        // Assert: the content was replaced when the context was created, and the log holds only the new line
+        Assert.Equal(0, lengthAfterCreate);
+        Assert.Equal("log line" + Environment.NewLine, File.ReadAllText(logFile));
+    }
+
+    /// <summary>
     ///     Test that Dispose closes the log file, so it can be deleted, and that later writes do not fail.
     /// </summary>
     [Fact]

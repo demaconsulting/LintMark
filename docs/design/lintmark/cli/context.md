@@ -107,8 +107,9 @@ option whose required value is missing or not an accepted integer, and
 the inner exception) when the `--log` file cannot be opened. Both exceptions propagate to
 `Program.Main`, which reports them as `Error: {message}`.
 
-`WriteLine` and `WriteError` write to whichever output channels are available and do not throw for log
-failures. `Dispose` does not throw.
+`WriteLine` and `WriteError` write to the open log writer without catching its exceptions, so an I/O failure after
+the log was opened (for example, a full disk) propagates as the `IOException` the writer throws, as in the other DEMA
+Consulting tools. `Dispose` closes the writer and can likewise throw if the final flush fails.
 
 #### Dependencies
 
