@@ -76,9 +76,21 @@ internal sealed class Context : IDisposable
     /// </summary>
     /// <remarks>
     ///     Check mode reports problems without writing any file. It is the default behavior, so the
-    ///     flag is currently an explicit statement of the default and never changes processing.
+    ///     flag is an explicit statement of the default and never changes processing.
     /// </remarks>
     public bool Check { get; private init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the fix flag was specified: files are rewritten into canonical form
+    ///     (when every safety check passes) and the problems that remain are reported.
+    /// </summary>
+    public bool Fix { get; private init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the diff flag was specified: a unified diff of what the fix flag
+    ///     would change is printed and nothing is written.
+    /// </summary>
+    public bool Diff { get; private init; }
 
     /// <summary>
     ///     Gets the positional path arguments (files, directories, globs and <c>!</c> excludes) in the order given.
@@ -138,7 +150,8 @@ internal sealed class Context : IDisposable
     /// <returns>A new Context instance.</returns>
     /// <exception cref="ArgumentException">
     ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths, <c>--check</c>,
-    ///     <c>--config</c> or <c>--no-config</c>, when <c>--config</c> is combined with <c>--no-config</c>, or when
+    ///     <c>--fix</c>, <c>--diff</c>, <c>--config</c> or <c>--no-config</c>, when <c>--fix</c> is combined with
+    ///     <c>--check</c> or <c>--diff</c>, when <c>--config</c> is combined with <c>--no-config</c>, or when
     ///     <c>--config</c> has no (or a blank) filename.
     /// </exception>
     /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
@@ -151,9 +164,18 @@ internal sealed class Context : IDisposable
         parser.ParseArguments(args);
 
         // Self-validation is a separate mode: lint arguments would be silently ignored, so reject them
-        if (parser.Validate && (parser.Check || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig))
+        if (parser.Validate
+            && (parser.Check || parser.Fix || parser.Diff || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig))
         {
-            throw new ArgumentException("--validate cannot be combined with paths, --check, --config, or --no-config", nameof(args));
+            throw new ArgumentException(
+                "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+                nameof(args));
+        }
+
+        // Fixing writes files, checking and diffing promise not to
+        if (parser.Fix && (parser.Check || parser.Diff))
+        {
+            throw new ArgumentException("--fix cannot be combined with --check or --diff", nameof(args));
         }
 
         // A named configuration file and "no configuration" contradict each other
@@ -169,6 +191,8 @@ internal sealed class Context : IDisposable
             Silent = parser.Silent,
             Validate = parser.Validate,
             Check = parser.Check,
+            Fix = parser.Fix,
+            Diff = parser.Diff,
             Paths = parser.Paths.ToImmutableArray(),
             ConfigFile = parser.ConfigFile,
             NoConfig = parser.NoConfig,
@@ -240,6 +264,16 @@ internal sealed class Context : IDisposable
         ///     Gets a value indicating whether the check flag was specified.
         /// </summary>
         public bool Check { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the fix flag was specified.
+        /// </summary>
+        public bool Fix { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the diff flag was specified.
+        /// </summary>
+        public bool Diff { get; private set; }
 
         /// <summary>
         ///     Gets the positional path arguments in the order given.
@@ -320,6 +354,14 @@ internal sealed class Context : IDisposable
 
                 case "--check":
                     Check = true;
+                    return index;
+
+                case "--fix":
+                    Fix = true;
+                    return index;
+
+                case "--diff":
+                    Diff = true;
                     return index;
 
                 case "--config":

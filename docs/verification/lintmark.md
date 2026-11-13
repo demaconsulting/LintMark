@@ -4,25 +4,30 @@
 
 System-level verification uses end-to-end integration tests that invoke the tool as a real
 process via the `Runner.Run` helper in `IntegrationTests.cs`. Each test exercises the full
-stack — argument parsing, dispatch, file selection, parsing, reporting, and output — and validates both exit
-code and combined console output. The tests treat the tool as a black box and assert only on observable
-outputs; no internal implementation details are assumed. Tests that process files create them in a
-temporary directory (the `TemporaryDirectory` test helper) and pass their paths as arguments.
+stack — argument parsing, dispatch, file selection, parsing, linting, rewriting, reporting, and output — and
+validates both exit code and combined console output. The tests treat the tool as a black box and assert only on
+observable outputs and on the bytes of files; no internal implementation details are assumed. Tests that process
+files create them in a temporary directory (the `TemporaryDirectory` test helper) and pass their paths as
+arguments.
 
 The configuration scenarios write `.lintmark.yaml` and `.editorconfig` files into the temporary directory, run
 the tool with absolute paths for the Markdown files and for any file named with `--config`, and assert on the
 combined output with the path tail that the report prints (for example `docs/.lintmark.yaml:1:14`). The report
 prints each path relative to the current directory of the tool process, so the assertions match on the part of the
 path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
-check the observable outcome that exists today: whether a configuration problem is reported, where, in what form,
-and with what exit status. The line ending that the editor settings give takes effect only once files are
-rewritten, so no system requirement asserts its use in this phase: the system scenario shows that settings that
-LintMark cannot use never break a run, and the formatting phase adds the system requirement and the scenario that
-observe the line ending that the editor settings give. Until then that outcome is verified, without a requirement,
-by tests at the Configuration subsystem, `Engine` subsystem, and unit level. The tolerance of settings that cannot be
-used is the only system requirement about editor settings: the report of editor settings that cannot be read is
-also verified by tests without a requirement until the formatting phase re-adds a requirement for it together with an
-observable system-level behavior.
+check whether a configuration problem is reported, where, in what form, and with what exit status. The only
+setting that changes what the tool does to a file is the line ending, so the scenarios
+that name a line ending in a configuration file or in editor settings check the effect on the bytes of the
+rewritten file.
+
+The scenarios about the `--fix` and `--diff` options write a file with known bytes, run the tool, and then read
+the bytes of the file back, so that they observe exactly what the tool did to it. The scenarios that must show that
+a file was not written also compare the last write time with a time set far in the past, and the scenario about
+temporary files lists the directory after the rewrite. The line ending is the only text that the shipped
+formatting changes, so these scenarios use line endings to observe the rewrite. Refusals that a faulty rule would
+cause cannot be reached through the command line, because no shipped rule changes text; the Engine subsystem
+tests with deliberately faulty rules verify them, and the system scenarios show the refusals that do not depend on
+a rule.
 
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made
@@ -36,7 +41,10 @@ combinations. Temporary files and directories are created and cleaned up within 
 holds an empty `.git` directory, so configuration discovery that starts inside it stops there and never reaches a
 `.lintmark.yaml` or `.editorconfig` file that exists above the system temporary directory; the scenario about the
 repository boundary builds a tree without that marker and adds its own `.git` directory below an invalid
-configuration file. Every tree that holds editor settings starts them with `root = true`.
+configuration file. Every tree that holds editor settings starts them with `root = true`. The scenario about
+unreadable editor settings makes the settings file unreadable by opening it without sharing on Windows and by
+removing every permission from it on the other systems; it is skipped on a file system that still lets the user read
+a file without permissions, such as when the tests run as a privileged user.
 
 ## Acceptance Criteria
 
@@ -45,13 +53,25 @@ configuration file. Every tree that holds editor settings starts them with `root
 - Exit code non-zero is returned for all invalid argument combinations.
 - Results files are created at the specified paths when `--results` is used with `--validate`.
 - Silent mode (`--silent`) produces empty combined output.
-- Files named by path, directory, or glob are read and parsed; files that cannot be read or decoded are
-  reported as `path:line:col: rule-id message` with exit code 1 and valid files produce no output.
+- Files named by path, directory, or glob are read, parsed, and linted; each problem found, such as a file that
+  cannot be read or decoded, a mixed line ending, or an invalid grid table, is reported as
+  `path:line:col: rule-id message` with exit code 1, and files without a problem produce no output.
 - Files from `node_modules` and `.git` folders are processed only when named explicitly.
-- Failures are reported in path order, and `--check` leaves files byte-identical.
-- `--validate` combined with paths or `--check` is rejected with exit code 1 and without running validation.
+- Problems are reported in path order, and `--check` leaves files byte-identical.
+- No file is modified unless `--fix` is given; `--diff` prints a unified diff and leaves files byte-identical.
+- `--fix` rewrites a file with the line ending that its configuration, then its editor settings, then most of its
+  lines give; keeps the byte order mark and all other text; leaves a compliant file unwritten; leaves no temporary
+  file behind; and a second run finds nothing to repair.
+- A file with an invalid grid table, with an invalid configuration, or with editor settings that cannot be read is
+  never rewritten, and the reason is reported.
+- `--fix` combined with `--check` or `--diff` is rejected with exit code 1.
+- `--validate` combined with paths, `--check`, `--fix`, or `--diff` is rejected with exit code 1 and without running
+  validation.
 - `--validate` combined with `--config` or `--no-config` is rejected with exit code 1 and without running
   validation, and `--config` combined with `--no-config` is rejected with exit code 1.
+- A selected file that matches an `ignore` pattern of its configuration is skipped, unless it is named on the
+  command line.
+- The width of a line is measured in display columns (verified at the Utilities subsystem level).
 - Each Markdown file is processed with the nearest `.lintmark.yaml` file up to the repository root: an invalid
   nearer file is reported, an invalid farther file is never read, and a file above a `.git` directory is never used.
 - `--config` makes the named file govern every file instead of discovery, and a missing named file is reported
@@ -69,7 +89,8 @@ configuration file. Every tree that holds editor settings starts them with `root
 - A configuration problem is reported once however many Markdown files use that configuration.
 - Configuration problems are reported in path order whatever the order of the arguments.
 - Editor settings that LintMark cannot use (`cr`, `unset`, settings meant for other tools) are accepted with exit
-  code 0 and no report.
+  code 0 and no report; editor settings that apply to a file but cannot be read are reported at line 1, column 1
+  of the Markdown file with exit code 1.
 - `--help` lists `--config <file>` and `--no-config`.
 
 ## Test Scenarios
@@ -125,7 +146,7 @@ suppression comments, a reference definition, a footnote, a table, and an unclos
 code is 0 and nothing is reported.
 
 **Repository documentation is processed without output**: The repository's `docs` directory and `README.md` are
-passed; every file is read and parsed, the exit code is 0, and nothing is reported.
+passed; every file is read, parsed, and linted, the exit code is 0, and nothing is reported.
 
 **Check flag lints without writing**: `--check` is passed with a valid file that has CRLF line endings and no
 final newline; the exit code is 0 and the file's bytes and last-write time are unchanged.
@@ -162,13 +183,62 @@ file gives exit code 0 and no report.
 0 and no report.
 
 **Documented full sample configuration is accepted**: The sample that sets every formatting and linting setting,
-nested link conversion options, rule toggles by name and by legacy number, and ignore patterns gives exit code 0
-and no report.
+nested link conversion options, rule toggles by name and by legacy number, and ignore patterns is saved beside a
+file that has the CRLF line endings that the sample asks for; the exit code is 0 and nothing is reported.
 
 **Editor settings that cannot be used are accepted without error**: A root `.editorconfig` gives `cr` to one file,
 `unset` to another, and unrelated settings (tab indentation and a maximum line length) to all; both files are
-passed, and the exit code is 0 and nothing is reported. The line ending that editor settings do give is not
-observable until formatting exists, so no scenario here asserts its use.
+passed, and the exit code is 0 and nothing is reported.
+
+**Fix option rewrites a CRLF file with the configured line ending**: A configuration asks for `end-of-line: lf` and
+a file has CRLF line endings; with `--fix` the exit code is 0, nothing is reported, and the file holds the same text
+with LF line endings.
+
+**Fix option leaves a compliant file untouched**: A file that already has the configured LF line endings and a last
+write time in 2020 is passed with `--fix`; the exit code is 0, the bytes are the same, and the last write time is
+unchanged, so the file was not written.
+
+**Second fix run finds nothing to repair**: A file with mixed line endings is fixed by a first run; a second run
+with `--fix` gives exit code 0, no `line-ending` report, and the same bytes.
+
+**Fix option keeps the byte order mark and the other text**: A CRLF file with a byte order mark and non-ASCII text
+(accented letters and Japanese characters) and a configuration that asks for LF is passed with `--fix`; the exit
+code is 0 and the file holds the byte order mark, the identical text, and LF line endings.
+
+**Rewrite leaves no temporary file behind**: After `--fix` rewrites a CRLF file, the directory holds only the
+configuration file and the Markdown file.
+
+**Diff option prints the change and writes nothing**: A CRLF file and a configuration that asks for LF are passed
+with `--diff`; the exit code is 1, the output contains the `--- a/` and `+++ b/` header lines and the note
+`\ Line endings change from CRLF to LF`, and the file's bytes are unchanged.
+
+**Diff option prints nothing for a compliant file**: A compliant file is passed with `--diff`; the exit code is 0
+and the output contains neither a diff header nor a hunk marker.
+
+**Line ending of the configuration wins**: A configuration asks for CRLF, the editor settings ask for LF, and the
+file has LF line endings; with `--fix` the exit code is 0 and the file has CRLF line endings.
+
+**Line ending of the editor settings is used when the configuration gives none**: Editor settings ask for CRLF for
+Markdown files and the file has LF line endings; with `--fix` the exit code is 0 and the file has CRLF line endings.
+
+**Line ending that most lines use is kept when nothing is configured**: A file with two CRLF terminators and one LF
+terminator and no configuration or editor settings is passed with `--fix`; the exit code is 0 and every line ending
+is CRLF.
+
+**Mixed line endings are reported by a check and removed by a fix**: A file with two CRLF terminators and one LF
+terminator is passed first without options and then with `--fix`; the first run gives exit code 1 and the output
+contains `a.md:1:1: line-ending Mixed line endings (2 CRLF, 1 LF); expected CRLF`, and the second run gives exit
+code 0 and no `line-ending` report.
+
+**Ignore patterns skip the matching files of a glob**: A configuration ignores `drafts/**` and both `drafts/bad.md`
+and `kept/bad.md` are undecodable; an absolute glob that selects every Markdown file gives exit code 1, a
+`kept/bad.md:1:1: file-encoding-error` report, and no mention of `drafts/bad.md`.
+
+**Ignored file that is named on the command line is processed**: The same configuration and an undecodable
+`drafts/bad.md` that is named explicitly give exit code 1 and a `drafts/bad.md:1:1: file-encoding-error` report.
+
+**Exclusion on the command line still removes a named file**: An undecodable file is named and also excluded with a
+`!` pattern that covers it; the exit code is 0 and no `file-encoding-error` is reported.
 
 ### Boundary conditions
 
@@ -205,6 +275,12 @@ contains `missing.md:1:1: file-read-error File not found`.
 `--validate`, and validation does not run.
 
 **Validate combined with check is rejected**: The exit code is 1 and the output contains an error.
+
+**Validate combined with fix is rejected**: `--validate --fix` gives exit code 1, an error that names `--fix`, and no
+validation output.
+
+**Validate combined with diff is rejected**: `--validate --diff` gives exit code 1, an error that names `--diff`, and
+no validation output.
 
 **Validate combined with the config option is rejected**: `--validate --config a.yaml` gives exit code 1, an error
 that names `--config`, and no validation output.
@@ -267,3 +343,37 @@ decoded are processed; the exit code is 1 and the output contains both the confi
 
 **Reported configuration problem gives a non-zero exit code**: A file with an invalid value (`final-newline: maybe`)
 beside a valid Markdown file gives exit code 1.
+
+**Fix option combined with the check option is rejected**: `--fix --check` and a file give exit code 1 and an error
+that says `--fix cannot be combined with --check or --diff`.
+
+**Fix option combined with the diff option is rejected**: `--fix --diff` and a file give exit code 1 and the same
+error.
+
+**Unreadable editor settings are reported at the Markdown file**: Editor settings for Markdown files are made
+unreadable and a CRLF file is passed with `--fix`; the exit code is 1, the output contains
+`a.md:1:1: config-error Cannot read .editorconfig settings`, and the file's bytes are unchanged. The scenario is
+skipped where the file system lets the user read a file without permissions.
+
+**Invalid grid table is reported at the offending line**: A file whose fourth line is a table border outside any
+valid grid table gives exit code 1 and `a.md:4:1: grid-table-invalid`.
+
+**Document with an invalid grid table is never rewritten**: A CRLF file with an invalid grid table and a
+configuration that asks for LF is passed with `--fix`; the exit code is 1, the output contains
+`a.md:2:1: grid-table-invalid`, and the file's bytes are unchanged.
+
+**Switching off the grid table report does not allow a rewrite**: The same file is passed with `--fix` while the
+configuration switches the `grid-table-invalid` rule off; the exit code is 0, the output does not mention
+`grid-table-invalid`, and the file's bytes are unchanged.
+
+**File with an invalid configuration is never rewritten**: A configuration with an unknown setting and a file with
+mixed line endings are passed with `--fix`; the exit code is 1, the output contains
+`config-error Unknown setting 'bogus'`, and the file's bytes are unchanged.
+
+### Display width
+
+**Display width of a mixed-script line is measured in columns**: No command-line behavior depends on the width of a
+line yet, because the rules that apply a width limit come later. The requirement is therefore verified at the
+Utilities subsystem level: a line with accented, combining, East Asian, and emoji characters is measured, and the
+width counts display columns and not UTF-16 code units; a line padded to a fixed number of columns measures exactly
+that number of columns.

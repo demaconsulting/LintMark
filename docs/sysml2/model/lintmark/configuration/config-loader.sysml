@@ -63,5 +63,9 @@ package LintMark {
         // The loader returns its outcome and every problem as these value types.
         dependency ConfigLoader to ConfigLoadResult;
         dependency ConfigLoader to ConfigError;
+
+        // Rule names in the rules block are resolved to canonical ids, aliases and dropped aliases by the
+        // rule catalog (the configuration parser belongs to this unit).
+        dependency ConfigLoader to RuleCatalog;
     }
 }

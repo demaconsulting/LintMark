@@ -13,8 +13,14 @@ helper. No mocking is applied at any level.
 The configuration scenarios follow the same pattern. The configuration options are passed through
 `Context.Create`, the scenarios assert that `Context` exposes them (`ConfigFile` and `NoConfig`), and `Program.Run`
 passes them on to the real engine, which loads the real configuration files that the scenario wrote to a temporary
-directory; the assertions are on the lines in the log file and on the exit code. The two scenarios that reject a
+directory; the assertions are on the lines in the log file and on the exit code. The scenarios that reject a
 combination of options go through `Program.Main` and assert on the captured standard error.
+
+The fix and diff options follow the same pattern: the flags are passed through `Context.Create`, the scenario asserts
+that `Context` exposes them (`Fix` and `Diff`) together with the paths, and the rejected combination of `--fix` with
+`--check` is also sent through `Program.Main` to show the usage error and the exit code. The writing behavior of
+`--fix` and `--diff` is not repeated here, because the `Engine` subsystem verification covers it with the real
+writer; the `Cli` scenarios stop at the flags and the usage errors.
 
 ### Test Environment
 
@@ -32,12 +38,15 @@ helper. Each holds an empty `.git` directory, so configuration discovery that st
   are used.
 - Positional paths flow from `Context.Create` to the engine; an undecodable file gives a diagnostic and
   exit code 1, and `--check` leaves files unchanged.
-- `--validate` combined with paths is rejected with exit code 1.
+- `--validate` combined with paths, `--check`, `--fix`, `--diff`, or `--no-config` is rejected with exit code 1.
 - `--config` names the configuration file that governs the run and `--no-config` makes the run ignore every
   configuration file; both flow from `Context.Create` through `Program.Run` to the engine, and a problem in the
   named file gives a positioned `config-error` line and exit code 1.
 - `--config` combined with `--no-config`, and `--validate` combined with `--config`, are rejected with exit code 1
   and an error on standard error that names the option.
+- `--fix` and `--diff` flow from the command line to `Context` next to the paths and set only their own flag;
+  `--fix` combined with `--check` is rejected by `Context` and, through `Program.Main`, with exit code 1 and an error
+  on standard error that says that `--fix` cannot be combined with `--check` or `--diff`.
 - Concurrent writers to one `Context` produce intact lines and exit code 1.
 
 ### Test Scenarios
@@ -77,6 +86,10 @@ log contains no diagnostic, and the exit code is 0.
 **Check flag leaves files unchanged**: `--check` and a file path are passed; `Context.Check` is true, the exit
 code is 0, and the file's bytes and last-write time are unchanged.
 
+**Fix and diff flags are parsed next to paths**: `["--silent", "--fix", "a.md"]` and `["--silent", "--diff",
+"a.md"]` are each passed through `Context.Create`; the first context has `Fix` set and `Diff` not, the second has
+`Diff` set and `Fix` not, and both keep `a.md` as their only path.
+
 **Config flag names the configuration file and its problems are reported**: A valid Markdown file and a configuration
 file with an unknown setting name is created; `--silent --log <log> --config <file> <path>` makes
 `Context.ConfigFile` equal the named file, and after `Program.Run` the log contains
@@ -108,5 +121,21 @@ and an error on standard error that names `--validate`.
 **Validate combined with the config option is rejected**: `["--validate", "--config", "a.yaml"]` passed to
 `Program.Main` gives exit code 1 and an error on standard error that names `--config`.
 
+**Validate combined with check is rejected**: `["--validate", "--check"]` passed to `Program.Main` gives exit code 1
+and an error on standard error that names `--check`.
+
+**Validate combined with fix is rejected**: `["--validate", "--fix"]` passed to `Program.Main` gives exit code 1 and
+an error on standard error that names `--fix`.
+
+**Validate combined with diff is rejected**: `["--validate", "--diff"]` passed to `Program.Main` gives exit code 1 and
+an error on standard error that names `--diff`.
+
+**Validate combined with the no-config flag is rejected**: `["--validate", "--no-config"]` passed to `Program.Main`
+gives exit code 1 and an error on standard error that names `--no-config`.
+
 **Config option combined with the no-config flag is rejected**: `["--config", "a.yaml", "--no-config"]` passed to
 `Program.Main` gives exit code 1 and an error on standard error that names `--no-config`.
+
+**Fix combined with check is rejected**: `["--fix", "--check"]` is rejected by `Context.Create` with
+`ArgumentException`, and passed to `Program.Main` gives exit code 1 and an error on standard error that contains
+`--fix cannot be combined with --check or --diff`.

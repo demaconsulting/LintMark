@@ -2,11 +2,8 @@
 # Software Unit Requirements for the EditorConfigResolver Class
 #
 # The EditorConfigResolver class determines the line ending that the .editorconfig files give for a
-# Markdown file. Only the tolerance of settings that cannot be used is observable before files are
-# rewritten, so that is the behavior required in this phase. The resolution of the line ending value
-# itself and the reporting of settings that cannot be read are verified by tests that are not linked to
-# a requirement until the formatting phase adds the matching system requirements. Requirements that
-# depend on the behavior of the editor-settings library list the matching OTS requirements as children.
+# Markdown file, and reports editor settings that cannot be read. Requirements that depend on the behavior of the
+# editor-settings library list the matching OTS requirements as children.
 
 sections:
   - title: LintMark Requirements
@@ -55,3 +52,82 @@ sections:
                   - EditorConfigResolver_Resolve_ManyThreads_ResultsEqualSequential
                 children:
                   - LintMark-OTS-EditorConfig-Concurrency
+
+              - id: LintMark-Configuration-EditorConfigResolver-LineEndingValues
+                title: >-
+                  The EditorConfigResolver class shall report the line ending LF or CRLF when the editor settings
+                  give `lf` or `crlf` for the file, with the property name and the value in any letter case.
+                justification: |
+                  These are the two line endings that the tool can write, and editor settings are written
+                  by hand in whatever letter case the author likes.
+                tests:
+                  - EditorConfigResolver_Resolve_LfSection_ReturnsLf
+                  - EditorConfigResolver_Resolve_CrLfSection_ReturnsCrLf
+                  - EditorConfigResolver_Resolve_UpperCaseValueAndKey_Accepted
+                children:
+                  - LintMark-OTS-EditorConfig-CaseInsensitivity
+
+              - id: LintMark-Configuration-EditorConfigResolver-Precedence
+                title: >-
+                  The EditorConfigResolver class shall use the settings in the order that the editor settings
+                  format defines: a nearer settings file over a farther one for each property, a later section over
+                  an earlier one, a farther file when a nearer one does not give the property, a value of `unset` or
+                  an unusable value in a nearer file over a value in a farther file, and nothing beyond a settings
+                  file that is marked as root.
+                justification: |
+                  Editors and the tool must agree on the line ending of a file, which they can only do by
+                  applying the same precedence rules.
+                children:
+                  - LintMark-OTS-EditorConfig-Layering
+                tests:
+                  - EditorConfigResolver_Resolve_NestedEditorConfigFiles_NearestFileWinsPerProperty
+                  - EditorConfigResolver_Resolve_LessSpecificLaterSection_LaterSectionWins
+                  - EditorConfigResolver_Resolve_MoreSpecificEarlierSection_LaterSectionOverrides
+                  - EditorConfigResolver_Resolve_NoRoot_NearerFileLacksProperty_UsesFartherFile
+                  - EditorConfigResolver_Resolve_RootTrue_StopsSearch
+                  - EditorConfigResolver_Resolve_UnsetInNearerFile_HidesFartherValue
+                  - EditorConfigResolver_Resolve_InvalidValueInNearerFile_HidesFartherValue
+
+              - id: LintMark-Configuration-EditorConfigResolver-SectionPatterns
+                title: >-
+                  The EditorConfigResolver class shall match the sections of a settings file against the path of
+                  the Markdown file relative to the directory of that settings file, with the pattern syntax of the
+                  editor settings format, in a case-sensitive way on every platform, accepting either path
+                  separator.
+                justification: |
+                  A section that matches on one platform and not on another would give a file a different
+                  line ending depending on where the tool runs.
+                children:
+                  - LintMark-OTS-EditorConfig-SectionMatching
+                tests:
+                  - EditorConfigResolver_Resolve_SectionPatterns_MatchPerSpecification
+                  - EditorConfigResolver_Resolve_NestedDirectory_PatternIsRelativeToEditorConfigDirectory
+                  - EditorConfigResolver_Resolve_SectionPatternCase_IsCaseSensitiveOnEveryPlatform
+                  - EditorConfigResolver_Resolve_BackslashSeparators_AreNormalized
+
+              - id: LintMark-Configuration-EditorConfigResolver-FilePaths
+                title: >-
+                  The EditorConfigResolver class shall resolve a relative path of a Markdown file against the
+                  current directory, resolve a file that does not exist yet, report no line ending for a path that
+                  cannot be resolved, and refuse a missing or empty path.
+                justification: |
+                  The tool is run from any folder and may be asked about files that are about to be created.
+                  A path that makes no sense must not stop a run.
+                tests:
+                  - EditorConfigResolver_Resolve_RelativePath_ResolvedAgainstCurrentDirectory
+                  - EditorConfigResolver_Resolve_NonexistentFileInMissingDirectory_StillResolves
+                  - EditorConfigResolver_Resolve_PathWithNullCharacter_NotSpecified
+                  - EditorConfigResolver_Resolve_FileSystemRootPath_NotSpecified
+                  - EditorConfigResolver_Resolve_NullOrEmptyPath_Throws
+
+              - id: LintMark-Configuration-EditorConfigResolver-UnreadableSettings
+                title: >-
+                  The EditorConfigResolver class shall report editor settings that cannot be read as a message on
+                  one line, give no line ending, and report the same message for every file in the directory.
+                justification: |
+                  The caller reports the problem against each Markdown file, and the message must not depend
+                  on which file asked first or contain line breaks.
+                tests:
+                  - EditorConfigResolver_Resolve_UnreadableEditorConfig_ReturnsErrorMessage
+                  - EditorConfigResolver_Resolve_FailedChain_CachedAndReportedForEveryFileInDirectory
+                  - EditorConfigResult_Constructor_InvalidCombination_ThrowsArgumentException

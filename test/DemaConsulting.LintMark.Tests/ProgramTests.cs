@@ -332,6 +332,36 @@ public class ProgramTests
     }
 
     /// <summary>
+    ///     Test that Run with the help flag lists the fix and diff options.
+    /// </summary>
+    [Fact]
+    public void Program_Run_HelpFlag_ListsFixAndDiffOptions()
+    {
+        // Arrange: capture the console output
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var context = Context.Create(["--help"]);
+
+            // Act: execute the operation being tested
+            Program.Run(context);
+
+            // Assert: both options are described, including the combination rule
+            var output = outWriter.ToString();
+            Assert.Contains("--fix", output);
+            Assert.Contains("--diff", output);
+            Assert.Contains("not with --check or --diff", output);
+            Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
     ///     Test that Run with a path argument runs the engine on that file.
     /// </summary>
     [Fact]

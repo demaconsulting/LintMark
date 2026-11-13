@@ -92,6 +92,7 @@ sections:
                   - FileDiscovery_Discover_ExcludeGlob_RemovesMatches
                   - FileDiscovery_Discover_AbsoluteExclude_RemovesMatches
                   - FileDiscovery_Discover_ExcludeMatchingExplicitFile_RemovesIt
+                  - FileDiscovery_DiscoverFiles_ExplicitFileWithExclude_IsRemoved
 
               - id: LintMark-Engine-FileDiscovery-ExcludeDirectory
                 title: >-
@@ -133,6 +134,7 @@ sections:
                 tests:
                   - FileDiscovery_Discover_ExplicitFile_IsNotSubjectToDefaultExcludesOrExtension
                   - FileDiscovery_Discover_DirectoryAndExplicitFileInNodeModules_ReturnsOnlyTheFile
+                  - FileDiscovery_DiscoverFiles_NamedFileInsideNodeModules_IsExplicitAndKept
 
               - id: LintMark-Engine-FileDiscovery-DistinctFiles
                 title: >-
@@ -151,6 +153,7 @@ sections:
                   A stable order is the basis for reproducible output.
                 tests:
                   - FileDiscovery_Discover_ArgumentOrder_DoesNotAffectSortedResult
+                  - FileDiscovery_DiscoverFiles_AnyMatches_ResultOrderedByOrdinalPath
 
               - id: LintMark-Engine-FileDiscovery-CaseRules
                 title: >-
@@ -171,6 +174,7 @@ sections:
                   Matching everything or nothing for it would hide the mistake.
                 tests:
                   - FileDiscovery_Discover_BlankPattern_ThrowsArgumentException
+                  - FileDiscovery_DiscoverFiles_EmptyPattern_Throws
 
               - id: LintMark-Engine-FileDiscovery-NullArgument
                 title: >-
@@ -182,6 +186,8 @@ sections:
                 tests:
                   - FileDiscovery_Discover_NullArguments_ThrowArgumentNullException
                   - FileDiscovery_Discover_NullElement_ThrowsArgumentNullException
+                  - FileDiscovery_DiscoverFiles_NullArguments_Throw
+                  - FileDiscovery_IsIgnored_NullArgument_Throws
 
               - id: LintMark-Engine-FileDiscovery-SpellingChoice
                 title: >-
@@ -205,3 +211,74 @@ sections:
                   - FileDiscovery_Discover_BackslashGlob_IsAccepted
                   - FileDiscovery_Discover_BackslashLiteralPath_FindsFile
                   - FileDiscovery_Discover_BackslashLiteralExclude_RemovesFiles
+
+              - id: LintMark-Engine-FileDiscovery-ExplicitProvenance
+                title: >-
+                  The FileDiscovery class shall tell for each selected file whether it was named as an argument,
+                  counting an existing file or a path without wildcards that an argument names, also when another
+                  argument or another spelling selects the same file, and not counting a file that only a
+                  directory, a glob, or the default selection found.
+                justification: |
+                  Naming a file is a deliberate choice that later steps honor, for example by processing a
+                  file that a configuration would otherwise ignore. They can only do so when they know
+                  how each file was selected.
+                tests:
+                  - FileDiscovery_DiscoverFiles_NamedFile_IsExplicit
+                  - FileDiscovery_DiscoverFiles_GlobMatch_IsNotExplicit
+                  - FileDiscovery_DiscoverFiles_DirectoryArgument_FilesAreNotExplicit
+                  - FileDiscovery_DiscoverFiles_DefaultPattern_FilesAreNotExplicit
+                  - FileDiscovery_DiscoverFiles_NamedAndGlobbed_IsExplicit
+                  - FileDiscovery_DiscoverFiles_MissingLiteralPath_IsExplicit
+                  - FileDiscovery_DiscoverFiles_CaseVariantSpellings_KeepsSmallestAndExplicit
+
+              - id: LintMark-Engine-FileDiscovery-IgnoredFiles
+                title: >-
+                  The FileDiscovery class shall tell whether a file matches any of a list of `ignore` patterns,
+                  with `*` and `**` wildcards written with either path separator, at any depth, and with letter
+                  case compared as the platform's file names are, and shall match nothing for an empty list.
+                justification: |
+                  The `ignore` setting of a configuration is a list of the same kind of patterns that users
+                  type on the command line, and must mean the same thing.
+                children:
+                  - LintMark-OTS-FileSystemGlobbing-Match
+                  - LintMark-OTS-FileSystemGlobbing-CaseSensitivity
+                tests:
+                  - FileDiscovery_IsIgnored_PatternMatch_True
+                  - FileDiscovery_IsIgnored_NoMatch_False
+                  - FileDiscovery_IsIgnored_GlobStarStar_MatchesAtAnyDepth
+                  - FileDiscovery_IsIgnored_FileDirectlyUnderRoot_PatternWithoutDirectoryMatches
+                  - FileDiscovery_IsIgnored_DefaultIgnorePatterns_MatchGitNodeModulesAndGenerated
+                  - FileDiscovery_IsIgnored_EmptyPatternList_False
+                  - FileDiscovery_IsIgnored_BackslashPattern_Matches
+                  - FileDiscovery_IsIgnored_CaseRules_FollowPlatform
+
+              - id: LintMark-Engine-FileDiscovery-IgnoreRoot
+                title: >-
+                  The FileDiscovery class shall match an `ignore` pattern against the path of the file relative to
+                  a given directory.
+                justification: |
+                  A pattern written in a configuration file refers to the folder of that file, not to the folder
+                  the tool was started in.
+                tests:
+                  - FileDiscovery_IsIgnored_PatternRelativeToConfigDirectory_Matches
+
+              - id: LintMark-Engine-FileDiscovery-IgnoreOutsideRoot
+                title: >-
+                  The FileDiscovery class shall never report a file as ignored when the file lies outside the
+                  directory that the patterns are relative to.
+                justification: |
+                  A pattern cannot describe a file that is not below the folder that it refers to, and
+                  guessing would skip files that the user never listed.
+                tests:
+                  - FileDiscovery_IsIgnored_FileOutsideRoot_False
+
+              - id: LintMark-Engine-FileDiscovery-ValidatesDiscoveredFile
+                title: >-
+                  The DiscoveredFile record shall refuse a missing or empty path and shall expose the path and the
+                  provenance that it was created with.
+                justification: |
+                  A selected file without a path cannot be read or reported. Rejecting it at the point of
+                  creation keeps every later step free of that case.
+                tests:
+                  - DiscoveredFile_Constructor_ValidArguments_KeepsValues
+                  - DiscoveredFile_Constructor_MissingPath_Throws

@@ -13,6 +13,16 @@ tests verify their content. Some assertions also run the span-tiling check of th
 (`SpanTilingAssertions`, test support code described in the `Document` subsystem verification) on a small
 fixture. The structure over a large corpus is verified separately at subsystem level.
 
+The scenarios about the grid table fallback check the two members that a fallback adds to the result,
+`GridFallback` (the 1-based line and column of the offending line, or null) and `IsFormatUnsafe` (true exactly
+when the location is present). They use small documents in which the offending line is known by construction, and
+assert on the exact line and column. One scenario parses the generated adversarial documents of the test support
+class `RandomDocuments` (fixed seed 20260511, 500 documents per family) and checks every reported location with a
+private helper: it must be line 1, column 1 (damage known but not located), or the position of the first plus sign
+of a border-shaped line, preceded only by blanks and quote markers and followed only by border characters; the
+scenario also requires that at least one generated document takes the fallback, so that it cannot pass vacuously.
+No double is used.
+
 The scenarios for `GetLines` and `GetContinuationPrefix` are supporting verification: the line geometry has no
 requirement and no production caller yet, and its tests protect the behavior until the first consumer exists.
 
@@ -45,6 +55,15 @@ N/A - standard test environment.
 - A line that looks like a grid table row but is not a valid grid table leaves blocks that do not overlap and
   lie inside their parents; a valid grid table is still a grid table; a document with a valid and an invalid
   grid table is read without grid tables (the deliberate fallback of the design).
+- The fallback is never silent: a document that took it reports the line and column of the first border-shaped
+  line that is not part of a valid table (also behind quote markers, list markers, and indentation, with or without
+  alignment colons and a trailing plus sign), never the line of a valid table beside it, and is format-unsafe; the
+  location is line 1, column 1 when the damage is known but no line can be named; border-looking lines inside fenced
+  code, indented code, and HTML blocks, valid grid tables, plain documents, and the empty document leave the document
+  not format-unsafe. Locations compare by value, keep the line and column they were created with, and are rejected
+  when either is below one.
+- Every location that the adversarial documents produce is line 1, column 1 or a border character on a
+  border-shaped line.
 - A very large document is parsed within a generous time bound (a check against quadratic behavior).
 - Concurrent calls give identical results.
 - Invalid arguments are rejected with the documented exception.
@@ -177,7 +196,32 @@ block (a regression guard for the fallback).
 
 **Document with a valid and an invalid grid table is read without grid tables**: A valid grid table followed
 by a grid-table-looking line that is not valid reports no `GridTable` block, and the blocks nest. This
-documents the deliberate cost of the fallback.
+documents the deliberate cost of the fallback; the scenarios below verify that it is reported.
+
+**Invalid grid-table-looking line marks the document format-unsafe at that line**: Documents with a border-shaped
+line that is not a valid grid table are parsed, and the result is format-unsafe with the location of the line and the
+column of its first plus sign: after a paragraph (2:1), after a valid table (5:1), alone after text (3:1), indented
+by two spaces (2:3, and 3:3 after a blank line), inside a block quote (2:3) and directly after a quote without the
+quote marker (2:1), between list items (2:1), after a heading and a paragraph (4:1), with alignment colons (2:1), and
+inside a list item after a valid table in the same item (6:3).
+
+**The location is the invalid line and not a line of a valid table**: A valid grid table (also with a header
+separator made of equal signs) followed by a paragraph and an invalid border gives the line of the invalid
+border (5, 6, and 8), column 1.
+
+**Valid grid table only is not marked**: A document that holds only a valid grid table has one `GridTable` block,
+no location, and is not format-unsafe.
+
+**Documents without grid-table-looking lines are not marked**: Plain text, a document with headings, lists, a quote,
+and a pipe table, and the empty document are not format-unsafe and have no location; the block list is empty exactly
+when the text is empty.
+
+**A fallback document still produces nested blocks**: A document with a heading, a paragraph that holds an invalid
+border, and a list gives the kinds heading, paragraph, list, list item, paragraph in that order, the paragraph text is
+`para` and the border line, the document is format-unsafe, and the span-tiling check reports no violation.
+
+**Grid table locations compare by value**: Two locations with equal line and column are equal and have equal hash
+codes; a different line or column makes them different.
 
 **Concurrent calls give identical results**: Several different documents (with lists, quotes, footnotes,
 definitions in containers, an unclosed fence, tables, a document that takes the grid table fallback, and a valid
@@ -185,6 +229,21 @@ grid table next to a dropped footnote that holds a definition) are parsed on man
 sequential result of its document.
 
 ##### Boundary conditions
+
+**Border-looking line inside code or HTML is ordinary text and does not mark the document**: A line `+---+---+` inside
+a backtick fence (also after a paragraph), inside a tilde fence, inside indented code, and inside an HTML block is
+not located: the document is not format-unsafe, has no location, and the literal block is a block of its own.
+
+**Border without a trailing plus sign is located like any other border**: `+---` and `+---+---` after a paragraph are
+located at 2:1 and the document is format-unsafe.
+
+**An offending line that cannot be located is reported at line 1, column 1**: A grid table opener without a closing
+border, followed by text, is read by the first reading as a grid table block, so no remaining line can be named; the
+document is format-unsafe and the location is 1:1.
+
+**Locations of the adversarial documents are plausible**: Every generated adversarial document that takes the
+fallback reports 1:1 or the first plus sign of a border-shaped line, preceded only by blanks and quote markers; at
+least one document takes the fallback, and the failure message lists the first escaped documents.
 
 **Empty document has no blocks**: An empty document parses to an empty block list.
 
@@ -230,6 +289,12 @@ this scenario has no requirement link.
 ##### Error handling
 
 **Null source is rejected**: `Parse` with a null source throws `ArgumentNullException`.
+
+**A grid table location keeps a valid position**: The smallest position (line 1, column 1) and another position keep
+the line and column they were created with.
+
+**A grid table location below line one or column one is rejected**: A line of zero or a negative line, and a column
+of zero or a negative column, each throw `ArgumentOutOfRangeException`.
 
 ##### Supporting scenarios for line geometry
 

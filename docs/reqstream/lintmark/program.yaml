@@ -29,6 +29,7 @@ sections:
               - Program_Run_WithQuestionMarkFlag_DisplaysUsage
               - Program_Run_WithHelpFlag_ListsCheckOptionAndPaths
               - Program_Run_WithHelpFlag_ListsConfigOptions
+              - Program_Run_HelpFlag_ListsFixAndDiffOptions
 
           - id: LintMark-Program-Validate
             title: The Program class shall support --validate flag to invoke the self-validation framework.

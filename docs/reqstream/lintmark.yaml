@@ -213,44 +213,64 @@ sections:
 
       - id: LintMark-System-ReportFailures
         title: >-
-          The tool shall report each file that cannot be read or decoded, and only such files, on its own
-          line as `path:line:col: rule-id message`.
+          The tool shall report each problem it finds in a selected Markdown file, such as a file that cannot
+          be read or decoded or content that does not follow the preferred style, on its own line as
+          `path:line:col: rule-id message`.
         tags: [system]
         justification: |
-          Users and build pipelines need to be told precisely which file cannot be processed and why,
-          in a regular format that editors and scripts can read. Silence for good files keeps logs
-          short.
+          Users and build pipelines need to be told precisely which file has a problem and what it is,
+          in a regular format that editors and scripts can read. Every rule identifier in a report must
+          be one that the tool documents, so that users can look it up and switch it off where that is
+          allowed.
         children:
           - LintMark-Engine-FailureReport
-          - LintMark-Engine-SilentOnSuccess
           - LintMark-Document-InvalidContent
           - LintMark-Document-Positions
+          - LintMark-Reporting-TextFormat
+          - LintMark-Linting-Diagnostics
+          - LintMark-Linting-RuleRegistry
         tests:
           - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
+          - LintMark_LineEnding_MixedFile_ReportsAndFixes
+          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
+
+      - id: LintMark-System-SilentOnSuccess
+        title: The tool shall report nothing for a selected Markdown file in which it finds no problem.
+        tags: [system]
+        justification: |
+          Silence for good files keeps the logs of large runs short and makes any output a sign that
+          something needs attention.
+        children:
+          - LintMark-Engine-SilentOnSuccess
+        tests:
+          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
+          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
 
       - id: LintMark-System-FailureExitStatus
         title: >-
-          The tool shall exit with a non-zero status when any file cannot be read or decoded, and with zero
-          when every file is processed successfully.
+          The tool shall exit with a non-zero status when it reported a problem, and with zero when it
+          reported none.
         tags: [system]
         justification: |
           Build pipelines and scripts act on the exit status without reading the output, so it must
-          distinguish a clean run from a run with failures.
+          distinguish a clean run from a run with problems.
         children:
           - LintMark-Engine-FailureExitStatus
+          - LintMark-Reporting-ExitStatus
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
+          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
 
       - id: LintMark-System-Check
         title: The tool shall accept a check option that reports problems without modifying any file.
         tags: [system]
         justification: |
           CI/CD pipelines and pre-commit hooks need a mode that can only observe files. Accepting the
-          option explicitly lets scripts state that intent and keeps their command lines valid when
-          file-modifying modes are added.
+          option explicitly lets scripts state that intent, also next to modes that modify files. The
+          problems it reports are those that the fix option would remove or refuse to remove.
         children:
           - LintMark-Cli-Check
         tests:
@@ -258,12 +278,13 @@ sections:
 
       - id: LintMark-System-DeterministicOutput
         title: >-
-          The tool shall produce the same output and exit code for the same inputs regardless of how many
-          files are processed concurrently or in what order the arguments are given.
+          The tool shall produce the same output, the same files, and the same exit code for the same inputs
+          regardless of how many files are processed concurrently or in what order the arguments are given.
         tags: [system]
         justification: |
-          Build logs, code review comments, and automated comparisons depend on reproducible output.
-          Reports must therefore never depend on scheduling or on the order in which paths were typed.
+          Build logs, code review comments, and automated comparisons depend on reproducible output, and
+          a rewrite must give the same files however the work was scheduled. Reports must therefore
+          never depend on scheduling or on the order in which paths were typed.
         children:
           - LintMark-Engine-DeterministicOrder
           - LintMark-Cli-ThreadSafeOutput
@@ -271,14 +292,16 @@ sections:
           - LintMark-Configuration-ConcurrentUse
           - LintMark-Configuration-ImmutableResults
           - LintMark-Engine-ConfigurationIndependence
+          - LintMark-Engine-DeterministicFix
+          - LintMark-Reporting-DeterministicOutput
         tests:
           - LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder
           - LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder
 
       - id: LintMark-System-ValidateExclusive
         title: >-
-          The tool shall reject the validate option combined with paths, the check option, the config option, or
-          the no-config option with an error.
+          The tool shall reject the validate option combined with paths, the check option, the fix option, the
+          diff option, the config option, or the no-config option with an error.
         tags: [system]
         justification: |
           Self-validation is a separate mode of operation. Silently ignoring file or configuration
@@ -289,6 +312,8 @@ sections:
         tests:
           - LintMark_ValidateWithPaths_Combined_ReturnsError
           - LintMark_ValidateWithCheck_Combined_ReturnsError
+          - LintMark_ValidateWithFix_Combined_ReturnsError
+          - LintMark_ValidateWithDiff_Combined_ReturnsError
           - LintMark_ValidateWithConfig_Combined_ReturnsError
           - LintMark_ValidateWithNoConfig_Combined_ReturnsError
 
@@ -394,6 +419,8 @@ sections:
         children:
           - LintMark-Configuration-Settings
           - LintMark-Configuration-EquivalentLayouts
+          - LintMark-Configuration-RuleRegistryUse
+          - LintMark-Linting-RuleRegistry
         tests:
           - LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess
 
@@ -510,7 +537,7 @@ sections:
 
       - id: LintMark-System-ConfigErrorOrder
         title: >-
-          The tool shall order configuration problems together with file failures by path and then by
+          The tool shall order configuration problems together with the other problems by path and then by
           position.
         tags: [system]
         justification: |
@@ -552,10 +579,268 @@ sections:
         justification: |
           Projects keep editor settings for other file types and tools in the same files. Settings meant for
           them, such as an unsupported or unset line ending, malformed lines, or unrelated properties, must
-          never break a run. The line ending that the editor settings do give takes effect once files are
-          rewritten, so the requirement to use it is added with the formatter, which is the first time it
-          can be observed at system level.
+          never break a run. The line ending that the editor settings do give is used like the one of a
+          configuration file, and settings that cannot be read at all are reported.
         children:
           - LintMark-Configuration-EditorConfigTolerance
         tests:
           - LintMark_EditorConfig_UnsupportedOrUnusedSettings_Provided_ReturnsSuccess
+
+      - id: LintMark-System-EditorSettingsProblems
+        title: >-
+          The tool shall report `.editorconfig` settings that apply to a Markdown file but cannot be read as a
+          configuration problem at line 1 and column 1 of that Markdown file.
+        tags: [system]
+        justification: |
+          Settings that cannot be read leave the tool without the line ending that the project asked
+          for. Using another one in silence would rewrite files in a style nobody chose, so the problem
+          must be shown. The Markdown file is the only place that the tool can point to, because the
+          settings file may be unreadable as a whole.
+        children:
+          - LintMark-Configuration-EditorSettingsProblems
+          - LintMark-Engine-EditorSettingsProblems
+        tests:
+          - LintMark_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile
+
+      - id: LintMark-System-FixOption
+        title: >-
+          The tool shall accept a fix option that rewrites each selected file so that it follows the preferred
+          style.
+        tags: [system]
+        justification: |
+          Reporting problems is not enough for large documentation sets. Users want the tool to repair
+          what it can, and a second run of the fix option must find nothing more to repair.
+        children:
+          - LintMark-Cli-Fix
+          - LintMark-Engine-Fix
+          - LintMark-Formatting-ApplyEdits
+        tests:
+          - LintMark_FixFlag_CrlfFile_RewritesToLf
+          - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
+          - LintMark_FixFlag_Twice_SecondRunReportsNothing
+
+      - id: LintMark-System-FixReportsRemaining
+        title: >-
+          The tool shall report with the fix option only the problems that remain after the files were
+          rewritten.
+        tags: [system]
+        justification: |
+          A problem that was repaired must not be reported as if it were still there, or a pipeline that
+          fixes and then checks could never succeed. Problems that the tool cannot repair must still
+          fail the run.
+        children:
+          - LintMark-Engine-FixReportsRemaining
+          - LintMark-Linting-Diagnostics
+        tests:
+          - LintMark_FixFlag_CrlfFile_RewritesToLf
+          - LintMark_FixFlag_Twice_SecondRunReportsNothing
+
+      - id: LintMark-System-FixKeepsByteOrderMark
+        title: The tool shall keep the byte order mark of a file that it rewrites.
+        tags: [system]
+        justification: |
+          A byte order mark is part of how the author's tools recognize the encoding of the file.
+          Removing or adding it is a change that nobody asked for.
+        children:
+          - LintMark-Engine-FixKeepsByteOrderMark
+          - LintMark-Document-WriteBack
+        tests:
+          - LintMark_FixFlag_BomFile_KeepsBomAndText
+
+      - id: LintMark-System-FixKeepsOtherText
+        title: >-
+          The tool shall leave the text of a rewritten file exactly as it was wherever the preferred style
+          requires no change or the author suppressed the rule.
+        tags: [system]
+        justification: |
+          Rewriting must change only what the style asks for. Every other character is the author's, and
+          an author who switched a rule off for a passage expects the passage to stay as written.
+          Only line endings are rewritten by the tool as shipped, so the system tests show this for
+          files that need no change.
+        children:
+          - LintMark-Formatting-VerbatimByDefault
+          - LintMark-Formatting-SuppressedBlocksVerbatim
+        tests:
+          - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
+          - LintMark_FixFlag_BomFile_KeepsBomAndText
+
+      - id: LintMark-System-FixExclusive
+        title: The tool shall reject the fix option combined with the check option or the diff option with an error.
+        tags: [system]
+        justification: |
+          Asking to check only and to modify files in the same command contradict each other. Choosing
+          one silently could modify files that the user meant only to look at.
+        children:
+          - LintMark-Cli-FixExclusive
+        tests:
+          - LintMark_FixWithCheck_Combined_ReturnsError
+          - LintMark_FixWithDiff_Combined_ReturnsError
+
+      - id: LintMark-System-DiffOption
+        title: >-
+          The tool shall accept a diff option that prints a unified diff of what the fix option would change.
+        tags: [system]
+        justification: |
+          Users and reviewers want to see a rewrite before it is made, in the form that code review and
+          patch tools already understand.
+        children:
+          - LintMark-Cli-Diff
+          - LintMark-Engine-Diff
+          - LintMark-Reporting-UnifiedDiff
+        tests:
+          - LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing
+          - LintMark_DiffFlag_CleanFile_PrintsNothing
+
+      - id: LintMark-System-NoWriteWithoutFix
+        title: The tool shall modify no file unless the fix option is given.
+        tags: [system]
+        justification: |
+          Checking and previewing must be safe to run anywhere, on any files, at any time. Only an
+          explicit request may change the user's files.
+        children:
+          - LintMark-Engine-NoWriteWithoutFix
+        tests:
+          - LintMark_CheckFlag_Provided_LintsWithoutWriting
+          - LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing
+
+      - id: LintMark-System-LineEndingStyle
+        title: >-
+          The tool shall give a file the line ending named by the `end-of-line` setting of its configuration,
+          otherwise the one named by its `.editorconfig` settings, otherwise the one that most of its lines use.
+        tags: [system]
+        justification: |
+          Projects decide their line ending in a configuration file or in their editor settings, and
+          files that nobody decided about must not be converted wholesale. The order follows the
+          specificity of the source: the tool's own configuration first, the shared editor settings
+          next, and the file's own habit last.
+        children:
+          - LintMark-Engine-LineEndingStyle
+          - LintMark-Configuration-EditorConfigLineEnding
+          - LintMark-Formatting-LineEndingTarget
+        tests:
+          - LintMark_LineEnding_ConfigWins_FixWritesCrlf
+          - LintMark_LineEnding_EditorConfigUsed_FixWritesCrlf
+          - LintMark_LineEnding_MajorityUsed_FixWritesMajority
+
+      - id: LintMark-System-LineEndingReport
+        title: >-
+          The tool shall report a file whose line endings are not all the line ending that the file should
+          have as a `line-ending` problem.
+        tags: [system]
+        justification: |
+          Mixed or unwanted line endings produce noisy changes in version control and confuse editors.
+          The fix option repairs them, and a check must show them.
+        children:
+          - LintMark-Formatting-LineEndingViolation
+          - LintMark-Reporting-TextFormat
+        tests:
+          - LintMark_LineEnding_MixedFile_ReportsAndFixes
+
+      - id: LintMark-System-AtomicReplace
+        title: >-
+          The tool shall never leave a partly written file or a temporary file behind when it rewrites a
+          file.
+        tags: [system]
+        justification: |
+          A run that is interrupted, or a disk that fills up, must not cost the user a document. The
+          file is either the old one or the new one, and the directory holds nothing else.
+        children:
+          - LintMark-Engine-AtomicReplace
+        tests:
+          - LintMark_FixFlag_Rewrite_LeavesNoTemporaryFiles
+
+      - id: LintMark-System-SafeRewrite
+        title: >-
+          The tool shall leave a file exactly as it is, and report why, when it cannot show that rewriting it
+          keeps the meaning of the document.
+        tags: [system]
+        justification: |
+          A formatter that damages a document is worse than none. Rewriting is therefore allowed only
+          when rendering, structure, and stability of the result have been checked, and a refusal is
+          reported so that it cannot pass unnoticed. Line endings do not change the text, so they are
+          rewritten without the text checks; the text checks matter for the rules that change text.
+          The tool as shipped does not yet have such a rule, so the system tests show the refusals that
+          do not depend on one, and the refusals caused by a rule that damages a document are shown by
+          the Engine subsystem tests with deliberately faulty rules.
+        children:
+          - LintMark-Engine-SafeRewrite
+          - LintMark-Safety-HtmlEquivalence
+          - LintMark-Safety-StructureEquivalence
+          - LintMark-Safety-Idempotency
+          - LintMark-Safety-ReportsDifference
+          - LintMark-Formatting-ConflictingEdits
+        tests:
+          - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
+          - LintMark_FixFlag_InvalidConfig_LeavesFileUntouched
+
+      - id: LintMark-System-GridTableInvalid
+        title: >-
+          The tool shall report a document that contains a line that looks like the border of a grid table
+          but is not part of a valid grid table as a `grid-table-invalid` problem at that line.
+        tags: [system]
+        justification: |
+          A table that is written wrongly is read by the Markdown parser as ordinary text, and a rewrite
+          that treats it as text would change it. The author must be told which line to repair.
+        children:
+          - LintMark-Document-GridFallback
+          - LintMark-Engine-GridTableInvalid
+        tests:
+          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
+
+      - id: LintMark-System-GridTableNeverRewritten
+        title: >-
+          The tool shall never rewrite a document that contains a line that looks like the border of a grid
+          table but is not part of a valid grid table, whether or not the problem is reported.
+        tags: [system]
+        justification: |
+          The document cannot be understood reliably, so no rewrite can be shown to be safe.
+          Switching off the report of the problem must not switch off this protection.
+        children:
+          - LintMark-Engine-GridTableNeverRewritten
+          - LintMark-Formatting-FormatUnsafeUntouched
+        tests:
+          - LintMark_GridTableInvalid_Disabled_StillNotRewritten
+          - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
+
+      - id: LintMark-System-IgnorePatterns
+        title: >-
+          The tool shall skip a selected file that matches an `ignore` pattern of its configuration, with the
+          pattern taken relative to the directory of that configuration file.
+        tags: [system]
+        justification: |
+          Generated, vendored, or draft documents belong to a project without being its to format.
+          Listing them once in the configuration is simpler than excluding them in every command.
+        children:
+          - LintMark-Engine-IgnorePatterns
+        tests:
+          - LintMark_IgnorePatterns_GlobSelected_SkipsMatches
+          - LintMark_IgnorePatterns_ExcludeOnCommandLine_StillApplies
+
+      - id: LintMark-System-IgnoreExplicitFile
+        title: >-
+          The tool shall process a file that is named on the command line even when an `ignore` pattern
+          matches it.
+        tags: [system]
+        justification: |
+          Naming a file is a deliberate choice, as it already is for files in third-party folders. It
+          also keeps pre-commit hooks that pass the files they were given predictable.
+        children:
+          - LintMark-Engine-IgnoreExplicitFile
+        tests:
+          - LintMark_IgnorePatterns_ExplicitFile_IsProcessed
+
+      - id: LintMark-System-DisplayWidth
+        title: >-
+          The tool shall measure the length of a line of text in terminal display columns, counting wide
+          East Asian characters and emoji as two columns and combining and control characters as none.
+        tags: [system]
+        justification: |
+          Line length limits exist for readers, and readers see columns, not characters. A limit that
+          counted characters would make Japanese, Korean, Chinese, and emoji text look much longer
+          than the limit. The measurement is not observable through the command line yet, because the
+          rules that apply a width limit are added later, so the only evidence available at this
+          level is the Utilities subsystem test.
+        children:
+          - LintMark-Utilities-DisplayWidth
+        tests:
+          - UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns

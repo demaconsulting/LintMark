@@ -12,5 +12,6 @@ package LintMark {
         }
 
         part pathHelpers : PathHelpers;
+        part textWidth : TextWidth;
     }
 }

@@ -21,8 +21,8 @@ its outputs, and use them][workflow]
 
 ## Features
 
-LintMark currently provides the following (markdown linting and formatting rules are planned but not yet
-implemented):
+LintMark currently provides the following (the individual markdown linting and formatting rules are planned but not
+yet implemented; the line endings of a file are the first thing that is checked and rewritten):
 
 - **Markdown File Discovery**: Select files by path, directory, or glob pattern (with `!` exclusions);
   with no arguments every `**/*.md` file under the current directory is used
@@ -30,14 +30,27 @@ implemented):
   files that cannot be read or parsed are reported as `path:line:col: rule-id message`
 - **Deterministic Parallel Processing**: Files are processed in parallel and reported in a stable order, so
   output does not depend on scheduling
-- **Check Mode**: `--check` states that files are only checked, never modified (currently the default and only
-  behavior)
+- **Check Mode**: Without `--fix`, files are only checked and never modified; `--check` states this explicitly
+- **Fix Mode**: `--fix` rewrites each file into its canonical form (currently its line endings) and reports what
+  remains; a file that is already compliant is not touched
+- **Diff Preview**: `--diff` prints a unified diff of what `--fix` would change and writes no file
+- **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
+  (fences, grid table borders, and so on), and is stable when formatted again; otherwise the file is refused
+  (`safety-html-mismatch`, `safety-structure-mismatch`, `safety-not-idempotent`) and left as it was
+- **Atomic Writes**: A rewrite replaces the file in one step, keeps its permissions, and never overwrites a file
+  that changed after it was read
+- **Line Endings**: The line ending of a file comes from `end-of-line`, else `.editorconfig`, else the file's own
+  majority; a deviation is reported as `line-ending` and fixed by `--fix`
+- **Grid Table Protection**: A line that looks like a grid table border but is not part of a valid table is
+  reported as `grid-table-invalid` and the file is never rewritten
+- **Ignore Patterns**: The `ignore` patterns of the configuration leave matching files alone (files named on the
+  command line are always processed)
 - **Configuration**: An optional `.lintmark.yaml` (nearest file wins, no merging) or an explicit `--config <file>`
   is found, read, and validated, and every problem is reported as `path:line:col: config-error message`;
   `--no-config` uses the built-in defaults; the line ending can also come from `.editorconfig`
 - **Standardized Command-Line Interface**: Context class handling common arguments
-  (`--version`, `--help`, `--silent`, `--validate`, `--results`, `--depth`, `--log`, `--check`, `--config`,
-  `--no-config`)
+  (`--version`, `--help`, `--silent`, `--validate`, `--results`, `--depth`, `--log`, `--check`, `--fix`, `--diff`,
+  `--config`, `--no-config`)
 - **Self-Validation**: Built-in validation tests with TRX/JUnit output
 - **Multi-Platform Support**: Builds and runs on Windows, Linux, and macOS
 - **Multi-Runtime Support**: Targets .NET 10 and 11
@@ -77,8 +90,14 @@ lintmark "docs/**/*.md"
 # Exclude files with a leading ! (quote it as well)
 lintmark "docs/**/*.md" "!docs/generated/**"
 
-# Report problems only; never modify a file (this is currently the only behavior)
+# Report problems only; never modify a file (this is the default)
 lintmark --check docs
+
+# Rewrite files into canonical form when every safety check passes, then report what remains
+lintmark --fix docs
+
+# Preview what --fix would change as a unified diff; no file is written
+lintmark --diff docs
 
 # Use an explicit configuration file instead of discovering .lintmark.yaml
 lintmark --config config/lintmark.yaml docs
@@ -116,6 +135,8 @@ lintmark [options] [paths...]
 | ------------------------------------- | ------------------------------------------------------------ |
 | `paths...`                            | Files, directories, or globs to process; `!pattern` excludes |
 | `--check`                             | Report problems without writing any file (the default)       |
+| `--fix`                               | Rewrite files when every safety check passes                 |
+| `--diff`                              | Print a unified diff of what `--fix` would change            |
 | `--config <file>`                     | Use this configuration file instead of discovering it        |
 | `--no-config`                         | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults    |
 | `-v`, `--version`                     | Display version information                                  |
@@ -130,8 +151,8 @@ lintmark [options] [paths...]
 
 LintMark is configured with an optional `.lintmark.yaml` file. Every setting has a built-in default, so a file only
 lists the settings it changes. This release finds, reads, and validates the configuration that applies to each
-Markdown file and reports every problem in it; the validated settings are not applied yet, because no linting or
-formatting rule runs in this release.
+Markdown file and reports every problem in it. It applies `end-of-line`, `ignore`, and the `grid-table-invalid`
+entry of `rules`; the other settings are validated and stored, but no linting or formatting rule uses them yet.
 
 - **Discovery**: For each Markdown file the search starts in the file's directory and walks up. The nearest
   `.lintmark.yaml` wins and files are never merged. The search stops after the repository root (the first directory
@@ -140,8 +161,9 @@ formatting rule runs in this release.
   and disables discovery. **`--no-config`** ignores both `.lintmark.yaml` and `.editorconfig` and uses the built-in
   defaults. The two options cannot be combined with each other, and neither can be combined with `--validate`.
 - **Line endings**: `end-of-line` in the configuration wins, then the `end_of_line` property of `.editorconfig`
-  (only `lf` and `crlf` are used; other values mean "not specified"), then the file's own line endings, which later
-  releases apply. `--config` does not disable `.editorconfig`; `--no-config` does.
+  (only `lf` and `crlf` are used; other values mean "not specified"), then the file's own majority line ending
+  (LF on a tie). The result is applied: `line-ending` is reported for a deviation, and `--fix` rewrites the file.
+  `--config` does not disable `.editorconfig`; `--no-config` does.
 - **Strict checking**: Setting names and word values are lower-case and case-sensitive; numbers and booleans are
   plain, unquoted values; unknown settings, duplicate settings, and settings with no value are errors.
 - **Errors**: Problems are reported as `path:line:col: config-error message` with 1-based positions in the
@@ -177,8 +199,8 @@ The `rules` setting switches rules on or off by identifier or markdownlint alias
 `descriptive-link-text`,
 `table-grid-unformatted`, and `dollar-sign-in-shell-code` are off by default. The `ignore` patterns replace the
 defaults (`.git/**`, `node_modules/**`, `**/.venv/**`, `**/generated/**`, `**/thirdparty/**`, `.agent-logs/**`);
-they are accepted and checked but not yet applied. See the [User Guide][link-guide] for the complete rule list and
-every detail.
+they are relative to the directory of the configuration file, and a file named on the command line is always
+processed. See the [User Guide][link-guide] for the complete rule list and every detail.
 
 This sample sets every setting to a value that differs from its default (`heading-style`, `code-block-style`, and
 `trailing-whitespace` accept only one value, so they keep it):
@@ -229,19 +251,28 @@ bullet: asterisk
 
 ## Output and Exit Codes
 
-Nothing is written for files that are read and parsed successfully with a valid configuration. Each file that
-cannot be processed, and each configuration problem, is reported on standard error, one line per problem, in the
-form `path:line:col: rule-id message`. Paths are relative to the current directory and use `/` separators; lines
-are ordered by path and then by position.
+Nothing is written for files that are read and parsed successfully with a valid configuration and nothing to fix.
+Each problem is reported on standard error, one line per problem, in the form `path:line:col: rule-id message`.
+Paths are relative to the current directory and use `/` separators; lines are ordered by path and then by position.
 
 ```text
 docs/broken.md:2:3: file-encoding-error Invalid UTF-8 byte sequence
+docs/guide.md:1:1: line-ending Line endings are CRLF; expected LF
+a.md:3:1: grid-table-invalid Line looks like a grid table border but the table is not valid; the file is never rewritten
 missing.md:1:1: file-read-error File not found
 missing.yaml:1:1: config-error Configuration file not found
 ```
 
-The exit code is `0` when every file was processed and `1` when any problem was reported (including any
-configuration problem) or an argument was invalid. A pattern that matches no file is not an error.
+The reported rule identifiers are `file-read-error`, `file-encoding-error`, `file-line-ending-error`,
+`file-parse-error`, `config-error`, `line-ending`, `grid-table-invalid`, `safety-html-mismatch`,
+`safety-structure-mismatch`, `safety-not-idempotent`, `file-format-error`, and `file-write-error`. A `safety-*`
+identifier means that a rewrite was refused because it could damage the document; the file is left as it was. A
+grid table problem (`grid-table-invalid`) is never rewritten, and `line-ending` follows the resolved line ending, so
+it is neither configurable in `rules` nor suppressible. `--diff` writes its unified diff to standard output.
+
+The exit code is `0` when every file was processed and nothing is left to report, and `1` when any problem was
+reported (including any configuration problem) or an argument was invalid. After `--fix`, the problems that
+rewriting removed are not reported. A pattern that matches no file is not an error.
 
 ## Error Handling
 
@@ -252,11 +283,12 @@ with a non-zero exit code. For example:
 Error: Unsupported argument '--unknown'
 ```
 
-`--validate` cannot be combined with paths, `--check`, `--config`, or `--no-config`, and `--config` cannot be
-combined with `--no-config`:
+`--validate` cannot be combined with paths, `--check`, `--fix`, `--diff`, `--config`, or `--no-config`, `--fix`
+cannot be combined with `--check` or `--diff`, and `--config` cannot be combined with `--no-config`:
 
 ```text
-Error: --validate cannot be combined with paths, --check, --config, or --no-config (Parameter 'args')
+Error: --validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config (Parameter 'args')
+Error: --fix cannot be combined with --check or --diff (Parameter 'args')
 Error: --config cannot be combined with --no-config (Parameter 'args')
 ```
 

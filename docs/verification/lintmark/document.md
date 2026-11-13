@@ -24,7 +24,10 @@ Markdown. No mocking is used. Four kinds of evidence are produced:
   link reference definitions) are checked for the same properties, in LF and CRLF.
 - **Workflow and contracts**: documents built from bytes show that invalid content is rejected with its
   position, that block offsets convert to line and column, that the whole dialect is recognized, and that
-  suppression comments and link reference definitions are resolved consistently with the block list.
+  suppression comments and link reference definitions are resolved consistently with the block list. Three
+  scenarios cover the grid table fallback through the real loader: an invalid border next to a valid grid table
+  (CRLF bytes), a valid grid table alone, and a repeated parse of one source, asserting the `GridFallback` location
+  and `IsFormatUnsafe` of the parsed document.
 - **Randomized adversarial documents**: a fixed seed (20260511) generates 10500 documents in seven families
   (footnote-heavy mixtures of quotes, lists, and look-alike definitions; footnote definitions with children of
   every kind; look-alike definitions at assorted indents inside a quote or list; a broad mixture of block
@@ -79,6 +82,9 @@ skipping it, so coverage cannot be lost silently. Otherwise the standard test en
 - Invalid content is rejected with the rule and the position of the first problem.
 - Block offsets convert to the expected 1-based line and column and back.
 - Every construct of the dialect is recognized from bytes, and nothing that is absent from the file is added.
+- A document with an invalid grid table is marked format-unsafe, with the 1-based line and column of the offending
+  line, whether loaded from LF or CRLF bytes; a document with only a valid grid table is not marked and keeps the
+  grid table; the same document parsed again reports the same location.
 - Suppression, reference lookup, and line-ending facts of one document agree with its content.
 - No collection exposed by a parse result can be modified by a caller that casts it.
 
@@ -131,6 +137,14 @@ another letter case), and an unreferenced footnote is loaded and parsed; the lin
 rules at known offsets, the definitions with their lines, the first-definition-wins lookup by a label that
 differs in case and whitespace, the footnote block, and the tiling all give the expected results.
 
+**A valid grid table is kept and the document is not marked**: CRLF bytes with a valid grid table between two
+paragraphs are loaded and parsed; there is no fallback location, the document is not format-unsafe, exactly one block
+is a grid table, and the tiling checks report no violation.
+
+**Parsing the same text again reports the same fallback location**: A document in which an invalid border stands on
+line 2 and a second one inside a block quote is parsed twice from one source and once from an equal source built from
+the same text; every result reports the first offending line, 2:1.
+
 #### Boundary conditions
 
 **Repository Markdown tiles correctly with CRLF line endings**: The same files are converted to CRLF and parsed;
@@ -158,3 +172,7 @@ unit verification designs of the units.
 **Invalid content is rejected with its position**: Invalid UTF-8 on line 2, a UTF-16 byte order mark, and a bare
 carriage return on line 3 each raise the typed failure with the documented rule and the position of the first
 offending byte or character.
+
+**A document with an invalid grid table is marked unsafe at the offending line**: CRLF bytes with a valid grid table
+(lines 1 to 3) and an invalid border on line 5 are loaded and parsed; the document is format-unsafe with the location
+5:1, no block is a grid table (the document is read without grid tables), and the nesting checks report no violation.

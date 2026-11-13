@@ -405,6 +405,32 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a rule alias and a dropped alias are still accepted while a non-configurable rule is unknown.
+    /// </summary>
+    [Fact]
+    public void ConfigurationSubsystem_RulesBlock_AliasAndDroppedAlias_StillAccepted()
+    {
+        // Arrange: a file that switches a rule off by alias, names a dropped alias, and names a rule that is always applied
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("ok/.lintmark.yaml", "rules:\n  MD013: false\n  MD033: false\n");
+        var rejected = directory.WriteFile("bad/.lintmark.yaml", "rules:\n  line-ending: false\n");
+
+        // Act: load a Markdown file beside each configuration file
+        var okResult = ConfigLoader.ForDiscovery().Load(directory.PathOf("ok/a.md"));
+        var badResult = ConfigLoader.ForDiscovery().Load(directory.PathOf("bad/a.md"));
+
+        // Assert: the alias switches the canonical rule off, the dropped alias changes nothing, and the always-applied rule is unknown
+        Assert.Empty(okResult.Errors);
+        Assert.False(okResult.Config!.Rules["line-length"]);
+        Assert.Equal(
+            LintMarkConfig.Default.Rules.Where(pair => pair.Key != "line-length"),
+            okResult.Config.Rules.Where(pair => pair.Key != "line-length"));
+        Assert.Equal(
+            [(rejected, 2, 3, "Unknown rule 'line-ending'")],
+            badResult.Errors.Select(e => (e.Path, e.Line, e.Column, e.Message)));
+    }
+
+    /// <summary>
     ///     Test that an invalid value is reported at the value with a message that names the allowed values.
     /// </summary>
     [Fact]

@@ -693,6 +693,130 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test creating a context with the fix flag.
+    /// </summary>
+    [Fact]
+    public void Context_Create_FixFlag_SetsFix()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--fix"]);
+
+        // Assert: fix is set, nothing else changes
+        Assert.True(context.Fix);
+        Assert.False(context.Diff);
+        Assert.False(context.Check);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test creating a context with the diff flag.
+    /// </summary>
+    [Fact]
+    public void Context_Create_DiffFlag_SetsDiff()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--diff"]);
+
+        // Assert: diff is set, nothing else changes
+        Assert.True(context.Diff);
+        Assert.False(context.Fix);
+        Assert.False(context.Check);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that neither fix nor diff is set by default.
+    /// </summary>
+    [Fact]
+    public void Context_Create_NoFlags_FixAndDiffAreFalse()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create([]);
+
+        // Assert: both are at their defaults
+        Assert.False(context.Fix);
+        Assert.False(context.Diff);
+    }
+
+    /// <summary>
+    ///     Test that combining the fix flag with the check flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_FixWithCheck_Throws()
+    {
+        // Act & Assert: the combination is rejected with the documented message
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--fix", "--check"]));
+        Assert.Contains("--fix cannot be combined with --check or --diff", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the fix flag with the diff flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_FixWithDiff_Throws()
+    {
+        // Act & Assert: the combination is rejected with the documented message
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--diff", "--fix"]));
+        Assert.Contains("--fix cannot be combined with --check or --diff", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with the fix flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithFix_Throws()
+    {
+        // Act & Assert: the combination is rejected with the documented message
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--fix"]));
+        Assert.Contains(
+            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+            exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with the diff flag is a usage error.
+    /// </summary>
+    [Fact]
+    public void Context_Create_ValidateWithDiff_Throws()
+    {
+        // Act & Assert: the combination is rejected with the documented message
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--diff", "--validate"]));
+        Assert.Contains(
+            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+            exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that the diff flag may be combined with the check flag, since neither writes a file.
+    /// </summary>
+    [Fact]
+    public void Context_Create_DiffWithCheck_Accepted()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["--diff", "--check"]);
+
+        // Assert: both are set
+        Assert.True(context.Diff);
+        Assert.True(context.Check);
+        Assert.False(context.Fix);
+    }
+
+    /// <summary>
+    ///     Test that the fix flag combines with paths and the configuration option.
+    /// </summary>
+    [Fact]
+    public void Context_Create_FixWithPathsAndConfig_Accepted()
+    {
+        // Act: execute the operation being tested
+        using var context = Context.Create(["a.md", "--fix", "--config", "c.yaml", "b.md"]);
+
+        // Assert: fix is set, the option value is not a path and both paths are kept
+        Assert.True(context.Fix);
+        Assert.Equal("c.yaml", context.ConfigFile);
+        Assert.Equal(["a.md", "b.md"], context.Paths);
+    }
+
+    /// <summary>
     ///     Test that the exclusivity check happens before a log file is created.
     /// </summary>
     [Fact]

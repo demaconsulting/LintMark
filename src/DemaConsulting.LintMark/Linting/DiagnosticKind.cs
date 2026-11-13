@@ -18,16 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace DemaConsulting.LintMark.Engine;
+namespace DemaConsulting.LintMark.Linting;
 
 /// <summary>
-///     One failure to read or parse a file.
+///     Whether a diagnostic can be removed by rewriting the file or can only be reported.
 /// </summary>
-/// <param name="RuleId">Kebab-case rule identifier the failure is reported under.</param>
-/// <param name="Line">1-based line (1 when unknown).</param>
-/// <param name="Column">1-based column (1 when unknown).</param>
-/// <param name="Message">Single-line description without the file path.</param>
 /// <remarks>
-///     Deliberately minimal: later phases replace this with a full diagnostic model.
+///     The kind is what makes the fix option's contract checkable: a <see cref="Formatting"/> diagnostic is
+///     one that the formatter removes when it rewrites the file, a <see cref="LintOnly"/> diagnostic is
+///     reported and stays until a person changes the file.
 /// </remarks>
-internal sealed record FileFailure(string RuleId, int Line, int Column, string Message);
+internal enum DiagnosticKind
+{
+    /// <summary>
+    ///     A problem that is only reported (file problems, configuration problems, safety refusals and lint rules).
+    /// </summary>
+    LintOnly,
+
+    /// <summary>
+    ///     A violation of canonical form that rewriting the file removes.
+    /// </summary>
+    Formatting
+}

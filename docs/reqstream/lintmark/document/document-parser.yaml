@@ -201,3 +201,73 @@ sections:
                   would change what every other stage sees.
                 tests:
                   - DocumentParser_Parse_Blocks_CastToMutableTypes_CannotBeModified
+
+              - id: LintMark-Document-DocumentParser-GridFallbackMarked
+                title: >-
+                  The DocumentParser class shall flag a document as unsafe to rewrite when it contains a line that
+                  looks like the border of a grid table but is not part of a valid grid table.
+                justification: |
+                  The parser can read such a document only by giving up grid tables, which changes what its
+                  blocks mean. Any rewrite based on that reading could damage the document.
+                tests:
+                  - DocumentParser_Parse_InvalidGridLine_MarksFormatUnsafeAtThatLine
+
+              - id: LintMark-Document-DocumentParser-GridFallbackLocation
+                title: >-
+                  The DocumentParser class shall give, for a document flagged as unsafe to rewrite, the line and
+                  column of the first line that looks like the border of a grid table without being part of a
+                  valid grid table, including a border without a closing plus sign, and line 1 and column 1 when
+                  no such line can be found.
+                justification: |
+                  The author must be told which line to repair. The text of the damaged block cannot say,
+                  because the parser reads it as a paragraph that starts at the beginning of the document.
+                tests:
+                  - DocumentParser_Parse_ValidAndInvalidGridTable_ReportsInvalidLineNotValidTableLine
+                  - DocumentParser_Parse_GridBorderWithoutTrailingPlus_Located
+                  - DocumentParser_Parse_FallbackLocationUnknown_FallsBackToLineOneColumnOne
+                  - DocumentParser_Parse_RandomDocuments_FallbackLineIsAlwaysAGridOpenerOrLineOne
+                  - GridTableFallback_Equals_SameValues_AreEqual
+
+              - id: LintMark-Document-DocumentParser-ValidGridTableNotMarked
+                title: >-
+                  The DocumentParser class shall not flag a document as unsafe to rewrite when its grid tables are
+                  valid or when it contains none.
+                justification: |
+                  Valid tables are common in documentation, and flagging them would stop the tool from
+                  rewriting those documents.
+                tests:
+                  - DocumentParser_Parse_ValidGridTableOnly_NotMarked
+                  - DocumentParser_Parse_PlainDocument_NotMarked
+
+              - id: LintMark-Document-DocumentParser-LiteralBlocksNotMarked
+                title: >-
+                  The DocumentParser class shall not flag a document as unsafe to rewrite because of a line inside
+                  fenced code, indented code, or an HTML block.
+                justification: |
+                  Text in code and in raw HTML is literal, and a table border that appears there is an
+                  example or data, not a table that was written wrongly.
+                tests:
+                  - DocumentParser_Parse_InvalidGridLineInsideFence_NotMarked
+                  - DocumentParser_Parse_InvalidGridLineInsideOtherLiteralBlocks_NotMarked
+
+              - id: LintMark-Document-DocumentParser-GridFallbackStillProducesBlocks
+                title: >-
+                  The DocumentParser class shall still list the blocks of a document that is flagged as unsafe to
+                  rewrite.
+                justification: |
+                  Reading and checking the document must go on, so that its other problems are reported.
+                tests:
+                  - DocumentParser_Parse_GridTableFallback_StillProducesBlocks
+
+              - id: LintMark-Document-DocumentParser-ValidatesGridFallback
+                title: >-
+                  The GridTableFallback record shall refuse a line or a column below one and shall expose the
+                  position that it was created with.
+                justification: |
+                  The position tells the author which line to repair, so a position that does not exist in a
+                  document must never be created.
+                tests:
+                  - GridTableFallback_Constructor_ValidPosition_KeepsValues
+                  - GridTableFallback_Constructor_LineBelowOne_Throws
+                  - GridTableFallback_Constructor_ColumnBelowOne_Throws
+                  - GridTableFallback_Equals_SameValues_AreEqual

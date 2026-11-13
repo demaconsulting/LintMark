@@ -1,0 +1,75 @@
+---
+# Software Unit Requirements for the Diagnostic Type
+#
+# The Diagnostic record (with the DiagnosticKind enumeration) is one problem found in a file: what rule found it,
+# where it is, what it says, and whether rewriting the file removes it.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Linting Requirements
+        sections:
+          - title: Diagnostic Requirements
+            requirements:
+              - id: LintMark-Linting-Diagnostic-Fields
+                title: >-
+                  The Diagnostic record shall expose the rule identifier, kind, path, line, column, and message
+                  that it was created with.
+                justification: |
+                  Reporters and the fix option read these values to build report lines and to decide which
+                  problems rewriting removes.
+                tests:
+                  - Diagnostic_Constructor_AllArguments_ExposesValues
+                  - Diagnostic_Constructor_ValidRuleId_Accepted
+                  - Diagnostic_Constructor_LineAndColumnOne_Accepted
+
+              - id: LintMark-Linting-Diagnostic-Validation
+                title: >-
+                  The Diagnostic record shall refuse a missing path or message, a rule identifier that is not
+                  written in lower-case words joined by single hyphens, a blank path or message, a message that
+                  spans several lines, a line or column below one, and a kind that is not defined.
+                justification: |
+                  A report line is read by editors and scripts. A rule identifier with spaces or capitals, a
+                  message with a line break, or a position of zero would break that reading, so such a value
+                  must never exist.
+                tests:
+                  - Diagnostic_Constructor_NullRuleId_Throws
+                  - Diagnostic_Constructor_NullPath_Throws
+                  - Diagnostic_Constructor_NullMessage_Throws
+                  - Diagnostic_Constructor_UppercaseRuleId_Throws
+                  - Diagnostic_Constructor_RuleIdWithTrailingHyphen_Throws
+                  - Diagnostic_Constructor_RuleIdWithDoubleHyphen_Throws
+                  - Diagnostic_Constructor_EmptyRuleId_Throws
+                  - Diagnostic_Constructor_RuleIdStartingWithDigit_Throws
+                  - Diagnostic_Constructor_RuleIdWithInvalidCharacter_Throws
+                  - Diagnostic_Constructor_BlankPath_Throws
+                  - Diagnostic_Constructor_LineZero_Throws
+                  - Diagnostic_Constructor_ColumnZero_Throws
+                  - Diagnostic_Constructor_BlankMessage_Throws
+                  - Diagnostic_Constructor_MultilineMessage_Throws
+                  - Diagnostic_Constructor_UndefinedKind_Throws
+
+              - id: LintMark-Linting-Diagnostic-FixableMatchesKind
+                title: >-
+                  The Diagnostic record shall report a problem as removable by rewriting exactly when its kind is
+                  a formatting problem.
+                justification: |
+                  The fix option drops the problems that rewriting removes. A flag that could disagree with
+                  the kind would drop problems that remain, or keep problems that are gone.
+                tests:
+                  - Diagnostic_Fixable_FormattingKind_IsTrue
+                  - Diagnostic_Fixable_LintOnlyKind_IsFalse
+
+              - id: LintMark-Linting-Diagnostic-ValueEquality
+                title: >-
+                  The Diagnostic record shall treat two diagnostics with the same values as equal, and two that
+                  differ in any value as different.
+                justification: |
+                  A problem found twice, for example through two paths to the same file, must be reported
+                  once, which needs a comparison by value.
+                tests:
+                  - Diagnostic_Equals_SameValues_AreEqual
+                  - Diagnostic_Equals_DifferentColumn_AreNotEqual
+                  - Diagnostic_Equals_AnyMemberDifferent_AreNotEqual
+                  - Diagnostic_Equals_Null_AreNotEqual
+                  - Diagnostic_GetHashCode_EqualDiagnostics_CollapseInHashSet

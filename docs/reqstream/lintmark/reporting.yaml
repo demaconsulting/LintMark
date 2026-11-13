@@ -1,0 +1,77 @@
+---
+# Reporting Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Reporting subsystem
+# - The Reporting subsystem turns diagnostics into report lines for the error output and proposed rewrites into
+#   unified diffs for the standard output, and sets the exit status
+# - Subsystem requirements describe the output formats that editors, scripts, and reviewers rely on
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Reporting Requirements
+        requirements:
+          - id: LintMark-Reporting-TextFormat
+            title: >-
+              The Reporting subsystem shall write each diagnostic once, on its own line, as
+              `path:line:col: rule-id message` through the error output, with the path relative to the current
+              directory using forward slashes, and nothing when there are no diagnostics.
+            justification: |
+              A single, regular line format can be read by people, editors, and build systems alike, and
+              relative paths with one separator style make output the same on every platform. A problem that
+              was found twice is still one problem.
+            children:
+              - LintMark-Reporting-TextReporter-LineFormat
+              - LintMark-Reporting-TextReporter-DisplayPath
+              - LintMark-Reporting-TextReporter-Order
+              - LintMark-Reporting-TextReporter-Distinct
+              - LintMark-Reporting-TextReporter-NoOutputWithoutDiagnostics
+              - LintMark-Reporting-TextReporter-ErrorChannel
+              - LintMark-Reporting-TextReporter-RejectsInvalidArguments
+            tests:
+              - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+
+          - id: LintMark-Reporting-UnifiedDiff
+            title: >-
+              The Reporting subsystem shall write the difference between the text of a file and its proposed
+              rewrite as a unified diff through the standard output, naming a change of line endings that
+              the text alone does not show.
+            justification: |
+              Reviewers and patch tools understand unified diffs. A change of line endings leaves the text
+              identical, so without a note the diff of a rewrite would look empty.
+            children:
+              - LintMark-Reporting-DiffReporter-UnifiedFormat
+              - LintMark-Reporting-DiffReporter-ContextLines
+              - LintMark-Reporting-DiffReporter-NoChangeNoOutput
+              - LintMark-Reporting-DiffReporter-LineEndingNote
+              - LintMark-Reporting-DiffReporter-NoNewlineMarker
+              - LintMark-Reporting-DiffReporter-AppliesCleanly
+              - LintMark-Reporting-DiffReporter-StdoutChannel
+              - LintMark-Reporting-DiffReporter-RejectsInvalidArguments
+            tests:
+              - ReportingSubsystem_UnifiedDiff_Changes_ApplyCleanly
+
+          - id: LintMark-Reporting-DeterministicOutput
+            title: >-
+              The Reporting subsystem shall produce the same output for the same diagnostics and diffs in
+              whatever order they are given.
+            justification: |
+              Build logs and comparisons depend on reproducible output, and the order in which files finish
+              must never be visible.
+            children:
+              - LintMark-Reporting-TextReporter-Order
+              - LintMark-Reporting-DiffReporter-OrderByPath
+            tests:
+              - ReportingSubsystem_DeterministicOutput_ShuffledInput_IdenticalOutput
+
+          - id: LintMark-Reporting-ExitStatus
+            title: >-
+              The Reporting subsystem shall make the exit status non-zero when it reports a diagnostic, also
+              when the console output is silenced, and leave it unchanged when it only writes a diff.
+            justification: |
+              Scripts and pipelines act on the exit status alone. A diff is a preview, not a problem.
+            children:
+              - LintMark-Reporting-TextReporter-ExitStatus
+            tests:
+              - ReportingSubsystem_ExitStatus_DiffOnly_StaysZero

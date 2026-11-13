@@ -1,0 +1,93 @@
+---
+# Software Unit Requirements for the TextReporter Class
+#
+# The TextReporter class writes diagnostics as report lines through the error output of the Context, in a fixed
+# order, and sets the exit status.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Reporting Requirements
+        sections:
+          - title: TextReporter Requirements
+            requirements:
+              - id: LintMark-Reporting-TextReporter-LineFormat
+                title: >-
+                  The TextReporter class shall write each diagnostic on its own line as
+                  `path:line:col: rule-id message`.
+                justification: |
+                  A single, regular format is machine readable and recognized by editors and build systems.
+                tests:
+                  - TextReporter_Report_Diagnostic_WritesPathLineColRuleMessage
+
+              - id: LintMark-Reporting-TextReporter-DisplayPath
+                title: >-
+                  The TextReporter class shall show the path of a diagnostic relative to a base directory with
+                  forward slashes, also when the file lies outside the base directory.
+                justification: |
+                  The user must be able to open the named file from where the tool was run, whatever the
+                  platform separator.
+                tests:
+                  - TextReporter_Report_OutsideBaseDirectory_WritesParentRelativePath
+                  - TextReporter_Report_NestedPath_UsesForwardSlashes
+                  - TextReporter_GetDisplayPath_RelativeAndOutside_ReturnsForwardSlashPaths
+
+              - id: LintMark-Reporting-TextReporter-Order
+                title: >-
+                  The TextReporter class shall write diagnostics ordered by path, then line, column, rule
+                  identifier, and message, independent of the order in which they are given.
+                justification: |
+                  Reproducible output is required for comparing runs and for stable build logs, and a reader
+                  fixing a file works from top to bottom.
+                tests:
+                  - TextReporter_Report_UnsortedInput_WritesPathThenPositionOrder
+                  - TextReporter_Report_SamePathDifferentRules_OrderedByRuleId
+                  - TextReporter_Report_SameCoordinatesDifferentMessages_OrderedByMessage
+                  - TextReporter_Report_InputOrderDoesNotMatter_IdenticalOutput
+
+              - id: LintMark-Reporting-TextReporter-Distinct
+                title: The TextReporter class shall write equal diagnostics once.
+                justification: |
+                  A problem that reaches the reporter twice, for example through two spellings of one path,
+                  is still one problem.
+                tests:
+                  - TextReporter_Report_EqualDiagnostics_WritesOnce
+
+              - id: LintMark-Reporting-TextReporter-NoOutputWithoutDiagnostics
+                title: The TextReporter class shall write nothing when it is given no diagnostic.
+                justification: |
+                  Silence on success keeps the output of large runs readable.
+                tests:
+                  - TextReporter_Report_NoDiagnostics_WritesNothing
+
+              - id: LintMark-Reporting-TextReporter-ErrorChannel
+                title: >-
+                  The TextReporter class shall write the lines through the error output of the Context, so that
+                  they reach the console and the log file as the Context decides.
+                justification: |
+                  Problems belong on the error stream so that scripts can separate them from the output of a
+                  diff, and the log file must contain what the console shows.
+                tests:
+                  - TextReporter_Report_LogContext_CapturesLines
+
+              - id: LintMark-Reporting-TextReporter-ExitStatus
+                title: >-
+                  The TextReporter class shall make the exit status of the Context non-zero when it reports at
+                  least one diagnostic, whatever its kind and also when the console output is silenced.
+                justification: |
+                  Scripts and build pipelines act on the exit status alone, and a silent run that found a
+                  problem must still fail.
+                tests:
+                  - TextReporter_Report_AnyDiagnostic_SetsExitCodeOne
+                  - TextReporter_Report_SilentContext_StillSetsExitCode
+
+              - id: LintMark-Reporting-TextReporter-RejectsInvalidArguments
+                title: >-
+                  The TextReporter class shall refuse a missing list of diagnostics, a missing element of that
+                  list, a missing base directory, and a missing context.
+                justification: |
+                  Missing arguments are programming errors that must be reported as such, not silently
+                  skipped.
+                tests:
+                  - TextReporter_Report_NullElement_Throws
+                  - TextReporter_Report_NullArguments_Throw

@@ -5,9 +5,11 @@ OTS item are defined in the Markdig OTS Software Requirements document.
 
 ### Required Functionality
 
-Markdig is the Markdown parsing library used by the `Document` subsystem. LintMark depends on it to report
-exact source ranges for every block and inline element, to recognize the fixed set of Markdown extensions,
-and to parse on many threads with one shared pipeline.
+Markdig is the Markdown parsing library used by the `Document` subsystem and the rendering library used by the
+`Safety` subsystem. LintMark depends on it to report exact source ranges for every block and inline element, to
+recognize the fixed set of Markdown extensions, to parse on many threads with one shared pipeline, and to render the
+same text to the same HTML every time, also on many threads, so that the HTML before and after a rewrite can be
+compared.
 
 ### Verification Approach
 
@@ -16,8 +18,9 @@ Markdig has no self-validation mode. It is verified by integration tests in the 
 LintMark project. Each scenario describes a behavior that LintMark relies on and that the tests confirm. The
 scenarios that record known deviations of the library (an unclosed fence reporting only its opening line, a
 list reporting its trailing line feed, reference definitions grouped in a shell block, a rejected next-line
-title kept in a definition's span, a definition that survives inside a dropped footnote) pin the behavior that
-the `Document` subsystem compensates for, so that a library update that changes it is noticed. The
+title kept in a definition's span, a definition that survives inside a dropped footnote, and a code span that renders
+differently for CRLF and LF text) pin the behavior that the `Document` and `Safety` subsystems compensate for, so
+that a library update that changes it is noticed. The
 behaviors specific to footnote definitions (where a footnote's range starts, which definitions the library
 drops, how a definition inside a quote or list item is read) are pinned through the `DocumentParser` unit
 tests, because the compensating logic is verified there.
@@ -112,3 +115,43 @@ and automatic links are all recognized.
 **Expected**: Every result equals the result of a sequential parse.
 
 **Requirement coverage**: `LintMark-OTS-Markdig-Concurrency`.
+
+#### The same text and pipeline render to identical HTML
+
+**Scenario**: A document with a heading, emphasis, a code span, a link with a title, a list, and a pipe table is
+rendered repeatedly with one pipeline and once with a second pipeline that is built the same way.
+
+**Expected**: All renderings are identical.
+
+**Requirement coverage**: `LintMark-OTS-Markdig-HtmlRendering`.
+
+#### A multi-line code span renders differently for CRLF and LF text
+
+**Scenario**: A code span whose content is framed by line breaks is rendered once with LF line endings and once
+with CRLF line endings.
+
+**Expected**: With LF the line breaks become spaces that are stripped and the HTML is `<p><code>bb</code></p>`;
+with CRLF the spaces stay and the HTML is `<p><code> bb </code></p>`. The two differ, which is why LintMark
+renders text with LF line endings only, and a library update that removes the difference is noticed.
+
+**Requirement coverage**: `LintMark-OTS-Markdig-HtmlRendering`.
+
+#### One shared pipeline renders on many threads with identical results
+
+**Scenario**: Five different documents (a heading with a code span and emphasis, a list and a quote, a pipe table, a
+grid table, and a footnote) are rendered once on one thread to get the expected HTML, then 128 renderings of them
+are made from up to 16 threads through the same shared pipeline.
+
+**Expected**: Every result equals the single-threaded HTML of its document.
+
+**Requirement coverage**: `LintMark-OTS-Markdig-HtmlRendering`.
+
+#### Grid tables and pipe tables render as tables
+
+**Scenario**: A pipeline with only the pipe table and grid table extensions renders a grid table followed by a pipe
+table.
+
+**Expected**: The HTML holds two tables, the grid table with plain cells (`a`, `b`, `1`, `2`) and the pipe table
+with a header row (`c`, `d`) and body cells (`3`, `4`).
+
+**Requirement coverage**: `LintMark-OTS-Markdig-HtmlRendering`.

@@ -2,9 +2,8 @@
 # EditorConfig OTS Software Requirements
 #
 # Requirements for the editorconfig library functionality that LintMark relies on to read the end_of_line
-# setting of .editorconfig files. Only the capabilities behind the behaviors that are required before files
-# are rewritten are listed. The library's section matching, layering, and chain evaluation are pinned by
-# tests that are not linked to a requirement until the formatting phase requires the line ending to be used.
+# setting of .editorconfig files: the raw property values, the matching of sections to files, the layering of
+# settings files, the tolerance of malformed content, and the safety of sharing parsers between threads.
 
 sections:
   - title: OTS Software Requirements
@@ -21,6 +20,47 @@ sections:
             tags: [ots]
             tests:
               - EditorConfig_Parser_UnsetValue_RawPropertyIsUnset
+              - EditorConfig_Parser_TypedEndOfLine_IgnoresUnsetAndInvalidValues
+              - EditorConfig_Parser_EndOfLineCr_TypedAccessorReportsCr
+
+          - id: LintMark-OTS-EditorConfig-CaseInsensitivity
+            title: >-
+              EditorConfig shall match property names and values without regard to letter case.
+            justification: |
+              Editor settings are written by hand, and LintMark relies on the library to give the same
+              property for `end_of_line = LF` as for `END_OF_LINE = lf`.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_PropertyAndValueCase_AreInsensitive
+
+          - id: LintMark-OTS-EditorConfig-SectionMatching
+            title: >-
+              EditorConfig shall match the sections of a settings file against file paths with the glob syntax of
+              the editor settings format, in a case-sensitive way, also for a file that does not exist.
+            justification: |
+              LintMark takes the line ending of the first section that applies to a Markdown file, so the
+              result is only as correct as the library's matching.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_GlobPatterns_MatchPerSpecification
+              - EditorConfig_Parser_SectionPatternCase_IsCaseSensitive
+              - EditorConfig_Parser_NonexistentFile_StillResolved
+
+          - id: LintMark-OTS-EditorConfig-Layering
+            title: >-
+              EditorConfig shall combine the settings files from a file's directory upward with a nearer file
+              overriding a farther one, a later section overriding an earlier one, and a settings file marked as
+              root ending the search, and shall give the same result from a resolved chain as from a direct parse.
+            justification: |
+              LintMark resolves the chain of settings files once per directory and evaluates every file
+              of the directory against it. The tests confirm that the layering rules hold and that the
+              chain gives the same answer as a direct parse.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_RootTrue_StopsSearch
+              - EditorConfig_Parser_NestedFiles_NearerFileOverridesFarther
+              - EditorConfig_Parser_LessSpecificLaterSection_OverridesEarlier
+              - EditorConfig_Parser_DirectoryChain_ParseWithChain_EqualsDirectParse
 
           - id: LintMark-OTS-EditorConfig-MalformedLines
             title: >-

@@ -20,6 +20,22 @@ includes:
   - docs/reqstream/lintmark/engine.yaml
   - docs/reqstream/lintmark/engine/file-discovery.yaml
   - docs/reqstream/lintmark/engine/lint-mark-engine.yaml
+  - docs/reqstream/lintmark/engine/atomic-file-writer.yaml
+  - docs/reqstream/lintmark/linting.yaml
+  - docs/reqstream/lintmark/linting/diagnostic.yaml
+  - docs/reqstream/lintmark/linting/rule-catalog.yaml
+  - docs/reqstream/lintmark/formatting.yaml
+  - docs/reqstream/lintmark/formatting/edit-set.yaml
+  - docs/reqstream/lintmark/formatting/source-patcher.yaml
+  - docs/reqstream/lintmark/formatting/document-formatter.yaml
+  - docs/reqstream/lintmark/safety.yaml
+  - docs/reqstream/lintmark/safety/equivalence-result.yaml
+  - docs/reqstream/lintmark/safety/html-equivalence-checker.yaml
+  - docs/reqstream/lintmark/safety/structural-token-checker.yaml
+  - docs/reqstream/lintmark/safety/idempotency-checker.yaml
+  - docs/reqstream/lintmark/reporting.yaml
+  - docs/reqstream/lintmark/reporting/text-reporter.yaml
+  - docs/reqstream/lintmark/reporting/diff-reporter.yaml
   - docs/reqstream/lintmark/configuration.yaml
   - docs/reqstream/lintmark/configuration/lint-mark-config.yaml
   - docs/reqstream/lintmark/configuration/config-loader.yaml
@@ -28,6 +44,7 @@ includes:
   - docs/reqstream/lintmark/self-test/validation.yaml
   - docs/reqstream/lintmark/utilities.yaml
   - docs/reqstream/lintmark/utilities/path-helpers.yaml
+  - docs/reqstream/lintmark/utilities/text-width.yaml
   - docs/reqstream/lintmark/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

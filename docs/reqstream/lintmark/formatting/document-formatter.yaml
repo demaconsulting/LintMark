@@ -1,0 +1,144 @@
+---
+# Software Unit Requirements for the DocumentFormatter Class
+#
+# The DocumentFormatter class walks the blocks of a parsed document, lets the block formatters that accept a block
+# propose changes, and decides the line ending of the document (with the IBlockFormatter, FormatContext, and
+# FormatResult supporting types).
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: DocumentFormatter Requirements
+            requirements:
+              - id: LintMark-Formatting-DocumentFormatter-CollectsEdits
+                title: >-
+                  The DocumentFormatter class shall collect the changes that the block formatters propose for the
+                  blocks of a document, with the line ending of the document and the problems found.
+                justification: |
+                  The collected changes are the basis of the rewrite, and the line ending and the problems
+                  travel with them so that one result describes the whole document.
+                tests:
+                  - DocumentFormatter_Format_MatchingFormatter_CollectsItsEdits
+
+              - id: LintMark-Formatting-DocumentFormatter-VerbatimByDefault
+                title: >-
+                  The DocumentFormatter class shall propose no change for a block that no block formatter accepts.
+                justification: |
+                  Only what a rule asks to change may change. A block of a kind that no rule handles belongs
+                  to the author.
+                tests:
+                  - DocumentFormatter_Format_NoFormatters_ProducesNoEdits
+                  - DocumentFormatter_Format_BlockNoFormatterAccepts_LeftVerbatim
+
+              - id: LintMark-Formatting-DocumentFormatter-OneFormatterPerBlock
+                title: >-
+                  The DocumentFormatter class shall let only the first block formatter that accepts a block
+                  propose changes for it.
+                justification: |
+                  Two formatters that both changed the same block would conflict. A fixed order of
+                  precedence makes the outcome predictable.
+                tests:
+                  - DocumentFormatter_Format_TwoMatchingFormatters_FirstWins
+
+              - id: LintMark-Formatting-DocumentFormatter-SuppressedBlocksVerbatim
+                title: >-
+                  The DocumentFormatter class shall propose no change for a block in which the rule of its block
+                  formatter is suppressed anywhere, by a disable comment for the rule, by a disable comment for
+                  all rules, or by an ignore comment for the next block, and shall still format the other blocks.
+                justification: |
+                  Authors switch rules off for a passage with comments, and the passage must stay as
+                  written. A suppression of another rule, or in another block, must not protect a block
+                  that it does not concern.
+                tests:
+                  - DocumentFormatter_Format_FormatterRuleSuppressed_LeavesBlockVerbatim
+                  - DocumentFormatter_Format_DisableAllRegion_LeavesBlockVerbatim
+                  - DocumentFormatter_Format_PrettierIgnore_LeavesNextBlockVerbatim
+                  - DocumentFormatter_Format_SuppressedBlock_OtherBlockStillFormatted
+                  - DocumentFormatter_Format_OtherRuleSuppressed_BlockStillFormatted
+
+              - id: LintMark-Formatting-DocumentFormatter-FormatUnsafeProducesNothing
+                title: >-
+                  The DocumentFormatter class shall propose no change and report no problem for a document that is
+                  flagged as unsafe to rewrite, also when its line endings differ from the ones it should have.
+                justification: |
+                  The document cannot be understood reliably, so no change can be shown to be safe.
+                tests:
+                  - DocumentFormatter_Format_FormatUnsafeDocument_ReturnsNothingEvenWithCrlf
+
+              - id: LintMark-Formatting-DocumentFormatter-LineEndingTarget
+                title: >-
+                  The DocumentFormatter class shall give a document the line ending of its configuration and, when
+                  the configuration gives none, the line ending that most of its line terminators use.
+                justification: |
+                  A project that decided on a line ending gets it. For a file that nobody decided about,
+                  the predominant style changes the fewest lines.
+                tests:
+                  - DocumentFormatter_Format_ConfigLineEnding_WinsOverMajority
+                  - DocumentFormatter_Format_MixedFileNoConfig_TargetsMajority
+
+              - id: LintMark-Formatting-DocumentFormatter-LineEndingViolation
+                title: >-
+                  The DocumentFormatter class shall report one `line-ending` problem at line 1 and column 1 when
+                  any line terminator of a document differs from the line ending that the document should have,
+                  naming the endings found and the one expected, and shall report nothing otherwise, also for a
+                  document without line terminators.
+                justification: |
+                  Mixed or unwanted line endings are a property of the whole file, so they are reported once,
+                  in a way that rewriting repairs completely.
+                tests:
+                  - DocumentFormatter_Format_CrlfFileLfConfig_ReportsLineEndingAt1x1
+                  - DocumentFormatter_Format_MixedFile_ReportsMixed
+                  - DocumentFormatter_Format_LfFileCrlfConfig_ReportsLfToCrlf
+                  - DocumentFormatter_Format_AllCrlfCrlfConfig_NoDiagnostic
+                  - DocumentFormatter_Format_NoTerminators_NoDiagnostic
+
+              - id: LintMark-Formatting-DocumentFormatter-RejectsConflictingEdits
+                title: >-
+                  The DocumentFormatter class shall refuse to return a result when two block formatters propose
+                  changes that conflict.
+                justification: |
+                  Returning one of two conflicting changes would let a defect in a rule go unnoticed and
+                  could damage the document.
+                tests:
+                  - DocumentFormatter_Format_OverlappingFormatterEdits_Throws
+
+              - id: LintMark-Formatting-DocumentFormatter-DeterministicResult
+                title: >-
+                  The DocumentFormatter class shall give the same result for the same document and configuration
+                  when it is called from several threads at once as when it is called one after another.
+                justification: |
+                  Files are formatted in parallel, and a result that depended on timing could not be trusted.
+                tests:
+                  - DocumentFormatter_Format_ParallelCalls_SameResult
+
+              - id: LintMark-Formatting-DocumentFormatter-ArgumentValidation
+                title: >-
+                  The DocumentFormatter class shall refuse a missing document or configuration and a block
+                  formatter that is missing from its list, accept no list at all as an empty one, and be
+                  unaffected by later changes to the list that it was created with.
+                justification: |
+                  Missing arguments are programming errors that must be reported as such, and a formatter
+                  whose set of rules changed after creation would behave differently from run to run.
+                tests:
+                  - DocumentFormatter_Format_NullArguments_Throw
+                  - DocumentFormatter_Constructor_NullFormatterElement_Throws
+                  - DocumentFormatter_Constructor_NullList_Accepted
+                  - DocumentFormatter_Constructor_ListCopied_LaterChangesIgnored
+
+              - id: LintMark-Formatting-DocumentFormatter-ValidatesResultTypes
+                title: >-
+                  The FormatContext and FormatResult records shall refuse a missing document or configuration, a
+                  missing or default list of changes or findings, a default change, a missing finding, and a line
+                  ending that is not defined, and shall expose the values that they were created with.
+                justification: |
+                  The formatter hands its context to every block formatter and its result to the engine. An
+                  incomplete value would fail far from where it was made, so it must never exist.
+                tests:
+                  - FormatContext_Constructor_ValidArguments_KeepsValues
+                  - FormatContext_Constructor_NullArguments_Throw
+                  - FormatResult_Constructor_ValidArguments_KeepsValues
+                  - FormatResult_Constructor_InvalidEdits_Throws
+                  - FormatResult_Constructor_InvalidDiagnostics_Throws
+                  - FormatResult_Constructor_UndefinedLineEnding_Throws

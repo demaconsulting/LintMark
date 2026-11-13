@@ -163,6 +163,9 @@ internal static class Program
         context.WriteLine("  -v, --version              Display version information");
         context.WriteLine("  -?, -h, --help             Display this help message");
         context.WriteLine("  --check                    Report problems without writing any file (default)");
+        context.WriteLine("  --fix                      Rewrite files into canonical form when every safety check passes,");
+        context.WriteLine("                             then report the problems that remain (not with --check or --diff)");
+        context.WriteLine("  --diff                     Print a unified diff of what --fix would change; writes no file");
         context.WriteLine("  --config <file>            Use this configuration file instead of discovering .lintmark.yaml");
         context.WriteLine("  --no-config                Ignore .lintmark.yaml and .editorconfig; use the built-in defaults");
         context.WriteLine("  --silent                   Suppress console output");

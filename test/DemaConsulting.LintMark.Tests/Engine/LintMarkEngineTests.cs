@@ -24,6 +24,7 @@ using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -31,7 +32,7 @@ namespace DemaConsulting.LintMark.Tests;
 ///     Unit tests for the LintMarkEngine class.
 /// </summary>
 [Collection("Sequential")]
-public class LintMarkEngineTests
+public partial class LintMarkEngineTests
 {
     /// <summary>
     ///     Runs an engine against a temporary directory as the current directory and captures its report.
@@ -80,7 +81,7 @@ public class LintMarkEngineTests
     /// <param name="results">The results.</param>
     /// <returns>One string per result.</returns>
     private static List<string> Project(IReadOnlyList<FileResult> results) =>
-        [.. results.Select(r => r.Path + "|" + string.Join(";", r.Failures.Select(f => $"{f.RuleId}:{f.Line}:{f.Column}:{f.Message}")))];
+        [.. results.Select(r => r.Path + "|" + string.Join(";", r.Diagnostics.Select(f => $"{f.RuleId}:{f.Line}:{f.Column}:{f.Message}")))];
 
     /// <summary>
     ///     Test that valid files produce no failures.
@@ -97,7 +98,7 @@ public class LintMarkEngineTests
 
         // Assert: two results without failures
         Assert.Equal(2, results.Count);
-        Assert.All(results, r => Assert.Empty(r.Failures));
+        Assert.All(results, r => Assert.Empty(r.Diagnostics));
     }
 
     /// <summary>
@@ -114,7 +115,7 @@ public class LintMarkEngineTests
         var result = Assert.Single(new LintMarkEngine(1).Process([path]));
 
         // Assert: one encoding failure at 2:3
-        var failure = Assert.Single(result.Failures);
+        var failure = Assert.Single(result.Diagnostics);
         Assert.Equal(("file-encoding-error", 2, 3), (failure.RuleId, failure.Line, failure.Column));
     }
 
@@ -129,7 +130,7 @@ public class LintMarkEngineTests
         var path = directory.WriteBytes("cr.md", "ab\rcd\n"u8.ToArray());
 
         // Act: process
-        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([path])).Failures);
+        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([path])).Diagnostics);
 
         // Assert: line-ending failure at 1:3
         Assert.Equal(("file-line-ending-error", 1, 3), (failure.RuleId, failure.Line, failure.Column));
@@ -146,7 +147,7 @@ public class LintMarkEngineTests
         var path = directory.WriteBytes("u16.md", [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes("# T\n")]);
 
         // Act: process
-        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([path])).Failures);
+        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([path])).Diagnostics);
 
         // Assert: encoding failure at 1:1
         Assert.Equal(("file-encoding-error", 1, 1), (failure.RuleId, failure.Line, failure.Column));
@@ -162,7 +163,7 @@ public class LintMarkEngineTests
         using var directory = new TemporaryDirectory();
 
         // Act: process
-        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([directory.PathOf("missing.md")])).Failures);
+        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([directory.PathOf("missing.md")])).Diagnostics);
 
         // Assert: read failure at 1:1 with a stable message
         Assert.Equal(("file-read-error", 1, 1, "File not found"), (failure.RuleId, failure.Line, failure.Column, failure.Message));
@@ -178,7 +179,7 @@ public class LintMarkEngineTests
         using var directory = new TemporaryDirectory();
 
         // Act: process
-        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([directory.FullPath])).Failures);
+        var failure = Assert.Single(Assert.Single(new LintMarkEngine(1).Process([directory.FullPath])).Diagnostics);
 
         // Assert: reported as a read failure
         Assert.Equal("file-read-error", failure.RuleId);
@@ -204,9 +205,9 @@ public class LintMarkEngineTests
         var results = engine.Process([bad, good]);
 
         // Assert: only the bad file fails, with a stable message
-        var failure = Assert.Single(results.Single(r => r.Path == bad).Failures);
+        var failure = Assert.Single(results.Single(r => r.Path == bad).Diagnostics);
         Assert.Equal(("file-parse-error", 1, 1, "Markdown parser failed: InvalidOperationException"), (failure.RuleId, failure.Line, failure.Column, failure.Message));
-        Assert.Empty(results.Single(r => r.Path == good).Failures);
+        Assert.Empty(results.Single(r => r.Path == good).Diagnostics);
     }
 
     /// <summary>
@@ -250,7 +251,7 @@ public class LintMarkEngineTests
         var files = Enumerable.Range(0, 8).Select(i => $"file{i}.md").ToArray();
         var finished = files.Select(_ => new ManualResetEventSlim(false)).ToArray();
         var completion = new List<string>();
-        var engine = new LintMarkEngine(8, path =>
+        var engine = new LintMarkEngine(8, (path, _) =>
         {
             var index = int.Parse(path[4..5], CultureInfo.InvariantCulture);
             if (index < 7)
@@ -289,7 +290,7 @@ public class LintMarkEngineTests
         var timeouts = 0;
         var current = 0;
         var maximum = 0;
-        var engine = new LintMarkEngine(4, path =>
+        var engine = new LintMarkEngine(4, (path, _) =>
         {
             var now = Interlocked.Increment(ref current);
             InterlockedMax(ref maximum, now);
@@ -325,7 +326,7 @@ public class LintMarkEngineTests
         // Arrange: a processor that records the highest concurrency
         var current = 0;
         var maximum = 0;
-        var engine = new LintMarkEngine(1, path =>
+        var engine = new LintMarkEngine(1, (path, _) =>
         {
             var now = Interlocked.Increment(ref current);
             InterlockedMax(ref maximum, now);
@@ -550,12 +551,12 @@ public class LintMarkEngineTests
         // Arrange: a processor that returns failures in scrambled order
         using var directory = new TemporaryDirectory();
         directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(2, path => new FileResult(path,
+        var engine = new LintMarkEngine(2, (path, _) => new FileResult(path,
         [
-            new FileFailure("rule-b", 3, 1, "later"),
-            new FileFailure("rule-z", 1, 5, "second"),
-            new FileFailure("rule-a", 1, 5, "first"),
-            new FileFailure("rule-y", 1, 2, "earliest")
+            new Diagnostic("rule-b", DiagnosticKind.LintOnly, path, 3, 1, "later"),
+            new Diagnostic("rule-z", DiagnosticKind.LintOnly, path, 1, 5, "second"),
+            new Diagnostic("rule-a", DiagnosticKind.LintOnly, path, 1, 5, "first"),
+            new Diagnostic("rule-y", DiagnosticKind.LintOnly, path, 1, 2, "earliest")
         ]));
 
         // Act: run
@@ -571,19 +572,19 @@ public class LintMarkEngineTests
     ///     Test that a file result cannot be changed through its failure list.
     /// </summary>
     [Fact]
-    public void FileResult_Failures_CastToMutableTypes_CannotBeModified()
+    public void FileResult_Diagnostics_CastToMutableTypes_CannotBeModified()
     {
         // Arrange: a result built from an array that the creator keeps
-        var source = new[] { new FileFailure("rule-a", 1, 1, "first") };
+        var source = new[] { new Diagnostic("rule-a", DiagnosticKind.LintOnly, "a.md", 1, 1, "first") };
         var result = new FileResult("a.md", [.. source]);
 
         // Act: the creator changes its array afterwards
-        source[0] = new FileFailure("rule-b", 2, 2, "changed");
-        IReadOnlyList<FileFailure> failures = result.Failures;
+        source[0] = new Diagnostic("rule-b", DiagnosticKind.LintOnly, "a.md", 2, 2, "changed");
+        IReadOnlyList<Diagnostic> diagnostics = result.Diagnostics;
 
         // Assert: the result is unaffected and a caller cannot change it
-        Assert.Equal("rule-a", failures[0].RuleId);
-        ReadOnlyAssertions.AssertCannotBeModified(failures);
+        Assert.Equal("rule-a", diagnostics[0].RuleId);
+        ReadOnlyAssertions.AssertCannotBeModified(diagnostics);
     }
 
     /// <summary>
@@ -809,8 +810,8 @@ public class LintMarkEngineTests
         // Assert: no configuration, the configuration problem on both files, and the decoding failure still found
         Assert.All(results, r => Assert.Null(r.Config));
         Assert.All(results, r => Assert.Single(r.ConfigErrors));
-        Assert.Equal("file-encoding-error", Assert.Single(results.Single(r => r.Path == bad).Failures).RuleId);
-        Assert.Empty(results.Single(r => r.Path == good).Failures);
+        Assert.Equal("file-encoding-error", Assert.Single(results.Single(r => r.Path == bad).Diagnostics).RuleId);
+        Assert.Empty(results.Single(r => r.Path == good).Diagnostics);
     }
 
     /// <summary>
@@ -885,7 +886,7 @@ public class LintMarkEngineTests
     public void LintMarkEngine_Process_NullLoader_Throws()
     {
         // Act & Assert: the loader is validated
-        Assert.Throws<ArgumentNullException>(() => new LintMarkEngine(1).Process([], null!, null));
+        Assert.Throws<ArgumentNullException>(() => new LintMarkEngine(1).Process(Array.Empty<string>(), null!, null));
     }
 
     /// <summary>
@@ -1128,5 +1129,99 @@ public class LintMarkEngineTests
         Assert.Equal(sequential.Lines, parallel.Lines);
         Assert.Equal(sequential.Lines.Length, sequential.Lines.Distinct().Count());
         Assert.Equal(4, sequential.Lines.Length);
+    }
+
+    /// <summary>
+    ///     Creates a valid diagnostic for a file named a.md.
+    /// </summary>
+    /// <returns>The diagnostic.</returns>
+    private static Diagnostic SampleDiagnostic() =>
+        new("blank-lines", DiagnosticKind.LintOnly, "a.md", 1, 1, "Message");
+
+    /// <summary>
+    ///     Test that a file result keeps its values when they are valid.
+    /// </summary>
+    [Fact]
+    public void FileResult_Constructor_ValidArguments_KeepsValues()
+    {
+        // Arrange / Act: a result with one diagnostic
+        var diagnostic = SampleDiagnostic();
+        var result = new FileResult("a.md", [diagnostic]);
+
+        // Assert: the values are kept
+        Assert.Equal("a.md", result.Path);
+        Assert.Equal(diagnostic, Assert.Single(result.Diagnostics));
+        Assert.Null(result.Config);
+    }
+
+    /// <summary>
+    ///     Test that a file result without a path is rejected.
+    /// </summary>
+    [Fact]
+    public void FileResult_Constructor_MissingPath_Throws()
+    {
+        // Arrange / Act / Assert: the path may be neither null nor empty
+        Assert.Throws<ArgumentNullException>(() => new FileResult(null!, []));
+        Assert.Throws<ArgumentException>(() => new FileResult(string.Empty, []));
+    }
+
+    /// <summary>
+    ///     Test that a file result with default or null diagnostics is rejected.
+    /// </summary>
+    [Fact]
+    public void FileResult_Constructor_InvalidDiagnostics_Throws()
+    {
+        // Arrange / Act / Assert: a default array and a null element are rejected
+        Assert.Throws<ArgumentException>(() => new FileResult("a.md", default));
+        Assert.Throws<ArgumentNullException>(() => new FileResult("a.md", [null!]));
+    }
+
+    /// <summary>
+    ///     Test that a file change keeps its values when they are valid.
+    /// </summary>
+    [Fact]
+    public void FileChange_Constructor_ValidArguments_KeepsValues()
+    {
+        // Arrange / Act: a change with both byte arrays
+        var change = new FileChange("a\n", "b\n", new LineEndingInfo(1, 0), LineEnding.Lf, [1], [2]);
+
+        // Assert: the values are kept
+        Assert.Equal("a\n", change.OriginalLf);
+        Assert.Equal("b\n", change.NewLf);
+        Assert.Equal(LineEnding.Lf, change.TargetEnding);
+        Assert.Equal([(byte)1], change.OriginalBytes);
+        Assert.Equal([(byte)2], change.NewBytes);
+    }
+
+    /// <summary>
+    ///     Test that a file change with a null text is rejected.
+    /// </summary>
+    [Fact]
+    public void FileChange_Constructor_NullText_Throws()
+    {
+        // Arrange / Act / Assert: neither text may be null
+        Assert.Throws<ArgumentNullException>(() => new FileChange(null!, "b\n", default, LineEnding.Lf, [1], [2]));
+        Assert.Throws<ArgumentNullException>(() => new FileChange("a\n", null!, default, LineEnding.Lf, [1], [2]));
+    }
+
+    /// <summary>
+    ///     Test that a file change with default byte arrays is rejected.
+    /// </summary>
+    [Fact]
+    public void FileChange_Constructor_DefaultBytes_Throws()
+    {
+        // Arrange / Act / Assert: neither byte array may be a default array
+        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, default, [2]));
+        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, [1], default));
+    }
+
+    /// <summary>
+    ///     Test that a file change with an undefined line ending is rejected.
+    /// </summary>
+    [Fact]
+    public void FileChange_Constructor_UndefinedLineEnding_Throws()
+    {
+        // Arrange / Act / Assert: the target ending must be a defined value
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FileChange("a\n", "b\n", default, (LineEnding)99, [1], [2]));
     }
 }

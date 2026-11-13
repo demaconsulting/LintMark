@@ -1,0 +1,111 @@
+---
+# Software Unit Requirements for the AtomicFileWriter Class
+#
+# The AtomicFileWriter class replaces the content of a file in one step, so that a rewritten Markdown file is
+# either the old file or the new file and never something in between. The behaviors that depend on Unix file
+# modes and symbolic links are proven only by test runs on Linux and macOS, because Windows has neither in the
+# form that these requirements describe.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Engine Requirements
+        sections:
+          - title: AtomicFileWriter Requirements
+            requirements:
+              - id: LintMark-Engine-AtomicFileWriter-ReplacesContent
+                title: The AtomicFileWriter class shall replace the content of an existing file with the given bytes.
+                justification: |
+                  This is the purpose of the unit. It must hold for empty content, for large content, and when
+                  the same file is written several times in a row.
+                tests:
+                  - AtomicFileWriter_Write_NewContent_ReplacesFile
+                  - AtomicFileWriter_Write_EmptyContent_WritesEmptyFile
+                  - AtomicFileWriter_Write_LargeContent_WritesAllBytes
+                  - AtomicFileWriter_Write_TwoSequentialWrites_SecondUsesNewBytesAsExpected
+
+              - id: LintMark-Engine-AtomicFileWriter-KeepsExactBytes
+                title: >-
+                  The AtomicFileWriter class shall write the given bytes exactly, including a byte order mark and
+                  carriage returns.
+                justification: |
+                  The bytes are computed from the document by the caller. Any change in the writer, such as
+                  text conversion or newline translation, would defeat the preservation of the author's
+                  encoding signature and line endings.
+                tests:
+                  - AtomicFileWriter_Write_ContentWithBomAndCrlf_WrittenByteForByte
+
+              - id: LintMark-Engine-AtomicFileWriter-NoPartialFile
+                title: >-
+                  The AtomicFileWriter class shall leave the file with its original content when the replacement
+                  does not complete.
+                justification: |
+                  A crash, a full disk, or any failure between the first and the last step must not leave a
+                  truncated or half-written document.
+                tests:
+                  - AtomicFileWriter_Write_BeforeReplaceThrows_OriginalIntactAndTempRemoved
+
+              - id: LintMark-Engine-AtomicFileWriter-NoTemporaryLeft
+                title: >-
+                  The AtomicFileWriter class shall leave no temporary file next to the target, whether the
+                  replacement succeeds or fails.
+                justification: |
+                  Stray files in a documentation folder would be picked up by version control and by later
+                  runs of the tool.
+                tests:
+                  - AtomicFileWriter_Write_Success_LeavesNoTemporaryFile
+                  - AtomicFileWriter_Write_BeforeReplaceThrows_OriginalIntactAndTempRemoved
+
+              - id: LintMark-Engine-AtomicFileWriter-RefusesChangedFile
+                title: >-
+                  The AtomicFileWriter class shall refuse to replace a file whose current content differs from the
+                  content that the new bytes were computed from, and leave the file as it is.
+                justification: |
+                  A file that was edited after the tool read it would lose the edit. The refusal is the only
+                  protection against that, because the tool cannot merge the two versions.
+                tests:
+                  - AtomicFileWriter_Write_FileChangedSinceRead_ThrowsAndLeavesFile
+                  - AtomicFileWriter_Write_OriginalBytesEqualButDifferentLength_Throws
+
+              - id: LintMark-Engine-AtomicFileWriter-ReportsFailure
+                title: >-
+                  The AtomicFileWriter class shall report a file that cannot be replaced, because it is read-only,
+                  missing, or in a missing directory, as an error and leave the file as it is.
+                justification: |
+                  A failure must reach the caller, which reports it to the user, instead of passing for a
+                  success.
+                tests:
+                  - AtomicFileWriter_Write_ReadOnlyFile_ThrowsAndLeavesFile
+                  - AtomicFileWriter_Write_MissingFile_Throws
+                  - AtomicFileWriter_Write_MissingDirectory_Throws
+
+              - id: LintMark-Engine-AtomicFileWriter-RejectsBlankPath
+                title: The AtomicFileWriter class shall reject a null, empty, or blank path.
+                justification: |
+                  A path that names nothing is a programming error that must be reported as such, not
+                  mistaken for a file.
+                tests:
+                  - AtomicFileWriter_Write_NullPath_Throws
+                  - AtomicFileWriter_Write_BlankPath_Throws
+
+              - id: LintMark-Engine-AtomicFileWriter-KeepsPermissions
+                title: >-
+                  The AtomicFileWriter class shall give the replaced file the permissions that the file had.
+                justification: |
+                  Rewriting a script or a shared document must not make it unreadable or turn it executable.
+                  The tests rely on Unix file modes, so only Linux and macOS runs count as evidence.
+                tests:
+                  - ubuntu@AtomicFileWriter_Write_ExecutableFile_KeepsMode
+                  - macos@AtomicFileWriter_Write_ExecutableFile_KeepsMode
+
+              - id: LintMark-Engine-AtomicFileWriter-WritesThroughSymlink
+                title: >-
+                  The AtomicFileWriter class shall replace the content of the file that a symbolic link points
+                  to and keep the link.
+                justification: |
+                  Documentation trees use links to share documents. Replacing the link by a regular file
+                  would silently break the sharing. The tests need symbolic links, so only Linux and macOS
+                  runs count as evidence.
+                tests:
+                  - ubuntu@AtomicFileWriter_Write_SymlinkTarget_WritesThroughLink
+                  - macos@AtomicFileWriter_Write_SymlinkTarget_WritesThroughLink

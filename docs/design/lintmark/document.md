@@ -28,7 +28,8 @@ and reporting failures belong to the `Engine` subsystem. The subsystem contains 
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
 - *Contract*: Returns a `ParsedDocument` holding the source, the Markdig syntax tree, the flattened
-  `BlockInfo` list, the `SuppressionMap`, and the `ReferenceIndex`.
+  `BlockInfo` list, the `SuppressionMap`, the `ReferenceIndex`, and, when the document had to be read without grid
+  tables, the `GridFallback` location that marks it as format-unsafe (`ParsedDocument.IsFormatUnsafe`).
 - *Constraints*: Exceptions raised by Markdig propagate to the caller. Safe to call concurrently for
   different documents.
 
@@ -57,7 +58,8 @@ suppressed at an offset or inside a range.
 - *Constraints*: Immutable after construction; safe for concurrent reads.
 
 The subsystem consumes the Markdig library (syntax tree and source ranges) and the .NET base class
-library; it uses no other subsystem.
+library; it uses no other subsystem. It is consumed by the `Engine` subsystem, the `Formatting` subsystem (the
+document, its blocks, and its suppressions), and the `Safety` subsystem (the shared Markdown pipeline).
 
 ### Design
 
@@ -87,8 +89,13 @@ the nesting properties.
 
 One compensation is a deliberate behavior and not only a range correction: when the blocks do not nest, the
 document is parsed once more without grid tables, so a document that contains both a valid and an invalid grid
-table is read without grid tables. The fallback is silent in Phase 1. It is a response to any failure of the
-nesting check; the grid table parser is the only known cause.
+table is read without grid tables. The fallback is not silent. The parser locates the first line that looks like a
+grid table border but is not part of a valid table, records it as the `GridFallback` of the `ParsedDocument`, and
+thereby marks the document as format-unsafe (`IsFormatUnsafe`): the second reading can turn valid grid tables into
+paragraphs, which a comparison of rendered output cannot see, so a document that needed it is never rewritten. The
+engine reports the recorded line as a `grid-table-invalid` finding unless the rule is switched off or suppressed there,
+and refuses to rewrite the document either way. Linting continues to use the second reading. The fallback is a
+response to any failure of the nesting check; the grid table parser is the only known cause.
 
 The `SuppressionMap` and `ReferenceIndex` units consume the `BlockInfo` and `BlockKind` types that are
 declared with `DocumentParser`, while the parser builds both of them. This is a cycle of types only: the
@@ -102,4 +109,4 @@ construction.
 Supporting value types are documented with the unit that owns them: `LineEnding` and
 `LineEndingInfo` with `SourceDocument`; `ParsedDocument`, `BlockInfo`, `BlockKind`, and `LeafLine`
 with `DocumentParser`; `SuppressionRange`, `RuleSet`, and `RuleSetKind` with `SuppressionMap`; and
-`ReferenceDefinition` with `ReferenceIndex`.
+`ReferenceDefinition` with `ReferenceIndex`; and `GridTableFallback` with `DocumentParser`.

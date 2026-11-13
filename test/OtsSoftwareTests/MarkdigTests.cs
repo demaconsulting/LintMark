@@ -280,4 +280,100 @@ public class MarkdigTests
         // Assert: every result equals the single-threaded one
         Assert.All(results, r => Assert.Equal(expected, r));
     }
+
+    /// <summary>
+    ///     Validates that rendering the same text with the same pipeline (or an identically built one) always gives the same HTML.
+    /// </summary>
+    [Fact]
+    public void Markdig_HtmlRendering_SamePipelineAndText_IsDeterministic()
+    {
+        // Arrange: a pipeline, a second pipeline built the same way, and a document with varied constructs
+        var pipeline = CreatePipeline();
+        var other = CreatePipeline();
+        const string text = "# H\n\nSome *emphasis* and `code` and [a link](http://x \"t\").\n\n- a\n- b\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+
+        // Act: render repeatedly
+        var first = Markdown.ToHtml(text, pipeline);
+        var second = Markdown.ToHtml(text, pipeline);
+        var third = Markdown.ToHtml(text, other);
+
+        // Assert: all renderings are identical
+        Assert.Equal(first, second);
+        Assert.Equal(first, third);
+    }
+
+    /// <summary>
+    ///     Documents that a multi-line code span whose content starts and ends with a line break renders differently for
+    ///     CRLF and LF input, which is why LintMark renders LF-normalized text only.
+    /// </summary>
+    [Fact]
+    public void Markdig_HtmlRendering_CrlfVersusLfCodeSpan_DiffersAsDocumented()
+    {
+        // Arrange: a code span whose content is framed by line breaks, in LF and CRLF form
+        const string lf = "`\nbb\n`\n";
+        var crlf = lf.Replace("\n", "\r\n", StringComparison.Ordinal);
+        var pipeline = CreatePipeline();
+
+        // Act: render both
+        var lfHtml = Markdown.ToHtml(lf, pipeline);
+        var crlfHtml = Markdown.ToHtml(crlf, pipeline);
+
+        // Assert: with LF the line breaks become spaces that are stripped; with CRLF the spaces stay
+        Assert.Equal("<p><code>bb</code></p>\n", lfHtml);
+        Assert.Equal("<p><code> bb </code></p>\n", crlfHtml);
+        Assert.NotEqual(lfHtml, crlfHtml);
+    }
+
+    /// <summary>
+    ///     Validates that one shared pipeline renders several different documents from many threads with the same HTML as a single thread.
+    /// </summary>
+    [Fact]
+    public void Markdig_HtmlRendering_SharedPipelineParallel_IdenticalResults()
+    {
+        // Arrange: one shared pipeline, several documents, and the single-threaded HTML of each
+        var pipeline = CreatePipeline();
+        string[] texts =
+        [
+            "# H\n\nText with `code` and *emphasis*.\n",
+            "- a\n  b\n\n> quote\n",
+            "| a | b |\n|---|---|\n| 1 | 2 |\n",
+            "+---+---+\n| a | b |\n+---+---+\n| 1 | 2 |\n+---+---+\n",
+            "Note[^1].\n\n[^1]: The footnote.\n"
+        ];
+        var expected = texts.Select(t => Markdown.ToHtml(t, pipeline)).ToArray();
+        var results = new string[128];
+
+        // Act: render from many threads, each rendering one of the documents
+        Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i => results[i] = Markdown.ToHtml(texts[i % texts.Length], pipeline));
+
+        // Assert: every result equals the single-threaded HTML of its document
+        for (var i = 0; i < results.Length; i++)
+        {
+            Assert.Equal(expected[i % texts.Length], results[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a pipeline with grid tables and pipe tables renders both kinds of table as HTML tables.
+    /// </summary>
+    [Fact]
+    public void Markdig_HtmlRendering_GridTableAndPipeTable_RenderAsTables()
+    {
+        // Arrange: a pipeline with only the two table extensions, and a grid table followed by a pipe table
+        var pipeline = new MarkdownPipelineBuilder()
+            .UsePipeTables(new PipeTableOptions { UseGfmRules = true })
+            .UseGridTables()
+            .Build();
+        const string text = "+---+---+\n| a | b |\n+---+---+\n| 1 | 2 |\n+---+---+\n\n| c | d |\n|---|---|\n| 3 | 4 |\n";
+
+        // Act: render
+        var html = Markdown.ToHtml(text, pipeline);
+
+        // Assert: two tables, the grid table with plain cells and the pipe table with a header row
+        Assert.Equal(2, html.Split("<table>").Length - 1);
+        Assert.Contains("<td>a</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td>2</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<th>c</th>", html, StringComparison.Ordinal);
+        Assert.Contains("<td>4</td>", html, StringComparison.Ordinal);
+    }
 }

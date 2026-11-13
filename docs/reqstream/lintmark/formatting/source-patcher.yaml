@@ -1,0 +1,70 @@
+---
+# Software Unit Requirements for the SourcePatcher Class
+#
+# The SourcePatcher class applies an ordered list of changes to the text of a document and returns the rewritten
+# text.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: SourcePatcher Requirements
+            requirements:
+              - id: LintMark-Formatting-SourcePatcher-AppliesEdits
+                title: >-
+                  The SourcePatcher class shall apply every change of an ordered list to the text, replacing,
+                  deleting, or inserting at the positions given, including at the end of the text, with positions
+                  counted in UTF-16 code units, and leave every other character as it was.
+                justification: |
+                  The rewritten text is the document with the changes and nothing else. Documents contain
+                  characters outside the basic plane, so the unit of position must be the one that the rest
+                  of the tool uses.
+                tests:
+                  - SourcePatcher_Apply_ReplaceDeleteInsert_ProducesExpectedText
+                  - SourcePatcher_Apply_EditAtEndOfText_Applies
+                  - SourcePatcher_Apply_UnicodeText_PatchesByUtf16Offsets
+                  - SourcePatcher_Apply_ManyEdits_MatchesReferenceImplementation
+
+              - id: LintMark-Formatting-SourcePatcher-NoEditsIdentity
+                title: The SourcePatcher class shall return the text itself when the list of changes is empty.
+                justification: |
+                  A document for which no change was proposed must come out identical, and callers can
+                  recognize that case without comparing text.
+                tests:
+                  - SourcePatcher_Apply_NoEdits_ReturnsSameText
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsOutOfRange
+                title: >-
+                  The SourcePatcher class shall refuse a change, or an insertion, that lies beyond the end of the
+                  text.
+                justification: |
+                  A change that does not refer to the text cannot be applied, and ignoring it would hide a
+                  defect in the rule that proposed it.
+                tests:
+                  - SourcePatcher_Apply_EditBeyondText_Throws
+                  - SourcePatcher_Apply_InsertionBeyondEnd_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsUnorderedEdits
+                title: >-
+                  The SourcePatcher class shall refuse a list of changes that is not in ascending order or whose
+                  changes overlap.
+                justification: |
+                  Applying such a list would produce text that depends on the order of application and could
+                  damage the document.
+                tests:
+                  - SourcePatcher_Apply_UnorderedArray_Throws
+                  - SourcePatcher_Apply_OverlappingEdits_Throws
+                  - SourcePatcher_Apply_TwoInsertionsSameOffset_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsInvalidArguments
+                title: >-
+                  The SourcePatcher class shall refuse a missing document, a list of changes that was never
+                  initialized, and a change that was never initialized.
+                justification: |
+                  These are programming errors that must be reported as such, not treated as an empty list
+                  of changes.
+                tests:
+                  - SourcePatcher_Apply_DefaultArray_Throws
+                  - SourcePatcher_Apply_DefaultEdit_Throws
+                  - SourcePatcher_Apply_NullSource_Throws

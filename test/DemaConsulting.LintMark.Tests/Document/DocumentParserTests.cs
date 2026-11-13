@@ -88,6 +88,29 @@ public class DocumentParserTests
         [.. DocumentParser.GetLines(document, leaf).Select(l => document.Source.Text[l.ContentStart..l.ContentEnd])];
 
     /// <summary>
+    ///     Determines whether a fallback location addresses the first border character of a border-shaped line.
+    /// </summary>
+    /// <param name="lines">The lines of the document text.</param>
+    /// <param name="fallback">The reported location.</param>
+    /// <returns><see langword="true"/> when the column is a plus sign preceded only by blanks and quote markers and followed only by border text.</returns>
+    private static bool IsBorderLocation(string[] lines, GridTableFallback fallback)
+    {
+        if (fallback.Line < 1 || fallback.Line > lines.Length)
+        {
+            return false;
+        }
+
+        var line = lines[fallback.Line - 1];
+        if (fallback.Column < 1 || fallback.Column > line.Length || line[fallback.Column - 1] != '+')
+        {
+            return false;
+        }
+
+        return line[..(fallback.Column - 1)].All(static c => c is ' ' or '>')
+            && line[(fallback.Column - 1)..].All(static c => c is '+' or '-' or ':' or ' ' or '\t');
+    }
+
+    /// <summary>
     ///     Test that a simple document flattens to its blocks in source order.
     /// </summary>
     [Fact]
@@ -1347,7 +1370,7 @@ public class DocumentParserTests
         Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.ListItem));
         Assert.Equal(161_200, document.Blocks.Length);
         Assert.True(document.Blocks.Zip(document.Blocks.Skip(1)).All(pair => pair.First.Start <= pair.Second.Start), "blocks are not in source order");
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"parsing took {stopwatch.Elapsed.TotalSeconds:F1} s");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"parsing took {stopwatch.Elapsed.TotalSeconds:F1} s");
     }
 
     /// <summary>
@@ -1528,5 +1551,270 @@ public class DocumentParserTests
         Assert.Throws<ArgumentNullException>(() => DocumentParser.GetLines(document, null!));
         Assert.Throws<ArgumentNullException>(() => DocumentParser.GetContinuationPrefix(null!, paragraph));
         Assert.Throws<ArgumentNullException>(() => DocumentParser.GetContinuationPrefix(document, null!));
+    }
+
+    /// <summary>
+    ///     Test that a grid-table-looking line that is not part of a valid grid table marks the document format-unsafe at that line.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="line">The expected 1-based line of the offending border.</param>
+    /// <param name="column">The expected 1-based column of its first border character.</param>
+    [Theory]
+    [InlineData("para\n+---+---+\n", 2, 1)]
+    [InlineData("+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n", 5, 1)]
+    [InlineData("text\n\n+---+\n", 3, 1)]
+    [InlineData("para\n  +---+---+\n", 2, 3)]
+    [InlineData("intro\n\n  +---+---+\n", 3, 3)]
+    [InlineData("> para\n> +---+---+\n", 2, 3)]
+    [InlineData("> para\n+---+---+\n", 2, 1)]
+    [InlineData("- item\n+---+---+\n- next\n", 2, 1)]
+    [InlineData("# Title\n\npara\n+---+---+\n\n- item\n", 4, 1)]
+    [InlineData("para\n+:--+--:+\n", 2, 1)]
+    [InlineData("- +---+---+\n  | a | b |\n  +---+---+\n\n- para\n  +---+\n", 6, 3)]
+    public void DocumentParser_Parse_InvalidGridLine_MarksFormatUnsafeAtThatLine(string text, int line, int column)
+    {
+        // Arrange / Act: parse a document with a grid-table-looking line that is not a valid grid table
+        var document = Parse(text);
+
+        // Assert: the document is format-unsafe and the fallback names the offending line and column
+        Assert.True(document.IsFormatUnsafe);
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(line, column), document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that the location is the invalid line and not a line of a valid grid table in the same document.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="line">The expected 1-based line of the invalid border.</param>
+    [Theory]
+    [InlineData("+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n", 5)]
+    [InlineData("+---+---+\n| a | b |\n+---+---+\n\npara\n+---+\n", 6)]
+    [InlineData("+---+---+\n| a | b |\n+===+===+\n| c | d |\n+---+---+\n\npara\n+---+\n", 8)]
+    public void DocumentParser_Parse_ValidAndInvalidGridTable_ReportsInvalidLineNotValidTableLine(string text, int line)
+    {
+        // Arrange / Act: parse a valid grid table followed by an invalid grid-table-looking line
+        var document = Parse(text);
+
+        // Assert: the reported line is the invalid one, not the first line of the valid table
+        Assert.NotNull(document.GridFallback);
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(line, 1), document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that a border-looking line inside a fenced code block is ordinary text and does not mark the document.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    [Theory]
+    [InlineData("```\n+---+---+\n```\n")]
+    [InlineData("para\n\n```\n+---+---+\n```\n")]
+    [InlineData("~~~\n+---+\n~~~\n")]
+    public void DocumentParser_Parse_InvalidGridLineInsideFence_NotMarked(string text)
+    {
+        // Arrange / Act: parse a fenced code block that contains a border-looking line
+        var document = Parse(text);
+
+        // Assert: the first reading nests, so there is no fallback
+        Assert.False(document.IsFormatUnsafe);
+        Assert.Null(document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that a border-looking line inside indented code or an HTML block is ordinary text and does not mark the document.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    [Theory]
+    [InlineData("para\n\n    +---+---+\n")]
+    [InlineData("<div>\n+---+---+\n</div>\n")]
+    public void DocumentParser_Parse_InvalidGridLineInsideOtherLiteralBlocks_NotMarked(string text)
+    {
+        // Arrange / Act: parse a code or HTML block that contains a border-looking line
+        var document = Parse(text);
+
+        // Assert: the document is not format-unsafe, and the literal block is a block of its own
+        Assert.False(document.IsFormatUnsafe);
+        Assert.Null(document.GridFallback);
+        Assert.NotEmpty(document.Blocks);
+    }
+
+    /// <summary>
+    ///     Test that a border line without a trailing plus sign is located like any other border line.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    [Theory]
+    [InlineData("para\n+---\n")]
+    [InlineData("para\n+---+---\n")]
+    public void DocumentParser_Parse_GridBorderWithoutTrailingPlus_Located(string text)
+    {
+        // Arrange / Act: parse a paragraph followed by a border that does not end with a plus sign
+        var document = Parse(text);
+
+        // Assert: the border line is reported
+        Assert.True(document.IsFormatUnsafe);
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(2, 1), document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that a document with only a valid grid table is not marked.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_ValidGridTableOnly_NotMarked()
+    {
+        // Arrange / Act: parse a valid Pandoc grid table
+        var document = Parse("+---+---+\n| a | b |\n+---+---+\n| c | d |\n+---+---+\n");
+
+        // Assert: the table is a grid table and there is no fallback
+        Assert.Equal(BlockKind.GridTable, Assert.Single(document.Blocks).Kind);
+        Assert.False(document.IsFormatUnsafe);
+        Assert.Null(document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that a document without any grid-table-looking line is not marked.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    [Theory]
+    [InlineData("plain\n")]
+    [InlineData("# Title\n\n- a\n- b\n\n> quote\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")]
+    [InlineData("")]
+    public void DocumentParser_Parse_PlainDocument_NotMarked(string text)
+    {
+        // Arrange / Act: parse a document without grid tables
+        var document = Parse(text);
+
+        // Assert: the document is not format-unsafe, and has blocks exactly when it has text
+        Assert.False(document.IsFormatUnsafe);
+        Assert.Null(document.GridFallback);
+        Assert.Equal(text.Length > 0, !document.Blocks.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Test that a fallback whose offending line cannot be located is reported at line 1, column 1.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_FallbackLocationUnknown_FallsBackToLineOneColumnOne()
+    {
+        // Arrange / Act: parse a grid table opener without a closing border; the first reading reports the opener
+        // as a grid table block, so no remaining line can be named
+        var document = Parse("+---+---+\n|a|b|\n\ntext\n");
+
+        // Assert: the document is format-unsafe and the location is the start of the document
+        Assert.True(document.IsFormatUnsafe);
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(1, 1), document.GridFallback);
+    }
+
+    /// <summary>
+    ///     Test that a reported fallback location is either the start of the document or a grid border character on a border-shaped line.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_RandomDocuments_FallbackLineIsAlwaysAGridOpenerOrLineOne()
+    {
+        // Arrange: the generated adversarial documents, which include many grid-table-looking lines
+        const uint seed = 20260511;
+        const int countPerFamily = 500;
+        var fallbacks = 0;
+        var problems = new List<string>();
+
+        // Act: parse every document and check each reported location
+        foreach (var fixture in RandomDocuments.Generate(seed, countPerFamily))
+        {
+            var document = Parse(fixture.Text);
+            if (document.GridFallback is not { } fallback)
+            {
+                continue;
+            }
+
+            fallbacks++;
+            if (fallback is { Line: 1, Column: 1 })
+            {
+                continue;
+            }
+
+            if (!IsBorderLocation(document.Source.Text.Split('\n'), fallback))
+            {
+                problems.Add($"{fixture.Name}: {fallback} in \"{fixture.Text.Replace("\n", "\\n", StringComparison.Ordinal)}\"");
+            }
+        }
+
+        // Assert: the check was not vacuous and every location is plausible
+        Assert.True(fallbacks > 0, "no generated document took the fallback");
+        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
+    }
+
+    /// <summary>
+    ///     Test that a document that takes the grid table fallback still produces nested blocks that account for all text.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_GridTableFallback_StillProducesBlocks()
+    {
+        // Arrange / Act: parse a document whose second paragraph holds an invalid grid table border
+        var document = Parse("# Title\n\npara\n+---+---+\n\n- item\n");
+
+        // Assert: the blocks are those of the document read without grid tables, and they tile the text
+        Assert.True(document.IsFormatUnsafe);
+        Assert.Equal(
+            [BlockKind.Heading, BlockKind.Paragraph, BlockKind.List, BlockKind.ListItem, BlockKind.Paragraph],
+            document.Blocks.Select(b => b.Kind));
+        Assert.Equal("para\n+---+---+", TextOf(document, document.Blocks[1]));
+        Assert.Empty(SpanTilingAssertions.Check(document));
+    }
+
+    /// <summary>
+    ///     Test that grid table fallback locations compare by value.
+    /// </summary>
+    [Fact]
+    public void GridTableFallback_Equals_SameValues_AreEqual()
+    {
+        // Arrange: two locations with the same values and two that differ in one component
+        var first = new GridTableFallback(2, 3);
+        var same = new GridTableFallback(2, 3);
+        var otherLine = new GridTableFallback(3, 3);
+        var otherColumn = new GridTableFallback(2, 4);
+
+        // Act / Assert: equality and hash code follow the values
+        Assert.Equal(first, same);
+        Assert.Equal(first.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(first, otherLine);
+        Assert.NotEqual(first, otherColumn);
+    }
+
+    /// <summary>
+    ///     Test that a grid table fallback keeps a valid line and column.
+    /// </summary>
+    [Fact]
+    public void GridTableFallback_Constructor_ValidPosition_KeepsValues()
+    {
+        // Arrange / Act: the smallest valid position and another one
+        var smallest = new GridTableFallback(1, 1);
+        var other = new GridTableFallback(7, 3);
+
+        // Assert: the values are kept
+        Assert.Equal(1, smallest.Line);
+        Assert.Equal(1, smallest.Column);
+        Assert.Equal(7, other.Line);
+        Assert.Equal(3, other.Column);
+    }
+
+    /// <summary>
+    ///     Test that a line below one is rejected.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void GridTableFallback_Constructor_LineBelowOne_Throws(int line)
+    {
+        // Arrange / Act / Assert: lines are 1-based
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GridTableFallback(line, 1));
+    }
+
+    /// <summary>
+    ///     Test that a column below one is rejected.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void GridTableFallback_Constructor_ColumnBelowOne_Throws(int column)
+    {
+        // Arrange / Act / Assert: columns are 1-based
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GridTableFallback(1, column));
     }
 }

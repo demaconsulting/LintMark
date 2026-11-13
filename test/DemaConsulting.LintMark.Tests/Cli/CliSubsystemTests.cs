@@ -549,6 +549,52 @@ public class CliSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the fix and diff flags are parsed by Context alongside paths.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_FixAndDiff_Flags_Parsed()
+    {
+        // Act: parse the two modes separately, each with a path
+        using var fix = Context.Create(["--silent", "--fix", "a.md"]);
+        using var diff = Context.Create(["--silent", "--diff", "a.md"]);
+
+        // Assert: each flag is set only in its own context and the path is kept
+        Assert.True(fix.Fix);
+        Assert.False(fix.Diff);
+        Assert.True(diff.Diff);
+        Assert.False(diff.Fix);
+        Assert.Equal(["a.md"], fix.Paths);
+        Assert.Equal(["a.md"], diff.Paths);
+    }
+
+    /// <summary>
+    ///     Test that combining fix with check is rejected by Context and reported by Main with a non-zero exit code.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_FixWithCheck_Arguments_Throws()
+    {
+        // Arrange: the combination is rejected by Context directly, then capture stderr produced by Main
+        Assert.Throws<ArgumentException>(() => Context.Create(["--fix", "--check"]));
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: invoke Main with the contradictory flags
+            var exitCode = Program.Main(["--fix", "--check"]);
+
+            // Assert: usage error and exit code one
+            Assert.Equal(1, exitCode);
+            Assert.Contains("--fix cannot be combined with --check or --diff", errorWriter.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
     ///     Test that the config option flows from Context through Program and reports an invalid configuration file.
     /// </summary>
     [Fact]
@@ -645,6 +691,60 @@ public class CliSubsystemTests
             // Assert: usage error and exit code one
             Assert.Equal(1, exitCode);
             Assert.Contains("--config", errorWriter.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
+    ///     Test that combining validate with check is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithCheck_ContextAndProgram_RejectsAndExitsNonZero() =>
+        AssertValidateCombinationRejected("--check");
+
+    /// <summary>
+    ///     Test that combining validate with fix is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithFix_ContextAndProgram_RejectsAndExitsNonZero() =>
+        AssertValidateCombinationRejected("--fix");
+
+    /// <summary>
+    ///     Test that combining validate with diff is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithDiff_ContextAndProgram_RejectsAndExitsNonZero() =>
+        AssertValidateCombinationRejected("--diff");
+
+    /// <summary>
+    ///     Test that combining validate with no-config is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithNoConfig_ContextAndProgram_RejectsAndExitsNonZero() =>
+        AssertValidateCombinationRejected("--no-config");
+
+    /// <summary>
+    ///     Asserts that Main rejects validation combined with the given option: usage error on standard error and exit code one.
+    /// </summary>
+    /// <param name="option">The option that is combined with validation.</param>
+    private static void AssertValidateCombinationRejected(string option)
+    {
+        // Arrange: capture stderr produced by Main
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: invoke Main with the invalid combination
+            var exitCode = Program.Main(["--validate", option]);
+
+            // Assert: the combination rule was reported on standard error and the exit code is one
+            Assert.Equal(1, exitCode);
+            Assert.Contains("--validate cannot be combined with", errorWriter.ToString());
         }
         finally
         {

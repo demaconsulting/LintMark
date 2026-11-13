@@ -1,11 +1,9 @@
 ---
 # Software Unit Requirements for the LintMarkConfig Class
 #
-# The LintMarkConfig class (with its supporting rule-identifier table, link conversion options, and
-# setting enumerations) holds the complete, validated set of settings for one Markdown file. Deriving a copy
-# of a configuration that differs in chosen settings is only needed once the line ending from the editor
-# settings is applied, so it is verified by tests that are not linked to a requirement until the formatting
-# phase adds the matching system requirement.
+# The LintMarkConfig class (with its link conversion options and setting enumerations) holds the complete,
+# validated set of settings for one Markdown file. The rules that it holds states for come from the rule registry
+# of the Linting subsystem.
 
 sections:
   - title: LintMark Requirements
@@ -28,7 +26,6 @@ sections:
                   - LintMarkConfig_Default_Ignore_ListsDocumentedPatterns
                   - LintMarkConfig_Default_EndOfLine_IsNotSpecified
                   - LintMarkConfig_Default_LinkRefactor_IsDisabledWithDocumentedValues
-                  - RuleIdentifiers_Defaults_DisabledRules_AreTheDocumentedThree
 
               - id: LintMark-Configuration-LintMarkConfig-AcceptedValues
                 title: >-
@@ -46,29 +43,27 @@ sections:
                   - LintMarkConfig_Ignore_EmptyList_Accepted
                   - LinkRefactorOptions_DefinitionsMarker_SingleLineHtmlComment_IsAccepted
 
-              - id: LintMark-Configuration-LintMarkConfig-RuleIdentifiers
+              - id: LintMark-Configuration-LintMarkConfig-RuleRegistryUse
                 title: >-
-                  The RuleIdentifiers class shall identify each configurable rule by its name or by its legacy rule
-                  number in any letter case.
+                  The LintMarkConfig class shall hold an enabled state for exactly the rules that the rule
+                  registry lists as configurable, starting from the registry's default for each.
                 justification: |
-                  Rules have a descriptive name and, for users coming from other tools, a legacy number.
+                  The registry is the one place where the rules and their defaults are defined. A table that
+                  kept its own list could drift from it.
                 tests:
-                  - RuleIdentifiers_TryResolve_KebabId_ReturnsCanonical
-                  - RuleIdentifiers_TryResolve_EveryAlias_ReturnsItsRule
-                  - RuleIdentifiers_TryResolve_AnyLetterCase_ReturnsCanonical
-                  - RuleIdentifiers_TryResolve_TurkishCulture_StillMatches
-                  - RuleIdentifiers_TryResolve_UnknownName_ReturnsFalse
-                  - RuleIdentifiers_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults
-                  - RuleIdentifiers_Aliases_AllAliases_UniqueAndMapToConfigurableRules
+                  - LintMarkConfig_Default_Rules_MatchDocumentedRuleDefaults
+                  - LintMarkConfig_Rules_CaseInsensitiveComparer_StoredOrdinal
 
-              - id: LintMark-Configuration-LintMarkConfig-RemovedRuleNumbers
+              - id: LintMark-Configuration-LintMarkConfig-DerivedCopy
                 title: >-
-                  The RuleIdentifiers class shall recognize the legacy number of a removed rule without treating
-                  it as a rule.
+                  The LintMarkConfig class shall provide a copy that differs from a configuration in chosen
+                  settings, such as the line ending, without changing the configuration it was derived from.
                 justification: |
-                  Removed rules must stay recognizable so that an old entry is neither an error nor a rule.
+                  One configuration is shared by every file below it. A file that gets the line ending of its
+                  editor settings must not change the settings of the other files.
                 tests:
-                  - RuleIdentifiers_TryResolve_DroppedAlias_ReturnsFalseAndIsDropped
+                  - LintMarkConfig_With_EndOfLine_LeavesOriginalUnchanged
+                  - LintMarkConfig_Equals_SameContentDifferentCollections_AreEqual
 
               - id: LintMark-Configuration-LintMarkConfig-RangeChecks
                 title: >-

@@ -23,6 +23,7 @@ using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
+using DemaConsulting.LintMark.Formatting;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -436,5 +437,219 @@ public class EngineSubsystemTests
         Assert.Equal(LineEnding.Lf, results.Single(r => r.Path == fixedFile).Config!.EndOfLine);
         Assert.Equal(LineEnding.CrLf, results.Single(r => r.Path == plainFile).Config!.EndOfLine);
         Assert.Null(results.Single(r => r.Path == notesFile).Config!.EndOfLine);
+    }
+
+    /// <summary>
+    ///     Test that the fix option rewrites a CRLF file through the real units and reports nothing afterwards.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_CrlfFile_RewritesAndReportsNothing()
+    {
+        // Arrange: a CRLF file and a configuration that asks for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var path = directory.WriteBytes("docs/a.md", "# A\r\n\r\ntext\r\n"u8.ToArray());
+
+        // Act: check, fix, then check again
+        var before = LintMarkEngineTests.Execute(directory, new LintMarkEngine());
+        var fix = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--fix");
+        var after = LintMarkEngineTests.Execute(directory, new LintMarkEngine());
+
+        // Assert: the violation is found, fixed, and gone
+        Assert.Equal(["docs/a.md:1:1: line-ending Line endings are CRLF; expected LF"], before.Lines);
+        Assert.Equal(0, fix.ExitCode);
+        Assert.Equal("# A\n\ntext\n"u8.ToArray(), File.ReadAllBytes(path));
+        Assert.Equal(0, after.ExitCode);
+        Assert.Empty(after.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a broken formatter is refused by the safety checks and its file is reported and left alone.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_BrokenFormatter_RefusesAndReports()
+    {
+        // Arrange: a file with a hard break, and a formatter that drops it
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", "a  \nb\n"u8.ToArray());
+        var engine = new LintMarkEngine(2, formatter: new DocumentFormatter([new HardBreakDroppingFormatter()]));
+
+        // Act: run with the fix option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, engine, "--fix");
+
+        // Assert: refused and untouched
+        Assert.Equal(1, exitCode);
+        Assert.StartsWith("a.md:1:2: safety-html-mismatch ", Assert.Single(lines), StringComparison.Ordinal);
+        Assert.Equal("a  \nb\n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that a diff of a formatter's change is printed and the file is not written.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Diff_FormatterChange_PrintsDiffAndWritesNothing()
+    {
+        // Arrange: a file with a double space, and a formatter that collapses it
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", "a  b\n"u8.ToArray());
+        var engine = new LintMarkEngine(1, formatter: new DocumentFormatter([new ReplacingFormatter("  ", " ")]));
+
+        // Act: run with the diff option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, engine, "--diff");
+
+        // Assert: the diff is printed and the file is as it was
+        Assert.Equal(0, exitCode);
+        Assert.Equal(["--- a/a.md", "+++ b/a.md", "@@ -1 +1 @@", "-a  b", "+a b"], lines);
+        Assert.Equal("a  b\n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that the files found through a glob are skipped when the ignore patterns of their configuration match them.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Ignore_GlobSelected_Skipped()
+    {
+        // Arrange: a configuration that ignores a folder, and a broken file in and outside it
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
+        directory.WriteBytes("drafts/bad.md", [0xFF]);
+        directory.WriteBytes("kept/bad.md", [0xFF]);
+
+        // Act: run with a glob
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(2), "**/*.md");
+
+        // Assert: only the file that is not ignored is reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["kept/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that a file named on the command line is processed although the ignore patterns match it.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Ignore_ExplicitFile_Processed()
+    {
+        // Arrange: a configuration that ignores a folder, and a broken file in it
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
+        directory.WriteBytes("drafts/bad.md", [0xFF]);
+
+        // Act: run with the file named
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(1), "drafts/bad.md");
+
+        // Assert: the file is read and reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["drafts/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that the fix option gives the same report and the same files for sequential and parallel processing.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_ParallelAndSequential_ProduceIdenticalOutput()
+    {
+        // Arrange: two identical trees of CRLF, clean and broken files
+        using var sequentialDirectory = new TemporaryDirectory();
+        using var parallelDirectory = new TemporaryDirectory();
+        foreach (var directory in new[] { sequentialDirectory, parallelDirectory })
+        {
+            directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+            foreach (var i in Enumerable.Range(0, 40))
+            {
+                var name = $"{(char)('a' + (i % 4))}/f{i:D2}.md";
+                switch (i % 3)
+                {
+                    case 0:
+                        directory.WriteBytes(name, "# T\r\n\r\ntext\r\n"u8.ToArray());
+                        break;
+                    case 1:
+                        directory.WriteBytes(name, "# T\n\ntext\n"u8.ToArray());
+                        break;
+                    default:
+                        directory.WriteBytes(name, [0xFF]);
+                        break;
+                }
+            }
+        }
+
+        // Act: fix sequentially and in parallel
+        var sequential = LintMarkEngineTests.Execute(sequentialDirectory, new LintMarkEngine(1), "--fix");
+        var parallel = LintMarkEngineTests.Execute(parallelDirectory, new LintMarkEngine(16), "--fix");
+
+        // Assert: the same report in path order, the same exit code and the same bytes in every file
+        Assert.Equal(1, sequential.ExitCode);
+        Assert.Equal(sequential.ExitCode, parallel.ExitCode);
+        Assert.Equal(sequential.Lines, parallel.Lines);
+        Assert.Equal(sequential.Lines.Order(StringComparer.Ordinal), sequential.Lines);
+        foreach (var file in Directory.GetFiles(sequentialDirectory.FullPath, "*.md", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(sequentialDirectory.FullPath, file);
+            Assert.Equal(File.ReadAllBytes(file), File.ReadAllBytes(parallelDirectory.PathOf(relative)));
+        }
+    }
+
+    /// <summary>
+    ///     Test that editor settings that cannot be read are reported at the Markdown file and that file is not rewritten.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile()
+    {
+        // Arrange: a CRLF Markdown file and a resolver whose settings cannot be read
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", "# A\r\n"u8.ToArray());
+        var engine = new LintMarkEngine(
+            1,
+            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException()));
+
+        // Act: run with the fix option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, engine, "--fix");
+
+        // Assert: reported against the Markdown file at 1:1 and the file is as it was
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: disk failure"], lines);
+        Assert.Equal("# A\r\n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that the fix option keeps the byte order mark and leaves no temporary file next to the rewritten file.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_BomFile_KeepsBomAndLeavesNoTemporaryFile()
+    {
+        // Arrange: a CRLF file with a byte order mark and a configuration that asks for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var path = directory.WriteBytes("a.md", [0xEF, 0xBB, 0xBF, .. "# A\r\n\r\ntext\r\n"u8.ToArray()]);
+
+        // Act: run with the fix option through the real writer
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--fix");
+
+        // Assert: rewritten with the mark kept, nothing reported, and no other file in the directory
+        Assert.Equal(0, exitCode);
+        Assert.Empty(lines);
+        Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. "# A\n\ntext\n"u8.ToArray()], File.ReadAllBytes(path));
+        Assert.Equal(
+            [".lintmark.yaml", "a.md", "report.log"],
+            Directory.GetFiles(directory.FullPath).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    ///     Test that a document with an invalid grid table is reported at the offending line and never rewritten.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_GridFallback_Document_ReportedAndNeverRewritten()
+    {
+        // Arrange: a CRLF document with an invalid grid table on line 2, and a configuration that asks for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var path = directory.WriteBytes("a.md", "para\r\n+---+---+\r\n"u8.ToArray());
+
+        // Act: run with the fix option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--fix");
+
+        // Assert: reported at the line, the exit code is one and the bytes are identical
+        Assert.Equal(1, exitCode);
+        Assert.StartsWith("a.md:2:1: grid-table-invalid ", Assert.Single(lines), StringComparison.Ordinal);
+        Assert.Equal("para\r\n+---+---+\r\n"u8.ToArray(), File.ReadAllBytes(path));
     }
 }

@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for the TextWidth Class
+#
+# The TextWidth class measures the width of a text in terminal display columns: wide East Asian characters and emoji
+# take two columns, narrow characters one, and combining marks, joiners, and control characters none, with
+# user-perceived characters (grapheme clusters) measured as a whole.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Utilities Requirements
+        sections:
+          - title: TextWidth Requirements
+            requirements:
+              - id: LintMark-Utilities-TextWidth-WideCharacters
+                title: >-
+                  The TextWidth class shall count wide East Asian characters, that is ideographs, kana, Hangul
+                  syllables, full-width forms, and the ideographic space, as two columns each.
+                justification: |
+                  A terminal draws these characters twice as wide as Latin letters, so a line limit that
+                  counted them as one would let lines overflow the screen by half.
+                tests:
+                  - TextWidth_Of_CjkIdeographs_CountsTwoColumnsEach
+                  - TextWidth_Of_HiraganaAndKatakana_CountsTwoColumnsEach
+                  - TextWidth_Of_HangulSyllables_CountsTwoColumnsEach
+                  - TextWidth_Of_WideLatinForms_CountsTwoColumnsEach
+                  - TextWidth_Of_IdeographicSpace_ReturnsTwo
+                  - TextWidth_Of_HangulLetterBoundaries_MeasuresEachRangeEdge
+
+              - id: LintMark-Utilities-TextWidth-NarrowCharacters
+                title: >-
+                  The TextWidth class shall count ASCII characters, half-width forms, and characters of ambiguous
+                  width as one column each, and an empty text as zero columns.
+                justification: |
+                  Most text is narrow. Counting ambiguous characters as one column gives the same answer
+                  on every terminal, whichever font or language it is set to.
+                tests:
+                  - TextWidth_Of_EmptyString_ReturnsZero
+                  - TextWidth_Of_AsciiText_ReturnsLength
+                  - TextWidth_Of_NarrowKatakana_CountsOneColumn
+                  - TextWidth_Of_AmbiguousWidthCharacters_CountsOneColumn
+                  - TextWidth_Of_MixedText_AddsEachClusterWidth
+
+              - id: LintMark-Utilities-TextWidth-Emoji
+                title: >-
+                  The TextWidth class shall count an emoji as two columns, including an emoji outside the basic
+                  plane, a sequence of an emoji with a skin tone modifier or joined with others, a flag, a key cap,
+                  and a symbol with an emoji presentation selector, and shall count a symbol with a text
+                  presentation selector as it counts the symbol alone.
+                justification: |
+                  Emoji are drawn two columns wide, and a family or a flag is one picture however many
+                  characters it is written with. Counting its characters would overestimate the width.
+                tests:
+                  - TextWidth_Of_EmojiSurrogatePair_ReturnsTwo
+                  - TextWidth_Of_DefaultEmojiInBasicPlane_ReturnsTwo
+                  - TextWidth_Of_EmojiZwjFamilySequence_ReturnsTwoAsOneCluster
+                  - TextWidth_Of_EmojiWithSkinToneModifier_ReturnsTwoAsOneCluster
+                  - TextWidth_Of_FlagOfTwoRegionalIndicators_ReturnsTwo
+                  - TextWidth_Of_KeyCapSequence_ReturnsTwo
+                  - TextWidth_Of_EmojiPresentationSequence_ReturnsTwoWhileSymbolAloneIsOne
+                  - TextWidth_Of_TextPresentationSequence_StaysNarrow
+
+              - id: LintMark-Utilities-TextWidth-ZeroWidthCharacters
+                title: >-
+                  The TextWidth class shall count combining marks, zero-width characters, variation selectors,
+                  control characters, tabs, line and paragraph separators, and the soft hyphen as zero columns.
+                justification: |
+                  These characters take no space on a screen. Counting them would make a line look longer
+                  than it is.
+                tests:
+                  - TextWidth_Of_LoneCombiningMark_ReturnsZero
+                  - TextWidth_Of_ZeroWidthCharacters_ReturnsZero
+                  - TextWidth_Of_ZeroWidthNoBreakSpace_ReturnsZero
+                  - TextWidth_Of_ZeroWidthSpaceBetweenLetters_CountsLettersOnly
+                  - TextWidth_Of_VariationSelectorAlone_ReturnsZero
+                  - TextWidth_Of_ControlCharacters_ReturnsZero
+                  - TextWidth_Of_TabBetweenLetters_CountsLettersOnly
+                  - TextWidth_Of_LineAndParagraphSeparators_ReturnsZero
+                  - TextWidth_Of_SoftHyphen_ReturnsZero
+
+              - id: LintMark-Utilities-TextWidth-GraphemeClusters
+                title: >-
+                  The TextWidth class shall measure each user-perceived character as a whole, so that a base
+                  character with combining marks takes the width of the base character and a sequence of
+                  conjoining Hangul letters takes the width of one syllable.
+                justification: |
+                  A reader sees one character where the text holds several. Adding up the parts would
+                  overestimate the width of accented letters and of Korean text written in conjoining form.
+                tests:
+                  - TextWidth_Of_BaseWithCombiningMark_ReturnsOne
+                  - TextWidth_Of_WideCharacterWithCombiningMark_ReturnsTwo
+                  - TextWidth_Of_HangulConjoiningLettersSequence_ReturnsTwoAsOneCluster
+
+              - id: LintMark-Utilities-TextWidth-InvalidText
+                title: >-
+                  The TextWidth class shall count a lone surrogate as one column and refuse a missing text.
+                justification: |
+                  A file may contain damaged text, and measuring it must not fail. A missing text is a
+                  programming error that must be reported as such.
+                tests:
+                  - TextWidth_Of_LoneSurrogate_ReturnsOne
+                  - TextWidth_Of_NullText_Throws
+
+              - id: LintMark-Utilities-TextWidth-CultureIndependent
+                title: >-
+                  The TextWidth class shall give the same width for the same text whatever the culture of the
+                  machine.
+                justification: |
+                  A line limit must give the same verdict on every machine, including those whose language
+                  changes the rules of letter case.
+                tests:
+                  - TextWidth_Of_TurkishCulture_GivesSameResultAsInvariant
+
+              - id: LintMark-Utilities-TextWidth-LinearTime
+                title: >-
+                  The TextWidth class shall measure a text in time that grows linearly with its length, with the
+                  same result on every measurement of the same text.
+                justification: |
+                  Every line of every document is measured, and a very long line must not be able to stall
+                  a run.
+                tests:
+                  - TextWidth_Of_VeryLongString_MeasuresQuicklyAndDeterministically

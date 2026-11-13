@@ -1,0 +1,120 @@
+---
+# Software Unit Requirements for the DiffReporter Class
+#
+# The DiffReporter class writes the difference between the text of a file and its proposed rewrite as a unified
+# diff through the standard output of the Context (with the FileDiff supporting type).
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Reporting Requirements
+        sections:
+          - title: DiffReporter Requirements
+            requirements:
+              - id: LintMark-Reporting-DiffReporter-UnifiedFormat
+                title: >-
+                  The DiffReporter class shall write the changes of a file as a unified diff with the file header
+                  lines `--- a/path` and `+++ b/path` and hunks with a header of the form `@@ -start,count
+                  +start,count @@`, leaving out a count of one and using a count of zero for an empty range.
+                justification: |
+                  Reviewers and patch tools understand this form, including for changes at the start or the
+                  end of a file and for content that itself contains backslashes.
+                tests:
+                  - DiffReporter_Report_SingleLineChange_WritesHeadersAndHunk
+                  - DiffReporter_Report_SingleLineHunkHeader_OmitsCountOfOne
+                  - DiffReporter_Report_PureInsertionIntoEmptyFile_UsesZeroCount
+                  - DiffReporter_Report_InsertedAtStart_Correct
+                  - DiffReporter_Report_DeletedAtEnd_Correct
+                  - DiffReporter_Report_BackslashInContent_NotMistakenForMarker
+
+              - id: LintMark-Reporting-DiffReporter-ContextLines
+                title: >-
+                  The DiffReporter class shall show three unchanged lines around each change, join changes whose
+                  context touches or overlaps into one hunk, and keep changes that are further apart in separate
+                  hunks.
+                justification: |
+                  This is the convention that readers of diffs expect, and it keeps the output short for
+                  files with a few distant changes.
+                tests:
+                  - DiffReporter_Report_ContextLinesAreThree_ThreeEachSide
+                  - DiffReporter_Report_TwoDistantChanges_WritesTwoHunks
+                  - DiffReporter_Report_NearbyChanges_MergesHunks
+                  - DiffReporter_Report_ChangesSevenLinesApart_StaysTwoHunks
+
+              - id: LintMark-Reporting-DiffReporter-NoChangeNoOutput
+                title: The DiffReporter class shall write nothing for a file whose text and line endings do not change.
+                justification: |
+                  A preview over a whole documentation set must show only the files that would change.
+                tests:
+                  - DiffReporter_Report_IdenticalText_WritesNothing
+                  - DiffReporter_Report_LfFileLfTarget_NoNote
+                  - DiffReporter_Report_NoTerminatorsAtAll_NoNote
+
+              - id: LintMark-Reporting-DiffReporter-LineEndingNote
+                title: >-
+                  The DiffReporter class shall write a note line, before the hunks, that names the line endings
+                  that the file has and the line ending that it would get, when the line endings change.
+                justification: |
+                  The text that the diff compares is normalized, so a rewrite that only changes line endings
+                  would otherwise appear as no change at all.
+                tests:
+                  - DiffReporter_Report_CrlfToLfOnly_WritesNoteLine
+                  - DiffReporter_Report_LfToCrlfOnly_WritesNoteLine
+                  - DiffReporter_Report_MixedToLf_NoteNamesMixed
+                  - DiffReporter_Report_EndingAndTextChange_WritesNoteBeforeHunk
+
+              - id: LintMark-Reporting-DiffReporter-NoNewlineMarker
+                title: >-
+                  The DiffReporter class shall mark a missing final newline with `\ No newline at end of file` on
+                  the side of the diff that lacks it.
+                justification: |
+                  A change that adds or removes the final newline is a change of the file that the lines
+                  alone do not show.
+                tests:
+                  - DiffReporter_Report_MissingFinalNewline_WritesMarker
+                  - DiffReporter_Report_FinalNewlineAdded_WritesMarkerOnOldLine
+
+              - id: LintMark-Reporting-DiffReporter-OrderByPath
+                title: >-
+                  The DiffReporter class shall write the diffs of several files ordered by path, independent of
+                  the order in which they are given.
+                justification: |
+                  Reproducible output is required for comparing runs and for stable build logs.
+                tests:
+                  - DiffReporter_Report_ManyFiles_OrderedByPath
+
+              - id: LintMark-Reporting-DiffReporter-AppliesCleanly
+                title: >-
+                  The DiffReporter class shall write a diff that a patch tool applies to the original text to give
+                  exactly the rewritten text.
+                justification: |
+                  A diff that does not reproduce the rewrite would mislead the reviewer who decides whether
+                  to allow it.
+                tests:
+                  - DiffReporter_Report_RandomEdits_PatchReproducesAfterText
+                  - DiffReporter_Report_VeryDifferentLargeTexts_StillAppliesCleanly
+
+              - id: LintMark-Reporting-DiffReporter-StdoutChannel
+                title: >-
+                  The DiffReporter class shall write the diff through the standard output of the Context, so that
+                  the silent option suppresses the console and the log file still receives it.
+                justification: |
+                  The diff is the output of the run, separate from the problems on the error stream, and
+                  follows the same console and log rules as all other output.
+                tests:
+                  - DiffReporter_Report_SilentContext_SuppressesConsoleKeepsLog
+
+              - id: LintMark-Reporting-DiffReporter-RejectsInvalidArguments
+                title: >-
+                  The DiffReporter class shall refuse a missing list of diffs, base directory, or context, and a
+                  diff that was never initialized, and the FileDiff record shall refuse a missing or empty path, a
+                  missing text, and a line ending that is not defined.
+                justification: |
+                  Missing arguments are programming errors that must be reported as such, not silently
+                  skipped. A difference without a path or text cannot be shown.
+                tests:
+                  - DiffReporter_Report_DefaultFileDiff_Throws
+                  - DiffReporter_Report_NullArguments_Throw
+                  - FileDiff_Constructor_ValidArguments_KeepsValues
+                  - FileDiff_Constructor_MissingPathOrText_Throws
+                  - FileDiff_Constructor_UndefinedLineEnding_Throws
