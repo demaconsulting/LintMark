@@ -65,10 +65,10 @@ Its supporting types are described with the unit that owns them: `DiscoveredFile
 
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
-- *Contract*: Takes the path, the bytes that the new content was computed from, and the new content, and replaces the
-  file in one step.
-- *Constraints*: Throws when the file changed after it was read, is read-only, or cannot be written; the file is then
-  as it was. See *AtomicFileWriter Design*.
+- *Contract*: Takes the path, the resolved target that was captured when the file was read, the bytes that the new
+  content was computed from, and the new content, and replaces the file in one step.
+- *Constraints*: Throws when the file changed or the link was redirected after the file was read, the file is
+  read-only, or it cannot be written; the file is then as it was. See *AtomicFileWriter Design*.
 
 The subsystem consumes the `Cli` subsystem (`Context`: paths and options in, reports out), the `Document` subsystem
 (`SourceDocument` and `DocumentParser`), the `Configuration` subsystem (`ConfigLoader`, `EditorConfigResolver`,

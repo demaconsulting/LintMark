@@ -127,3 +127,54 @@ sections:
                 tests:
                   - ubuntu@AtomicFileWriter_Write_SymlinkTarget_WritesThroughLink
                   - macos@AtomicFileWriter_Write_SymlinkTarget_WritesThroughLink
+
+              - id: LintMark-Engine-AtomicFileWriter-ResolvesTarget
+                title: >-
+                  The AtomicFileWriter class shall resolve a path to the full path of the file that it finally
+                  refers to, following symbolic links.
+                justification: |
+                  The caller records this identity when it reads a file, and the writer compares it with the
+                  identity at write time. Both sides must name the same file in the same way. The test for a
+                  link needs symbolic links, so only Linux and macOS runs count as evidence for it.
+                tests:
+                  - AtomicFileWriter_ResolveTarget_RegularFile_ReturnsFullPath
+                  - ubuntu@AtomicFileWriter_ResolveTarget_SymlinkToFile_ReturnsFinalTarget
+                  - macos@AtomicFileWriter_ResolveTarget_SymlinkToFile_ReturnsFinalTarget
+
+              - id: LintMark-Engine-AtomicFileWriter-RefusesRedirectedFile
+                title: >-
+                  The AtomicFileWriter class shall refuse to replace a file when the path no longer resolves to
+                  the file that was read, even when both files hold the same bytes, and leave both files as they
+                  are.
+                justification: |
+                  Comparing bytes alone cannot tell two files with equal content apart. A link that was
+                  redirected after the read would otherwise lead to a rewrite of a file that the rewrite was
+                  not computed from. The test for a link needs symbolic links, so only Linux and macOS runs
+                  count as evidence for it.
+                tests:
+                  - AtomicFileWriter_Write_TargetDiffersFromExpected_ThrowsAndLeavesBothFiles
+                  - AtomicFileWriter_EnsureSameTarget_SameTarget_DoesNotThrow
+                  - AtomicFileWriter_EnsureSameTarget_DifferentTarget_Throws
+                  - ubuntu@AtomicFileWriter_Write_LinkRedirectedAfterRead_ThrowsAndLeavesBothFiles
+                  - macos@AtomicFileWriter_Write_LinkRedirectedAfterRead_ThrowsAndLeavesBothFiles
+
+              - id: LintMark-Engine-AtomicFileWriter-ChecksTargetBeforeReplace
+                title: >-
+                  The AtomicFileWriter class shall resolve the path again after the temporary file is complete
+                  and refuse the replacement, removing the temporary file, when the path no longer resolves to
+                  the file that was read.
+                justification: |
+                  Writing a large file takes time, and a link can be redirected in that time. Checking again
+                  right before the replacement keeps the unprotected window as small as portable code can
+                  make it. The test needs symbolic links, so only Linux and macOS runs count as evidence.
+                tests:
+                  - ubuntu@AtomicFileWriter_Write_LinkRedirectedBeforeReplace_ThrowsAndRemovesTemp
+                  - macos@AtomicFileWriter_Write_LinkRedirectedBeforeReplace_ThrowsAndRemovesTemp
+
+              - id: LintMark-Engine-AtomicFileWriter-RejectsBlankExpectedTarget
+                title: The AtomicFileWriter class shall reject a null, empty, or blank expected target.
+                justification: |
+                  Without the identity of the file that was read, the writer cannot protect against a
+                  redirected link, so a call without it is a programming error that must be reported as such.
+                tests:
+                  - AtomicFileWriter_Write_MissingExpectedTarget_Throws

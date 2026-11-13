@@ -389,7 +389,8 @@ sections:
             justification: |
               A rewrite is allowed only when its safety has been shown. Every refusal and every failure
               leaves the user's file untouched and is reported, so that nothing is lost silently and the
-              other files are still processed.
+              other files are still processed. A file reached through a link that was redirected after the
+              read is not the file the rewrite was computed from, so it is refused as well.
             children:
               - LintMark-Engine-LintMarkEngine-RefuseHtmlChange
               - LintMark-Engine-LintMarkEngine-RefuseLineEndingHtmlChange
@@ -401,6 +402,12 @@ sections:
               - LintMark-Engine-LintMarkEngine-WriteFailure
               - LintMark-Engine-LintMarkEngine-IsolatedRefusals
               - LintMark-Engine-LintMarkEngine-NeverRewriteInvalidConfiguration
+              - LintMark-Engine-LintMarkEngine-CapturesResolvedTarget
+              - LintMark-Engine-LintMarkEngine-RefuseRedirectedLink
+              - LintMark-Engine-AtomicFileWriter-ResolvesTarget
+              - LintMark-Engine-AtomicFileWriter-RefusesRedirectedFile
+              - LintMark-Engine-AtomicFileWriter-ChecksTargetBeforeReplace
+              - LintMark-Engine-AtomicFileWriter-RejectsBlankExpectedTarget
             tests:
               - EngineSubsystem_Fix_BrokenFormatter_RefusesAndReports
               - EngineSubsystem_Fix_CodeSpanLineEndingChange_RefusesAndLeavesFile

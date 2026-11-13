@@ -25,8 +25,9 @@ configuration the file may be formatted under, null when it must not be formatte
 (`Func<SourceDocument, ParsedDocument>`: the parse step, also used by the safety checks), `_editorConfigFactory`
 (`Func<EditorConfigResolver>`: creates the resolver used by `Run`, by default one that reads the real file system),
 `_formatter` (`DocumentFormatter`, by default without block formatters), and `_fileWriter`
-(`Action<string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>`: path, original bytes, new bytes; by default
-`AtomicFileWriter`). They are supplied through the internal constructor parameters `fileProcessor`, `documentParser`,
+(`Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>`: path, resolved target captured at the read,
+original bytes, new bytes; by default `AtomicFileWriter`). They are supplied through the internal constructor
+parameters `fileProcessor`, `documentParser`,
 `editorConfigFactory`, `formatter`, and `fileWriter`, and are not user options.
 
 **FileResult**: A sealed record with the constructor `(string path, ImmutableArray<Diagnostic> diagnostics,
@@ -47,12 +48,15 @@ diagnostic, and with the read-only properties `Path` and `Diagnostics` and the i
   rewritten.
 
 **FileChange**: A sealed record with the constructor `(string originalLf, string newLf, LineEndingInfo
-originalEndings, LineEnding targetEnding, ImmutableArray<byte> originalBytes, ImmutableArray<byte> newBytes)`, which
-rejects a null text, a default byte array, and a line ending that is not defined: the LF-normalized text on disk and
-after rewriting, the counts of the line terminators on disk, the line ending to write, the exact bytes the rewrite was
-computed from, and the exact bytes to write (byte order mark and line endings restored). A change exists only for a
-rewrite that is safe, so nothing downstream can write a refused file by mistake. The original bytes travel with the
-change so that the writer can refuse to replace a file that changed after it was read. Its byte arrays are immutable
+originalEndings, LineEnding targetEnding, ImmutableArray<byte> originalBytes, ImmutableArray<byte> newBytes, string
+resolvedTarget)`, which rejects a null text, a default byte array, a line ending that is not defined, and a null or
+blank resolved target: the LF-normalized text on disk and after rewriting, the counts of the line terminators on disk,
+the line ending to write, the exact bytes the rewrite was computed from, the exact bytes to write (byte order mark and
+line endings restored), and the full path of the file the original bytes were read from with symbolic links resolved at
+read time. A change exists only for a rewrite that is safe, so nothing downstream can write a refused file by mistake.
+The original bytes travel with the change so that the writer can refuse to replace a file that changed after it was
+read, and the resolved target travels with them so that the writer can also refuse when a link was redirected to
+another file after the read, even when that file holds the same bytes. Its byte arrays are immutable
 copies; the equality of two changes compares them by reference, so content is compared through the members.
 
 The instance holds only immutable configuration and stateless collaborators, so `Run` and `Process` can be called
@@ -148,12 +152,15 @@ when run in parallel).
   the configuration, then the editor settings, then unspecified (the majority line ending of the file decides later,
   in `DocumentFormatter`).
 
-**ReadAndRewrite** (private): The real file processor. Reads the bytes (catching `IOException`,
-`UnauthorizedAccessException`, `NotSupportedException`, and `SecurityException` as a read failure), creates the
+**ReadAndRewrite** (private): The real file processor. Resolves the path to the full path of the file it finally refers
+to (`AtomicFileWriter.ResolveTarget`, following symbolic links) and reads the bytes from that resolved file, so the
+identity that is captured is the one the bytes come from (catching `IOException`,
+`UnauthorizedAccessException`, `NotSupportedException`, and `SecurityException` as a read failure, which also covers
+links that cannot be followed), creates the
 `SourceDocument` and parses it (catching `SourceDocumentException` with its precise position, and any other exception
 as a parse failure that names only the exception type, so one file's failure never stops the others). A file that must
 not be formatted (null configuration) returns an empty result after the read and the parse. Otherwise it calls
-`Rewrite`.
+`Rewrite` with the resolved target.
 
 **Rewrite** (private): Formats the document and verifies the proposal.
 
@@ -169,7 +176,7 @@ the checks on the LF-normalized text run first, and the rendering of the texts a
 the proposed bytes, decoded without the byte order mark, so with the real line endings) always runs, also when only the
 line endings change, because the parser renders some text differently for CRLF and LF; a refusal returns the formatting
 diagnostics plus the safety diagnostic and the `SafetyStatus`, with no change; (5) otherwise return the formatting
-diagnostics and a `FileChange`.
+diagnostics and a `FileChange` that carries the resolved target.
 
 **ReportGridFallback** (private): Creates the `grid-table-invalid` diagnostic at the offending position, unless the rule
 is switched off in the configuration or suppressed at that offset. Switching the report off never lets the file be
@@ -192,8 +199,10 @@ for the proposed text therefore refuses the rewrite as a structure problem. A pa
 check is converted by `IdempotencyChecker` itself, so it refuses the rewrite as not stable.
 
 **WriteChanges** (private): The write step of `--fix`. For each result in path order: a result without a `Change`
-keeps its diagnostics; otherwise call the file writer with the original and the new bytes. On success the Formatting
-diagnostics of the file are dropped (rewriting removed them); on any exception all diagnostics of the file stay and a
+keeps its diagnostics; otherwise call the file writer with the resolved target captured at the read, the original bytes,
+and the new bytes. On success the Formatting
+diagnostics of the file are dropped (rewriting removed them); on any exception (including the writer's refusal of a
+file that changed or a link that was redirected after the read) all diagnostics of the file stay and a
 `file-write-error` is added. A failure never stops the other files. It runs on the calling thread after every worker
 has finished.
 

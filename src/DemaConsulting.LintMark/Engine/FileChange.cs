@@ -30,7 +30,9 @@ namespace DemaConsulting.LintMark.Engine;
 ///     <para>
 ///         A change exists only for a rewrite that is safe: when any safety check fails, the result carries no
 ///         change, so nothing downstream can write the file by mistake. The original bytes travel with the
-///         change so the writer can refuse to replace a file that changed after it was read. Immutable,
+///         change so the writer can refuse to replace a file that changed after it was read, and so does the
+///         resolved target (the file that the path referred to through symbolic links when it was read), so the
+///         writer can also refuse when a link was redirected to a file with the same bytes. Immutable,
 ///         including the byte arrays.
 ///     </para>
 ///     <para>
@@ -49,8 +51,9 @@ internal sealed record FileChange
     /// <param name="targetEnding">The line ending the file is written with. Must be a defined value.</param>
     /// <param name="originalBytes">The exact bytes the rewrite was computed from. Must not be a default array.</param>
     /// <param name="newBytes">The exact bytes to write (byte order mark and line endings restored). Must not be a default array.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="originalLf"/> or <paramref name="newLf"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when a byte array is a default array.</exception>
+    /// <param name="resolvedTarget">The full path of the file the original bytes were read from, with symbolic links resolved at read time. Must not be blank.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="originalLf"/>, <paramref name="newLf"/> or <paramref name="resolvedTarget"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a byte array is a default array or <paramref name="resolvedTarget"/> is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="targetEnding"/> is not a defined value.</exception>
     public FileChange(
         string originalLf,
@@ -58,11 +61,18 @@ internal sealed record FileChange
         LineEndingInfo originalEndings,
         LineEnding targetEnding,
         ImmutableArray<byte> originalBytes,
-        ImmutableArray<byte> newBytes)
+        ImmutableArray<byte> newBytes,
+        string resolvedTarget)
     {
         // Validate the arguments so that an incomplete change can never be created
         ArgumentNullException.ThrowIfNull(originalLf);
         ArgumentNullException.ThrowIfNull(newLf);
+        ArgumentNullException.ThrowIfNull(resolvedTarget);
+        if (string.IsNullOrWhiteSpace(resolvedTarget))
+        {
+            throw new ArgumentException("The resolved target must not be blank.", nameof(resolvedTarget));
+        }
+
         if (!Enum.IsDefined(targetEnding))
         {
             throw new ArgumentOutOfRangeException(nameof(targetEnding), targetEnding, "The line ending is not a defined value.");
@@ -84,6 +94,7 @@ internal sealed record FileChange
         TargetEnding = targetEnding;
         OriginalBytes = originalBytes;
         NewBytes = newBytes;
+        ResolvedTarget = resolvedTarget;
     }
 
     /// <summary>
@@ -115,4 +126,9 @@ internal sealed record FileChange
     ///     Gets the exact bytes to write (byte order mark and line endings restored).
     /// </summary>
     public ImmutableArray<byte> NewBytes { get; }
+
+    /// <summary>
+    ///     Gets the full path of the file the original bytes were read from, with symbolic links resolved when the file was read.
+    /// </summary>
+    public string ResolvedTarget { get; }
 }

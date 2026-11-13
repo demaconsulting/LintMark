@@ -49,6 +49,27 @@ public class AtomicFileWriterTests
         Directory.GetFiles(directory.FullPath, "*" + TemporarySuffix, SearchOption.AllDirectories);
 
     /// <summary>
+    ///     Replaces a file the way the engine does: the target the path resolves to now is the one that was read.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <param name="original">The bytes the content was computed from.</param>
+    /// <param name="content">The new content.</param>
+    /// <param name="beforeReplace">The hook called just before the replacement, or null.</param>
+    private static void WriteResolved(string path, byte[] original, byte[] content, Action? beforeReplace = null) =>
+        AtomicFileWriter.Write(path, AtomicFileWriter.ResolveTarget(path), original, content, beforeReplace);
+
+    /// <summary>
+    ///     Points a symbolic link at another file by replacing the link.
+    /// </summary>
+    /// <param name="link">The path of the link.</param>
+    /// <param name="target">The new target.</param>
+    private static void Redirect(string link, string target)
+    {
+        File.Delete(link);
+        File.CreateSymbolicLink(link, target);
+    }
+
+    /// <summary>
     ///     Test that new content replaces the file.
     /// </summary>
     [Fact]
@@ -59,7 +80,7 @@ public class AtomicFileWriterTests
         var path = directory.WriteFile("a.md", "old\n");
 
         // Act: replace it
-        AtomicFileWriter.Write(path, Bytes("old\n"), Bytes("new\n"));
+        WriteResolved(path, Bytes("old\n"), Bytes("new\n"));
 
         // Assert: the file holds the new content
         Assert.Equal(Bytes("new\n"), File.ReadAllBytes(path));
@@ -79,7 +100,7 @@ public class AtomicFileWriterTests
 
         // Act: write with a failing hook
         var exception = Assert.Throws<IOException>(() =>
-            AtomicFileWriter.Write(path, original, content, () => throw new IOException("simulated crash")));
+            WriteResolved(path, original, content, () => throw new IOException("simulated crash")));
 
         // Assert: the hook's failure propagates, the original bytes are intact and no temporary file remains
         Assert.Equal("simulated crash", exception.Message);
@@ -100,7 +121,7 @@ public class AtomicFileWriterTests
         var content = Bytes("rewrite\n");
 
         // Act / Assert: the write is refused
-        Assert.Throws<IOException>(() => AtomicFileWriter.Write(path, read, content));
+        Assert.Throws<IOException>(() => WriteResolved(path, read, content));
 
         // Assert: the other writer's content is still there and nothing is left over
         Assert.Equal(Bytes("changed by someone else\n"), File.ReadAllBytes(path));
@@ -122,7 +143,7 @@ public class AtomicFileWriterTests
         try
         {
             // Act / Assert: the write is refused
-            Assert.Throws<UnauthorizedAccessException>(() => AtomicFileWriter.Write(path, original, content));
+            Assert.Throws<UnauthorizedAccessException>(() => WriteResolved(path, original, content));
 
             // Assert: the content is unchanged and nothing is left over
             Assert.Equal(original, File.ReadAllBytes(path));
@@ -147,7 +168,7 @@ public class AtomicFileWriterTests
         var content = Bytes("new\n");
 
         // Act / Assert: the write is refused and no file is created
-        Assert.Throws<FileNotFoundException>(() => AtomicFileWriter.Write(path, original, content));
+        Assert.Throws<FileNotFoundException>(() => WriteResolved(path, original, content));
         Assert.False(File.Exists(path));
     }
 
@@ -164,7 +185,7 @@ public class AtomicFileWriterTests
         var content = Bytes("new\n");
 
         // Act / Assert: the write is refused with an I/O failure and the directory is not created
-        Assert.ThrowsAny<IOException>(() => AtomicFileWriter.Write(path, original, content));
+        Assert.ThrowsAny<IOException>(() => WriteResolved(path, original, content));
         Assert.False(Directory.Exists(directory.PathOf("no-such-folder")));
     }
 
@@ -179,7 +200,7 @@ public class AtomicFileWriterTests
         var path = directory.WriteBytes("a.md", Bytes("old\n"));
 
         // Act: replace it
-        AtomicFileWriter.Write(path, Bytes("old\n"), Bytes("new\n"));
+        WriteResolved(path, Bytes("old\n"), Bytes("new\n"));
 
         // Assert: the target is the only file in the directory
         Assert.Equal([path], Directory.GetFiles(directory.FullPath));
@@ -205,7 +226,7 @@ public class AtomicFileWriterTests
         File.CreateSymbolicLink(link, real);
 
         // Act: write through the link
-        AtomicFileWriter.Write(link, Bytes("old\n"), Bytes("new\n"));
+        WriteResolved(link, Bytes("old\n"), Bytes("new\n"));
 
         // Assert: the real file has the new content, and the link is still a link to it
         Assert.Equal(Bytes("new\n"), File.ReadAllBytes(real));
@@ -234,7 +255,7 @@ public class AtomicFileWriterTests
         File.SetUnixFileMode(path, Mode);
 
         // Act: replace the content
-        AtomicFileWriter.Write(path, Bytes("old\n"), Bytes("new\n"));
+        WriteResolved(path, Bytes("old\n"), Bytes("new\n"));
 
         // Assert: the mode is as it was
         Assert.Equal(Mode, File.GetUnixFileMode(path));
@@ -251,7 +272,7 @@ public class AtomicFileWriterTests
         var path = directory.WriteBytes("a.md", Bytes("old\n"));
 
         // Act: replace it with nothing
-        AtomicFileWriter.Write(path, Bytes("old\n"), []);
+        WriteResolved(path, Bytes("old\n"), []);
 
         // Assert: the file exists and is empty
         Assert.True(File.Exists(path));
@@ -269,7 +290,7 @@ public class AtomicFileWriterTests
         var content = Bytes("new\n");
 
         // Act / Assert: the null path is refused
-        Assert.Throws<ArgumentNullException>(() => AtomicFileWriter.Write(null!, original, content));
+        Assert.Throws<ArgumentNullException>(() => AtomicFileWriter.Write(null!, "target.md", original, content));
     }
 
     /// <summary>
@@ -285,7 +306,7 @@ public class AtomicFileWriterTests
         var content = Bytes("new\n");
 
         // Act / Assert: the blank path is refused
-        Assert.Throws<ArgumentException>(() => AtomicFileWriter.Write(path, original, content));
+        Assert.Throws<ArgumentException>(() => AtomicFileWriter.Write(path, "target.md", original, content));
     }
 
     /// <summary>
@@ -300,7 +321,7 @@ public class AtomicFileWriterTests
         byte[] content = [0xEF, 0xBB, 0xBF, .. "caf\u00E9\r\nb\r\n"u8];
 
         // Act: replace the content
-        AtomicFileWriter.Write(path, Bytes("old\n"), content);
+        WriteResolved(path, Bytes("old\n"), content);
 
         // Assert: every byte is as given
         Assert.Equal(content, File.ReadAllBytes(path));
@@ -322,7 +343,7 @@ public class AtomicFileWriterTests
         }
 
         // Act: replace the content
-        AtomicFileWriter.Write(path, Bytes("old\n"), content);
+        WriteResolved(path, Bytes("old\n"), content);
 
         // Assert: the file has the same bytes
         Assert.Equal(content, File.ReadAllBytes(path));
@@ -337,10 +358,10 @@ public class AtomicFileWriterTests
         // Arrange: a file that is replaced once
         using var directory = new TemporaryDirectory();
         var path = directory.WriteBytes("a.md", Bytes("one\n"));
-        AtomicFileWriter.Write(path, Bytes("one\n"), Bytes("two\n"));
+        WriteResolved(path, Bytes("one\n"), Bytes("two\n"));
 
         // Act: replace it again, expecting what the first write produced
-        AtomicFileWriter.Write(path, Bytes("two\n"), Bytes("three\n"));
+        WriteResolved(path, Bytes("two\n"), Bytes("three\n"));
 
         // Assert: the file holds the last content
         Assert.Equal(Bytes("three\n"), File.ReadAllBytes(path));
@@ -361,9 +382,172 @@ public class AtomicFileWriterTests
         var content = Bytes("new\n");
 
         // Act / Assert: the write is refused
-        Assert.Throws<IOException>(() => AtomicFileWriter.Write(path, expectedBytes, content));
+        Assert.Throws<IOException>(() => WriteResolved(path, expectedBytes, content));
 
         // Assert: the file is untouched
         Assert.Equal(Bytes("abc\n"), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that a path that resolves to another file than the one that was read is refused, also when both hold the same bytes.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_Write_TargetDiffersFromExpected_ThrowsAndLeavesBothFiles()
+    {
+        // Arrange: two files with identical bytes, and an expected target that is the other one
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", Bytes("same\n"));
+        var other = directory.WriteBytes("b.md", Bytes("same\n"));
+        var content = Bytes("rewrite\n");
+
+        // Act / Assert: the write is refused because the path is not the file that was read
+        Assert.Throws<IOException>(() => AtomicFileWriter.Write(path, AtomicFileWriter.ResolveTarget(other), Bytes("same\n"), content));
+
+        // Assert: both files are untouched and nothing is left over
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(path));
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(other));
+        Assert.Empty(Leftovers(directory));
+    }
+
+    /// <summary>
+    ///     Test that a link redirected to a file with the same bytes after it was read is refused.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_Write_LinkRedirectedAfterRead_ThrowsAndLeavesBothFiles()
+    {
+        // Arrange: a link to a file whose target is captured, then redirected to another file with the same bytes
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symbolic links on Windows needs privileges that a test run may not have.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var first = directory.WriteBytes("first.md", Bytes("same\n"));
+        var second = directory.WriteBytes("second.md", Bytes("same\n"));
+        var link = directory.PathOf("link.md");
+        File.CreateSymbolicLink(link, first);
+        var captured = AtomicFileWriter.ResolveTarget(link);
+        Redirect(link, second);
+
+        // Act / Assert: the write is refused
+        Assert.Throws<IOException>(() => AtomicFileWriter.Write(link, captured, Bytes("same\n"), Bytes("rewrite\n")));
+
+        // Assert: neither file was rewritten and nothing is left over
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(first));
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(second));
+        Assert.Empty(Leftovers(directory));
+    }
+
+    /// <summary>
+    ///     Test that a link redirected to a file with the same bytes just before the replacement is refused and the temporary file is removed.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_Write_LinkRedirectedBeforeReplace_ThrowsAndRemovesTemp()
+    {
+        // Arrange: a link that is redirected by the hook once the temporary file is complete
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symbolic links on Windows needs privileges that a test run may not have.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var first = directory.WriteBytes("first.md", Bytes("same\n"));
+        var second = directory.WriteBytes("second.md", Bytes("same\n"));
+        var link = directory.PathOf("link.md");
+        File.CreateSymbolicLink(link, first);
+
+        // Act / Assert: the write is refused by the check right before the replacement
+        Assert.Throws<IOException>(() => WriteResolved(link, Bytes("same\n"), Bytes("rewrite\n"), () => Redirect(link, second)));
+
+        // Assert: neither file was rewritten, the link points where the other program put it, and nothing is left over
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(first));
+        Assert.Equal(Bytes("same\n"), File.ReadAllBytes(second));
+        Assert.Equal(second, new FileInfo(link).LinkTarget);
+        Assert.Empty(Leftovers(directory));
+    }
+
+    /// <summary>
+    ///     Test that the resolved target of a regular file is its full path.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_ResolveTarget_RegularFile_ReturnsFullPath()
+    {
+        // Arrange: a regular file
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", Bytes("old\n"));
+
+        // Act: resolve it
+        var target = AtomicFileWriter.ResolveTarget(path);
+
+        // Assert: the full path comes back
+        Assert.Equal(Path.GetFullPath(path), target);
+    }
+
+    /// <summary>
+    ///     Test that the resolved target of a link is the file it finally points to.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_ResolveTarget_SymlinkToFile_ReturnsFinalTarget()
+    {
+        // Arrange: a link to a file
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symbolic links on Windows needs privileges that a test run may not have.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var real = directory.WriteBytes("real.md", Bytes("old\n"));
+        var link = directory.PathOf("link.md");
+        File.CreateSymbolicLink(link, real);
+
+        // Act: resolve the link
+        var target = AtomicFileWriter.ResolveTarget(link);
+
+        // Assert: the real file comes back
+        Assert.Equal(Path.GetFullPath(real), target);
+    }
+
+    /// <summary>
+    ///     Test that the same resolved target is accepted.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_EnsureSameTarget_SameTarget_DoesNotThrow()
+    {
+        // Act / Assert: equal paths are accepted
+        var exception = Record.Exception(() => AtomicFileWriter.EnsureSameTarget("/work/a.md", "/work/a.md"));
+        Assert.Null(exception);
+    }
+
+    /// <summary>
+    ///     Test that a different resolved target is refused.
+    /// </summary>
+    [Fact]
+    public void AtomicFileWriter_EnsureSameTarget_DifferentTarget_Throws()
+    {
+        // Act / Assert: different paths are refused
+        Assert.Throws<IOException>(() => AtomicFileWriter.EnsureSameTarget("/work/a.md", "/work/b.md"));
+    }
+
+    /// <summary>
+    ///     Test that a missing or blank expected target is refused.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AtomicFileWriter_Write_MissingExpectedTarget_Throws(string? expectedTarget)
+    {
+        // Arrange: an existing file
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", Bytes("old\n"));
+        var original = Bytes("old\n");
+        var content = Bytes("new\n");
+
+        // Act / Assert: the missing identity is refused and the file is untouched
+        Assert.ThrowsAny<ArgumentException>(() => AtomicFileWriter.Write(path, expectedTarget!, original, content));
+        Assert.Equal(original, File.ReadAllBytes(path));
     }
 }

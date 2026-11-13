@@ -1183,7 +1183,7 @@ public partial class LintMarkEngineTests
     public void FileChange_Constructor_ValidArguments_KeepsValues()
     {
         // Arrange / Act: a change with both byte arrays
-        var change = new FileChange("a\n", "b\n", new LineEndingInfo(1, 0), LineEnding.Lf, [1], [2]);
+        var change = new FileChange("a\n", "b\n", new LineEndingInfo(1, 0), LineEnding.Lf, [1], [2], "/work/a.md");
 
         // Assert: the values are kept
         Assert.Equal("a\n", change.OriginalLf);
@@ -1191,6 +1191,7 @@ public partial class LintMarkEngineTests
         Assert.Equal(LineEnding.Lf, change.TargetEnding);
         Assert.Equal([(byte)1], change.OriginalBytes);
         Assert.Equal([(byte)2], change.NewBytes);
+        Assert.Equal("/work/a.md", change.ResolvedTarget);
     }
 
     /// <summary>
@@ -1200,8 +1201,8 @@ public partial class LintMarkEngineTests
     public void FileChange_Constructor_NullText_Throws()
     {
         // Arrange / Act / Assert: neither text may be null
-        Assert.Throws<ArgumentNullException>(() => new FileChange(null!, "b\n", default, LineEnding.Lf, [1], [2]));
-        Assert.Throws<ArgumentNullException>(() => new FileChange("a\n", null!, default, LineEnding.Lf, [1], [2]));
+        Assert.Throws<ArgumentNullException>(() => new FileChange(null!, "b\n", default, LineEnding.Lf, [1], [2], "/work/a.md"));
+        Assert.Throws<ArgumentNullException>(() => new FileChange("a\n", null!, default, LineEnding.Lf, [1], [2], "/work/a.md"));
     }
 
     /// <summary>
@@ -1211,8 +1212,8 @@ public partial class LintMarkEngineTests
     public void FileChange_Constructor_DefaultBytes_Throws()
     {
         // Arrange / Act / Assert: neither byte array may be a default array
-        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, default, [2]));
-        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, [1], default));
+        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, default, [2], "/work/a.md"));
+        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, [1], default, "/work/a.md"));
     }
 
     /// <summary>
@@ -1222,6 +1223,17 @@ public partial class LintMarkEngineTests
     public void FileChange_Constructor_UndefinedLineEnding_Throws()
     {
         // Arrange / Act / Assert: the target ending must be a defined value
-        Assert.Throws<ArgumentOutOfRangeException>(() => new FileChange("a\n", "b\n", default, (LineEnding)99, [1], [2]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FileChange("a\n", "b\n", default, (LineEnding)99, [1], [2], "/work/a.md"));
+    }
+
+    /// <summary>
+    ///     Test that a file change without a resolved target is rejected.
+    /// </summary>
+    [Fact]
+    public void FileChange_Constructor_MissingResolvedTarget_Throws()
+    {
+        // Arrange / Act / Assert: the resolved target may be neither null nor blank
+        Assert.Throws<ArgumentNullException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, [1], [2], null!));
+        Assert.Throws<ArgumentException>(() => new FileChange("a\n", "b\n", default, LineEnding.Lf, [1], [2], "  "));
     }
 }

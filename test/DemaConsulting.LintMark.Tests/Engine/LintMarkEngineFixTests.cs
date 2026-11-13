@@ -783,7 +783,7 @@ public partial class LintMarkEngineTests
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", LfConfig);
         var (path, writeTime) = WriteOld(directory, "a.md", Utf8("# Title\r\n\r\nText.\r\n"));
-        var engine = new LintMarkEngine(1, fileWriter: (_, _, _) => throw new IOException("disk full"));
+        var engine = new LintMarkEngine(1, fileWriter: (_, _, _, _) => throw new IOException("disk full"));
 
         // Act: run with the fix option
         var (exitCode, lines) = Execute(directory, engine, "--fix");
@@ -812,14 +812,14 @@ public partial class LintMarkEngineTests
         var second = directory.WriteBytes("b.md", Utf8("# B\r\n"));
         var engine = new LintMarkEngine(
             1,
-            fileWriter: (target, original, content) =>
+            fileWriter: (target, resolved, original, content) =>
             {
                 if (Path.GetFileName(target) == "a.md")
                 {
                     throw new IOException("disk full");
                 }
 
-                AtomicFileWriter.Write(target, original.Span, content.Span);
+                AtomicFileWriter.Write(target, resolved, original.Span, content.Span);
             });
 
         // Act: run with the fix option
@@ -849,10 +849,10 @@ public partial class LintMarkEngineTests
         var path = directory.WriteBytes("a.md", Utf8("# Title\r\n\r\nText.\r\n"));
         var engine = new LintMarkEngine(
             1,
-            fileWriter: (target, original, content) =>
+            fileWriter: (target, resolved, original, content) =>
             {
                 File.WriteAllBytes(target, Utf8("changed by someone else\n"));
-                AtomicFileWriter.Write(target, original.Span, content.Span);
+                AtomicFileWriter.Write(target, resolved, original.Span, content.Span);
             });
 
         // Act: run with the fix option
@@ -863,6 +863,75 @@ public partial class LintMarkEngineTests
         Assert.Equal(2, lines.Length);
         Assert.Equal("a.md:1:1: file-write-error Cannot write file: The file changed after it was read; it was not rewritten.", lines[0]);
         Assert.Equal(Utf8("changed by someone else\n"), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that the writer is given the full path of the file that was read as the expected target.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_FixRegularFile_PassesResolvedTargetToWriter()
+    {
+        // Arrange: a CRLF file and a writer that records what it is given before writing for real
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", LfConfig);
+        var path = directory.WriteBytes("a.md", Utf8("# Title\r\n\r\nText.\r\n"));
+        string? received = null;
+        var engine = new LintMarkEngine(
+            1,
+            fileWriter: (target, resolved, original, content) =>
+            {
+                received = resolved;
+                AtomicFileWriter.Write(target, resolved, original.Span, content.Span);
+            });
+
+        // Act: run with the fix option
+        var (exitCode, lines) = Execute(directory, engine, "--fix");
+
+        // Assert: the expected target is the full path of the file and the rewrite happened
+        Assert.Equal(0, exitCode);
+        Assert.Empty(lines);
+        Assert.Equal(Path.GetFullPath(path), received);
+        Assert.Equal(Utf8(CompliantText), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that a link redirected to another file with the same bytes after the read is refused and neither file is rewritten.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_FixLinkRedirectedAfterRead_ReportsWriteErrorAndLeavesBothFiles()
+    {
+        // Arrange: a link to a CRLF file, another file with the same bytes, and a writer that redirects the link before the real write
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symbolic links on Windows needs privileges that a test run may not have.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", LfConfig);
+        var bytes = Utf8("# Title\r\n\r\nText.\r\n");
+        var first = directory.WriteBytes("first.txt", bytes);
+        var second = directory.WriteBytes("second.txt", bytes);
+        var link = directory.PathOf("a.md");
+        File.CreateSymbolicLink(link, first);
+        var engine = new LintMarkEngine(
+            1,
+            fileWriter: (target, resolved, original, content) =>
+            {
+                File.Delete(target);
+                File.CreateSymbolicLink(target, second);
+                AtomicFileWriter.Write(target, resolved, original.Span, content.Span);
+            });
+
+        // Act: run with the fix option
+        var (exitCode, lines) = Execute(directory, engine, "--fix");
+
+        // Assert: the write is reported as failed and neither file was rewritten
+        Assert.Equal(1, exitCode);
+        Assert.StartsWith("a.md:1:1: file-write-error Cannot write file: The file link now points elsewhere", lines[0], StringComparison.Ordinal);
+        Assert.Equal(bytes, File.ReadAllBytes(first));
+        Assert.Equal(bytes, File.ReadAllBytes(second));
+        Assert.Empty(Directory.GetFiles(directory.FullPath, "*.lintmark-tmp", SearchOption.AllDirectories));
     }
 
     /// <summary>
@@ -1089,6 +1158,7 @@ public partial class LintMarkEngineTests
         Assert.Equal(LineEnding.CrLf, change.TargetEnding);
         Assert.Equal(original, change.OriginalBytes.ToArray());
         Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. Utf8("a b\r\nc\r\n")], change.NewBytes.ToArray());
+        Assert.Equal(Path.GetFullPath(path), change.ResolvedTarget);
         Assert.Empty(result.Diagnostics);
     }
 

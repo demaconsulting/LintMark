@@ -24,8 +24,9 @@ reliably otherwise:
   pass and growing the text on every pass (not idempotent), creating a grid table border, throwing, proposing
   overlapping edits, proposing an edit outside the text, and inserting a carriage return. With them the safety
   checks and the format failures are verified against the real checkers, which are never replaced.
-- The `fileWriter` seam makes the write throw (for one file or for all), and changes the file just before it
-  delegates to the real `AtomicFileWriter` (a file that changed after it was read).
+- The `fileWriter` seam makes the write throw (for one file or for all), records the resolved target it is given, and
+  changes the file, or points a link to another file, just before it delegates to the real `AtomicFileWriter` (a
+  file that changed, or a link that was redirected, after it was read).
 - A resolver built from two delegates that throw (so that unreadable editor settings can be provoked, and so that a
   scenario can prove that the resolver was or was not consulted), passed either to the `Process` overload that takes
   a resolver or through the `editorConfigFactory` constructor argument, which lets `Run` use it, or throw if it is
@@ -63,7 +64,7 @@ collection.
   parallelism, or the completion order.
 - Files run at the same time when parallelism allows it, and never when it is limited to one.
 - Invalid constructor and method arguments are rejected, and so are a file result or a file change that is missing a
-  path, a text, a list, or a bytes array, or that has an undefined line ending.
+  path, a text, a list, a bytes array, or a resolved target, or that has an undefined line ending.
 - A file result cannot be modified through its diagnostic list or its configuration problem list.
 - Each file carries the configuration of its own nearest file, the defaults when none applies, and the one named
   with `--config` when there is one; no configuration file and no editor settings are read with `--no-config`.
@@ -94,7 +95,8 @@ collection.
 - A formatter that throws, proposes conflicting or out-of-range edits, or inserts a carriage return gives a
   `file-format-error` naming only the exception type (or the carriage return) and leaves the file untouched.
 - A failed write is a `file-write-error` for that file, keeps the formatting diagnostics of the file, leaves the file
-  as it was, and never stops the other files; a file that changed after it was read is not overwritten.
+  as it was, and never stops the other files; a file that changed after it was read, or whose link was redirected to
+  another file after it was read, is not overwritten.
 - The diff output is the unified diff of the proposed change, including a note for a change of line endings alone,
   and nothing for a file that would not change.
 - A document with an invalid grid table is reported as `grid-table-invalid` at the offending line unless the rule is
@@ -239,7 +241,7 @@ order and include a safety, a grid table, and an encoding diagnostic, and every 
 **Processing with a formatter returns the change with the exact new bytes**: A byte order mark file with CRLF
 endings and the replacing formatter processed through `Process` give a `FileChange` with the LF text before and
 after, the target ending CRLF, the original bytes, and the new bytes (mark kept, text changed, CRLF kept), the
-safety status `Ok`, and no diagnostic.
+resolved target (the full path of the file), the safety status `Ok`, and no diagnostic.
 
 **Ignored files that were found are neither read nor reported**: A file below `node_modules` that is not explicit
 (built-in patterns) is marked ignored with no diagnostic and no change, also when the file does not exist, so that
@@ -426,6 +428,17 @@ with exit code 1 and the file untouched.
 **A file that changed after it was read is not overwritten**: A writer that overwrites the file just before the real
 atomic write gives two lines, the first being `a.md:1:1: file-write-error Cannot write file: The file changed after
 it was read; it was not rewritten.`, exit code 1, and the other writer's content is still in the file.
+
+**The writer is given the resolved target of the file that was read**: A CRLF file is fixed through a writer that
+records its target argument and then delegates to the real writer; the recorded value is the full path of the file,
+the exit code is 0, nothing is reported, and the file is rewritten. Processing a file through `Process` gives a
+`FileChange` whose resolved target is that full path.
+
+**A link redirected after the read is not written through (Unix only)**: A link `a.md` to a CRLF file, a second file
+with identical bytes, and a writer that points the link to the second file just before the real atomic write give a
+`file-write-error` line that starts `a.md:1:1: file-write-error Cannot write file: The file link now points
+elsewhere`, exit code 1, both files with their original bytes, and no temporary file. The test is skipped on
+Windows, because creating links there needs privileges that a test run may not have.
 
 **Rule identifiers that the engine emits are registered**: The read, parse, format, write, configuration, and
 line-ending rule identifiers are all found in the rule catalog.

@@ -298,6 +298,31 @@ sections:
                   - LintMarkEngine_Run_FixOneWriteFails_OtherFilesStillWritten
                   - LintMarkEngine_Run_FixFileChangedAfterRead_ReportsWriteErrorAndLeavesFile
 
+              - id: LintMark-Engine-LintMarkEngine-CapturesResolvedTarget
+                title: >-
+                  The LintMarkEngine class shall record the full path of the file that a path resolves to, with
+                  symbolic links followed, when it reads the file, read the bytes from that file, and hand the
+                  recorded path to the writer with the rewrite.
+                justification: |
+                  The identity of the file must be taken together with its bytes, at the time of the read. An
+                  identity taken only when the write starts could not reveal a link that was redirected
+                  after the read.
+                tests:
+                  - LintMarkEngine_Process_FormatterEditsApplied_ChangeHasNewBytes
+                  - LintMarkEngine_Run_FixRegularFile_PassesResolvedTargetToWriter
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseRedirectedLink
+                title: >-
+                  The LintMarkEngine class shall report a file whose link was redirected to another file after
+                  it was read as a `file-write-error` problem and leave both files as they were, also when both
+                  hold the same bytes.
+                justification: |
+                  Rewriting a file that the rewrite was not computed from would damage it. The test needs
+                  symbolic links, so only Linux and macOS runs count as evidence.
+                tests:
+                  - ubuntu@LintMarkEngine_Run_FixLinkRedirectedAfterRead_ReportsWriteErrorAndLeavesBothFiles
+                  - macos@LintMarkEngine_Run_FixLinkRedirectedAfterRead_ReportsWriteErrorAndLeavesBothFiles
+
               - id: LintMark-Engine-LintMarkEngine-FixRewrites
                 title: >-
                   The LintMarkEngine class shall write, when the fix option is given, the proposed rewrite of
@@ -529,8 +554,9 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-ValidatesResultTypes
                 title: >-
                   The FileResult and FileChange records shall refuse a missing or empty path, missing text,
-                  missing or default lists of findings or bytes, a missing finding, and a line ending that is not
-                  defined, and shall expose the values that they were created with.
+                  a missing or blank resolved target, missing or default lists of findings or bytes, a missing
+                  finding, and a line ending that is not defined, and shall expose the values that they were
+                  created with.
                 justification: |
                   Results travel from the workers to the writer and the reporters, and a rewrite is written
                   from a change. An incomplete value would fail far from where it was made, or damage a file,
@@ -543,6 +569,7 @@ sections:
                   - FileChange_Constructor_NullText_Throws
                   - FileChange_Constructor_DefaultBytes_Throws
                   - FileChange_Constructor_UndefinedLineEnding_Throws
+                  - FileChange_Constructor_MissingResolvedTarget_Throws
 
               - id: LintMark-Engine-LintMarkEngine-IsolatedRefusals
                 title: >-

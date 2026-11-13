@@ -4,7 +4,7 @@ package LintMark {
 
     // The byte arrays of the C# type are modeled as lists of Integer values (there is no byte scalar).
     attribute def FileChange {
-        doc /* A rewrite of one file that passed every safety check and is ready to be written, with the exact bytes it was computed from so the writer can refuse to replace a file that changed after it was read. */
+        doc /* A rewrite of one file that passed every safety check and is ready to be written, with the exact bytes it was computed from and the resolved target they were read from, so the writer can refuse to replace a file that changed, or a link that was redirected, after it was read. */
 
         attribute originalLf : String;
         attribute newLf : String;
@@ -12,6 +12,7 @@ package LintMark {
         attribute targetEnding : LineEnding;
         attribute originalBytes : Integer [0..*];
         attribute newBytes : Integer [0..*];
+        attribute resolvedTarget : String;
     }
 
     // A change is present only for a rewrite that passed every safety check; the configuration is absent

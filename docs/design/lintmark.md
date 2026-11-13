@@ -238,7 +238,8 @@ its behavior.
   rewritten only when its proposed rewrite differs from it and passed every safety check. The new content is written to
   a temporary file in the same directory and swapped in with one replace operation, so a reader or a crash never sees
   a partial file; the permissions of the file are kept and a symbolic link is followed. The rewrite is computed from
-  the bytes that were read, and a file whose bytes changed since it was read is not rewritten.
+  the bytes that were read, and a file whose bytes changed since it was read, or whose symbolic link was redirected to
+  another file since, is not rewritten.
 - *Constraints*: Other encodings, a bare carriage return, and a file that cannot be read are reported as
   diagnostics and the file is left alone. A file that cannot be written is reported as `file-write-error` and left as
   it was; the other files are still written. A file is never written in `--check` or `--diff` mode, when its
@@ -310,7 +311,8 @@ Each is a separate unit or subsystem, so no formatting code can bypass them:
   proposed edits that conflict or lie outside the text; and a file with a refused or failed rewrite is left byte for
   byte as it was and reported.
 - **Atomic, checked write**: the write replaces the file in one step, keeps its permissions, and is refused when the
-  file changed after it was read; a failure leaves the file as it was and the other files are still written.
+  file changed, or its link was redirected, after it was read; a failure leaves the file as it was and the other files
+  are still written.
 - **Mode gating**: nothing is written without `--fix`; the check and diff modes run the whole pipeline, so what they
   report predicts what `--fix` does.
 
@@ -387,8 +389,9 @@ flowchart TD
       the file.
    Results are stored by input index, then sorted by path.
 7. After all workers have finished, `LintMarkEngine.Run` writes the changes when `--fix` is given: one file after the
-   other, in path order, from the calling thread, through `AtomicFileWriter`, which refuses a file that changed after it
-   was read. A failed write becomes a `file-write-error` diagnostic and never stops the other files; the
+   other, in path order, from the calling thread, through `AtomicFileWriter`, which refuses a file that changed, or a
+   link that was redirected, after it was read. A failed write becomes a `file-write-error` diagnostic and never stops
+   the other files; the
    `line-ending` finding of a file that was written is dropped.
 8. The engine combines the diagnostics with the distinct configuration problems (those of the files and the initial
    problems of an explicit `--config` file) and `TextReporter` converts each path to its display form, sorts all lines by

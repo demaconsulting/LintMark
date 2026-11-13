@@ -125,10 +125,11 @@ internal sealed class LintMarkEngine
     private readonly DocumentFormatter _formatter;
 
     /// <summary>
-    ///     Replaces the content of a file given the bytes it was computed from and the new bytes; replaceable so
-    ///     tests can simulate write failures and files that change after they were read.
+    ///     Replaces the content of a file given the resolved target captured when it was read, the bytes it was
+    ///     computed from and the new bytes; replaceable so tests can simulate write failures and files that
+    ///     change (or links that are redirected) after they were read.
     /// </summary>
-    private readonly Action<string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> _fileWriter;
+    private readonly Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> _fileWriter;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="LintMarkEngine"/> class with default settings
@@ -161,8 +162,9 @@ internal sealed class LintMarkEngine
     ///     <see langword="null"/> selects a formatter without block formatters.
     /// </param>
     /// <param name="fileWriter">
-    ///     Optional replacement for the atomic file write (a test seam). It receives the path, the bytes the
-    ///     rewrite was computed from and the new bytes; <see langword="null"/> selects <see cref="AtomicFileWriter"/>.
+    ///     Optional replacement for the atomic file write (a test seam). It receives the path, the resolved
+    ///     target captured when the file was read, the bytes the rewrite was computed from and the new bytes;
+    ///     <see langword="null"/> selects <see cref="AtomicFileWriter"/>.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than one.</exception>
     internal LintMarkEngine(
@@ -171,7 +173,7 @@ internal sealed class LintMarkEngine
         Func<SourceDocument, ParsedDocument>? documentParser = null,
         Func<EditorConfigResolver>? editorConfigFactory = null,
         DocumentFormatter? formatter = null,
-        Action<string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null)
+        Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
@@ -179,7 +181,7 @@ internal sealed class LintMarkEngine
         _fileProcessor = fileProcessor ?? ReadAndRewrite;
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
         _formatter = formatter ?? new DocumentFormatter();
-        _fileWriter = fileWriter ?? (static (path, original, content) => AtomicFileWriter.Write(path, original.Span, content.Span));
+        _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 
     /// <summary>
@@ -353,10 +355,10 @@ internal sealed class LintMarkEngine
                 continue;
             }
 
-            // The writer refuses a file that changed after it was read; any failure leaves the file as it was
+            // The writer refuses a file that changed, or a link that was redirected, after it was read; any failure leaves the file as it was
             try
             {
-                _fileWriter(result.Path, change.OriginalBytes.AsMemory(), change.NewBytes.AsMemory());
+                _fileWriter(result.Path, change.ResolvedTarget, change.OriginalBytes.AsMemory(), change.NewBytes.AsMemory());
                 remaining.AddRange(result.Diagnostics.Where(static d => d.Kind != DiagnosticKind.Formatting));
             }
             catch (Exception ex)
@@ -436,11 +438,14 @@ internal sealed class LintMarkEngine
     /// <returns>The result; its diagnostic list is empty when the file was read, parsed and is compliant.</returns>
     private FileResult ReadAndRewrite(string path, LintMarkConfig? config)
     {
-        // Read the bytes; read problems are reported rather than thrown
+        // Resolve the links first and read the bytes from the resolved file, so the identity that is captured is the
+        // one the bytes come from; read problems are reported rather than thrown
+        string target;
         byte[] bytes;
         try
         {
-            bytes = File.ReadAllBytes(path);
+            target = AtomicFileWriter.ResolveTarget(path);
+            bytes = File.ReadAllBytes(target);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
         {
@@ -465,13 +470,14 @@ internal sealed class LintMarkEngine
         }
 
         // A file that must not be formatted is only checked for problems it has on its own
-        return config is null ? new FileResult(path, []) : Rewrite(path, bytes, document, config);
+        return config is null ? new FileResult(path, []) : Rewrite(path, target, bytes, document, config);
     }
 
     /// <summary>
     ///     Formats a parsed document and verifies the proposed rewrite.
     /// </summary>
     /// <param name="path">Path of the file.</param>
+    /// <param name="target">The full path of the file the bytes were read from, with symbolic links resolved.</param>
     /// <param name="bytes">The exact bytes that were read.</param>
     /// <param name="document">The parsed document.</param>
     /// <param name="config">The configuration to format under.</param>
@@ -479,7 +485,7 @@ internal sealed class LintMarkEngine
     ///     The result: the findings, and a change only when the proposed rewrite differs from the file and passed
     ///     every safety check. A document that must not be rewritten yields the grid table finding and no change.
     /// </returns>
-    private FileResult Rewrite(string path, byte[] bytes, ParsedDocument document, LintMarkConfig config)
+    private FileResult Rewrite(string path, string target, byte[] bytes, ParsedDocument document, LintMarkConfig config)
     {
         var source = document.Source;
 
@@ -526,7 +532,8 @@ internal sealed class LintMarkEngine
             source.LineEndings,
             format.LineEnding,
             [.. bytes],
-            [.. newBytes]);
+            [.. newBytes],
+            target);
         return new FileResult(path, format.Diagnostics) { Change = change };
     }
 
