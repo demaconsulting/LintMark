@@ -369,9 +369,9 @@ public class DocumentFormatterTests
         var lf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.Lf });
         var crlf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.CrLf });
 
-        // Assert: neither reports anything
-        Assert.Empty(lf.Diagnostics);
-        Assert.Empty(crlf.Diagnostics);
+        // Assert: neither reports a line ending violation (the missing final newline is another rule)
+        Assert.DoesNotContain(lf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
+        Assert.DoesNotContain(crlf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
     }
 
     /// <summary>
@@ -438,9 +438,9 @@ public class DocumentFormatterTests
         // Act: format
         var result = new DocumentFormatter().Format(document, LintMarkConfig.Default);
 
-        // Assert: LF is the target and nothing is reported
+        // Assert: LF is the target and no line ending violation is reported (the missing final newline is another rule)
         Assert.Equal(LineEnding.Lf, result.LineEnding);
-        Assert.Empty(result.Diagnostics);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
     }
 
     /// <summary>

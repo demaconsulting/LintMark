@@ -625,6 +625,7 @@ sections:
           - LintMark-Cli-Fix
           - LintMark-Engine-Fix
           - LintMark-Formatting-ApplyEdits
+          - LintMark-Engine-DefaultFormattingRulesFixed
         tests:
           - LintMark_FixFlag_CrlfFile_RewritesToLf
           - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
@@ -667,8 +668,8 @@ sections:
         justification: |
           Rewriting must change only what the style asks for. Every other character is the author's, and
           an author who switched a rule off for a passage expects the passage to stay as written.
-          Only line endings are rewritten by the tool as shipped, so the system tests show this for
-          files that need no change.
+          The system tests show this for files that need no change and for a rule that the author
+          switched off.
         children:
           - LintMark-Formatting-VerbatimByDefault
           - LintMark-Formatting-SuppressedBlocksVerbatim
@@ -677,6 +678,7 @@ sections:
         tests:
           - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
           - LintMark_FixFlag_BomFile_KeepsBomAndText
+          - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
 
       - id: LintMark-System-FixExclusive
         title: The tool shall reject the fix option combined with the check option or the diff option with an error.
@@ -702,9 +704,10 @@ sections:
           - LintMark-Engine-Diff
           - LintMark-Reporting-UnifiedDiff
           - LintMark-Reporting-LineEndingNote
+          - LintMark-Engine-DefaultFormattingRulesPreviewed
         tests:
-          - LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing
           - LintMark_DiffFlag_CleanFile_PrintsNothing
+          - LintMark_DiffFlag_FormattingViolations_ShowsTheChange
 
       - id: LintMark-System-NoWriteWithoutFix
         title: The tool shall modify no file unless the fix option is given.
@@ -753,6 +756,291 @@ sections:
         tests:
           - LintMark_LineEnding_MixedFile_ReportsAndFixes
 
+      - id: LintMark-System-FormattingViolationsReported
+        title: >-
+          The tool shall report each place at which a formatting rule would change a file as a problem under
+          the identifier of that rule, at the line and column of the change.
+        tags: [system]
+        justification: |
+          Users who check files, for example in a pipeline, need to know which rule found a problem and where,
+          so that they can repair it by hand, switch the rule off for a passage, or run the fix option.
+        children:
+          - LintMark-Formatting-EditsReported
+          - LintMark-Linting-FormattingRulesRegistered
+          - LintMark-Engine-DefaultFormattingRulesChecked
+        tests:
+          - LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing
+
+      - id: LintMark-System-FormattingFixStable
+        title: >-
+          The tool shall find nothing more to change or report in a file that the fix option has rewritten
+          for the formatting rules.
+        tags: [system]
+        justification: |
+          A fix that needed several runs, or that undid its own work, could not be trusted in a pipeline
+          that fixes and then checks.
+        children:
+          - LintMark-Formatting-FormattingStable
+        tests:
+          - LintMark_FixFlag_FormattingRules_SecondRunReportsNothing
+
+      - id: LintMark-System-FormattingRulesAlwaysApplied
+        title: >-
+          The tool shall treat the name or legacy rule number of a formatting rule that is always applied as an
+          unknown rule when it is listed in the `rules` setting of a configuration.
+        tags: [system]
+        justification: |
+          The formatting rules define the canonical form of a file. Switching one off in the configuration
+          would make the result depend on a setting that the rule does not have, so a rule is only
+          switched off for a passage, with a suppression comment, and a configuration that lists one is
+          reported.
+        children:
+          - LintMark-Linting-FormattingRulesNotConfigurable
+        tests:
+          - LintMark_ConfigRules_AlwaysAppliedRuleByAlias_ReportsUnknownRule
+
+      - id: LintMark-System-RuleAliasSuppression
+        title: >-
+          The tool shall leave a part of a file unchanged when a suppression comment names a formatting rule
+          that applies there by its legacy rule number.
+        tags: [system]
+        justification: |
+          Authors who come from other Markdown tools know the rules by their numbers, and write
+          suppression comments with them. A comment that did nothing would silently change their text.
+        children:
+          - LintMark-Document-SuppressionRuleAliases
+          - LintMark-Formatting-SuppressedBlocksVerbatim
+        tests:
+          - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
+
+      - id: LintMark-System-TrailingWhitespace
+        title: >-
+          The tool shall remove the spaces and tabs at the end of each line of text of a file, while a line
+          that ends a hard line break keeps exactly two spaces.
+        tags: [system]
+        justification: |
+          Trailing whitespace is invisible, makes version control show lines as changed, and is usually a
+          mistake. Two spaces at the end of a line are a hard line break in Markdown and must keep that
+          meaning.
+        children:
+          - LintMark-Formatting-TrailingWhitespaceRemoved
+          - LintMark-Formatting-HardBreakKept
+        tests:
+          - LintMark_FixFlag_TrailingWhitespace_RemovesItAndKeepsHardBreak
+          - LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing
+
+      - id: LintMark-System-HardTabs
+        title: >-
+          The tool shall replace each tab character in the text of a file by spaces up to the next tab stop of
+          four columns, but not in code, HTML, or other literal text.
+        tags: [system]
+        justification: |
+          Tabs show at different widths in different tools, so text that uses them looks different for
+          different readers. Literal text keeps its tabs, because they are part of its content.
+        children:
+          - LintMark-Formatting-TabsExpanded
+        tests:
+          - LintMark_FixFlag_HardTabs_ExpandsTabsInTextOnly
+
+      - id: LintMark-System-MaxBlankLines
+        title: >-
+          The tool shall reduce each run of blank lines between the blocks of a file to the number given by the
+          `max-blank-lines` setting of its configuration, one when the configuration gives none.
+        tags: [system]
+        justification: |
+          Long runs of blank lines are visual noise that carries no meaning in Markdown. Projects that want
+          more air between sections choose the number.
+        children:
+          - LintMark-Formatting-BlankRunsCollapsed
+        tests:
+          - LintMark_FixFlag_MaxBlankLines_CollapsesToTheMaximum
+
+      - id: LintMark-System-FinalNewline
+        title: >-
+          The tool shall end a file with exactly one line ending when the `final-newline` setting of its
+          configuration is on, which is the default.
+        tags: [system]
+        justification: |
+          Tools and version control treat a file without a final line ending, or with extra blank lines at the
+          end, differently. Projects have a convention and the tool applies it.
+        children:
+          - LintMark-Formatting-FinalNewline
+        tests:
+          - LintMark_FixFlag_FinalNewline_EndsWithExactlyOneLineEnding
+
+      - id: LintMark-System-FinalNewlineOptional
+        title: >-
+          The tool shall end a file with no line ending when the `final-newline` setting of its configuration
+          is off.
+        tags: [system]
+        justification: |
+          Some projects keep files without a final line ending, and the tool applies that convention when the
+          configuration says so.
+        children:
+          - LintMark-Formatting-FinalNewlineOptional
+        tests:
+          - LintMark_FixFlag_FinalNewlineOff_RemovesTheLineEnding
+
+      - id: LintMark-System-HeadingStyle
+        title: >-
+          The tool shall write each setext heading in the ATX form (`# Title`), unless the conversion could
+          change the meaning of the text.
+        tags: [system]
+        justification: |
+          One heading style makes a document consistent and its headings easy to find. A conversion that
+          could change what the text means or how it renders is not made.
+        children:
+          - LintMark-Formatting-HeadingStyle
+        tests:
+          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
+
+      - id: LintMark-System-HeadingClosingSigns
+        title: >-
+          The tool shall remove the closing number signs of each ATX heading.
+        tags: [system]
+        justification: |
+          Closing number signs add nothing to a heading, and headings with and without them in one document
+          are inconsistent.
+        children:
+          - LintMark-Formatting-HeadingClosingSigns
+        tests:
+          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
+
+      - id: LintMark-System-HeadingSpace
+        title: >-
+          The tool shall put exactly one space between the number signs of a heading and its text.
+        tags: [system]
+        justification: |
+          Extra spaces or tabs after the number signs are inconsistent and have no meaning.
+        children:
+          - LintMark-Formatting-HeadingSpace
+        tests:
+          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
+
+      - id: LintMark-System-HeadingStartLeft
+        title: >-
+          The tool shall start each heading that is not inside a quote or list at the left margin.
+        tags: [system]
+        justification: |
+          An indented heading looks like a mistake, and four spaces would make it code. Headings inside a
+          quote or list keep the indentation that belongs to the container.
+        children:
+          - LintMark-Formatting-HeadingStartLeft
+        tests:
+          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
+
+      - id: LintMark-System-HeadingBlankLines
+        title: >-
+          The tool shall separate each heading that is not inside a quote or list from the blocks around it by
+          a blank line.
+        tags: [system]
+        justification: |
+          Many Markdown parsers need the blank line, and all readers find the document easier to read with it.
+        children:
+          - LintMark-Formatting-HeadingSpacing
+        tests:
+          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
+
+      - id: LintMark-System-FenceBlankLines
+        title: >-
+          The tool shall separate each fenced code block that is not inside a quote or list from the blocks
+          around it by a blank line.
+        tags: [system]
+        justification: |
+          A fence that touches the text around it is hard to read and is not recognized by every parser.
+        children:
+          - LintMark-Formatting-FenceSpacing
+        tests:
+          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
+
+      - id: LintMark-System-ListBlankLines
+        title: >-
+          The tool shall separate each list that is not inside a quote or list from the blocks around it by a
+          blank line.
+        tags: [system]
+        justification: |
+          A list that touches the text around it is hard to read and is not recognized by every parser.
+        children:
+          - LintMark-Formatting-ListSpacing
+        tests:
+          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
+
+      - id: LintMark-System-TableBlankLines
+        title: >-
+          The tool shall separate each table that is not inside a quote or list from the blocks around it by a
+          blank line.
+        tags: [system]
+        justification: |
+          A table that touches the text around it is not recognized by every parser.
+        children:
+          - LintMark-Formatting-TableSpacing
+        tests:
+          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
+
+      - id: LintMark-System-ThematicBreakStyle
+        title: >-
+          The tool shall write each thematic break as three dashes, asterisks, or underscores, as the
+          `thematic-break` setting of its configuration says, three dashes when the configuration gives none.
+        tags: [system]
+        justification: |
+          One way to write a break makes a document consistent. A break that would then change the meaning of
+          the text around it, as a line of dashes under text does, is left as the author wrote it.
+        children:
+          - LintMark-Formatting-ThematicBreakStyle
+        tests:
+          - LintMark_FixFlag_ThematicBreak_UsesTheConfiguredStyle
+
+      - id: LintMark-System-CodeFenceStyle
+        title: >-
+          The tool shall write the fence of each fenced code block with backticks or tildes, as the `code-fence`
+          setting of its configuration says, backticks when the configuration gives none.
+        tags: [system]
+        justification: |
+          One fence character makes a document consistent. A fence that cannot be converted without changing
+          the block is left as written.
+        children:
+          - LintMark-Formatting-CodeFenceStyle
+        tests:
+          - LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence
+
+      - id: LintMark-System-CodeBlockStyle
+        title: >-
+          The tool shall write each code block that is indented, and is not inside a quote or list, as a fenced
+          code block with the content that it had.
+        tags: [system]
+        justification: |
+          Indented code is easily confused with a list continuation or with text that was indented by
+          accident, and it cannot carry a language. Fenced code is explicit.
+        children:
+          - LintMark-Formatting-CodeBlockStyle
+        tests:
+          - LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence
+
+      - id: LintMark-System-CodeContentKept
+        title: >-
+          The tool shall never change the content of code, HTML, math, or front matter when it rewrites a file.
+        tags: [system]
+        justification: |
+          Whitespace, blank lines, and tabs are part of the content of literal text, and changing them
+          changes what the document means or how it renders.
+        children:
+          - LintMark-Formatting-CodeContentKept
+          - LintMark-Formatting-UnclosedFencesKept
+        tests:
+          - LintMark_FixFlag_CodeHtmlMathAndFrontMatter_AreNeverChanged
+
+      - id: LintMark-System-NestedBlocksKept
+        title: >-
+          The tool shall not add or remove blank lines inside a quote or list when it rewrites a file.
+        tags: [system]
+        justification: |
+          A blank line inside a list can turn a tight list into a loose one and change how the list renders,
+          so the tool changes only what it can show to be harmless there.
+        children:
+          - LintMark-Formatting-NestedBlocksKept
+        tests:
+          - LintMark_FixFlag_NestedBlocks_KeepTheirSpacing
+
       - id: LintMark-System-AtomicReplace
         title: >-
           The tool shall never leave a partly written file or a temporary file behind when it rewrites a
@@ -775,11 +1063,10 @@ sections:
           A formatter that damages a document is worse than none. Rewriting is therefore allowed only
           when rendering, structure, and stability of the result have been checked, and a refusal is
           reported so that it cannot pass unnoticed. A change of the line endings can change how a document
-          renders, so it is checked in the same way as a change of the text; the other text checks matter
-          for the rules that change text.
-          The tool as shipped does not yet have such a rule, so the system tests show the refusals that
-          do not depend on one, and the refusals caused by a rule that damages a document are shown by
-          the Engine subsystem tests with deliberately faulty rules.
+          renders, so it is checked in the same way as a change of the text.
+          None of the rules of the tool is meant to damage a document, so the system tests show the refusals
+          that do not depend on a faulty rule, and the refusals caused by a rule that damages a document are
+          shown by the Engine subsystem tests with deliberately faulty rules.
         children:
           - LintMark-Engine-SafeRewrite
           - LintMark-Safety-HtmlEquivalence

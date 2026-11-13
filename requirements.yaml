@@ -28,6 +28,10 @@ includes:
   - docs/reqstream/lintmark/formatting/edit-set.yaml
   - docs/reqstream/lintmark/formatting/source-patcher.yaml
   - docs/reqstream/lintmark/formatting/document-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks.yaml
+  - docs/reqstream/lintmark/formatting/blocks/heading-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/code-block-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/thematic-break-formatter.yaml
   - docs/reqstream/lintmark/safety.yaml
   - docs/reqstream/lintmark/safety/equivalence-result.yaml
   - docs/reqstream/lintmark/safety/html-equivalence-checker.yaml

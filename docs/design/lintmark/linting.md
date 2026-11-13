@@ -6,8 +6,9 @@
 
 The `Linting` subsystem is the vocabulary of findings. It defines the one model that every check of the tool
 reports through (`Diagnostic`) and the one registry of every rule identifier the tool knows (`RuleCatalog`), with
-the kind, default state, and legacy aliases of each rule. It contains no rule logic yet: the rules that find lint
-problems arrive in a later phase and will be added to this subsystem. It does no file-system access, reads no
+the kind, default state, and legacy aliases of each rule. It contains no rule logic: the logic of the formatting rules
+lives in the `Formatting` subsystem, and the rules that find lint problems arrive in a later phase and will be added to
+this subsystem. It does no file-system access, reads no
 configuration, and writes no output. The subsystem contains two units: `Diagnostic` and `RuleCatalog`.
 
 - `Diagnostic` is the immutable record of one finding about a file. Its supporting type `DiagnosticKind` says
@@ -55,9 +56,10 @@ configuration, and writes no output. The subsystem contains two units: `Diagnost
 - *Constraints*: Backed by immutable collections, so a caller cannot change them even by casting.
 
 The subsystem consumes only the .NET base class library. It is consumed by the `Configuration` subsystem
-(`RuleCatalog`, for validating the `rules` setting and for the defaults), the `Formatting` subsystem (`Diagnostic`
-and the line-ending identifier), the `Reporting` subsystem (`Diagnostic`), and the `Engine` subsystem (`Diagnostic`
-and every identifier it emits).
+(`RuleCatalog`, for validating the `rules` setting and for the defaults), the `Document` subsystem (`RuleCatalog`, for
+resolving the rule names of suppression comments), the `Formatting` subsystem (`Diagnostic`, and `RuleCatalog` for the
+identifiers and descriptions of the formatting rules), the `Reporting` subsystem (`Diagnostic`), and the `Engine`
+subsystem (`Diagnostic` and every identifier it emits).
 
 ### Design
 
@@ -66,11 +68,12 @@ and does not consult `RuleCatalog`, so a unit that reports can be tested without
 registry is made the single source of truth by a test that proves every identifier the tool emits is registered.
 
 `RuleCatalog` registers three groups of identifiers. The 22 configurable rules are the ones the `rules` setting
-accepts. The always-applied formatting rule `line-ending` and the identifiers under which the tool reports its own
-failures (safety refusals, file problems, and configuration problems) are registered as not configurable, so a
-configuration that names one of them is still rejected as an unknown rule, exactly as before the registry existed.
-Nine legacy aliases of rules that no longer exist are recognized so that an older configuration file is still
-accepted, but they never resolve to a rule.
+accepts. The always-applied formatting rules (`line-ending` and the 14 whitespace, blank-line, heading, code block,
+thematic break, and final newline rules, 15 of which have legacy rule-number aliases) and the identifiers under which
+the tool reports its own failures (safety refusals, file problems, and configuration problems) are registered as not
+configurable, so a configuration that names one of them, by identifier or by alias, is still rejected as an unknown
+rule; the aliases of the formatting rules do resolve for suppression comments. Nine legacy aliases of rules that no
+longer exist are recognized so that an older configuration file is still accepted, but they never resolve to a rule.
 
 `DiagnosticKind` makes the contract of the fix option checkable. A `Formatting` diagnostic is one that rewriting the
 file removes (the engine drops those of a file it has written); a `LintOnly` diagnostic stays until a person changes

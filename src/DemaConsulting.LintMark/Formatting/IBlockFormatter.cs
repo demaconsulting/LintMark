@@ -30,9 +30,10 @@ namespace DemaConsulting.LintMark.Formatting;
 ///     <para>
 ///         The interface is the extension point of the formatting subsystem: <see cref="DocumentFormatter"/>
 ///         walks the blocks of a document and hands each block to the first formatter that accepts it. A block
-///         that no formatter accepts is left verbatim, which is the default: nothing is rewritten unless a
-///         formatter says how. The text of a document is only ever changed through the edits a formatter adds,
-///         so everything a formatter does not touch is preserved by construction.
+///         that no formatter accepts is left to the document-level rules that apply to every document
+///         (whitespace, blank lines, block spacing, the end of the file), which never touch protected content such
+///         as code. The text of a document is only ever changed through edits, so everything that no edit touches
+///         is preserved by construction.
 ///     </para>
 ///     <para>
 ///         A formatter must be a pure function of the block, the document and the configuration: no state kept

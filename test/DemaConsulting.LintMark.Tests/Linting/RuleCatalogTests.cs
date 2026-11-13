@@ -129,7 +129,6 @@ public class RuleCatalogTests
     [Theory]
     [InlineData("")]
     [InlineData("no-such-rule")]
-    [InlineData("MD009")]
     [InlineData("MD999")]
     public void RuleCatalog_TryResolve_UnknownName_ReturnsFalse(string name)
     {
@@ -401,22 +400,43 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that exactly the line length, paragraph wrap and line ending rules are formatting rules.
+    ///     Test that the formatting rules are the configurable line length and paragraph wrap rules, the line
+    ///     ending rule and the fourteen always-applied whitespace and block rules.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_FormattingRules_AreLineLengthParagraphWrapAndLineEnding()
+    public void RuleCatalog_Rules_FormattingRules_AreTheConfigurableOnesLineEndingAndTheAlwaysApplied()
     {
         // Act: select the rules whose findings rewriting removes
         var formatting = RuleCatalog.Rules
             .Where(rule => rule.Kind == DiagnosticKind.Formatting)
             .Select(rule => rule.Id);
 
-        // Assert: the three formatting rules, in ordinal order
-        Assert.Equal(["line-ending", "line-length", "paragraph-wrap"], formatting);
+        // Assert: those rules, in ordinal order
+        Assert.Equal(
+            [
+                "code-block-style",
+                "code-fence",
+                "fence-blank-lines",
+                "final-newline",
+                "hard-tabs",
+                "heading-blank-lines",
+                "heading-space",
+                "heading-start-left",
+                "heading-style",
+                "line-ending",
+                "line-length",
+                "list-blank-lines",
+                "max-blank-lines",
+                "paragraph-wrap",
+                "table-blank-lines",
+                "thematic-break",
+                "trailing-whitespace"
+            ],
+            formatting);
     }
 
     /// <summary>
-    ///     Test that the non-configurable entries are the always-applied rule and the failure identifiers.
+    ///     Test that the non-configurable entries are the always-applied rules and the failure identifiers.
     /// </summary>
     [Fact]
     public void RuleCatalog_Rules_NonConfigurableEntries_ListTheAlwaysOnAndFailureIds()
@@ -425,6 +445,20 @@ public class RuleCatalogTests
         var expected = new[]
         {
             "line-ending",
+            "trailing-whitespace",
+            "hard-tabs",
+            "max-blank-lines",
+            "heading-style",
+            "heading-space",
+            "heading-start-left",
+            "heading-blank-lines",
+            "fence-blank-lines",
+            "list-blank-lines",
+            "table-blank-lines",
+            "thematic-break",
+            "code-block-style",
+            "code-fence",
+            "final-newline",
             "safety-html-mismatch",
             "safety-structure-mismatch",
             "safety-not-idempotent",
@@ -440,10 +474,67 @@ public class RuleCatalogTests
         // Act: select the non-configurable entries
         var actual = RuleCatalog.Rules.Where(rule => !rule.IsConfigurable).ToList();
 
-        // Assert: exactly those identifiers, all enabled and without aliases
+        // Assert: exactly those identifiers, all enabled
         Assert.Equal(expected.Order(StringComparer.Ordinal), actual.Select(rule => rule.Id));
         Assert.All(actual, rule => Assert.True(rule.DefaultEnabled));
-        Assert.All(actual, rule => Assert.Empty(rule.Aliases));
+    }
+
+    /// <summary>
+    ///     Test that the always-applied formatting rules carry their legacy rule-number aliases and nothing else does.
+    /// </summary>
+    [Fact]
+    public void RuleCatalog_Rules_NonConfigurableEntries_OnlyFormattingRulesHaveAliases()
+    {
+        // Arrange: the aliases of the always-applied formatting rules
+        var expected = new Dictionary<string, string[]>
+        {
+            ["trailing-whitespace"] = ["MD009"],
+            ["hard-tabs"] = ["MD010"],
+            ["max-blank-lines"] = ["MD012"],
+            ["heading-style"] = ["MD003", "MD021"],
+            ["heading-space"] = ["MD019"],
+            ["heading-start-left"] = ["MD023"],
+            ["heading-blank-lines"] = ["MD022"],
+            ["fence-blank-lines"] = ["MD031"],
+            ["list-blank-lines"] = ["MD032"],
+            ["table-blank-lines"] = ["MD058"],
+            ["thematic-break"] = ["MD035"],
+            ["code-block-style"] = ["MD046"],
+            ["code-fence"] = ["MD048"],
+            ["final-newline"] = ["MD047"]
+        };
+
+        // Act: collect the aliases of the non-configurable entries
+        var actual = RuleCatalog.Rules
+            .Where(rule => !rule.IsConfigurable && rule.Aliases.Length > 0)
+            .ToDictionary(rule => rule.Id, rule => rule.Aliases.ToArray());
+
+        // Assert: exactly those rules have exactly those aliases
+        Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), actual.Keys.Order(StringComparer.Ordinal));
+        Assert.All(expected, pair => Assert.Equal(pair.Value, actual[pair.Key]));
+    }
+
+    /// <summary>
+    ///     Test that the alias of an always-applied formatting rule resolves for suppression but is not configurable.
+    /// </summary>
+    [Theory]
+    [InlineData("MD009", "trailing-whitespace")]
+    [InlineData("md010", "hard-tabs")]
+    [InlineData("MD003", "heading-style")]
+    [InlineData("MD021", "heading-style")]
+    [InlineData("MD047", "final-newline")]
+    [InlineData("trailing-whitespace", "trailing-whitespace")]
+    public void RuleCatalog_TryResolve_FormattingRuleAlias_ResolvesButIsNotConfigurable(string name, string expected)
+    {
+        // Act: resolve the name both ways
+        var resolved = RuleCatalog.TryResolve(name, out var id);
+        var configurable = RuleCatalog.TryResolveConfigurable(name, out var configurableId);
+
+        // Assert: it names the rule for suppression comments, but a configuration may not name it
+        Assert.True(resolved);
+        Assert.Equal(expected, id);
+        Assert.False(configurable);
+        Assert.Null(configurableId);
     }
 
     /// <summary>
@@ -499,15 +590,15 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 22 configurable rules, 9 dropped aliases and 16 aliases.
+    ///     Test that the registry holds 22 configurable rules, 25 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable22AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable22NonConfigurable25AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
         Assert.Equal(22, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
-        Assert.Equal(11, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(33, RuleCatalog.Rules.Length);
+        Assert.Equal(25, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
+        Assert.Equal(47, RuleCatalog.Rules.Length);
         Assert.Equal(22, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(22, RuleCatalog.Defaults.Count);
         Assert.Equal(16, RuleCatalog.Aliases.Count);

@@ -8,19 +8,23 @@ The `Formatting` subsystem turns a parsed document into a proposal: the text edi
 bring the document into canonical form. It never writes anything and never applies a change to a file; it only
 describes the change, so that the `Safety` subsystem can verify the result before the `Engine` subsystem lets any
 byte reach the disk. All text changes are expressed as edits against the LF-normalized text of the document, so text
-that no edit touches is preserved by construction. The subsystem contains three units: `EditSet`, `SourcePatcher`,
-and `DocumentFormatter`.
+that no edit touches is preserved by construction. The subsystem contains three units, `EditSet`, `SourcePatcher`,
+and `DocumentFormatter`, and the nested `Blocks` subsystem.
 
 - `EditSet` is the per-file collection of proposed edits, checked for conflicts as they are added. Its supporting
   type `TextEdit` (one change) is described in *EditSet Design*.
 - `SourcePatcher` applies an ordered set of edits to the text of a document in one pass.
 - `DocumentFormatter` walks the blocks of a document, lets block formatters propose edits, honors suppression
-  comments, decides the line ending, and returns a `FormatResult`. Its supporting types `IBlockFormatter`,
-  `FormatContext`, and `FormatResult` are described in *DocumentFormatter Design*.
+  comments, applies the rules that concern every document (trailing whitespace, tabs, blank lines, the blank lines
+  between blocks, and the end of the file), reports every edit of an always-applied rule as a problem, decides the line
+  ending, and returns a `FormatResult`. Its supporting types `IBlockFormatter`, `FormatContext`, and `FormatResult`, and
+  the internal helpers that the passes and the block formatters share, are described in *DocumentFormatter Design*.
+- `Blocks` is the nested subsystem that holds the block formatters of the tool: `HeadingFormatter`,
+  `CodeBlockFormatter`, and `ThematicBreakFormatter`. It is described in *Blocks Design*.
 
-Block formatters (for headings, lists, paragraphs, tables, and so on) do not exist yet. The subsystem
-defines the extension point and the machinery around it; with no block formatter registered, which is the production
-setup, the only thing the subsystem decides is the line ending.
+The subsystem defines the extension point (`IBlockFormatter`) and the machinery around it. The production engine
+creates the `DocumentFormatter` with the three block formatters of `Blocks`; further block formatters (for lists,
+paragraphs, and tables) belong to later work and register in the same way.
 
 ### Interfaces
 
@@ -30,7 +34,8 @@ setup, the only thing the subsystem decides is the line ending.
 - *Role*: Provider.
 - *Contract*: Takes a `ParsedDocument` and the effective `LintMarkConfig` of the file and returns a `FormatResult`:
   the ordered, conflict-free edits to the LF-normalized text, the line ending to write, and the formatting
-  violations found (the `line-ending` diagnostic). Pure: nothing is written and the document is not changed.
+  violations found (the `line-ending` diagnostic, and one diagnostic for each rule and line at which an
+  always-applied formatting rule edits the text). Pure: nothing is written and the document is not changed.
 - *Constraints*: Throws `ArgumentNullException` for a null argument and `InvalidOperationException` when two
   formatters propose conflicting edits; any other exception of a block formatter propagates unchanged. A format-unsafe
   document yields no edit and no diagnostic, and its returned line ending is `source.MajorityLineEnding` (not the
@@ -58,14 +63,14 @@ setup, the only thing the subsystem decides is the line ending.
 **IBlockFormatter**: The extension point for block formatters.
 
 - *Type*: In-process .NET interface.
-- *Role*: Consumer (the subsystem calls implementations that later phases provide).
+- *Role*: Consumer (the subsystem calls implementations, which the `Blocks` subsystem provides).
 - *Contract*: `RuleIds` names the rules the formatter enforces, `CanFormat` accepts a block, and `Format` adds edits
   for an accepted block through the `EditSet` of the file.
 - *Constraints*: Implementations must be pure and safe for concurrent use.
 
 The subsystem consumes the `Document` subsystem (`ParsedDocument`, `BlockInfo`, `SourceDocument`, `LineEnding`, and
-the `SuppressionMap`), the `Configuration` subsystem (`LintMarkConfig`), and the `Linting` subsystem (`Diagnostic` and
-the `line-ending` identifier). It is consumed by the `Engine` subsystem.
+the `SuppressionMap`), the `Configuration` subsystem (`LintMarkConfig`), and the `Linting` subsystem (`Diagnostic`,
+`RuleCatalog`, and the rule identifiers). It is consumed by the `Engine` subsystem.
 
 ### Design
 
@@ -87,13 +92,19 @@ CRLF and LF, so the engine refuses it when it would change how the document rend
 
 Safety of the whole subsystem rests on three properties: nothing is applied here, so the caller can still verify the
 result; a document the parser could only read by dropping grid tables is never formatted; and a block with a
-suppressed rule is left verbatim. Real block formatters arrive in later phases.
+suppressed rule is left verbatim. The rules themselves add a fourth: every edit is computed from the source lines of a
+block that the parser classified, protected content (code, HTML, math, front matter, grid tables, and blocks the tool does
+not model) is never edited, and a conversion whose result could be read differently is not made (see *Blocks Design*
+and *DocumentFormatter Design*).
 
-Constraint on block formatters: `DocumentFormatter` honors suppression comments but never applies the `rules` setting
-of the configuration (the list of enabled and disabled rules). Every real block formatter must therefore check
-`FormatContext.Config.Rules` for its own rules and propose no edit for a rule that the configuration disables. This
-subsystem has no requirement for that check, because no real formatter exists yet; the requirement belongs to the
-formatter that introduces the first rule.
+Every edit of an always-applied rule is also a violation: `DocumentFormatter` reports it at the place it changes, so that
+checking a file is formatting it and listing what would change, and a second run over a fixed file finds nothing. This is
+the simplest form of the report-from-diff idea; a later phase may replace the mapping with a general diff analyzer.
+
+The always-applied rules are not configurable: `DocumentFormatter` honors suppression comments but never applies the
+`rules` setting of the configuration (the list of enabled and disabled rules), and none of the rules that the formatters
+of the tool enforce appears there. A rule that a configuration may switch off would have to be checked by its block
+formatter through `FormatContext.Config.Rules`; the formatters of the tool have no such rule.
 
 Thread safety: `DocumentFormatter` holds an immutable list of formatters and keeps all state of a call in local
 variables, so one instance serves every worker. `EditSet` is a per-file builder used by one thread; its snapshots,

@@ -24,7 +24,8 @@ encoding and line-ending identifiers come from `SourceDocumentException`; the co
 configuration the file may be formatted under, null when it must not be formatted), `_documentParser`
 (`Func<SourceDocument, ParsedDocument>`: the parse step, also used by the safety checks), `_editorConfigFactory`
 (`Func<EditorConfigResolver>`: creates the resolver used by `Run`, by default one that reads the real file system),
-`_formatter` (`DocumentFormatter`, by default without block formatters), and `_fileWriter`
+`_formatter` (`DocumentFormatter`, by default one with the three block formatters of the `Blocks` subsystem:
+`HeadingFormatter`, `CodeBlockFormatter`, and `ThematicBreakFormatter`), and `_fileWriter`
 (`Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>`: path, resolved target captured at the read,
 original bytes, new bytes; by default `AtomicFileWriter`). They are supplied through the internal constructor
 parameters `fileProcessor`, `documentParser`,
@@ -78,7 +79,9 @@ concurrently.
 - **`safety-html-mismatch`**, **`safety-structure-mismatch`**, and **`safety-not-idempotent`** at the first line where
   the original and the proposed text differ: a sentence naming the check, the description of the first difference, and
   `the file is not rewritten`.
-- **`line-ending`** (from `DocumentFormatter`) at 1:1.
+- **Formatting findings** (from `DocumentFormatter`): `line-ending` at 1:1, and each always-applied formatting rule
+  (`trailing-whitespace`, `heading-blank-lines`, and the others of the rule catalog) at the place that its edit changes,
+  with the description of the rule as the message.
 - **`config-error`** at the position of the problem in the configuration file, with the message of the `ConfigError`
   (see *ConfigLoader Design*), or at 1:1 of the Markdown file with the message `Cannot read .editorconfig settings:
   {detail}` (see *EditorConfigResolver Design*).
@@ -250,6 +253,8 @@ makes the output and the files written deterministic (see the *LintMark* system 
 - **EditorConfigResolver** and **EditorConfigResult** — the line ending from the editor settings.
 - **LintMarkConfig** and **ConfigError** — the effective configuration and the problem entries it carries.
 - **DocumentFormatter**, **FormatResult**, and **SourcePatcher** — the proposed rewrite.
+- **HeadingFormatter**, **CodeBlockFormatter**, and **ThematicBreakFormatter** (`Blocks` subsystem) — the block
+  formatters that the default `DocumentFormatter` is created with.
 - **HtmlEquivalenceChecker**, **StructuralTokenChecker**, **IdempotencyChecker**, **EquivalenceResult**, and
   **SafetyStatus** — the safety checks and their outcome.
 - **AtomicFileWriter** — the write.

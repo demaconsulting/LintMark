@@ -684,6 +684,27 @@ public class DocumentSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a suppression comment that names a rule by its legacy rule number suppresses the rule that the number stands for.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_Suppressions_RuleNamedByLegacyNumber_SuppressesTheRule()
+    {
+        // Arrange: a region that disables MD009 and a document that enables it again
+        const string text =
+            "<!-- markdownlint-disable MD009 -->\n\nINSIDE paragraph.\n\n<!-- markdownlint-enable MD009 -->\n\nAFTER paragraph.\n";
+
+        // Act: parse the document
+        var document = DocumentParser.Parse(SourceDocument.Create("alias.md", new UTF8Encoding(false).GetBytes(text)));
+        var inside = document.Source.Text.IndexOf("INSIDE", StringComparison.Ordinal);
+        var after = document.Source.Text.IndexOf("AFTER", StringComparison.Ordinal);
+
+        // Assert: the canonical rule is suppressed inside the region only, and a rule that the number does not stand for is not
+        Assert.True(document.Suppressions.IsSuppressed(inside, "trailing-whitespace"));
+        Assert.False(document.Suppressions.IsSuppressed(inside, "hard-tabs"));
+        Assert.False(document.Suppressions.IsSuppressed(after, "trailing-whitespace"));
+    }
+
+    /// <summary>
     ///     Test that a valid grid table together with an invalid one marks the loaded document format-unsafe at the invalid line.
     /// </summary>
     [Fact]

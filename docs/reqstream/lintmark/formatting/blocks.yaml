@@ -1,0 +1,281 @@
+---
+# Blocks Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Blocks subsystem, which is part of the Formatting subsystem
+# - The Blocks subsystem holds the block formatters of the tool: one for headings, one for code blocks, and one for
+#   thematic breaks. Each proposes the changes that bring one kind of block into canonical form
+# - Subsystem requirements describe what the block formatters guarantee together, with the real parser and the
+#   document formatter that drives them
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            requirements:
+              - id: LintMark-Formatting-Blocks-ProposeEdits
+                title: >-
+                  The Blocks subsystem shall provide block formatters that propose the changes that bring each
+                  heading, code block, and thematic break of a document into canonical form.
+                justification: |
+                  Headings, code blocks, and thematic breaks have more than one way of being written in
+                  Markdown. The canonical form is what makes the documents of a project consistent.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-AcceptsHeadings
+                  - LintMark-Formatting-Blocks-HeadingFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-HeadingFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-HeadingFormatter-RuleIdsImmutable
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-AcceptsClosedCodeBlocks
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-RuleIdsImmutable
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-AcceptsThematicBreaks
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-RuleIdsImmutable
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-HeadingStyle
+                title: >-
+                  The Blocks subsystem shall write each setext heading in the ATX form, except where the
+                  conversion could change the meaning of the text.
+                justification: |
+                  One heading style makes a document consistent. A setext heading that is nested, spans several
+                  lines, or has text that would read differently as an ATX heading stays as it is, because the
+                  conversion could change what the document means.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextToAtx
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextMultiLineKept
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextNestedKept
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextLookalikeKept
+                tests:
+                  - BlocksSubsystem_Format_SetextVariants_AreConvertedOnlyWhereSafe
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-HeadingClosingSigns
+                title: >-
+                  The Blocks subsystem shall remove the closing number signs of each ATX heading, but keep
+                  number signs that belong to its text.
+                justification: |
+                  Closing number signs add nothing to a heading. Number signs that end the text, such as in
+                  `# C#`, are part of the text, and removing them would change what the heading says.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-ClosedToOpen
+                  - LintMark-Formatting-Blocks-HeadingFormatter-TextNumberSignsKept
+                  - LintMark-Formatting-Blocks-HeadingFormatter-EmptyHeadingKept
+                tests:
+                  - BlocksSubsystem_Format_ClosedHeadingVariants_LoseOnlyTheClosingSequence
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-HeadingSpace
+                title: >-
+                  The Blocks subsystem shall put exactly one space between the number signs of each heading and
+                  its text.
+                justification: |
+                  Extra spaces have no meaning. Text such as `#Title` is a paragraph, and adding the space would
+                  change how the document renders.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SingleSpaceAfterMarker
+                  - LintMark-Formatting-Blocks-HeadingFormatter-MissingSpaceKept
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-HeadingStartLeft
+                title: >-
+                  The Blocks subsystem shall remove the indentation of each heading that is not inside a quote
+                  or list.
+                justification: |
+                  An indented heading looks like a mistake, and the indentation of a heading inside a quote or
+                  list belongs to the container.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-IndentationRemoved
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-ThematicBreakStyle
+                title: >-
+                  The Blocks subsystem shall write each thematic break as three characters of the configured
+                  style, except where the conversion could change the meaning of the document.
+                justification: |
+                  One way to write a break makes a document consistent. A line of dashes under text would turn
+                  the text into a heading, and one at the top of a file could start front matter, so such a
+                  break stays as written.
+                children:
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-ConvertedToConfiguredStyle
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-IndentationKept
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-SetextGuard
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-FrontMatterGuard
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-ListMarkerGuard
+                tests:
+                  - BlocksSubsystem_Format_ThematicBreakVariants_KeepTheMeaning
+                  - BlocksSubsystem_Format_ConfiguredSettings_SelectTheCanonicalForm
+
+              - id: LintMark-Formatting-Blocks-CodeFenceStyle
+                title: >-
+                  The Blocks subsystem shall write the fence of each fenced code block with the configured fence
+                  character, except where the conversion could change the meaning of the block.
+                justification: |
+                  One fence character makes a document consistent. A fence whose content or info string would
+                  no longer be valid, and a fence that is part of Pandoc syntax, keeps its character.
+                children:
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-FenceCharacterConverted
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLengthStaysValid
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-BacktickInfoKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-BracedFenceKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-NestedFenceConverted
+                tests:
+                  - BlocksSubsystem_Format_TildeFenceEdgeCases_AreSafe
+                  - BlocksSubsystem_Format_BracedFence_KeepsItsFenceCharacter
+                  - BlocksSubsystem_Format_ConfiguredSettings_SelectTheCanonicalForm
+
+              - id: LintMark-Formatting-Blocks-CodeBlockStyle
+                title: >-
+                  The Blocks subsystem shall write each indented code block that is not inside a quote or list
+                  as a fenced code block with the same content.
+                justification: |
+                  Fenced code is explicit and can carry a language. An indented block inside a list or quote is
+                  also indented by its container, so it stays as it is.
+                children:
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedBecomesFenced
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedNestedKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedFrontMatterGuard
+                tests:
+                  - BlocksSubsystem_Format_IndentedCodeVariants_BecomeFencedCode
+
+              - id: LintMark-Formatting-Blocks-TrailingWhitespaceRemoved
+                title: >-
+                  The Blocks subsystem shall remove the trailing whitespace from the lines of the headings, code
+                  fences, and thematic breaks that it formats.
+                justification: |
+                  Trailing whitespace carries no meaning on these lines. Inside the code that a fence encloses it
+                  is content, so only the lines of the fences are cleaned.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-TrailingWhitespaceRemoved
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLineTrailingWhitespace
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-TrailingWhitespaceRemoved
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-TabsExpanded
+                title: >-
+                  The Blocks subsystem shall replace the tabs in the text of a heading by spaces, but not those
+                  that are part of a code span or other literal text.
+                justification: |
+                  A tab in the text of a heading is shown at different widths in different tools. A tab inside a
+                  code span is content.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-TabsExpanded
+                  - LintMark-Formatting-Blocks-HeadingFormatter-ProtectedSpansKept
+                tests:
+                  - BlocksSubsystem_Format_Tabs_AreExpandedOnlyInPlainText
+
+              - id: LintMark-Formatting-Blocks-CodeContentKept
+                title: >-
+                  The Blocks subsystem shall never change the content of a code block.
+                justification: |
+                  The content of code is the author's, whitespace included. Only the fence lines, or the
+                  indentation of an indented block, change.
+                children:
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-ContentUnchanged
+                tests:
+                  - BlocksSubsystem_Format_TildeFenceEdgeCases_AreSafe
+                  - BlocksSubsystem_Format_IndentedCodeVariants_BecomeFencedCode
+
+              - id: LintMark-Formatting-Blocks-NestedBlocksKept
+                title: >-
+                  The Blocks subsystem shall keep the quote and list structure around each block that it changes.
+                justification: |
+                  A change to a block inside a quote or list must not move the block out of its container or
+                  change which text belongs to it.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-NestedHeadingKept
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextNestedKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-NestedFenceConverted
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-ConvertedInContainer
+                tests:
+                  - BlocksSubsystem_Format_NestedContainers_KeepTheStructure
+
+              - id: LintMark-Formatting-Blocks-UnclosedFencesKept
+                title: >-
+                  The Blocks subsystem shall leave a fenced code block that is never closed exactly as it is.
+                justification: |
+                  The parser cannot say where such a block ends, so no change to it can be shown to keep its
+                  meaning.
+                children:
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-UnclosedFenceKept
+                tests:
+                  - BlocksSubsystem_Format_UnclosedFence_StaysAsWritten
+
+              - id: LintMark-Formatting-Blocks-SuppressedBlocksKept
+                title: >-
+                  The Blocks subsystem shall leave a block exactly as it is when a suppression comment of the
+                  document disables a rule of its block formatter there.
+                justification: |
+                  An author who switched a rule off for a passage expects the passage to stay as written, and a
+                  rule that is switched on again formats the passages after it.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SuppressedRuleKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-SuppressedRuleKept
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-SuppressedRuleKept
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+
+              - id: LintMark-Formatting-Blocks-EditsAttributedToRules
+                title: >-
+                  The Blocks subsystem shall attribute each change that it proposes to the rule that the change
+                  enforces.
+                justification: |
+                  The rule of a change decides how it is reported and which suppression comment switches it off.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-EditsUnderOwnRule
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-EditsUnderOwnRule
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-EditsUnderOwnRule
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ReportsEveryRuleOnce
+
+              - id: LintMark-Formatting-Blocks-CanonicalBlocksUnchanged
+                title: >-
+                  The Blocks subsystem shall propose no change for a heading, code block, or thematic break that is
+                  already in canonical form.
+                justification: |
+                  A canonical file must not be reported or rewritten, and the result of a rewrite must not need
+                  another one.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-CanonicalUnchanged
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-CanonicalUnchanged
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-CanonicalUnchanged
+                tests:
+                  - BlocksSubsystem_Format_CanonicalDocument_ProposesNothing
+                  - BlocksSubsystem_Format_FormattedTwice_ChangesNothingTheSecondTime
+
+              - id: LintMark-Formatting-Blocks-LineEndingsAndMarkKept
+                title: >-
+                  The Blocks subsystem shall propose the same changes for a document with CRLF line endings and a
+                  byte order mark as for the same document with LF line endings and no mark.
+                justification: |
+                  The line ending and the byte order mark are not part of the text that the rules judge, so they
+                  must not change what the rules propose.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-LineEndingsKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-LineEndingsKept
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-LineEndingsKept
+                tests:
+                  - BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark
+                  - BlocksSubsystem_Format_MixedLineEndings_AreWrittenWithTheMajorityEnding
+
+              - id: LintMark-Formatting-Blocks-DeterministicResult
+                title: >-
+                  The Blocks subsystem shall propose the same changes for the same document and configuration when
+                  its block formatters are called from several threads at once as when they are called one after
+                  another.
+                justification: |
+                  Files are formatted in parallel, and a result that depended on timing could not be trusted.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-DeterministicResult
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-DeterministicResult
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-DeterministicResult
+                tests:
+                  - BlocksSubsystem_Format_SameDocumentOnManyThreads_GivesTheSameResult

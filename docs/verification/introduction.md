@@ -41,7 +41,12 @@ This document covers the verification design for the following software items:
   - **Formatting** subsystem
     - **EditSet** — validated, ordered collection of text edits
     - **SourcePatcher** — application of an edit set to the source text
-    - **DocumentFormatter** — block formatter orchestration and line ending decision
+    - **DocumentFormatter** — block formatter orchestration, the rules that apply to every document, and line ending
+      decision
+    - **Blocks** subsystem
+      - **HeadingFormatter** — canonical ATX headings
+      - **CodeBlockFormatter** — canonical fenced code blocks
+      - **ThematicBreakFormatter** — canonical thematic breaks
   - **Safety** subsystem
     - **HtmlEquivalenceChecker** — comparison of the rendered HTML of two texts
     - **StructuralTokenChecker** — comparison of structural tokens of two texts
@@ -93,6 +98,7 @@ test/
 │   ├── Document/                   — Document subsystem and unit tests, with test-support helpers
 │   ├── Engine/                     — Engine subsystem and unit tests
 │   ├── Formatting/                 — Formatting subsystem and unit tests, with test block formatters
+│   │   └── Blocks/                 — Blocks subsystem, corpus, and block formatter unit tests
 │   ├── Linting/                    — Linting subsystem and unit tests
 │   ├── Reporting/                  — Reporting subsystem and unit tests, with a patch applier
 │   ├── Safety/                     — Safety subsystem and unit tests

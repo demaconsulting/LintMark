@@ -38,6 +38,11 @@ flowchart TD
         DocumentFormatter
         EditSet
         SourcePatcher
+        subgraph Blocks
+            HeadingFormatter
+            CodeBlockFormatter
+            ThematicBreakFormatter
+        end
     end
     subgraph Safety
         HtmlEquivalenceChecker
@@ -67,6 +72,9 @@ flowchart TD
     LintMarkEngine --> ConfigLoader
     LintMarkEngine --> EditorConfigResolver
     LintMarkEngine --> DocumentFormatter
+    LintMarkEngine --> HeadingFormatter
+    LintMarkEngine --> CodeBlockFormatter
+    LintMarkEngine --> ThematicBreakFormatter
     LintMarkEngine --> SourcePatcher
     LintMarkEngine --> HtmlEquivalenceChecker
     LintMarkEngine --> StructuralTokenChecker
@@ -80,12 +88,19 @@ flowchart TD
     DocumentParser --> SourceDocument
     DocumentParser --> SuppressionMap
     DocumentParser --> ReferenceIndex
+    DocumentParser --> RuleCatalog
     SuppressionMap --> SourceDocument
     ReferenceIndex --> SourceDocument
     DocumentFormatter --> EditSet
     DocumentFormatter --> Diagnostic
     DocumentFormatter --> LintMarkConfig
     DocumentFormatter --> DocumentParser
+    HeadingFormatter --> EditSet
+    CodeBlockFormatter --> EditSet
+    ThematicBreakFormatter --> EditSet
+    HeadingFormatter --> DocumentParser
+    CodeBlockFormatter --> LintMarkConfig
+    ThematicBreakFormatter --> LintMarkConfig
     SourcePatcher --> EditSet
     SourcePatcher --> SourceDocument
     HtmlEquivalenceChecker --> DocumentParser
@@ -111,7 +126,11 @@ patterns of the configuration can skip the file, through `FileDiscovery`, before
 the file, builds a `SourceDocument` (decoding and line-ending normalization) and passes it to `DocumentParser` from the
 `Document` subsystem, which parses it with the Markdig library and also produces the `SuppressionMap` and
 `ReferenceIndex` of the document. The `DocumentFormatter` of the `Formatting` subsystem turns the parsed document into
-a proposal (text edits and a line ending, collected in an `EditSet`), and `SourcePatcher` applies the edits to the text.
+a proposal (text edits and a line ending, collected in an `EditSet`): the three block formatters of the nested `Blocks`
+subsystem (`HeadingFormatter`, `CodeBlockFormatter`, and `ThematicBreakFormatter`) propose the edits for headings, code
+blocks, and thematic breaks, and the document formatter itself applies the rules that concern every document
+(trailing whitespace, tabs, blank lines, the blank lines between blocks, and the final newline) and reports each of
+those edits as a problem. `SourcePatcher` applies the edits to the text.
 When the text would change, the three checkers of the `Safety` subsystem verify the proposal: the rendered HTML must be
 unchanged (`HtmlEquivalenceChecker`, which renders with Markdig and the pipeline of `DocumentParser`), the Pandoc
 structure must be unchanged (`StructuralTokenChecker`), and formatting the result again must change nothing
@@ -125,13 +144,16 @@ changes to standard output. The `Linting` subsystem also holds the `RuleCatalog`
 The diagram shows calls. `SuppressionMap` and `ReferenceIndex` also read the `BlockInfo` and `BlockKind` types declared
 with `DocumentParser`, a cycle of types only (see *Document Design*). `ConfigLoader`, `LintMarkConfig`,
 `DocumentFormatter`, `SourcePatcher`, and `DiffReporter` also use the `LineEnding` type (and `DiffReporter` the
-`LineEndingInfo` type) of the `Document` subsystem, which is not drawn. At subsystem level, `Configuration` consumes
-`Linting` (the `RuleCatalog`); a later phase will add lint rules to `Linting` that consume `LintMarkConfig`, which
-makes the two subsystems depend on each other while the unit level stays acyclic (see *Linting Design*). The block
-formatters that `DocumentFormatter` calls, and the lint rules, do not exist yet: the tool currently
-normalizes line endings (the only change a formatter makes without block formatters) and verifies every rewrite, and
-the settings other than the line ending, the `ignore` patterns, and the `rules` entry for grid tables do not yet change
-its behavior.
+`LineEndingInfo` type) of the `Document` subsystem, which is not drawn, and the block formatters and the document
+formatter also read `RuleCatalog` for the identifiers of their rules and the settings types of `Configuration`. At
+subsystem level, `Configuration` consumes `Linting` (the `RuleCatalog`), and `Document` consumes it too, because
+`DocumentParser` resolves the rule names of suppression comments through the catalog; a later phase will add lint rules
+to `Linting` that consume `LintMarkConfig`, which makes the two subsystems depend on each other while the unit level
+stays acyclic (see *Linting Design*). The lint rules, and the formatters for lists, paragraphs, and tables, do not exist
+yet: the tool currently applies the whitespace, blank-line, heading, code block, thematic break, final newline, and
+line-ending rules and verifies every rewrite, and the settings that no rule uses yet (`line-length`, `wrap`, `bullet`,
+`list-indent`, `ordered-style`, `emphasis`, `strong`, `hard-break`, `bare-urls`, `tables`, `link-refactor`, and the
+`rules` entries other than the one for grid tables) do not yet change its behavior.
 
 ## External Interfaces
 
@@ -195,7 +217,11 @@ its behavior.
   relative to the current directory with `/` separators (it may start with `../` for a configuration file
   outside the current directory) and line and column are 1-based (a column counts UTF-16 code
   units and a tab counts as one). The rule identifiers are `line-ending` (a line ending that differs from the line
-  ending chosen for the file, at 1:1), `grid-table-invalid` (at the first border character of a line that looks like
+  ending chosen for the file, at 1:1), the formatting rules that the tool always applies (`trailing-whitespace`,
+  `hard-tabs`, `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`, `heading-blank-lines`,
+  `fence-blank-lines`, `list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`, and
+  `final-newline`, each at the place that rewriting would change), `grid-table-invalid` (at the first border character of
+  a line that looks like
   a grid table border but is not part of a valid table; the file is then never rewritten), `safety-html-mismatch`,
   `safety-structure-mismatch`, and `safety-not-idempotent` (a rewrite was refused by a safety check; reported where
   the original and the proposed text first differ), `file-read-error`, `file-encoding-error`,
@@ -205,8 +231,9 @@ its behavior.
   or against the Markdown file at 1:1 when the `.editorconfig` settings that apply to it cannot be read. The same
   diagnostic reached through many Markdown files is reported once. All lines are merged and ordered
   by display path (ordinal), then line, column, rule identifier (ordinal), and message (ordinal). There is no
-  summary line. With `--fix`, the `line-ending` finding of a file that was rewritten is not reported, because the
-  rewrite removed it; every other finding, and every finding of a file that was not rewritten, is.
+  summary line. With `--fix`, the formatting findings (`line-ending` and the formatting rules) of a file that was
+  rewritten are not reported, because the rewrite removed them; every other finding, and every finding of a file that
+  was not rewritten, is.
 - *Constraints*: Color output requires a terminal that supports `ConsoleColor`. Because every diagnostic sets the
   exit code, a `--check` or `--diff` run that finds anything fails.
 
@@ -380,7 +407,8 @@ flowchart TD
       neither formatted nor rewritten.
    6. **Format and patch**: `DocumentFormatter.Format` returns the edits and the target line ending (the
       configuration's `end-of-line`, else the editor setting, else the majority line ending of the file) and the
-      `line-ending` diagnostic; `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
+      formatting diagnostics (`line-ending`, and the always-applied formatting rules at the place of each edit);
+      `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
       text with the byte order mark and the target line ending restored. Bytes that equal the file mean no change.
    7. **Safety checks**: for every rewrite that changes bytes, the HTML check of the text as it is on disk runs, and when
       the text changed, the HTML, structure, reparse, and idempotency checks of the LF-normalized text run as well; the
@@ -461,5 +489,9 @@ flowchart TD
   unknown, and are reported as a `config-error` at 1:1 of the Markdown file.
 - Configuration scope: the `ignore` setting is applied by the engine as described under *External Interfaces*, and
   the `rules` entry `grid-table-invalid` switches the grid table report on or off (never the no-rewrite guard). The
-  remaining settings are validated and stored, and change behavior as the lint rules and block formatters that read
+  settings `end-of-line`, `final-newline`, `max-blank-lines`, `code-fence`, and `thematic-break` are read by the
+  formatting rules, and `heading-style`, `code-block-style`, and `trailing-whitespace`, which accept one value each, are
+  what the formatting rules apply; the formatting rules themselves are
+  always applied and are not entries of `rules`, so they are switched off for a passage with suppression comments only.
+  The remaining settings are validated and stored, and change behavior as the lint rules and block formatters that read
   them are added.

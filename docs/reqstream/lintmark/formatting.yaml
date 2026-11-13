@@ -6,8 +6,10 @@
 # - The Formatting subsystem turns the changes that rules propose for a document into one rewritten text, and
 #   decides which line ending the document should have
 # - Subsystem requirements describe what the formatting step guarantees to the safety checks and to the engine
-# - The tool as shipped contains no rule that changes text yet; the subsystem tests use rules that exist only in the
-#   tests, and the line ending is the one change that real documents show
+# - The rules that change text (whitespace, blank lines, headings, code blocks, thematic breaks, and the end of
+#   the file) are part of this subsystem: the DocumentFormatter unit applies the rules that concern every document
+#   and the Blocks subsystem applies the rules of single kinds of blocks; the tests of the contract of the
+#   formatter itself use rules that exist only in the tests
 
 sections:
   - title: LintMark Requirements
@@ -56,6 +58,8 @@ sections:
               - LintMark-Formatting-DocumentFormatter-FormatResultRejectsInvalidDiagnostics
               - LintMark-Formatting-DocumentFormatter-FormatResultRejectsUndefinedLineEnding
               - LintMark-Formatting-DocumentFormatter-FormatResultExposesValues
+              - LintMark-Formatting-Blocks-ProposeEdits
+              - LintMark-Formatting-Blocks-DeterministicResult
             tests:
               - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
 
@@ -68,6 +72,7 @@ sections:
               other character, also one outside the basic plane, belongs to the author.
             children:
               - LintMark-Formatting-SourcePatcher-LeavesUnchangedText
+              - LintMark-Formatting-Blocks-LineEndingsAndMarkKept
             tests:
               - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
               - FormattingSubsystem_Format_OneEdit_UnchangedCharactersKept
@@ -135,6 +140,8 @@ sections:
               - LintMark-Formatting-DocumentFormatter-SuppressedByRuleComment
               - LintMark-Formatting-DocumentFormatter-SuppressedByDisableAll
               - LintMark-Formatting-DocumentFormatter-SuppressedByIgnoreComment
+              - LintMark-Formatting-DocumentFormatter-SuppressedRulesKept
+              - LintMark-Formatting-Blocks-SuppressedBlocksKept
             tests:
               - FormattingSubsystem_Format_SuppressedBlock_LeftVerbatim
 
@@ -211,3 +218,277 @@ sections:
               - LintMark-Formatting-DocumentFormatter-LineEndingNoViolation
             tests:
               - FormattingSubsystem_Format_UniformDocument_ReportsNoLineEndingProblem
+
+          - id: LintMark-Formatting-TrailingWhitespaceRemoved
+            title: >-
+              The Formatting subsystem shall remove the spaces and tabs at the end of each line of text of a
+              document, but not where they are part of literal text.
+            justification: |
+              Trailing whitespace carries no meaning in text, while in code, HTML, and similar blocks it is
+              content that belongs to the author.
+            children:
+              - LintMark-Formatting-DocumentFormatter-TrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-MarkerLinesTrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-WhitespaceOnlyLinesEmptied
+              - LintMark-Formatting-DocumentFormatter-ProtectedSpansKept
+              - LintMark-Formatting-Blocks-TrailingWhitespaceRemoved
+            tests:
+              - FormattingSubsystem_Format_TrailingWhitespace_IsRemovedFromTextOnly
+
+          - id: LintMark-Formatting-HardBreakKept
+            title: >-
+              The Formatting subsystem shall keep each hard line break of a document a hard line break when it
+              removes trailing whitespace.
+            justification: |
+              Two spaces at the end of a line are a line break in Markdown. Removing them would join lines and
+              change how the document renders.
+            children:
+              - LintMark-Formatting-DocumentFormatter-HardBreakKept
+            tests:
+              - FormattingSubsystem_Format_HardBreaks_KeepTheirMeaning
+
+          - id: LintMark-Formatting-TabsExpanded
+            title: >-
+              The Formatting subsystem shall replace each tab character in the text of a document by spaces up
+              to the next tab stop of four columns, but not where the tab is part of literal text or of the
+              indentation.
+            justification: |
+              Tabs in text show at different widths in different tools. A tab in code, or one that makes a
+              block part of a list or quote, is content or structure and must stay.
+            children:
+              - LintMark-Formatting-DocumentFormatter-TabsExpanded
+              - LintMark-Formatting-DocumentFormatter-TabsKeptWhereTheyMatter
+              - LintMark-Formatting-Blocks-TabsExpanded
+            tests:
+              - FormattingSubsystem_Format_Tabs_AreExpandedOnlyInPlainText
+
+          - id: LintMark-Formatting-BlankRunsCollapsed
+            title: >-
+              The Formatting subsystem shall reduce each run of blank lines between the blocks of a document to
+              the maximum that the configuration allows.
+            justification: |
+              Long runs of blank lines carry no meaning in Markdown.
+            children:
+              - LintMark-Formatting-DocumentFormatter-BlankRunsCollapsed
+            tests:
+              - FormattingSubsystem_Format_BlankRuns_CollapseToTheConfiguredMaximum
+
+          - id: LintMark-Formatting-FinalNewline
+            title: >-
+              The Formatting subsystem shall end a document with exactly one line ending when the configuration
+              asks for a final line ending.
+            justification: |
+              Tools and version control treat files without a final line ending, or with extra blank lines at
+              the end, differently, and projects choose one convention.
+            children:
+              - LintMark-Formatting-DocumentFormatter-FinalNewlineSingle
+              - LintMark-Formatting-DocumentFormatter-FinalNewlineProtectedTail
+              - LintMark-Formatting-DocumentFormatter-BlankDocumentUntouched
+            tests:
+              - FormattingSubsystem_Format_FinalNewlineOn_EndsWithExactlyOneLineEnding
+
+          - id: LintMark-Formatting-FinalNewlineOptional
+            title: >-
+              The Formatting subsystem shall end a document with no line ending when the configuration asks for
+              none.
+            justification: |
+              Some projects keep files without a final line ending, and the convention that the configuration
+              names must be applied.
+            children:
+              - LintMark-Formatting-DocumentFormatter-FinalNewlineOptional
+            tests:
+              - FormattingSubsystem_Format_FinalNewlineOff_EndsWithoutLineEnding
+
+          - id: LintMark-Formatting-HeadingSpacing
+            title: >-
+              The Formatting subsystem shall separate each heading of a document that is not inside a quote or
+              list from the blocks around it by a blank line.
+            justification: |
+              A heading that touches the blocks around it is hard to read and is not recognized by every parser.
+            children:
+              - LintMark-Formatting-DocumentFormatter-HeadingSpacing
+              - LintMark-Formatting-DocumentFormatter-SpacingNotForParagraphText
+              - LintMark-Formatting-DocumentFormatter-OneInsertionPerBoundary
+            tests:
+              - FormattingSubsystem_Format_HeadingTouchingText_GetsBlankLines
+
+          - id: LintMark-Formatting-FenceSpacing
+            title: >-
+              The Formatting subsystem shall separate each fenced code block of a document that is not inside a
+              quote or list from the blocks around it by a blank line.
+            justification: |
+              A fence that touches the text around it is hard to read and is not recognized by every parser.
+            children:
+              - LintMark-Formatting-DocumentFormatter-FenceSpacing
+            tests:
+              - FormattingSubsystem_Format_FenceTouchingText_GetsBlankLines
+
+          - id: LintMark-Formatting-ListSpacing
+            title: >-
+              The Formatting subsystem shall separate each list of a document that is not inside a quote or
+              list from the blocks around it by a blank line.
+            justification: |
+              A list that touches the text around it is hard to read and is not recognized by every parser.
+            children:
+              - LintMark-Formatting-DocumentFormatter-ListSpacing
+            tests:
+              - FormattingSubsystem_Format_ListTouchingText_GetsBlankLine
+
+          - id: LintMark-Formatting-TableSpacing
+            title: >-
+              The Formatting subsystem shall separate each table of a document that is not inside a quote or
+              list from the blocks around it by a blank line.
+            justification: |
+              A table that touches the text around it is not recognized by every parser.
+            children:
+              - LintMark-Formatting-DocumentFormatter-TableSpacing
+            tests:
+              - FormattingSubsystem_Format_TableTouchingText_GetsBlankLine
+
+          - id: LintMark-Formatting-HeadingStyle
+            title: >-
+              The Formatting subsystem shall write each setext heading of a document in the ATX form, unless the
+              conversion could change the meaning of the text.
+            justification: |
+              One heading style makes a document consistent, and a conversion that could change the meaning of
+              the text is not made.
+            children:
+              - LintMark-Formatting-Blocks-HeadingStyle
+            tests:
+              - FormattingSubsystem_Format_SetextHeadings_BecomeAtxWhereSafe
+
+          - id: LintMark-Formatting-HeadingClosingSigns
+            title: >-
+              The Formatting subsystem shall remove the closing number signs of each ATX heading of a document.
+            justification: |
+              Closing number signs add nothing to a heading, and headings with and without them make a document
+              inconsistent.
+            children:
+              - LintMark-Formatting-Blocks-HeadingClosingSigns
+            tests:
+              - FormattingSubsystem_Format_ClosedHeadings_LoseTheClosingSigns
+
+          - id: LintMark-Formatting-HeadingSpace
+            title: >-
+              The Formatting subsystem shall put exactly one space between the number signs of each heading of a
+              document and its text.
+            justification: |
+              Extra spaces or tabs after the number signs have no meaning and make headings inconsistent.
+            children:
+              - LintMark-Formatting-Blocks-HeadingSpace
+            tests:
+              - FormattingSubsystem_Format_HeadingMarkerSpacing_BecomesOneSpace
+
+          - id: LintMark-Formatting-HeadingStartLeft
+            title: >-
+              The Formatting subsystem shall start each heading of a document that is not inside a quote or list
+              at the left margin.
+            justification: |
+              An indented heading looks like a mistake, and four spaces turn it into code.
+            children:
+              - LintMark-Formatting-Blocks-HeadingStartLeft
+            tests:
+              - FormattingSubsystem_Format_IndentedHeading_StartsAtTheLeftMargin
+
+          - id: LintMark-Formatting-ThematicBreakStyle
+            title: >-
+              The Formatting subsystem shall write each thematic break of a document as three characters of the
+              style that the configuration names, where that keeps the meaning of the document.
+            justification: |
+              One way to write a break makes a document consistent, and a break whose conversion would change
+              the text around it is left as written.
+            children:
+              - LintMark-Formatting-Blocks-ThematicBreakStyle
+            tests:
+              - FormattingSubsystem_Format_ThematicBreaks_UseTheConfiguredStyle
+
+          - id: LintMark-Formatting-CodeFenceStyle
+            title: >-
+              The Formatting subsystem shall write the fence of each fenced code block of a document with the
+              fence character that the configuration names, where that keeps the meaning of the block.
+            justification: |
+              One fence character makes a document consistent, and a fence that cannot be converted without
+              changing the block stays as written.
+            children:
+              - LintMark-Formatting-Blocks-CodeFenceStyle
+            tests:
+              - FormattingSubsystem_Format_CodeFences_UseTheConfiguredFenceCharacter
+
+          - id: LintMark-Formatting-CodeBlockStyle
+            title: >-
+              The Formatting subsystem shall write each indented code block of a document that is not inside a
+              quote or list as a fenced code block with the same content.
+            justification: |
+              Indented code is easily confused with other indented text and cannot carry a language, while a
+              fence is explicit.
+            children:
+              - LintMark-Formatting-Blocks-CodeBlockStyle
+            tests:
+              - FormattingSubsystem_Format_IndentedCode_BecomesFencedCode
+
+          - id: LintMark-Formatting-CodeContentKept
+            title: >-
+              The Formatting subsystem shall never change the content of code, HTML, math, or front matter of a
+              document.
+            justification: |
+              The whitespace and the blank lines of literal text are part of its content, and changing them
+              changes what the document means or how it renders.
+            children:
+              - LintMark-Formatting-Blocks-CodeContentKept
+              - LintMark-Formatting-DocumentFormatter-ProtectedBlocksKept
+            tests:
+              - FormattingSubsystem_Format_CodeHtmlMathAndFrontMatter_KeepTheirContent
+
+          - id: LintMark-Formatting-NestedBlocksKept
+            title: >-
+              The Formatting subsystem shall not add or remove blank lines inside a quote or list of a document.
+            justification: |
+              A blank line inside a list can turn a tight list into a loose one and change how it renders.
+            children:
+              - LintMark-Formatting-Blocks-NestedBlocksKept
+              - LintMark-Formatting-DocumentFormatter-ContainerBlankRunsKept
+              - LintMark-Formatting-DocumentFormatter-SpacingNotInContainers
+            tests:
+              - FormattingSubsystem_Format_QuotesAndLists_KeepTheirBlankLines
+
+          - id: LintMark-Formatting-UnclosedFencesKept
+            title: >-
+              The Formatting subsystem shall leave a fenced code block that the document never closes exactly as
+              it is, together with the blank lines that follow it.
+            justification: |
+              The content of an unclosed fence runs to the end of its container, so the lines that follow it,
+              blank or not, belong to the code.
+            children:
+              - LintMark-Formatting-Blocks-UnclosedFencesKept
+              - LintMark-Formatting-DocumentFormatter-UnclosedFenceKept
+            tests:
+              - FormattingSubsystem_Format_UnclosedFence_StaysAsWritten
+
+          - id: LintMark-Formatting-EditsReported
+            title: >-
+              The Formatting subsystem shall report each change that a formatting rule proposes as a problem of
+              that rule at the place of the change.
+            justification: |
+              Checking a file is formatting it and listing what would change, so every change that rewriting
+              would make is a problem that the check reports.
+            children:
+              - LintMark-Formatting-DocumentFormatter-ViolationsReportedPerEdit
+              - LintMark-Formatting-DocumentFormatter-ViolationPositionAtEdit
+              - LintMark-Formatting-DocumentFormatter-ViolationPositionAtInsertion
+              - LintMark-Formatting-DocumentFormatter-OneViolationPerRulePerLine
+              - LintMark-Formatting-Blocks-EditsAttributedToRules
+            tests:
+              - FormattingSubsystem_Format_Violations_AreReportedPerRuleAtTheirPlace
+
+          - id: LintMark-Formatting-FormattingStable
+            title: >-
+              The Formatting subsystem shall propose no change and report no problem for a document that is
+              already in canonical form, in particular for the result of its own changes.
+            justification: |
+              A rewrite that needed to be repeated, or that undid itself, could not be trusted, and a file that
+              is already canonical must not be reported.
+            children:
+              - LintMark-Formatting-Blocks-CanonicalBlocksUnchanged
+              - LintMark-Formatting-DocumentFormatter-ClaimedLinesNotEdited
+            tests:
+              - FormattingSubsystem_Format_CanonicalDocumentAndOwnResult_ProposeNothing

@@ -183,6 +183,36 @@ public class LintingSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the always-applied formatting rules are registered as fixable formatting rules with their legacy numbers, and that a configuration rejects them.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable()
+    {
+        // Arrange: the identifier and the legacy number of one always-applied rule
+        const string id = "trailing-whitespace";
+        const string alias = "MD009";
+
+        // Act: look the rule up by both names, and parse configurations that name it
+        Assert.True(RuleCatalog.TryGet(id, out var rule));
+        Assert.True(RuleCatalog.TryResolve(alias, out var resolved));
+        var byId = Parse($"rules:\n  {id}: false\n");
+        var byAlias = Parse($"rules:\n  {alias}: false\n");
+
+        // Assert: it is a formatting rule with a description and the alias, known but not configurable
+        Assert.Equal(DiagnosticKind.Formatting, rule.Kind);
+        Assert.False(rule.IsConfigurable);
+        Assert.NotEmpty(rule.Description);
+        Assert.Contains(alias, rule.Aliases);
+        Assert.Equal(id, resolved);
+
+        // Assert: a configuration that names the rule or its number reports an unknown rule
+        Assert.Null(byId.Config);
+        Assert.Equal($"Unknown rule '{id}'", Assert.Single(byId.Errors).Message);
+        Assert.Null(byAlias.Config);
+        Assert.Equal($"Unknown rule '{alias}'", Assert.Single(byAlias.Errors).Message);
+    }
+
+    /// <summary>
     ///     Test that the rules setting accepts aliases and dropped aliases and rejects rules that are not configurable.
     /// </summary>
     [Fact]

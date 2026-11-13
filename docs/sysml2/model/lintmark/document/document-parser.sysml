@@ -96,5 +96,9 @@ package LintMark {
         dependency DocumentParser to BlockKind;
         dependency DocumentParser to LeafLine;
         dependency DocumentParser to GridTableFallback;
+
+        // A rule named in a suppression comment is resolved through the rule catalog, so that a legacy rule
+        // number suppresses the rule that it stands for.
+        dependency DocumentParser to RuleCatalog;
     }
 }

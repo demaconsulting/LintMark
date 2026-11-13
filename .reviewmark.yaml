@@ -341,6 +341,7 @@ reviews:
       - "src/**/Engine/FileChange.cs"
       - "test/**/Engine/LintMarkEngineTests.cs"
       - "test/**/Engine/LintMarkEngineFixTests.cs"
+      - "test/**/Engine/LintMarkEngineFormattingTests.cs"
       - "test/**/Engine/LintMarkEngineIgnoreTests.cs"
 
   - id: LintMark-Engine-AtomicFileWriter
@@ -414,8 +415,81 @@ reviews:
       - "src/**/Formatting/IBlockFormatter.cs"
       - "src/**/Formatting/FormatContext.cs"
       - "src/**/Formatting/FormatResult.cs"
+      - "src/**/Formatting/LeafWhitespace.cs"
+      - "src/**/Formatting/InlineMap.cs"
+      - "src/**/Formatting/LineLayout.cs"
+      - "src/**/Formatting/LineOwnership.cs"
+      - "src/**/Formatting/FrontMatterGuard.cs"
+      - "src/**/Formatting/BlankLinePass.cs"
+      - "src/**/Formatting/BlockSpacingPass.cs"
+      - "src/**/Formatting/TrailerPass.cs"
       - "test/**/Formatting/DocumentFormatterTests.cs"
+      - "test/**/Formatting/DocumentFormatterPassTests.cs"
+      - "test/**/Formatting/DocumentFormatterSupportTests.cs"
       - "test/**/Formatting/TestBlockFormatters.cs"
+
+  - id: LintMark-Formatting-Blocks
+    title: Review that LintMark Formatting Blocks Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks.yaml"
+      - "docs/design/lintmark/formatting/blocks.md"
+      - "docs/verification/lintmark/formatting/blocks.md"
+      - "test/**/Formatting/Blocks/BlocksSubsystemTests.cs"
+      - "test/**/Formatting/Blocks/BlocksCorpusTests.cs"
+      - "test/**/Formatting/Blocks/BlockFormatterAssertions.cs"
+
+  - id: LintMark-Formatting-Blocks-HeadingFormatter
+    title: Review that LintMark Formatting Blocks HeadingFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/heading-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/heading-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/heading-formatter.md"
+      - "src/**/Formatting/Blocks/HeadingFormatter.cs"
+      - "test/**/Formatting/Blocks/HeadingFormatterTests.cs"
+
+  - id: LintMark-Formatting-Blocks-CodeBlockFormatter
+    title: Review that LintMark Formatting Blocks CodeBlockFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/code-block-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/code-block-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/code-block-formatter.md"
+      - "src/**/Formatting/Blocks/CodeBlockFormatter.cs"
+      - "test/**/Formatting/Blocks/CodeBlockFormatterTests.cs"
+
+  - id: LintMark-Formatting-Blocks-ThematicBreakFormatter
+    title: Review that LintMark Formatting Blocks ThematicBreakFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/thematic-break-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/thematic-break-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/thematic-break-formatter.md"
+      - "src/**/Formatting/Blocks/ThematicBreakFormatter.cs"
+      - "test/**/Formatting/Blocks/ThematicBreakFormatterTests.cs"
 
   # LintMark - Linting
   - id: LintMark-Linting

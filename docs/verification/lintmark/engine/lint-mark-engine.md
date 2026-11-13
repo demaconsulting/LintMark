@@ -2,9 +2,11 @@
 
 #### Verification Approach
 
-`LintMarkEngine` is verified with unit tests in three files that share one partial test class:
+`LintMarkEngine` is verified with unit tests in four files that share one partial test class:
 `LintMarkEngineTests.cs` (processing, ordering, configuration, and reporting), `LintMarkEngineFixTests.cs`
-(rewriting, `--fix`, `--diff`, and the safety checks), and `LintMarkEngineIgnoreTests.cs` (the `ignore` patterns).
+(rewriting, `--fix`, `--diff`, and the safety checks), `LintMarkEngineIgnoreTests.cs` (the `ignore` patterns), and
+`LintMarkEngineFormattingTests.cs` (the default formatting rules of the tool, with no seam: the engine creates its own
+formatter with the three block formatters).
 Real temporary files (the `TemporaryDirectory` test helper), the real `FileDiscovery`, `SourceDocument`,
 `DocumentParser`, `SourcePatcher`, safety checkers, and reporters, and a real `Context` writing to a log file are
 used for the normal scenarios; the run helper `Execute` makes the temporary directory the current directory, runs the
@@ -83,6 +85,10 @@ collection.
   file that already complies is not touched, a second run changes nothing, and the diagnostics that the rewrite
   removed are no longer reported; without `--fix` (check mode, `--check`, `--diff`) nothing is written.
 - The check mode predicts `--fix`: a rewrite that would be refused is reported as a safety diagnostic in both.
+- The default engine proposes the changes of all formatting rules: with `--fix` it rewrites a file that breaks them and
+  reports nothing afterwards, a second run leaves the file alone, check mode reports each violation at its place and
+  writes nothing, `--diff` prints the change, a suppression by legacy number is honored, the settings of the
+  configuration select the written form, and a document with an invalid grid table is never rewritten.
 - A rewrite is refused, with a safety diagnostic at the first changed position, the file untouched, and exit code 1,
   when it would change the rendering, change the Pandoc structure, is not stable when formatted again, creates a
   grid table border, or would be read as an invalid grid table; a refusal never stops other files from being
@@ -242,6 +248,36 @@ order and include a safety, a grid table, and an encoding diagnostic, and every 
 endings and the replacing formatter processed through `Process` give a `FileChange` with the LF text before and
 after, the target ending CRLF, the original bytes, and the new bytes (mark kept, text changed, CRLF kept), the
 resolved target (the full path of the file), the safety status `Ok`, and no diagnostic.
+
+**The default engine fixes a file that breaks formatting rules**: A file with a setext heading, trailing whitespace, a
+hard break, a run of blank lines, and a tilde fence is run with `--fix` and no seam. The file holds the canonical text
+(ATX heading, blank lines around the list and the fence, a backtick fence, the hard break kept), nothing is reported,
+and the exit code is 0.
+
+**The default engine reports each violation and writes nothing in check mode**: The same file is run without options.
+The exit code is 1, each violation is reported under its rule at its place, and the file's bytes are unchanged.
+
+**The default engine shows the change with the diff option**: A file with a closed heading and a trailing space is run
+with `--diff`. The lines are the two violations followed by the unified diff of the change, the exit code is 1, and
+the file is untouched.
+
+**A second fix run leaves a fixed file alone**: The file of the first scenario is fixed twice. The second run reports
+nothing and does not write the file.
+
+**A comment that names a rule by its legacy number disables it**: A file with trailing whitespace between a comment
+that disables `MD009` and one that enables it again, and a closed heading after them, is run with `--fix`. The
+whitespace in the region stays, the heading is fixed, and nothing is reported.
+
+**The configuration selects the written form**: A configuration with `code-fence: tilde`, `thematic-break: asterisks`,
+`max-blank-lines: 2`, and `final-newline: false` and a file with three blank lines, a backtick fence, and a break are
+run with `--fix`. The file holds two blank lines, a tilde fence, an asterisk break, and no final line ending.
+
+**Processing with the default formatters returns the change with the formatted bytes and the findings**: The dirty file
+is processed through `Process`. The result has a change whose new text is the clean text, and seven findings, all of the
+formatting kind.
+
+**A document with an invalid grid table is never rewritten by the default formatters**: A document with an invalid grid
+table is run with `--fix`. One `grid-table-invalid` problem is reported at its line and the file is unchanged.
 
 **Ignored files that were found are neither read nor reported**: A file below `node_modules` that is not explicit
 (built-in patterns) is marked ignored with no diagnostic and no change, also when the file does not exist, so that

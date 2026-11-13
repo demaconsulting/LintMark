@@ -160,6 +160,17 @@ character of the block, the block is a child at the next depth, and the span-til
 **Parse populates suppressions and references**: A document with a suppression comment and a link reference
 definition produces a suppression map and a reference index that contain them.
 
+**A suppression comment names a rule by its legacy number**: Documents with a comment that disables `MD013` and one that
+disables `trailing-whitespace` (an identifier) are parsed. The paragraph after each is suppressed for the canonical rule
+(`line-length` and `trailing-whitespace`), and an unrelated rule is not suppressed.
+
+**A disable-next-line comment with a legacy number suppresses the next line only**: A document with a
+`markdownlint-disable-next-line MD009` comment is parsed. The next line is suppressed for `trailing-whitespace` and the
+line after it is not.
+
+**A name that is not a registered rule suppresses nothing registered**: A document with a comment that disables
+`MD999` is parsed. The name as written is suppressed, and `trailing-whitespace` is not.
+
 **Dropped footnote followed by a definition in a container does not overlap it**: A footnote that nothing refers
 to, followed on the next line by a definition behind a list marker, a quote marker, or an indent (including a
 definition after a nested list that the footnote swallows), gives two `UnreferencedFootnote` blocks, each with

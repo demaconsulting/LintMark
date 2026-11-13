@@ -464,6 +464,75 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the default engine checks a file with the formatting rules of the tool, repairs it with the fix option, and then finds nothing.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_FormattingViolations_RewritesWithTheDefaultRules()
+    {
+        // Arrange: a file with a heading that has two spaces after its number sign and touches its paragraph, and a paragraph with trailing whitespace
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("docs/a.md", "#  Title\ntext   \n"u8.ToArray());
+
+        // Act: check, fix, then check again
+        var before = LintMarkEngineTests.Execute(directory, new LintMarkEngine());
+        var fix = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--fix");
+        var after = LintMarkEngineTests.Execute(directory, new LintMarkEngine());
+
+        // Assert: each rule is reported once, the file is repaired, and nothing is left
+        Assert.Equal(1, before.ExitCode);
+        Assert.Equal(
+            ["heading-blank-lines", "heading-space", "trailing-whitespace"],
+            before.Lines.Select(line => line.Split(' ')[1]).Order(StringComparer.Ordinal).ToList());
+        Assert.Equal(0, fix.ExitCode);
+        Assert.Equal("# Title\n\ntext\n"u8.ToArray(), File.ReadAllBytes(path));
+        Assert.Equal(0, after.ExitCode);
+        Assert.Empty(after.Lines);
+    }
+
+    /// <summary>
+    ///     Test that the default engine reports each violation of the formatting rules of the tool in check mode and writes nothing.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Check_FormattingViolations_ReportsEachRuleAndWritesNothing()
+    {
+        // Arrange: a heading with two spaces after its number sign that touches its paragraph, and a paragraph with trailing whitespace
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("docs/a.md", "#  Title\ntext   \n"u8.ToArray());
+
+        // Act: check with the default engine
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine());
+
+        // Assert: each rule is reported once and the file is as it was
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            ["heading-blank-lines", "heading-space", "trailing-whitespace"],
+            lines.Select(line => line.Split(' ')[1]).Order(StringComparer.Ordinal).ToList());
+        Assert.Equal("#  Title\ntext   \n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that the default engine prints the change that the fix option would make with the formatting rules of the tool and writes nothing.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Diff_FormattingViolations_PrintsTheChangeWithTheDefaultRules()
+    {
+        // Arrange: a heading with two spaces after its number sign that touches its paragraph, and a paragraph with trailing whitespace
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("docs/a.md", "#  Title\ntext   \n"u8.ToArray());
+
+        // Act: run the default engine with the diff option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(), "--diff");
+
+        // Assert: the removed and added lines are shown and the file is as it was
+        Assert.Equal(1, exitCode);
+        Assert.Contains("-#  Title", lines);
+        Assert.Contains("+# Title", lines);
+        Assert.Contains("-text   ", lines);
+        Assert.Contains("+text", lines);
+        Assert.Equal("#  Title\ntext   \n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
     ///     Test that a broken formatter is refused by the safety checks and its file is reported and left alone.
     /// </summary>
     [Fact]

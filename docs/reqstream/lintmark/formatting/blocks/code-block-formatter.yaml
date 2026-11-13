@@ -1,0 +1,208 @@
+---
+# Software Unit Requirements for the CodeBlockFormatter Class
+#
+# The CodeBlockFormatter class proposes the changes that bring a code block into canonical form: fenced with the
+# configured fence character, never indented, with no trailing whitespace on the fence lines, and with its content
+# untouched.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: CodeBlockFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-AcceptsClosedCodeBlocks
+                    title: >-
+                      The CodeBlockFormatter class shall accept a fenced code block that is closed and an indented
+                      code block, and no other kind of block.
+                    justification: |
+                      The document formatter gives each block to the first formatter that accepts it. A fence that
+                      is never closed has no reliable end and is left to nobody.
+                    tests:
+                      - CodeBlockFormatter_CanFormat_ClosedFencedAndIndentedCode_ReturnsTrue
+                      - CodeBlockFormatter_CanFormat_UnclosedFenceAndOtherBlocks_ReturnsFalse
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsMissingArguments
+                    title: The CodeBlockFormatter class shall refuse a missing block, context, or edit set.
+                    justification: |
+                      Missing arguments are programming errors that must be reported as such.
+                    tests:
+                      - CodeBlockFormatter_CanFormat_NullBlock_Throws
+                      - CodeBlockFormatter_Format_NullArguments_Throw
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsOtherBlocks
+                    title: >-
+                      The CodeBlockFormatter class shall refuse to format a block that is not a code block it
+                      accepts.
+                    justification: |
+                      A block of another kind has a different shape, and edits computed for it would damage it.
+                    tests:
+                      - CodeBlockFormatter_Format_UnclosedFenceBlock_ThrowsArgumentException
+                      - CodeBlockFormatter_Format_ParagraphBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-RuleIdsImmutable
+                    title: >-
+                      The CodeBlockFormatter class shall list the rules it enforces in a form that its holders
+                      cannot change.
+                    justification: |
+                      The list decides which suppressions affect the formatter, and one instance is shared by every
+                      thread.
+                    tests:
+                      - CodeBlockFormatter_RuleIds_Read_ListsTheCodeRulesAndIsImmutable
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-FenceCharacterConverted
+                    title: >-
+                      The CodeBlockFormatter class shall write the fence of a fenced code block with the
+                      configured fence character, backticks by default.
+                    justification: |
+                      One fence character makes a document consistent.
+                    tests:
+                      - CodeBlockFormatter_Format_TildeFence_BecomesBacktickFence
+                      - CodeBlockFormatter_Format_TildeConfiguration_WritesTildeFences
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLengthStaysValid
+                    title: >-
+                      The CodeBlockFormatter class shall write a fence long enough that no line of the code can
+                      close it.
+                    justification: |
+                      A fence that a line of the code closes would end the block early and turn the rest of the
+                      code into text.
+                    tests:
+                      - CodeBlockFormatter_Format_ContentWithFenceLookalike_LengthensTheFence
+                      - CodeBlockFormatter_Format_IndentedCodeWithFenceLookalike_LengthensTheFence
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-BacktickInfoKept
+                    title: >-
+                      The CodeBlockFormatter class shall keep the tilde fence of a code block whose info string
+                      contains a backtick.
+                    justification: |
+                      An info string with a backtick is not valid after a backtick fence, so the conversion would
+                      change the block.
+                    tests:
+                      - CodeBlockFormatter_Format_InfoStringWithBacktick_KeepsTheTildeFence
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-BracedFenceKept
+                    title: >-
+                      The CodeBlockFormatter class shall keep the fence character of a code block whose info string
+                      starts with a brace.
+                    justification: |
+                      A braced info string is Pandoc syntax for attributes and raw blocks, and Pandoc only knows
+                      the backtick form of it.
+                    tests:
+                      - CodeBlockFormatter_Format_BracedInfoString_KeepsTheFenceCharacter
+                      - CodeBlockFormatter_Format_BracedBacktickFenceWithTildeConfiguration_KeepsTheBackticks
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-NestedFenceConverted
+                    title: >-
+                      The CodeBlockFormatter class shall convert the fence of a code block inside a quote or list
+                      in place, keeping its prefix and indentation.
+                    justification: |
+                      The prefix is what puts the block in its container.
+                    tests:
+                      - CodeBlockFormatter_Format_FenceInContainer_ConvertsInPlace
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedBecomesFenced
+                    title: >-
+                      The CodeBlockFormatter class shall write an indented code block that is not inside a quote or
+                      list as a fenced code block whose content is the content of the indented block.
+                    justification: |
+                      Fenced code is explicit and can carry a language, and the blank lines that follow an indented
+                      block are not part of it.
+                    tests:
+                      - CodeBlockFormatter_Format_IndentedCode_BecomesFencedCode
+                      - CodeBlockFormatter_Format_IndentedCodeFollowedByBlankLines_LeavesThemOutside
+                      - CodeBlockFormatter_Format_IndentedCodeWithTildeConfiguration_UsesTildes
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedNestedKept
+                    title: >-
+                      The CodeBlockFormatter class shall leave an indented code block inside a quote or list as it
+                      is.
+                    justification: |
+                      The indentation of such a block also carries the container, so removing it would move the
+                      block.
+                    tests:
+                      - CodeBlockFormatter_Format_IndentedCodeInListItem_StaysIndented
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedFrontMatterGuard
+                    title: >-
+                      The CodeBlockFormatter class shall leave an indented code block as it is when writing it as a
+                      fenced block would turn the text of the document into front matter.
+                    justification: |
+                      A dashes line that is not indented, in a document that starts with one, would close front
+                      matter that the document never had, and swallow the text in between.
+                    tests:
+                      - CodeBlockFormatter_Format_IndentedDashesAfterFirstLineDashes_StaysIndented
+                      - CodeBlockFormatter_Format_IndentedDashesAfterFrontMatter_IsConverted
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLineTrailingWhitespace
+                    title: >-
+                      The CodeBlockFormatter class shall remove the trailing whitespace of the opening and closing
+                      fence lines of a code block, and of no other line of it.
+                    justification: |
+                      Trailing whitespace on a fence line has no meaning, while on a line of the code it is
+                      content.
+                    tests:
+                      - CodeBlockFormatter_Format_FenceLinesWithTrailingWhitespace_RemovesItOnlyThere
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-ContentUnchanged
+                    title: The CodeBlockFormatter class shall never change the content of a code block.
+                    justification: |
+                      The content of code is the author's, whitespace and blank lines included.
+                    tests:
+                      - CodeBlockFormatter_Format_ContentOfFence_IsNeverChanged
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-UnclosedFenceKept
+                    title: The CodeBlockFormatter class shall propose no change for a fence that is never closed.
+                    justification: |
+                      The parser cannot say where such a block ends, so no change to it can be shown to keep its
+                      meaning.
+                    tests:
+                      - CodeBlockFormatter_Format_UnclosedFence_ProposesNothing
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-SuppressedRuleKept
+                    title: >-
+                      The CodeBlockFormatter class shall propose no change for a code block in which a comment of
+                      the document disables the rule of the change.
+                    justification: |
+                      An author who switched a rule off for a passage expects the passage to stay as written.
+                    tests:
+                      - CodeBlockFormatter_Format_RuleSuppressed_LeavesTheBlock
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-EditsUnderOwnRule
+                    title: >-
+                      The CodeBlockFormatter class shall attribute each change that it proposes to the rule that
+                      the change enforces.
+                    justification: |
+                      The rule of a change decides how it is reported and which suppression comment switches it off.
+                    tests:
+                      - CodeBlockFormatter_Format_NonCanonicalFence_ReportsEachEditUnderItsRule
+                      - CodeBlockFormatter_Format_IndentedCode_ReportsTheCodeBlockStyleRule
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-CanonicalUnchanged
+                    title: The CodeBlockFormatter class shall propose no change for a code block in canonical form.
+                    justification: |
+                      A canonical code block must not be reported or rewritten.
+                    tests:
+                      - CodeBlockFormatter_Format_FenceWithConfiguredCharacter_ProposesNothing
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-LineEndingsKept
+                    title: >-
+                      The CodeBlockFormatter class shall propose the same changes for a document with CRLF line
+                      endings and a byte order mark as for the same document with LF line endings and no mark.
+                    justification: |
+                      The line ending and the byte order mark are not part of the text of a code block.
+                    tests:
+                      - CodeBlockFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-DeterministicResult
+                    title: >-
+                      The CodeBlockFormatter class shall propose the same changes for the same document when one
+                      instance is called from several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel by one shared instance, and a result that depended on timing
+                      could not be trusted.
+                    tests:
+                      - CodeBlockFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult

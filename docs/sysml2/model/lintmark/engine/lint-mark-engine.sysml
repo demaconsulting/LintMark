@@ -40,6 +40,7 @@ package LintMark {
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineFixTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineFormattingTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineIgnoreTests.cs");
             designFiles = ("docs/design/lintmark/engine/lint-mark-engine.md");
             verificationFiles = ("docs/verification/lintmark/engine/lint-mark-engine.md");
@@ -76,11 +77,15 @@ package LintMark {
         dependency LintMarkEngine to RuleCatalog;
 
         // A rewrite is computed by the document formatter, applied to the text with the source patcher,
-        // and carried as a file change only when it is safe.
+        // and carried as a file change only when it is safe. The shipped tool creates the document
+        // formatter with the three block formatters.
         dependency LintMarkEngine to DocumentFormatter;
         dependency LintMarkEngine to FormatResult;
         dependency LintMarkEngine to SourcePatcher;
         dependency LintMarkEngine to FileChange;
+        dependency LintMarkEngine to HeadingFormatter;
+        dependency LintMarkEngine to CodeBlockFormatter;
+        dependency LintMarkEngine to ThematicBreakFormatter;
 
         // Every rewrite passes the three safety checks, whose verdicts and status are held in the result.
         dependency LintMarkEngine to HtmlEquivalenceChecker;

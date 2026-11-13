@@ -2,8 +2,9 @@
 # Software Unit Requirements for the DocumentFormatter Class
 #
 # The DocumentFormatter class walks the blocks of a parsed document, lets the block formatters that accept a block
-# propose changes, and decides the line ending of the document (with the IBlockFormatter, FormatContext, and
-# FormatResult supporting types).
+# propose changes, applies the rules that concern every document (whitespace, blank lines, spacing between blocks,
+# and the end of the file), reports each change as a problem, and decides the line ending of the document (with the
+# IBlockFormatter, FormatContext, and FormatResult supporting types).
 
 sections:
   - title: LintMark Requirements
@@ -23,10 +24,12 @@ sections:
 
               - id: LintMark-Formatting-DocumentFormatter-VerbatimByDefault
                 title: >-
-                  The DocumentFormatter class shall propose no change for a block that no block formatter accepts.
+                  The DocumentFormatter class shall propose no change for a block that no block formatter accepts,
+                  except the changes of the rules that apply to every document: trailing whitespace, tabs, runs of
+                  blank lines, blank lines between blocks, and the end of the file.
                 justification: |
-                  Only what a rule asks to change may change. A block of a kind that no rule handles belongs
-                  to the author.
+                  Only what a rule asks to change may change. A block of a kind that no block formatter handles
+                  belongs to the author, apart from the whitespace rules that apply to every document.
                 tests:
                   - DocumentFormatter_Format_NoFormatters_ProducesNoEdits
                   - DocumentFormatter_Format_BlockNoFormatterAccepts_LeftVerbatim
@@ -299,3 +302,274 @@ sections:
                   The engine reads the changes, the line ending, and the findings of a run from the result.
                 tests:
                   - FormatResult_Constructor_ValidArguments_KeepsValues
+
+              - id: LintMark-Formatting-DocumentFormatter-TrailingWhitespaceRemoved
+                title: >-
+                  The DocumentFormatter class shall remove the trailing whitespace of each line of a paragraph,
+                  table, link reference definition, or heading that no block formatter accepts.
+                justification: |
+                  Trailing whitespace carries no meaning in text and makes version control show lines as changed.
+                tests:
+                  - DocumentFormatter_Format_TrailingWhitespaceInParagraph_IsRemoved
+                  - DocumentFormatter_Format_UnclaimedHeading_LosesTrailingWhitespace
+                  - DocumentFormatter_Format_TableRowsAndDefinitions_LoseTrailingWhitespace
+
+              - id: LintMark-Formatting-DocumentFormatter-MarkerLinesTrailingWhitespaceRemoved
+                title: >-
+                  The DocumentFormatter class shall remove the trailing whitespace of each line that holds only a
+                  quote or list marker.
+                justification: |
+                  A marker line with trailing whitespace looks empty and still makes version control show the
+                  line as changed.
+                tests:
+                  - DocumentFormatter_Format_MarkerLines_LoseTrailingWhitespace
+
+              - id: LintMark-Formatting-DocumentFormatter-HardBreakKept
+                title: >-
+                  The DocumentFormatter class shall keep a hard line break of a paragraph a hard line break, with
+                  exactly two spaces when it is written with spaces.
+                justification: |
+                  Two spaces at the end of a line are a line break in Markdown. Fewer would join the lines, and
+                  a backslash break takes no spaces at all.
+                tests:
+                  - DocumentFormatter_Format_HardBreakWithSpaces_KeepsExactlyTwo
+                  - DocumentFormatter_Format_BackslashAndMixedBreaks_AreKept
+
+              - id: LintMark-Formatting-DocumentFormatter-ProtectedSpansKept
+                title: >-
+                  The DocumentFormatter class shall keep the whitespace inside code spans, inline HTML, math, and
+                  link destinations and titles.
+                justification: |
+                  Whitespace in literal inline text is part of what the document renders.
+                tests:
+                  - DocumentFormatter_Format_ProtectedInlineSpans_KeepTheirWhitespace
+
+              - id: LintMark-Formatting-DocumentFormatter-ProtectedBlocksKept
+                title: >-
+                  The DocumentFormatter class shall keep the whitespace and the blank lines inside code, HTML,
+                  math, front matter, and grid tables.
+                justification: |
+                  Whitespace and blank lines in literal blocks are part of their content.
+                tests:
+                  - DocumentFormatter_Format_ProtectedBlocks_KeepTheirWhitespace
+                  - DocumentFormatter_Format_BlankLinesInsideBlocks_AreKept
+
+              - id: LintMark-Formatting-DocumentFormatter-TabsExpanded
+                title: >-
+                  The DocumentFormatter class shall replace each tab in the plain text of a paragraph by spaces
+                  up to the next tab stop of four columns.
+                justification: |
+                  Tabs show at different widths in different tools.
+                tests:
+                  - DocumentFormatter_Format_TabInText_ExpandsToTheTabStop
+
+              - id: LintMark-Formatting-DocumentFormatter-TabsKeptWhereTheyMatter
+                title: >-
+                  The DocumentFormatter class shall keep a tab that is part of the indentation, of a quote or list
+                  prefix, or of literal text.
+                justification: |
+                  Such a tab is structure or content, and replacing it could change how the document renders.
+                tests:
+                  - DocumentFormatter_Format_TabsThatMustStay_AreKept
+
+              - id: LintMark-Formatting-DocumentFormatter-BlankRunsCollapsed
+                title: >-
+                  The DocumentFormatter class shall remove the blank lines of a run between blocks beyond the
+                  maximum that the configuration allows.
+                justification: |
+                  Long runs of blank lines carry no meaning in Markdown.
+                tests:
+                  - DocumentFormatter_Format_BlankRuns_CollapseToTheConfiguredMaximum
+
+              - id: LintMark-Formatting-DocumentFormatter-WhitespaceOnlyLinesEmptied
+                title: >-
+                  The DocumentFormatter class shall empty each line between blocks that holds only whitespace.
+                justification: |
+                  A line of spaces is a blank line with trailing whitespace.
+                tests:
+                  - DocumentFormatter_Format_WhitespaceOnlyLines_BecomeEmpty
+
+              - id: LintMark-Formatting-DocumentFormatter-ContainerBlankRunsKept
+                title: >-
+                  The DocumentFormatter class shall keep the blank lines of a run inside a quote or list, and
+                  empty only their whitespace.
+                justification: |
+                  Removing a blank line inside a list can turn a loose list into a tight one and change how it
+                  renders.
+                tests:
+                  - DocumentFormatter_Format_BlankRunsInContainer_AreKeptWithoutWhitespace
+
+              - id: LintMark-Formatting-DocumentFormatter-HeadingSpacing
+                title: >-
+                  The DocumentFormatter class shall insert a blank line between a top-level heading and a
+                  block that touches it.
+                justification: |
+                  A heading that touches the blocks around it is hard to read and is not recognized by every
+                  parser.
+                tests:
+                  - DocumentFormatter_Format_HeadingWithoutBlankLines_GetsThem
+
+              - id: LintMark-Formatting-DocumentFormatter-FenceSpacing
+                title: >-
+                  The DocumentFormatter class shall insert a blank line between a top-level fenced code block, or
+                  an indented code block that is written as a fenced one, and a block that touches it.
+                justification: |
+                  A fence that touches the text around it is hard to read and is not recognized by every parser.
+                tests:
+                  - DocumentFormatter_Format_CodeBlockWithoutBlankLines_GetsThem
+
+              - id: LintMark-Formatting-DocumentFormatter-ListSpacing
+                title: >-
+                  The DocumentFormatter class shall insert a blank line between a top-level list and a block that
+                  touches it.
+                justification: |
+                  A list that touches the text around it is hard to read and is not recognized by every parser.
+                tests:
+                  - DocumentFormatter_Format_ListWithoutBlankLines_GetsThem
+
+              - id: LintMark-Formatting-DocumentFormatter-TableSpacing
+                title: >-
+                  The DocumentFormatter class shall insert a blank line between a top-level table and a block that
+                  touches it.
+                justification: |
+                  A table that touches the text around it is not recognized by every parser.
+                tests:
+                  - DocumentFormatter_Format_TableWithoutBlankLines_GetsThem
+
+              - id: LintMark-Formatting-DocumentFormatter-SpacingNotForParagraphText
+                title: >-
+                  The DocumentFormatter class shall insert no blank line between lines that the parser reads as
+                  one block, such as text followed by a line that looks like a list item, a lazy continuation of a
+                  list item, or a row of a table.
+                justification: |
+                  Such lines are not two blocks, and a blank line would split one block into two and change how the
+                  document renders.
+                tests:
+                  - DocumentFormatter_Format_TextThatIsNotAnotherBlock_IsNotSeparated
+
+              - id: LintMark-Formatting-DocumentFormatter-SpacingNotInContainers
+                title: >-
+                  The DocumentFormatter class shall insert no blank line between blocks inside a quote or list.
+                justification: |
+                  A blank line inside a list can turn a tight list into a loose one and change how it renders.
+                tests:
+                  - DocumentFormatter_Format_BlocksInsideContainers_AreNotSeparated
+
+              - id: LintMark-Formatting-DocumentFormatter-UnclosedFenceKept
+                title: >-
+                  The DocumentFormatter class shall insert no blank line next to a fence that is never closed, and
+                  shall keep the blank lines that follow it.
+                justification: |
+                  The content of such a fence runs to the end of its container, so the lines after it belong to
+                  the code.
+                tests:
+                  - DocumentFormatter_Format_UnclosedFence_IsNotSeparated
+                  - DocumentFormatter_Format_BlankLinesAfterUnclosedFence_AreKept
+
+              - id: LintMark-Formatting-DocumentFormatter-OneInsertionPerBoundary
+                title: >-
+                  The DocumentFormatter class shall insert one blank line, and report one problem, where two
+                  blocks that need a blank line between them meet, whichever of the spacing rules apply.
+                justification: |
+                  Two blank lines would break the rule on runs of blank lines, and a second change at the same
+                  place would conflict with the first.
+                tests:
+                  - DocumentFormatter_Format_BoundaryOfTwoRules_GetsOneBlankLineAndOneViolation
+                  - DocumentFormatter_Format_HeadingRuleSuppressed_FenceRuleInsertsTheBlankLine
+
+              - id: LintMark-Formatting-DocumentFormatter-FinalNewlineSingle
+                title: >-
+                  The DocumentFormatter class shall end a document that has content with exactly one line ending
+                  when the configuration asks for a final line ending.
+                justification: |
+                  Tools and version control treat a missing final line ending, and extra blank lines at the end,
+                  differently.
+                tests:
+                  - DocumentFormatter_Format_EndOfFile_GetsExactlyOneLineEnding
+
+              - id: LintMark-Formatting-DocumentFormatter-FinalNewlineOptional
+                title: >-
+                  The DocumentFormatter class shall end a document with no line ending when the configuration
+                  asks for none.
+                justification: |
+                  Some projects have the convention that a file ends with its last character.
+                tests:
+                  - DocumentFormatter_Format_FinalNewlineOff_RemovesTheLineEnding
+
+              - id: LintMark-Formatting-DocumentFormatter-FinalNewlineProtectedTail
+                title: >-
+                  The DocumentFormatter class shall leave the end of a document as it is when the last block keeps
+                  its trailing blank lines as content.
+                justification: |
+                  The blank lines at the end of a fence that is never closed, or of an HTML block that only the end
+                  of the file closes, are part of the block.
+                tests:
+                  - DocumentFormatter_Format_EndOfBlockThatKeepsBlankLines_IsLeftAlone
+
+              - id: LintMark-Formatting-DocumentFormatter-BlankDocumentUntouched
+                title: >-
+                  The DocumentFormatter class shall propose no change to the end of a document that has no content.
+                justification: |
+                  A document without content has no last line to end.
+                tests:
+                  - DocumentFormatter_Format_DocumentWithoutContent_IsLeftAlone
+
+              - id: LintMark-Formatting-DocumentFormatter-SuppressedRulesKept
+                title: >-
+                  The DocumentFormatter class shall propose no change of a rule that applies to every document
+                  where a comment of the document disables that rule.
+                justification: |
+                  An author who switched a rule off for a passage expects the passage to stay as written.
+                tests:
+                  - DocumentFormatter_Format_RuleSuppressed_LeavesThatPart
+                  - DocumentFormatter_Format_MaxBlankLinesSuppressed_KeepsTheBlankLines
+
+              - id: LintMark-Formatting-DocumentFormatter-ClaimedLinesNotEdited
+                title: >-
+                  The DocumentFormatter class shall propose no change for the lines of a block that a block
+                  formatter accepts, also when that formatter leaves the block as it is.
+                justification: |
+                  A block belongs to one formatter. A second author of changes to the same lines would conflict
+                  with it and could undo its decision.
+                tests:
+                  - DocumentFormatter_Format_ClaimedParagraph_IsNotEditedByThePasses
+                  - DocumentFormatter_Format_ClaimedParagraphWithRuleSuppressed_IsNotEditedByThePasses
+
+              - id: LintMark-Formatting-DocumentFormatter-ViolationsReportedPerEdit
+                title: >-
+                  The DocumentFormatter class shall report each change of a rule that applies to every document
+                  as a formatting problem under the identifier of that rule, with the description of the rule as
+                  its message.
+                justification: |
+                  Checking a file is formatting it and listing what would change, so each change is a problem
+                  that the check reports.
+                tests:
+                  - DocumentFormatter_Format_Edits_AreReportedPerRuleAndLineAtTheirPlace
+
+              - id: LintMark-Formatting-DocumentFormatter-ViolationPositionAtEdit
+                title: >-
+                  The DocumentFormatter class shall report the problem of a change at the line and column where
+                  the change starts.
+                justification: |
+                  The reader of a report must find the place that the rule is about.
+                tests:
+                  - DocumentFormatter_Format_Edits_AreReportedPerRuleAndLineAtTheirPlace
+
+              - id: LintMark-Formatting-DocumentFormatter-ViolationPositionAtInsertion
+                title: >-
+                  The DocumentFormatter class shall report the problem of an inserted blank line at the line before
+                  which the blank line is inserted.
+                justification: |
+                  An inserted blank line has no text of its own, so the reader finds the place through the line
+                  that follows it.
+                tests:
+                  - DocumentFormatter_Format_BoundaryOfTwoRules_GetsOneBlankLineAndOneViolation
+
+              - id: LintMark-Formatting-DocumentFormatter-OneViolationPerRulePerLine
+                title: >-
+                  The DocumentFormatter class shall report at most one problem for each rule and line.
+                justification: |
+                  A line with several changes of one rule is one problem to the reader, and the report must stay
+                  short.
+                tests:
+                  - DocumentFormatter_Format_Edits_AreReportedPerRuleAndLineAtTheirPlace

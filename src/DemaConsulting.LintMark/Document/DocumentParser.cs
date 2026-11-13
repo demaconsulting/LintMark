@@ -21,6 +21,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
+using DemaConsulting.LintMark.Linting;
 using Markdig;
 using Markdig.Extensions.EmphasisExtras;
 using Markdig.Extensions.Footnotes;
@@ -64,6 +65,11 @@ namespace DemaConsulting.LintMark.Document;
 ///         document is parsed again without grid tables (a deliberate fallback; a document with a valid and
 ///         an invalid grid table is therefore read without grid tables) and the result is marked
 ///         format-unsafe (<see cref="ParsedDocument.IsFormatUnsafe"/>) so that it is never rewritten.
+///     </para>
+///     <para>
+///         Rule identifiers in suppression comments are resolved through the rule catalog, so a comment that names
+///         a rule by its legacy number (<c>markdownlint-disable MD009</c>) suppresses the canonical rule
+///         (<c>trailing-whitespace</c>); a name that is not registered suppresses nothing registered.
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless apart from the immutable pipeline; each call works on its
@@ -164,10 +170,21 @@ internal static partial class DocumentParser
             blocks = new Flattener(source).Flatten(ast);
         }
 
-        var suppressions = SuppressionMap.Build(source, blocks, ast);
+        var suppressions = SuppressionMap.Build(source, blocks, ast, ResolveRuleName);
         var references = ReferenceIndex.Build(source, blocks);
         return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references, fallback);
     }
+
+    /// <summary>
+    ///     Resolves a rule identifier named in a suppression comment to its canonical id.
+    /// </summary>
+    /// <param name="name">The identifier as written in the comment: a kebab-case id or a legacy rule-number alias.</param>
+    /// <returns>
+    ///     The canonical kebab-case id of a registered rule, so that <c>markdownlint-disable MD009</c> suppresses
+    ///     <c>trailing-whitespace</c>; the name unchanged when it is not a registered rule (an unknown name suppresses nothing).
+    /// </returns>
+    private static string ResolveRuleName(string name) =>
+        RuleCatalog.TryResolve(name, out var canonical) ? canonical : name;
 
     /// <summary>
     ///     Finds the first line that looks like a grid table border but is not part of a valid grid table.

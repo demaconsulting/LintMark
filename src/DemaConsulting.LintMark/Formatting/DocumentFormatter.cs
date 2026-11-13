@@ -32,10 +32,20 @@ namespace DemaConsulting.LintMark.Formatting;
 /// <remarks>
 ///     <para>
 ///         The formatter walks the blocks of the document in source order and gives each block to the first
-///         registered <see cref="IBlockFormatter"/> that accepts it. A block is left verbatim (no edit) when no
-///         formatter accepts it, or when any rule of the accepting formatter is suppressed anywhere inside the
-///         block. With no formatters registered (the production setup until block formatters exist) the only
-///         result is the line ending: nothing in the text changes unless a formatter says so.
+///         registered <see cref="IBlockFormatter"/> that accepts it. A block is left verbatim when no formatter
+///         accepts it, or when any rule of the accepting formatter is suppressed anywhere inside the block. A
+///         block that a formatter accepts is <em>claimed</em> (also when it is suppressed): only that formatter
+///         edits its lines.
+///     </para>
+///     <para>
+///         What no formatter claims is handled by the rules that apply to every document: trailing whitespace and
+///         tabs in text (<see cref="LeafWhitespace"/>), runs of blank lines (<see cref="BlankLinePass"/>), the blank
+///         lines that separate headings, fenced code, lists and tables from their neighbors
+///         (<see cref="BlockSpacingPass"/>) and the end of the file (<see cref="TrailerPass"/>). They never touch
+///         code, HTML, math, front matter, grid tables or blocks the tool does not model
+///         (<see cref="LineOwnership"/> decides which lines those are), and they honor suppression comments at
+///         block granularity. Every edit of such an always-applied rule is also reported as a formatting violation
+///         at the place it changes, so that linting a file is formatting it and listing what would change.
 ///     </para>
 ///     <para>
 ///         The line ending is decided here, not by an edit, because the LF-normalized text has no line ending
@@ -111,12 +121,16 @@ internal sealed class DocumentFormatter
             return new FormatResult([], source.MajorityLineEnding, []);
         }
 
+        // Find out which lines a block formatter claims, which are protected, and which lie in containers
+        var layout = new LineLayout(source);
+        var ownership = LineOwnership.Build(document, layout, block => FindFormatter(block) is not null);
+
         // Collect the edits of the first formatter that accepts each block, skipping blocks with suppressed rules
         var edits = new EditSet();
         var context = new FormatContext(document, config);
         foreach (var block in document.Blocks)
         {
-            var formatter = _formatters.FirstOrDefault(candidate => candidate.CanFormat(block));
+            var formatter = FindFormatter(block);
             if (formatter is null || IsSuppressed(document, block, formatter))
             {
                 continue;
@@ -125,9 +139,146 @@ internal sealed class DocumentFormatter
             formatter.Format(context, block, edits);
         }
 
+        // The passes handle what no block formatter claims: whitespace, blank lines, block spacing and the end of the file
+        AddLeafEdits(document, layout, ownership, edits);
+        BlankLinePass.Apply(document, layout, ownership, config, edits);
+        BlockSpacingPass.Apply(document, layout, ownership, edits);
+        TrailerPass.Apply(document, layout, ownership, config, edits);
+
         // The line ending is the configured one, or else the one the file uses most
         var target = config.EndOfLine ?? source.MajorityLineEnding;
-        return new FormatResult(edits.ToImmutable(), target, CheckLineEndings(source, target));
+        var result = edits.ToImmutable();
+        return new FormatResult(result, target, [.. CheckLineEndings(source, target), .. ReportEdits(source, result)]);
+    }
+
+    /// <summary>
+    ///     Finds the first registered formatter that accepts a block.
+    /// </summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The formatter, or <see langword="null"/> when none accepts the block.</returns>
+    private IBlockFormatter? FindFormatter(BlockInfo block) =>
+        _formatters.FirstOrDefault(candidate => candidate.CanFormat(block));
+
+    /// <summary>
+    ///     Adds the whitespace edits for the blocks that no block formatter claims.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="ownership">Which lines belong to which block.</param>
+    /// <param name="edits">Receives the edits.</param>
+    /// <remarks>
+    ///     Paragraphs and headings go through the inline structure (hard breaks and protected spans matter).
+    ///     Table rows, single-line link reference definitions, thematic breaks and lines that hold only a
+    ///     container marker only lose their trailing whitespace. Protected blocks and claimed blocks are skipped.
+    /// </remarks>
+    private void AddLeafEdits(ParsedDocument document, LineLayout layout, LineOwnership ownership, EditSet edits)
+    {
+        // Blocks first: each unclaimed, unprotected leaf block is handled by the kind of whitespace it can hold
+        foreach (var block in document.Blocks)
+        {
+            if (LineOwnership.IsContainer(block.Kind) || FindFormatter(block) is not null)
+            {
+                continue;
+            }
+
+            var (first, last) = LineOwnership.LinesOf(layout, block);
+            if (ownership.IsProtected(first))
+            {
+                continue;
+            }
+
+            switch (block.Kind)
+            {
+                case BlockKind.Paragraph or BlockKind.Heading:
+                    var trailing = !IsSuppressedIn(document, block.Start, block.EndInclusive, RuleCatalog.TrailingWhitespaceRuleId);
+                    var tabs = !IsSuppressedIn(document, block.Start, block.EndInclusive, RuleCatalog.HardTabsRuleId);
+                    if (trailing || tabs)
+                    {
+                        LeafWhitespace.AddBlockEdits(layout, block, trailing, tabs, edits);
+                    }
+
+                    break;
+
+                case BlockKind.Table or BlockKind.ThematicBreak or BlockKind.LinkReferenceDefinition:
+                    for (var line = first; line <= last; line++)
+                    {
+                        AddLineTrailing(document, layout, line, edits);
+                    }
+
+                    break;
+            }
+        }
+
+        // Lines that no leaf block covers and that are not blank hold container markers only
+        for (var line = 0; line < layout.LineCount; line++)
+        {
+            if (ownership.LeafAt(line) is null && !layout.IsBlank(line))
+            {
+                AddLineTrailing(document, layout, line, edits);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Adds the trailing whitespace edit of one line unless the rule is suppressed there.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="line">The zero-based line.</param>
+    /// <param name="edits">Receives the edit.</param>
+    private static void AddLineTrailing(ParsedDocument document, LineLayout layout, int line, EditSet edits)
+    {
+        if (!IsSuppressedIn(document, layout.LineStart(line), layout.LineEnd(line), RuleCatalog.TrailingWhitespaceRuleId))
+        {
+            LeafWhitespace.AddTrailingEdit(layout, line, edits);
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a rule is suppressed anywhere in a range of offsets.
+    /// </summary>
+    /// <param name="document">The parsed document that holds the suppressions.</param>
+    /// <param name="start">Offset of the first character of the range.</param>
+    /// <param name="endInclusive">Offset of the last character of the range (or of the line feed that ends the last line).</param>
+    /// <param name="ruleId">The rule.</param>
+    /// <returns><see langword="true"/> when a suppression covers part of the range.</returns>
+    private static bool IsSuppressedIn(ParsedDocument document, int start, int endInclusive, string ruleId) =>
+        document.Suppressions.IsSuppressedRange(start, endInclusive + 1, ruleId);
+
+    /// <summary>
+    ///     Turns the edits of the always-applied formatting rules into diagnostics.
+    /// </summary>
+    /// <param name="source">The source document (for the path and the positions).</param>
+    /// <param name="edits">The edits, ordered by position.</param>
+    /// <returns>One diagnostic per rule and line, in the order of the edits; none for edits of rules that are not always applied.</returns>
+    /// <remarks>
+    ///     Linting a file is formatting it and reporting what would change, so every edit of an always-applied
+    ///     rule is a violation at the place it changes. The position of an insertion is the line it is inserted
+    ///     before. An edit of a configurable rule (a block formatter that a test installs, for instance) is not
+    ///     reported here: reporting belongs to those rules.
+    /// </remarks>
+    private static ImmutableArray<Diagnostic> ReportEdits(SourceDocument source, ImmutableArray<TextEdit> edits)
+    {
+        var reported = new HashSet<(string RuleId, int Line)>();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        foreach (var edit in edits)
+        {
+            if (!RuleCatalog.TryGet(edit.RuleId, out var rule)
+                || rule.IsConfigurable
+                || rule.Kind != DiagnosticKind.Formatting
+                || rule.Id == LineEndingRuleId)
+            {
+                continue;
+            }
+
+            var (line, column) = source.PositionOf(edit.Start);
+            if (reported.Add((rule.Id, line)))
+            {
+                diagnostics.Add(new Diagnostic(rule.Id, DiagnosticKind.Formatting, source.Path, line, column, rule.Description));
+            }
+        }
+
+        return diagnostics.ToImmutable();
     }
 
     /// <summary>

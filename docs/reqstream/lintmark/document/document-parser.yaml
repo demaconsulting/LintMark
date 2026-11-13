@@ -271,3 +271,14 @@ sections:
                   - GridTableFallback_Constructor_LineBelowOne_Throws
                   - GridTableFallback_Constructor_ColumnBelowOne_Throws
                   - GridTableFallback_Equals_SameValues_AreEqual
+
+              - id: LintMark-Document-DocumentParser-SuppressionResolvesAliases
+                title: >-
+                  The DocumentParser class shall resolve a rule that a suppression comment names by its legacy
+                  rule number to the rule that the number stands for.
+                justification: |
+                  Authors who come from other Markdown tools write suppression comments with the rule numbers
+                  they know, and such a comment must switch off the same rule as the name of the rule does.
+                tests:
+                  - DocumentParser_Parse_SuppressionCommentWithAlias_SuppressesTheCanonicalRule
+                  - DocumentParser_Parse_DisableNextLineWithAlias_SuppressesTheNextLineOnly
