@@ -441,6 +441,8 @@ reviews:
       - "docs/verification/lintmark/formatting/blocks.md"
       - "test/**/Formatting/Blocks/BlocksSubsystemTests.cs"
       - "test/**/Formatting/Blocks/BlocksCorpusTests.cs"
+      - "test/**/Formatting/Blocks/ListQuoteInlineCorpusTests.cs"
+      - "test/**/Formatting/Blocks/ListQuoteInlineDocuments.cs"
       - "test/**/Formatting/Blocks/BlockFormatterAssertions.cs"
 
   - id: LintMark-Formatting-Blocks-HeadingFormatter
@@ -490,6 +492,71 @@ reviews:
       - "docs/verification/lintmark/formatting/blocks/thematic-break-formatter.md"
       - "src/**/Formatting/Blocks/ThematicBreakFormatter.cs"
       - "test/**/Formatting/Blocks/ThematicBreakFormatterTests.cs"
+
+  - id: LintMark-Formatting-Blocks-ListFormatter
+    title: Review that LintMark Formatting Blocks ListFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/list-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/list-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/list-formatter.md"
+      - "src/**/Formatting/Blocks/ListFormatter.cs"
+      - "src/**/Formatting/Blocks/ListModel.cs"
+      - "src/**/Formatting/Blocks/ListPlan.cs"
+      - "test/**/Formatting/Blocks/ListFormatterTests.cs"
+
+  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter
+    title: Review that LintMark Formatting Blocks BlockQuoteFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/block-quote-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/block-quote-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/block-quote-formatter.md"
+      - "src/**/Formatting/Blocks/BlockQuoteFormatter.cs"
+      - "test/**/Formatting/Blocks/BlockQuoteFormatterTests.cs"
+
+  - id: LintMark-Formatting-Inline
+    title: Review that LintMark Formatting Inline Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/inline.yaml"
+      - "docs/design/lintmark/formatting/inline.md"
+      - "docs/verification/lintmark/formatting/inline.md"
+      - "test/**/Formatting/Inline/InlineSubsystemTests.cs"
+
+  - id: LintMark-Formatting-Inline-InlineNormalizer
+    title: Review that LintMark Formatting Inline InlineNormalizer Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/inline.md
+      - docs/reqstream/lintmark/formatting/inline.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/inline/inline-normalizer.yaml"
+      - "docs/design/lintmark/formatting/inline/inline-normalizer.md"
+      - "docs/verification/lintmark/formatting/inline/inline-normalizer.md"
+      - "src/**/Formatting/Inline/InlineNormalizer.cs"
+      - "src/**/Formatting/Inline/InlineCandidates.cs"
+      - "src/**/Formatting/Inline/ParagraphProof.cs"
+      - "test/**/Formatting/Inline/InlineNormalizerTests.cs"
 
   # LintMark - Linting
   - id: LintMark-Linting

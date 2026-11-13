@@ -50,6 +50,10 @@ package LintMark {
         expose BlocksSubsystem;
     }
 
+    view InlineView {
+        expose InlineSubsystem;
+    }
+
     view SafetyView {
         expose SafetySubsystem;
     }

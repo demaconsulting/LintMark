@@ -79,7 +79,7 @@ sections:
                   Removed rules must stay recognizable so that an old entry is neither an error nor a rule.
                 tests:
                   - RuleCatalog_TryResolve_DroppedAlias_ReturnsFalseAndIsDropped
-                  - RuleCatalog_Rules_Configurable22NonConfigurable25AndDropped9_CountsMatch
+                  - RuleCatalog_Rules_Configurable22NonConfigurable33AndDropped9_CountsMatch
 
               - id: LintMark-Linting-RuleCatalog-Defaults
                 title: >-

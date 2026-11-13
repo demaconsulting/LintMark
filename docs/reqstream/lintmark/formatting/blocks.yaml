@@ -3,8 +3,9 @@
 #
 # PURPOSE:
 # - Define requirements for the LintMark Blocks subsystem, which is part of the Formatting subsystem
-# - The Blocks subsystem holds the block formatters of the tool: one for headings, one for code blocks, and one for
-#   thematic breaks. Each proposes the changes that bring one kind of block into canonical form
+# - The Blocks subsystem holds the block formatters of the tool: one for headings, one for code blocks, one for
+#   thematic breaks, one for lists, and one for block quotes. Each proposes the changes that bring one kind of block
+#   into canonical form
 # - Subsystem requirements describe what the block formatters guarantee together, with the real parser and the
 #   document formatter that drives them
 
@@ -276,10 +277,16 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-SuppressedRuleKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-SuppressedRuleKept
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-SuppressedRuleKept
+                  - LintMark-Formatting-Blocks-ListFormatter-SuppressedRuleKeptByIdentifier
+                  - LintMark-Formatting-Blocks-ListFormatter-SuppressedRuleKeptByAlias
+                  - LintMark-Formatting-Blocks-ListFormatter-ListAfterEnabledAgainFormatted
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-SuppressedRuleKeptByIdentifier
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-SuppressedRuleKeptByAlias
                 tests:
                   - BlocksSubsystem_Format_SuppressedBlocks_AreKeptAndTheOthersAreFormatted
                   - BlocksSubsystem_Format_SuppressedWithNextLineDirective_KeepsOnlyThatBlock
                   - BlocksSubsystem_Format_NextLineDirectiveBeforeBlock_KeepsTheDirectiveWithItsLine
+                  - BlocksSubsystem_Format_ListOrQuoteRuleSuppressed_LeavesThem
 
               - id: LintMark-Formatting-Blocks-EditsAttributedToRules
                 title: >-
@@ -291,13 +298,15 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-EditsUnderOwnRule
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-EditsUnderOwnRule
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-EditsUnderOwnRule
+                  - LintMark-Formatting-Blocks-ListFormatter-EditsUnderOwnRule
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-EditsUnderOwnRule
                 tests:
                   - BlocksSubsystem_Format_DocumentBreakingEveryRule_ReportsEveryRuleOnce
 
               - id: LintMark-Formatting-Blocks-CanonicalBlocksUnchanged
                 title: >-
-                  The Blocks subsystem shall propose no change for a heading, code block, or thematic break that is
-                  already in canonical form.
+                  The Blocks subsystem shall propose no change for a heading, code block, thematic break, list, or
+                  block quote that is already in canonical form.
                 justification: |
                   A canonical file must not be reported or rewritten, and the result of a rewrite must not need
                   another one.
@@ -305,9 +314,11 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-CanonicalUnchanged
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-CanonicalUnchanged
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-CanonicalUnchanged
+                  - LintMark-Formatting-Blocks-ListFormatter-CanonicalUnchanged
                 tests:
                   - BlocksSubsystem_Format_CanonicalDocument_ProposesNothing
                   - BlocksSubsystem_Format_FormattedTwice_ChangesNothingTheSecondTime
+                  - BlocksSubsystem_Format_ListsAndQuotes_ChangeNothingTheSecondTime
 
               - id: LintMark-Formatting-Blocks-LineEndingsKept
                 title: >-
@@ -320,10 +331,13 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-LineEndingsKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-LineEndingsKept
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-LineEndingsKept
+                  - LintMark-Formatting-Blocks-ListFormatter-LineEndingsKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-LineEndingsKept
                 tests:
                   - BlocksSubsystem_Format_DirtyDocumentWithCrlf_ProposesTheSameEdits
                   - BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark
                   - BlocksSubsystem_Format_MixedLineEndings_AreWrittenWithTheMajorityEnding
+                  - BlocksSubsystem_Format_ListsAndQuotes_ChangeNothingTheSecondTime
 
               - id: LintMark-Formatting-Blocks-ByteOrderMarkKept
                 title: >-
@@ -336,9 +350,12 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-ByteOrderMarkKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-ByteOrderMarkKept
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-ByteOrderMarkKept
+                  - LintMark-Formatting-Blocks-ListFormatter-ByteOrderMarkKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-ByteOrderMarkKept
                 tests:
                   - BlocksSubsystem_Format_DirtyDocumentWithByteOrderMark_ProposesTheSameEdits
                   - BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark
+                  - BlocksSubsystem_Format_ListsAndQuotes_ChangeNothingTheSecondTime
 
               - id: LintMark-Formatting-Blocks-DeterministicResult
                 title: >-
@@ -351,5 +368,185 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-DeterministicResult
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-DeterministicResult
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-DeterministicResult
+                  - LintMark-Formatting-Blocks-ListFormatter-DeterministicResult
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-DeterministicResult
                 tests:
                   - BlocksSubsystem_Format_SameDocumentOnManyThreads_GivesTheSameResult
+
+              - id: LintMark-Formatting-Blocks-ListFormatterProvided
+                title: >-
+                  The Blocks subsystem shall provide a block formatter that proposes the changes that bring each list
+                  of a document into canonical form.
+                justification: |
+                  Lists have more than one way of being written in Markdown. The canonical form is what makes the
+                  documents of a project consistent.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-AcceptsOutermostLists
+                  - LintMark-Formatting-Blocks-ListFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-ListFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-ListFormatter-RuleIdsImmutable
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-BlockQuoteFormatterProvided
+                title: >-
+                  The Blocks subsystem shall provide a block formatter that proposes the changes that bring each
+                  block quote of a document into canonical form.
+                justification: |
+                  Block quotes have more than one way of being written in Markdown. The canonical form is what makes
+                  the documents of a project consistent.
+                children:
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-AcceptsOutermostQuotes
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-RuleIdsImmutable
+                tests:
+                  - BlocksSubsystem_Format_QuoteForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-BulletMarkerStyle
+                title: >-
+                  The Blocks subsystem shall write the marker of each item of a bullet list as the configured marker
+                  character, except where that could change the meaning of the document.
+                justification: |
+                  One marker character makes the lists of a project consistent. A marker that would turn an item into
+                  a thematic break stays as it is, because the conversion could change what the document means.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-MarkerCharacterConverted
+                  - LintMark-Formatting-Blocks-ListFormatter-MarkersChangedInContainers
+                  - LintMark-Formatting-Blocks-ListFormatter-ThematicBreakLookalikeKept
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+                  - BlocksSubsystem_Format_BulletLists_AreNeverMergedOrSplit
+
+              - id: LintMark-Formatting-Blocks-ListsNeverMergedOrSplit
+                title: >-
+                  The Blocks subsystem shall never merge two lists into one or split a list into two when it writes
+                  the markers of lists.
+                justification: |
+                  Two lists that differ only by their markers are two lists, and the items of one list must stay one
+                  list. Merging or splitting lists changes how the document renders.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-AllItemsConvertedTogether
+                  - LintMark-Formatting-Blocks-ListFormatter-AdjacentListsKept
+                  - LintMark-Formatting-Blocks-ListFormatter-SeparatedListsConverted
+                tests:
+                  - BlocksSubsystem_Format_BulletLists_AreNeverMergedOrSplit
+
+              - id: LintMark-Formatting-Blocks-OrderedNumbering
+                title: >-
+                  The Blocks subsystem shall number the items of each ordered list in the configured style, counting
+                  from the number that its first item has.
+                justification: |
+                  Counting numbers show the position of each item, and numbers that are all the same let items be
+                  inserted without renumbering. The first number and the delimiter decide how the list renders, so
+                  they stay as written.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-NumbersIncrementFromFirst
+                  - LintMark-Formatting-Blocks-ListFormatter-NumbersRepeatFirst
+                  - LintMark-Formatting-Blocks-ListFormatter-FirstNumberKept
+                  - LintMark-Formatting-Blocks-ListFormatter-DelimiterKept
+                  - LintMark-Formatting-Blocks-ListFormatter-NumbersKeptWhenItemsCannotMove
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-ListItemsAligned
+                title: >-
+                  The Blocks subsystem shall start the items of each list in the same column.
+                justification: |
+                  Items in different columns look like a mistake and can change which item a line belongs to.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-ItemsAlignedToFirst
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-ListStartsAtMargin
+                title: >-
+                  The Blocks subsystem shall start each bullet list at the top level of a document at the left margin.
+                justification: |
+                  An indented list at the top level looks like a mistake and can be read as code.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-TopLevelBulletsStartAtMargin
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-NestedBulletIndent
+                title: >-
+                  The Blocks subsystem shall indent a bullet list inside the item of a bullet list by the configured
+                  number of spaces.
+                justification: |
+                  One indentation for nested bullet lists makes the lists of a project consistent.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-BulletInBulletIndented
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-ListMarkerSpace
+                title: >-
+                  The Blocks subsystem shall write exactly one space between the marker of a list item and its
+                  text, except where the spaces make the text indented code.
+                justification: |
+                  Extra spaces after a marker have no meaning and make the lists of a project inconsistent. With
+                  five spaces the text is a code block, and removing spaces would change the block.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-SpacesAfterMarkerNormalized
+                  - LintMark-Formatting-Blocks-ListFormatter-IndentedCodeAfterMarkerKept
+                tests:
+                  - BlocksSubsystem_Format_ListForms_AreCanonical
+                  - BlocksSubsystem_Format_ListStructure_IsKept
+
+              - id: LintMark-Formatting-Blocks-ListStructureKept
+                title: >-
+                  The Blocks subsystem shall keep the structure of each list that it changes, so that every line and
+                  block stays in the item it belongs to.
+                justification: |
+                  The text of an item, code and tables included, must move with its marker, while a list whose lines
+                  belong to it by their position, that lies in a quote, or that is next to a line that could join it
+                  keeps its columns, a list in a footnote is left as written, and a list that is nested in another
+                  kind of list keeps its offset to the item. A loose list stays loose and a tight list stays tight.
+                children:
+                  - LintMark-Formatting-Blocks-ListFormatter-WidthChangeMovesContent
+                  - LintMark-Formatting-Blocks-ListFormatter-ItemContentKept
+                  - LintMark-Formatting-Blocks-ListFormatter-LazyLinesKept
+                  - LintMark-Formatting-Blocks-ListFormatter-TabsKept
+                  - LintMark-Formatting-Blocks-ListFormatter-QuoteListsKeepColumns
+                  - LintMark-Formatting-Blocks-ListFormatter-FootnoteListsKept
+                  - LintMark-Formatting-Blocks-ListFormatter-OtherNestingOffsetKept
+                  - LintMark-Formatting-Blocks-ListFormatter-ColumnsKeptWhenALineWouldJoin
+                  - LintMark-Formatting-Blocks-ListFormatter-GridTableInItemKept
+                  - LintMark-Formatting-Blocks-ListFormatter-LooseAndTightKept
+                tests:
+                  - BlocksSubsystem_Format_ListStructure_IsKept
+                  - ListQuoteInlineCorpus_Format_RandomLists_AreSafeAndStable
+
+              - id: LintMark-Formatting-Blocks-QuoteMarkerSpace
+                title: >-
+                  The Blocks subsystem shall write exactly one space after each block quote marker on the paragraph
+                  and heading lines of a quote.
+                justification: |
+                  Extra spaces after a quote marker have no meaning and make the quotes of a project inconsistent.
+                children:
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-ExtraSpacesRemoved
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-HeadingLinesNormalized
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-NestedQuoteMarkersNormalized
+                tests:
+                  - BlocksSubsystem_Format_QuoteForms_AreCanonical
+
+              - id: LintMark-Formatting-Blocks-QuoteContentKept
+                title: >-
+                  The Blocks subsystem shall keep the spaces after a block quote marker as written where they are
+                  part of the content or the structure of the quote.
+                justification: |
+                  The spaces are content in code, HTML, and math, part of the structure of setext headings, tables,
+                  lists, and footnotes, and part of what makes a line a lazy continuation, so removing them would
+                  change how the quote renders.
+                children:
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-FiveSpacesKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-TabsKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-LazyLinesKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-OtherBlocksInQuoteKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-ListInQuoteKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-QuoteInListItemKept
+                  - LintMark-Formatting-Blocks-BlockQuoteFormatter-MarkerOnlyLinesKept
+                tests:
+                  - BlocksSubsystem_Format_QuoteContent_IsKept
+                  - ListQuoteInlineCorpus_Format_RandomQuotes_AreSafeAndStable

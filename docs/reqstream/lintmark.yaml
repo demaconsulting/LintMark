@@ -812,6 +812,7 @@ sections:
           - LintMark-Formatting-SuppressedBlocksVerbatim
         tests:
           - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
+          - LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation
 
       - id: LintMark-System-TrailingWhitespace
         title: >-
@@ -1015,6 +1016,170 @@ sections:
           - LintMark-Formatting-CodeBlockStyle
         tests:
           - LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence
+
+      - id: LintMark-System-BulletMarkerStyle
+        title: >-
+          The tool shall write the marker of each item of a bullet list as the marker character that the `bullet`
+          setting of its configuration says, a dash when the configuration gives none.
+        tags: [system]
+        justification: |
+          One marker character makes the lists of a project consistent, and projects differ in the character they
+          prefer.
+        children:
+          - LintMark-Formatting-BulletMarkerStyle
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+
+      - id: LintMark-System-ListsNeverMergedOrSplit
+        title: >-
+          The tool shall keep two bullet lists that differ only by their marker as two lists and shall keep one list
+          as one list when it writes list markers.
+        tags: [system]
+        justification: |
+          Two lists that differ only by their markers are two lists, and rewriting must not change how the
+          document renders.
+        children:
+          - LintMark-Formatting-ListsNeverMergedOrSplit
+        tests:
+          - LintMark_FixFlag_BulletLists_AreNeverMergedOrSplit
+
+      - id: LintMark-System-OrderedNumberingIncrementing
+        title: >-
+          The tool shall number each item of an ordered list one higher than the item before it, counting from the
+          number of the first item, when the `ordered-style` setting of its configuration is `incrementing`, which
+          is the default.
+        tags: [system]
+        justification: |
+          Counting numbers show the position of each item, also in the source text. The first number decides where
+          the list starts counting when it is rendered, so it stays as written.
+        children:
+          - LintMark-Formatting-OrderedNumberingIncrementing
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+
+      - id: LintMark-System-OrderedNumberingOne
+        title: >-
+          The tool shall give each item of an ordered list the number of the first item when the `ordered-style`
+          setting of its configuration is `one`.
+        tags: [system]
+        justification: |
+          Projects that want to insert items without renumbering the others write every item with the same number.
+        children:
+          - LintMark-Formatting-OrderedNumberingOne
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+
+      - id: LintMark-System-ListIndentation
+        title: >-
+          The tool shall write the items of each list at the columns that the `list-indent` setting of its
+          configuration asks for, two spaces of indentation for a nested bullet list when the configuration gives
+          none.
+        tags: [system]
+        justification: |
+          Items in different columns look like a mistake and can change which item a line belongs to, and one
+          indentation for nested lists makes the lists of a project consistent. The system tests show the default
+          indentation of a nested bullet list, the setting that asks for four spaces, and items that start in
+          different columns.
+        children:
+          - LintMark-Formatting-ListItemsAligned
+          - LintMark-Formatting-ListStartsAtMargin
+          - LintMark-Formatting-NestedBulletIndent
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+          - LintMark_FixFlag_NestedBulletIndent_UsesTheConfiguredIndent
+          - LintMark_FixFlag_ListItemColumns_AreAligned
+
+      - id: LintMark-System-ListStructureKept
+        title: >-
+          The tool shall keep every line and block of a list in the item that it belongs to when it changes the
+          list.
+        tags: [system]
+        justification: |
+          A line that leaves its item changes what the document says. Items move together with their continuation
+          lines, paragraphs, nested lists, and code.
+        children:
+          - LintMark-Formatting-ListStructureKept
+        tests:
+          - LintMark_FixFlag_ListItemsWithContent_MoveWithTheirItem
+
+      - id: LintMark-System-ListMarkerSpace
+        title: >-
+          The tool shall put exactly one space between the marker of each list item and its text, where that keeps
+          the meaning of the text.
+        tags: [system]
+        justification: |
+          Extra spaces after a marker have no meaning and make the lists of a project inconsistent. With five
+          spaces the text is a code block, and removing spaces would change the block.
+        children:
+          - LintMark-Formatting-ListMarkerSpace
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+
+      - id: LintMark-System-BlockQuoteMarkerSpace
+        title: >-
+          The tool shall put exactly one space after each block quote marker, where the spaces are not content or
+          structure of the quote.
+        tags: [system]
+        justification: |
+          Extra spaces after a quote marker have no meaning and make the quotes of a project inconsistent. In code,
+          HTML, lists, and tables the spaces are content or structure, so they stay.
+        children:
+          - LintMark-Formatting-BlockQuoteMarkerSpace
+        tests:
+          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
+
+      - id: LintMark-System-EmphasisStyle
+        title: >-
+          The tool shall write each emphasis in the text of a paragraph with the delimiter character that the
+          `emphasis` setting of its configuration says, an asterisk when the configuration gives none, where that
+          keeps the meaning of the text.
+        tags: [system]
+        justification: |
+          Underscores and asterisks mean the same emphasis, and one of them makes the documents of a project
+          consistent. An underscore does not emphasize inside a word, so such an emphasis keeps its asterisks.
+        children:
+          - LintMark-Formatting-EmphasisStyle
+        tests:
+          - LintMark_FixFlag_InlineText_IsWrittenCanonically
+
+      - id: LintMark-System-StrongStyle
+        title: >-
+          The tool shall write each strong emphasis in the text of a paragraph with the delimiter character that the
+          `strong` setting of its configuration says, an asterisk when the configuration gives none, where that
+          keeps the meaning of the text.
+        tags: [system]
+        justification: |
+          Double underscores and double asterisks mean the same strong emphasis, and one of them makes the
+          documents of a project consistent.
+        children:
+          - LintMark-Formatting-StrongStyle
+        tests:
+          - LintMark_FixFlag_InlineText_IsWrittenCanonically
+
+      - id: LintMark-System-BareUrlsAutolinked
+        title: >-
+          The tool shall wrap each bare http, https, or ftp URL in the text of a paragraph in angle brackets when
+          the `bare-urls` setting of its configuration is `autolink`, which is the default.
+        tags: [system]
+        justification: |
+          A URL in angle brackets is explicitly a link in every Markdown processor, while a bare one is a link in
+          some processors only. Links, code, HTML, and addresses that would render differently are not touched.
+        children:
+          - LintMark-Formatting-BareUrlsAutolinked
+        tests:
+          - LintMark_FixFlag_InlineText_IsWrittenCanonically
+
+      - id: LintMark-System-BareUrlsLeft
+        title: >-
+          The tool shall keep each bare URL in the text of a paragraph as written when the `bare-urls` setting of
+          its configuration is `leave`.
+        tags: [system]
+        justification: |
+          Projects that want bare URLs choose to keep them, and the other rules still apply.
+        children:
+          - LintMark-Formatting-BareUrlsLeft
+        tests:
+          - LintMark_FixFlag_InlineText_IsWrittenCanonically
 
       - id: LintMark-System-CodeContentKept
         title: >-

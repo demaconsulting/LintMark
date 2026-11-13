@@ -47,6 +47,10 @@ This document covers the verification design for the following software items:
       - **HeadingFormatter** — canonical ATX headings
       - **CodeBlockFormatter** — canonical fenced code blocks
       - **ThematicBreakFormatter** — canonical thematic breaks
+      - **ListFormatter** — canonical list markers, numbers, columns, and spacing
+      - **BlockQuoteFormatter** — canonical spacing after block quote markers
+    - **Inline** subsystem
+      - **InlineNormalizer** — canonical emphasis and strong emphasis delimiters and wrapped bare URLs
   - **Safety** subsystem
     - **HtmlEquivalenceChecker** — comparison of the rendered HTML of two texts
     - **StructuralTokenChecker** — comparison of structural tokens of two texts
@@ -98,7 +102,10 @@ test/
 │   ├── Document/                   — Document subsystem and unit tests, with test-support helpers
 │   ├── Engine/                     — Engine subsystem and unit tests
 │   ├── Formatting/                 — Formatting subsystem and unit tests, with test block formatters
-│   │   └── Blocks/                 — Blocks subsystem, corpus, and block formatter unit tests
+│   │   ├── Blocks/                 — Blocks subsystem, corpus, and block formatter unit tests, including
+│   │   │                             ListFormatterTests, BlockQuoteFormatterTests, ListQuoteInlineCorpusTests, and its
+│   │   │                             generator ListQuoteInlineDocuments
+│   │   └── Inline/                 — InlineSubsystemTests and InlineNormalizerTests
 │   ├── Linting/                    — Linting subsystem and unit tests
 │   ├── Reporting/                  — Reporting subsystem and unit tests, with a patch applier
 │   ├── Safety/                     — Safety subsystem and unit tests

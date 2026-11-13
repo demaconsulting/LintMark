@@ -168,6 +168,29 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
+    ///     Test that the default formatters rewrite lists, quotes and inline text, and report each under its own rule.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_CheckListQuoteInlineViolations_ReportsEachRule()
+    {
+        // Arrange: a file with a bullet, a numbered list, a quote, emphasis and a bare URL that break their rules
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", Utf8("* a\n\n1. b\n1. c\n\n>  d\n\n_e_ http://x.com\n"));
+
+        // Act: run with the check option
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--check");
+
+        // Assert: each rule is reported and the file is untouched
+        Assert.Equal(1, exitCode);
+        foreach (var rule in new[] { "bullet", "ordered-style", "blockquote-space", "emphasis", "bare-urls" })
+        {
+            Assert.Contains(lines, line => line.Contains(rule, StringComparison.Ordinal));
+        }
+
+        Assert.Equal(Utf8("* a\n\n1. b\n1. c\n\n>  d\n\n_e_ http://x.com\n"), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
     ///     Test that a configuration cannot switch off an always-applied formatting rule, by id or by its legacy number.
     /// </summary>
     [Theory]

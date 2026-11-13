@@ -3,8 +3,9 @@
 #
 # The DocumentFormatter class walks the blocks of a parsed document, lets the block formatters that accept a block
 # propose changes, applies the rules that concern every document (whitespace, blank lines, spacing between blocks,
-# and the end of the file), reports each change as a problem, and decides the line ending of the document (with the
-# IBlockFormatter, FormatContext, and FormatResult supporting types).
+# and the end of the file), gives each paragraph that no block formatter accepts to the inline normalizer, reports
+# each change as a problem, and decides the line ending of the document (with the IBlockFormatter, FormatContext,
+# and FormatResult supporting types).
 
 sections:
   - title: LintMark Requirements
@@ -26,13 +27,16 @@ sections:
                 title: >-
                   The DocumentFormatter class shall propose no change for a block that no block formatter accepts,
                   except the changes of the rules that apply to every document: trailing whitespace, tabs, runs of
-                  blank lines, blank lines between blocks, and the end of the file.
+                  blank lines, blank lines between blocks, and the end of the file, and, for a paragraph, the
+                  emphasis, strong emphasis, and bare URL rules when an inline normalizer was given.
                 justification: |
                   Only what a rule asks to change may change. A block of a kind that no block formatter handles
-                  belongs to the author, apart from the whitespace rules that apply to every document.
+                  belongs to the author, apart from the whitespace rules that apply to every document and the inline
+                  rules that apply to the text of paragraphs.
                 tests:
                   - DocumentFormatter_Format_NoFormatters_ProducesNoEdits
                   - DocumentFormatter_Format_BlockNoFormatterAccepts_LeftVerbatim
+                  - DocumentFormatter_Format_InlineNormalizerGiven_NormalizesUnclaimedParagraphs
 
               - id: LintMark-Formatting-DocumentFormatter-OneFormatterPerBlock
                 title: >-
@@ -784,3 +788,62 @@ sections:
                   short.
                 tests:
                   - DocumentFormatter_Format_Edits_AreReportedPerRuleAndLineAtTheirPlace
+
+              - id: LintMark-Formatting-DocumentFormatter-InlineRulesApplied
+                title: >-
+                  The DocumentFormatter class shall propose the inline changes of the normalizer that it was given
+                  for each paragraph that no block formatter accepts.
+                justification: |
+                  The text of paragraphs is the subject of the inline rules. A formatter without a normalizer applies
+                  none of them, so that the rules of the shipped tool are exactly the ones that were registered.
+                tests:
+                  - DocumentFormatter_Format_InlineNormalizerGiven_NormalizesUnclaimedParagraphs
+
+              - id: LintMark-Formatting-DocumentFormatter-InlineRulesNotForClaimedParagraphs
+                title: >-
+                  The DocumentFormatter class shall propose no inline change for a paragraph that a block formatter
+                  accepts.
+                justification: |
+                  A block belongs to one formatter. A second author of changes to the same lines would conflict with
+                  it and could undo its decision.
+                tests:
+                  - DocumentFormatter_Format_ClaimedOrSuppressedParagraph_IsNotNormalized
+
+              - id: LintMark-Formatting-DocumentFormatter-InlineSuppressedRuleKept
+                title: >-
+                  The DocumentFormatter class shall propose no inline change for a paragraph in which a comment of
+                  the document disables the rule of that change.
+                justification: |
+                  An author who switched an inline rule off for a passage expects the text there to stay as written.
+                tests:
+                  - DocumentFormatter_Format_ClaimedOrSuppressedParagraph_IsNotNormalized
+
+              - id: LintMark-Formatting-DocumentFormatter-InlineEditsReported
+                title: >-
+                  The DocumentFormatter class shall report each inline change as a formatting problem under the
+                  identifier of the rule of the change.
+                justification: |
+                  Checking a file is formatting it and listing what would change, so each inline change is a problem
+                  that the check reports.
+                tests:
+                  - DocumentFormatter_Format_InlineNormalizerGiven_NormalizesUnclaimedParagraphs
+
+              - id: LintMark-Formatting-DocumentFormatter-FormatContextExposesLayoutAndOwnership
+                title: >-
+                  The FormatContext record shall expose the line arithmetic and the line ownership map of the
+                  document that it was created with.
+                justification: |
+                  Block formatters of containers must know where lines start and which lines hold code or other
+                  protected content, and they must see the same facts as the document-level rules.
+                tests:
+                  - FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt
+
+              - id: LintMark-Formatting-DocumentFormatter-FormatContextBuildsLayoutAndOwnership
+                title: >-
+                  The FormatContext record shall build the line arithmetic and a line ownership map for its document
+                  when it is created without them.
+                justification: |
+                  A block formatter can be used on its own, with a context made from a document and a configuration
+                  only.
+                tests:
+                  - FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt

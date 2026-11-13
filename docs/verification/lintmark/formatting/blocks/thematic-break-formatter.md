@@ -81,10 +81,11 @@ the asterisk configuration are formatted. Each is unchanged, because the convert
 own and the list would be lost; `- ***` with the underscore configuration is converted.
 
 **A break after a plus sign list marker stays as written when dashes are wanted**: `+ ***`, `+ * * *`, `+ ___`, `> + ***`
-are formatted with the default configuration, with the production formatters and with the formatter alone. Each is
+are formatted with the default thematic break style, with the production formatters (with `bullet: plus`, so that the list
+formatter keeps the marker; it only closes up an extra gap after it) and with the formatter alone. Each is
 unchanged, because `+ ---` looks like the border of a grid table, and the result renders the same and is stable. With the
 asterisk configuration `+ * * *` becomes `+ ***`, and with the underscore configuration `+ ***` and `+ - - -` become
-`+ ___`.
+`+ ___`; the production formatters are given `bullet: plus` for these inputs too.
 
 **A break that is missing from the block list has no previous sibling (defensive, no requirement)**: A break directly
 under text is formatted in a hand-built document whose block list does not hold the break. Nothing is thrown, the text

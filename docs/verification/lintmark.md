@@ -17,7 +17,8 @@ prints each path relative to the current directory of the tool process, so the a
 path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
 check whether a configuration problem is reported, where, in what form, and with what exit status. The settings that
 change what the tool does to a file are the line ending (`end-of-line`), `final-newline`, `max-blank-lines`,
-`code-fence`, and `thematic-break`, so the scenarios that name them in a configuration file or in editor settings check
+`code-fence`, `thematic-break`, `bullet`, `ordered-style`, `list-indent`, `emphasis`, `strong`, and `bare-urls`, so the
+scenarios that name them in a configuration file or in editor settings check
 the effect on the bytes of the rewritten file.
 
 The scenarios about the `--fix` and `--diff` options write a file with known bytes, run the tool, and then read
@@ -67,11 +68,18 @@ a file without permissions, such as when the tests run as a privileged user.
   of blank lines are reduced to the configured maximum, a file ends with exactly one line ending or none as configured,
   headings are ATX headings with one space, headings, fences, lists, and tables are separated from their neighbors by
   blank lines, thematic breaks and code fences take the configured style, and indented code becomes fenced code.
+- Lists and block quotes are written canonically (the configured bullet character, counting or repeated numbers, aligned
+  items, nested bullets indented as configured, and one space after each marker), emphasis, strong emphasis, and bare
+  URLs are written as configured, and each of these rules, disabled by a suppression comment with its legacy number, is
+  neither fixed nor reported.
+- Two bullet lists that differ only by their marker stay two lists, the lines and blocks of a list item move with the
+  item, and the items of a list start in the same column.
 - Code, HTML, math, and front matter keep their content, no blank line is added or removed inside quotes and lists, and
   a rule that a suppression comment disables by its legacy number is neither fixed nor reported.
 - `--check` reports each place that a formatting rule would change under the rule identifier at its line and column,
   `--diff` shows the change of such a rule, a second `--fix` run finds nothing, and a configuration that names a
-  formatting rule or its legacy number in `rules` is reported as an unknown rule.
+  formatting rule or its legacy number in `rules` is reported as an unknown rule, as is the legacy number of a rule that
+  is only planned to report a problem (`MD037`).
 - A file with an invalid grid table, with an invalid configuration, with editor settings that cannot be read, or whose
   conversion to another line ending would change how the document renders is never rewritten; the reason is reported,
   except that an invalid grid table is reported only while the
@@ -295,6 +303,45 @@ check run on the result reports nothing, and a second `--fix` run gives exit cod
 
 **A formatting rule cannot be switched off in the configuration**: A configuration lists `MD009: false` under `rules`;
 the exit code is 1 and the output reports a `config-error` for the unknown rule `MD009`.
+
+**A rule that is only planned is not known by its legacy number**: A configuration lists `MD037: false` under `rules`,
+the number of a rule that is planned to report a problem without a fix; the exit code is 1 and the output reports a
+`config-error` for the unknown rule `MD037`.
+
+**Fix writes lists and quotes in the canonical form**: A file with asterisk bullets and a nested bullet, a numbered list
+whose numbers repeat, an item with a wide gap after its marker, and a quote with a wide gap is passed with `--fix`
+without a configuration and with `bullet: asterisk` and `ordered-style: one`. By default the bullets are dashes, the
+numbers count up, the gap is one space, and the quote has one space after its marker; with the configuration the bullets
+are asterisks and every number is one.
+
+**Fix indents a nested bullet list by the configured number of spaces**: A file with a nested bullet written with two
+spaces and another written with five is passed with `--fix` without a configuration and with `list-indent: 4`. By
+default both nested bullets are indented two spaces; with the configuration both are indented four spaces.
+
+**Fix keeps bullet lists apart and keeps a list whole**: A file with three bullet lists that differ only by their marker
+and a bullet list with a nested list is passed with `--fix` without a configuration. The three lists keep three
+different markers, the nested list is a dash list inside its item, and the list is not split.
+
+**Fix moves the content of a list item with the item**: A file with items that have a continuation line, a second
+paragraph, a nested list, and fenced code after wide gaps, and with ten numbered items whose tenth number gains a digit
+and has a continuation line, is passed with `--fix`. Every continuation line, paragraph, nested list, and block moves by
+the width that its marker changed and stays in its item.
+
+**Fix aligns the items of a list**: A file with a bullet list whose items start in column two, another whose second item
+is one column right of the first, and an ordered list that starts in column two is passed with `--fix`. The bullet items
+start at the margin and the ordered list keeps its column.
+
+**Fix writes emphasis, strong emphasis, and bare URLs in the canonical form**: A file with underscore emphasis, underscore
+strong emphasis, and a bare URL is passed with `--fix` without a configuration and with `bare-urls: leave`, and a file
+with asterisk delimiters and a bare URL is passed with `emphasis: underscore`, `strong: underscore`, and
+`bare-urls: leave`. By default the delimiters are asterisks and the URL is in angle brackets; with `bare-urls: leave` the
+delimiters are asterisks and the URL is as written; with underscores configured the delimiters are underscores and the
+URL is as written.
+
+**A list, quote, or inline rule disabled by its legacy number is neither fixed nor reported**: A bullet, a quote with a
+wide gap, underscore emphasis, and a bare URL, each in a file after a comment that disables `MD004`, `MD027`, `MD049`, or
+`MD034`, are passed with `--fix`. The exit code is 0, no rule of the lists, quotes, or inline text is reported, and the
+bytes are the same.
 
 **Ignore patterns skip the matching files of a glob**: A configuration ignores `drafts/**` and both `drafts/bad.md`
 and `kept/bad.md` are undecodable; an absolute glob that selects every Markdown file gives exit code 1, a

@@ -32,6 +32,10 @@ includes:
   - docs/reqstream/lintmark/formatting/blocks/heading-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/code-block-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/thematic-break-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/list-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/block-quote-formatter.yaml
+  - docs/reqstream/lintmark/formatting/inline.yaml
+  - docs/reqstream/lintmark/formatting/inline/inline-normalizer.yaml
   - docs/reqstream/lintmark/safety.yaml
   - docs/reqstream/lintmark/safety/equivalence-result.yaml
   - docs/reqstream/lintmark/safety/html-equivalence-checker.yaml

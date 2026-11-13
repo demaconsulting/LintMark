@@ -1,0 +1,194 @@
+---
+# Software Unit Requirements for the InlineNormalizer Class
+#
+# The InlineNormalizer class proposes the changes that bring the text of a paragraph into canonical form: emphasis and
+# strong emphasis written with the configured delimiter characters, and bare URLs wrapped in angle brackets. A
+# paragraph that it cannot rewrite without possibly changing how it renders is left as written.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            sections:
+              - title: InlineNormalizer Requirements
+                requirements:
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-RejectsMissingArguments
+                    title: >-
+                      The InlineNormalizer class shall throw an ArgumentNullException that names the parameter when an
+                      argument is null.
+                    justification: |
+                      Missing arguments are programming errors that must be reported as such.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_NullArguments_Throw
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
+                    title: The InlineNormalizer class shall refuse to normalize a block that is not a paragraph.
+                    justification: |
+                      Headings and tables have a different shape, and their text is not the subject of the rules, so
+                      edits computed for them could damage them.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_HeadingBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-RuleIdsImmutable
+                    title: >-
+                      The InlineNormalizer class shall list the rules it enforces in a form that its holders cannot
+                      change.
+                    justification: |
+                      The list decides which suppressions affect the normalizer, and one instance is shared by every
+                      thread.
+                    tests:
+                      - InlineNormalizer_RuleIds_Read_ListsTheThreeRulesAndIsImmutable
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EmphasisDelimiterConverted
+                    title: >-
+                      The InlineNormalizer class shall write each emphasis of a paragraph with the delimiter that the
+                      `emphasis` setting names, an asterisk by default.
+                    justification: |
+                      Underscores and asterisks mean the same emphasis, and one of them makes the documents of a
+                      project consistent.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UnderscoreDelimiters_BecomeAsterisks
+                      - InlineNormalizer_AddBlockEdits_AsteriskDelimiters_BecomeUnderscoresWhenConfigured
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-StrongDelimiterConverted
+                    title: >-
+                      The InlineNormalizer class shall write each strong emphasis of a paragraph with the delimiter
+                      that the `strong` setting names, an asterisk by default.
+                    justification: |
+                      Double underscores and double asterisks mean the same strong emphasis, and one of them makes
+                      the documents of a project consistent.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UnderscoreDelimiters_BecomeAsterisks
+                      - InlineNormalizer_AddBlockEdits_AsteriskDelimiters_BecomeUnderscoresWhenConfigured
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-WithinWordEmphasisKept
+                    title: >-
+                      The InlineNormalizer class shall keep the asterisks of an emphasis that starts or ends inside a
+                      word when underscores are configured.
+                    justification: |
+                      An underscore inside a word does not emphasize anything, so writing it there would change how
+                      the paragraph renders.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_WithinWordEmphasis_KeepsAsterisks
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-NestedEmphasisKept
+                    title: >-
+                      The InlineNormalizer class shall keep the delimiters of an emphasis as written when another
+                      emphasis is next to it or inside it.
+                    justification: |
+                      Runs of delimiters are paired by rules that depend on the characters around them, so changing
+                      one of them could change which text is emphasized.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UnsafeEmphasis_KeepsTheParagraph
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UnpairedDelimiterParagraphKept
+                    title: >-
+                      The InlineNormalizer class shall keep the emphasis of a paragraph as written when the paragraph
+                      holds an asterisk or underscore that is not part of an emphasis.
+                    justification: |
+                      A delimiter character that is literal text, escaped, or unpaired can pair with a changed
+                      delimiter, so the paragraph could then render differently.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UnsafeEmphasis_KeepsTheParagraph
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeHtmlMathKept
+                    title: >-
+                      The InlineNormalizer class shall keep the delimiter characters in code spans, HTML, math, and
+                      link destinations as written.
+                    justification: |
+                      Those characters are content, not emphasis, and changing them changes what the text says.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeHtmlMathAndDestinations_KeepTheirDelimiters
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-ParagraphsInContainersNormalized
+                    title: >-
+                      The InlineNormalizer class shall normalize a paragraph inside a list item or a block quote the
+                      same way as a paragraph at the top level.
+                    justification: |
+                      Much of the text of a document is in lists and quotes, and the style of its emphasis and URLs
+                      must not depend on where the text is.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_ParagraphInContainer_IsNormalized
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlWrapped
+                    title: >-
+                      The InlineNormalizer class shall wrap each bare http, https, or ftp URL of a paragraph in angle
+                      brackets when the `bare-urls` setting is `autolink`, which is the default.
+                    justification: |
+                      A URL in angle brackets is explicitly a link, in every Markdown processor, while a bare one is
+                      a link in some processors only.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_BareUrls_AreWrappedInAngleBrackets
+                      - InlineNormalizer_AddBlockEdits_UrlAtStartOfBlockAfterHeading_IsWrappedAndSeparated
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-TrailingPunctuationOutside
+                    title: >-
+                      The InlineNormalizer class shall leave the punctuation that follows a bare URL outside of the
+                      angle brackets.
+                    justification: |
+                      A period, comma, or closing parenthesis after a URL belongs to the sentence, not to the
+                      address.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_BareUrls_AreWrappedInAngleBrackets
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsInLinksCodeHtmlKept
+                    title: >-
+                      The InlineNormalizer class shall keep a URL that is already a link, or is part of code or HTML,
+                      as written.
+                    justification: |
+                      A URL in a link, a code span, or an HTML tag is not a bare URL, and wrapping it would change
+                      the link or the text.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_OtherAddressesAndLinks_KeepTheirForm
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-WwwAndMailAddressesKept
+                    title: >-
+                      The InlineNormalizer class shall keep a www address, an e-mail address, and a mailto link as
+                      written.
+                    justification: |
+                      Such addresses render differently when they are wrapped in angle brackets, so the rule would
+                      change the document instead of its form.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_OtherAddressesAndLinks_KeepTheirForm
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsLeftWhenConfigured
+                    title: >-
+                      The InlineNormalizer class shall keep every bare URL as written when the `bare-urls` setting is
+                      `leave`.
+                    justification: |
+                      Projects that want bare URLs choose to keep them, and the other inline rules still apply.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_LeaveUrlsConfigured_KeepsUrlsAndNormalizesEmphasis
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-BracketParagraphKeptWithReferences
+                    title: >-
+                      The InlineNormalizer class shall keep a paragraph that holds a square bracket as written when
+                      the document defines link references.
+                    justification: |
+                      A bracket can be the label of a reference, and a rewritten label could stop matching its
+                      definition, which cannot be told from the paragraph alone.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_BracketAndReferenceDefinitions_KeepsTheParagraph
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-ParagraphLeftWhenRenderingWouldChange
+                    title: >-
+                      The InlineNormalizer class shall keep a paragraph as written when it cannot show that the
+                      changes would render the same.
+                    justification: |
+                      A paragraph that renders differently after the rewrite is damaged, so only a rewrite that is
+                      shown to keep the meaning is made, and the other paragraphs of the document are still
+                      normalized.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_ParagraphThatMayRenderDifferently_IsLeftAndTheRestIsNormalized
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DeterministicResult
+                    title: >-
+                      The InlineNormalizer class shall propose the same changes for the same parsed document when one
+                      instance is called from several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel by one shared instance, and a result that depended on timing
+                      could not be trusted.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_SharedInstanceOnManyThreads_GivesTheSameResult

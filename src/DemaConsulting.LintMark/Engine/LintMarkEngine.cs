@@ -26,6 +26,7 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Reporting;
 using DemaConsulting.LintMark.Safety;
@@ -181,7 +182,9 @@ internal sealed class LintMarkEngine
         _documentParser = documentParser ?? DocumentParser.Parse;
         _fileProcessor = fileProcessor ?? ReadAndRewrite;
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
-        _formatter = formatter ?? new DocumentFormatter([new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter()]);
+        _formatter = formatter ?? new DocumentFormatter(
+            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
+            new InlineNormalizer());
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 

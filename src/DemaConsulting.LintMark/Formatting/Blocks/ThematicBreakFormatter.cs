@@ -170,7 +170,7 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
 
         // A line that starts with a plus sign (a list marker here) looks like a grid table border once its break is dashes
         // (+ ---), and Pandoc may then read it as a table; the break stays as written
-        if (layout.LooksLikeGridBorder(line))
+        if (layout.StartsWithPlusSign(line))
         {
             return true;
         }

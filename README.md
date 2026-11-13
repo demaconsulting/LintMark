@@ -22,8 +22,8 @@ its outputs, and use them][workflow]
 ## Features
 
 LintMark currently provides the following (the formatting rules for whitespace, blank lines, headings, code blocks,
-thematic breaks, the end of the file, and line endings are implemented; the rules for paragraphs, lists, tables, and
-links, and the lint-only rules, are planned but not yet implemented):
+thematic breaks, lists, block quotes, emphasis, bare URLs, the end of the file, and line endings are implemented; the
+rules for paragraphs, tables, and links, and the lint-only rules, are planned but not yet implemented):
 
 - **Markdown File Discovery**: Select files by path, directory, or glob pattern (with `!` exclusions);
   with no arguments every `**/*.md` file under the current directory is used
@@ -36,15 +36,18 @@ links, and the lint-only rules, are planned but not yet implemented):
   remains; a file that is already compliant is not touched
 - **Diff Preview**: `--diff` reports the findings and prints a unified diff of what `--fix` would change; it writes no
   file
-- **Formatting Rules**: Fourteen always-applied rules, each with an identifier and a markdownlint number: trailing
+- **Formatting Rules**: Twenty-two always-applied rules, each with an identifier and a markdownlint number: trailing
   whitespace (`trailing-whitespace`, MD009), tabs (`hard-tabs`, MD010), runs of blank lines (`max-blank-lines`, MD012),
   heading style, spacing, and indentation (`heading-style`, `heading-space`, `heading-start-left`; MD003, MD019, MD021,
   MD023), blank lines around headings, fences, lists, and tables (`heading-blank-lines`, `fence-blank-lines`,
   `list-blank-lines`, `table-blank-lines`; MD022, MD031, MD032, MD058), thematic breaks (`thematic-break`, MD035),
-  code blocks and fences (`code-block-style`, `code-fence`; MD046, MD048), and the final newline (`final-newline`,
-  MD047). Code, HTML, math, and front matter are never changed, and a conversion that could change the meaning of a
-  document is not made. MD018 and MD020 are not implemented. Each rule is documented, with examples, in the
-  [User Guide][link-guide-rules]
+  code blocks and fences (`code-block-style`, `code-fence`; MD046, MD048), the final newline (`final-newline`,
+  MD047), list markers, numbering, indentation, and spacing (`bullet`, `ordered-style`, `list-indent`,
+  `list-marker-space`; MD004, MD029, MD005, MD007, MD030), block quote spacing (`blockquote-space`, MD027), emphasis
+  and strong emphasis delimiters (`emphasis`, `strong`; MD049, MD050), and bare URLs (`bare-urls`, MD034). Code, HTML,
+  math, and front matter are never changed, and a conversion that could change the meaning or the rendering of a
+  document is not made. MD018 and MD020 are not implemented, and MD037, MD038, and MD039 are not fixed: they are
+  planned as lint-only checks. Each rule is documented, with examples, in the [User Guide][link-guide-rules]
 - **Rule Suppression**: `lintmark-disable` and `markdownlint-disable` comments, by identifier or by legacy number, leave
   a passage as it is
 - **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
@@ -167,9 +170,9 @@ lintmark [options] [paths...]
 LintMark is configured with an optional `.lintmark.yaml` file. Every setting has a built-in default, so a file only
 lists the settings it changes. This release finds, reads, and validates the configuration that applies to each
 Markdown file and reports every problem in it. It applies `end-of-line`, `final-newline`, `max-blank-lines`,
-`code-fence`, `thematic-break`, `heading-style`, `code-block-style`, `trailing-whitespace`, `ignore`, and the
-`grid-table-invalid` entry of `rules`; the other settings are validated and stored, but no linting or formatting rule
-uses them yet.
+`code-fence`, `thematic-break`, `heading-style`, `code-block-style`, `trailing-whitespace`, `bullet`, `list-indent`,
+`ordered-style`, `emphasis`, `strong`, `bare-urls`, `ignore`, and the `grid-table-invalid` entry of `rules`; the other
+settings are validated and stored, but no linting or formatting rule uses them yet.
 
 - **Discovery**: For each Markdown file the search starts in the file's directory and walks up. The nearest
   `.lintmark.yaml` wins and files are never merged. The search stops after the repository root (the first directory
@@ -282,9 +285,10 @@ missing.yaml:1:1: config-error Configuration file not found
 ```
 
 The reported rule identifiers are `file-read-error`, `file-encoding-error`, `file-line-ending-error`,
-`file-parse-error`, `config-error`, `line-ending`, the 14 formatting rules (`trailing-whitespace`, `hard-tabs`,
+`file-parse-error`, `config-error`, `line-ending`, the 22 formatting rules (`trailing-whitespace`, `hard-tabs`,
 `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`, `heading-blank-lines`, `fence-blank-lines`,
-`list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`, and `final-newline`, each
+`list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`, `final-newline`, `bullet`,
+`ordered-style`, `list-indent`, `list-marker-space`, `blockquote-space`, `emphasis`, `strong`, and `bare-urls`, each
 reported at the place that `--fix` would change), `grid-table-invalid`, `safety-html-mismatch`,
 `safety-structure-mismatch`, `safety-not-idempotent`, `file-format-error`, and `file-write-error`. A `safety-*`
 identifier means that a rewrite was refused because it could damage the document; the file is left as it was. A

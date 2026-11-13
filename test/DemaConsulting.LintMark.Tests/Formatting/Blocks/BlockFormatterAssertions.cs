@@ -22,6 +22,7 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Safety;
 
@@ -39,11 +40,13 @@ namespace DemaConsulting.LintMark.Tests;
 internal static class BlockFormatterAssertions
 {
     /// <summary>
-    ///     Creates the formatter the shipped tool uses: the three block formatters and the document passes.
+    ///     Creates the formatter the shipped tool uses: the five block formatters, the inline normalizer and the document passes.
     /// </summary>
     /// <returns>The formatter.</returns>
     public static DocumentFormatter ProductionFormatter() =>
-        new([new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter()]);
+        new(
+            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
+            new InlineNormalizer());
 
     /// <summary>
     ///     Parses LF-normalized text as a document named <c>a.md</c>.

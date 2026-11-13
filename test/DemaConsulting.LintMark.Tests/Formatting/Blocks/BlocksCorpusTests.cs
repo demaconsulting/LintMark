@@ -95,7 +95,7 @@ public class BlocksCorpusTests
         Assert.True(failures.Count == 0, $"{failures.Count} document(s) failed:\n{string.Join("\n", failures.Take(8))}");
 
     /// <summary>
-    ///     Test that this repository's own Markdown files need no change.
+    ///     Test that this repository's own Markdown files need no change, except for the emphasis delimiter of the standards the template owns.
     /// </summary>
     [Fact]
     public void BlocksCorpus_Process_RepositoryMarkdown_ProposesNoChangeAndNoFinding()
@@ -107,14 +107,33 @@ public class BlocksCorpusTests
         // Act: process all files (nothing is written without the fix option)
         var results = engine.Process(files);
 
-        // Assert: every file was found, none has a finding or a pending rewrite, and nothing was refused
+        // Assert: every file was found, none has a finding or a pending rewrite, and nothing was refused; the only
+        // exception is the emphasis style of the files that the template owns (see TemplateOwnedEmphasisFiles)
         Assert.True(files.Count > 100);
         var problems = results
             .Where(result => result.Diagnostics.Length > 0 || result.Change is not null)
+            .Where(result => !IsTemplateEmphasisOnly(root, result))
             .Select(result => $"{Path.GetRelativePath(root, result.Path).Replace('\\', '/')}: {string.Join("; ", result.Diagnostics.Select(d => $"{d.Line}:{d.Column} {d.RuleId}"))}")
             .ToList();
         Assert.Empty(problems);
     }
+
+    /// <summary>
+    ///     Determines whether a file result is only about the emphasis delimiter of a file that the template owns.
+    /// </summary>
+    /// <param name="root">The root of the repository.</param>
+    /// <param name="result">The result of one file.</param>
+    /// <returns><see langword="true"/> for a file under <c>.github/standards</c> whose only findings are <c>emphasis</c> findings.</returns>
+    /// <remarks>
+    ///     The standards under <c>.github/standards</c> are copied from the template of the organization and are never edited
+    ///     in this repository. They write emphasis with underscores, which the default <c>emphasis</c> style of this tool
+    ///     (asterisks) would rewrite. They are therefore expected to differ in that one rule until a configuration of the
+    ///     repository lists them as ignored; every other rule must still leave them alone.
+    /// </remarks>
+    private static bool IsTemplateEmphasisOnly(string root, FileResult result) =>
+        Path.GetRelativePath(root, result.Path).Replace('\\', '/').StartsWith(".github/standards/", StringComparison.Ordinal)
+        && result.Diagnostics.Length > 0
+        && result.Diagnostics.All(diagnostic => diagnostic.RuleId == RuleCatalog.EmphasisRuleId);
 
     /// <summary>
     ///     Test that every Markdown file of the repository formats safely and stably as LF text.

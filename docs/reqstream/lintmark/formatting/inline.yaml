@@ -1,0 +1,151 @@
+---
+# Inline Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Inline subsystem, which is part of the Formatting subsystem
+# - The Inline subsystem holds the normalizer for the text inside paragraphs: the delimiter characters of emphasis
+#   and strong emphasis, and bare URLs
+# - Subsystem requirements describe what the inline rules guarantee together, with the real parser and the document
+#   formatter that drives them
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            requirements:
+              - id: LintMark-Formatting-Inline-InlineNormalizerProvided
+                title: >-
+                  The Inline subsystem shall provide a normalizer that proposes the changes that bring the emphasis,
+                  strong emphasis, and bare URLs of each paragraph into canonical form.
+                justification: |
+                  Emphasis and URLs have more than one way of being written in Markdown. The canonical form is what
+                  makes the documents of a project consistent.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-RejectsMissingArguments
+                  - LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
+                  - LintMark-Formatting-Inline-InlineNormalizer-RuleIdsImmutable
+                tests:
+                  - InlineSubsystem_Format_UnderscoreDelimiters_BecomeAsterisksByDefault
+                  - InlineSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise
+
+              - id: LintMark-Formatting-Inline-EmphasisStyle
+                title: >-
+                  The Inline subsystem shall write each emphasis of a paragraph with the configured delimiter
+                  character, except inside a word, where the delimiter that the configuration names would not
+                  emphasize.
+                justification: |
+                  Underscores and asterisks mean the same emphasis, and one of them makes the documents of a project
+                  consistent. An underscore does not emphasize inside a word, so such an emphasis keeps its
+                  asterisks.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-EmphasisDelimiterConverted
+                  - LintMark-Formatting-Inline-InlineNormalizer-WithinWordEmphasisKept
+                tests:
+                  - InlineSubsystem_Format_UnderscoreDelimiters_BecomeAsterisksByDefault
+                  - InlineSubsystem_Format_UnderscoreConfigured_AsteriskDelimitersBecomeUnderscores
+
+              - id: LintMark-Formatting-Inline-StrongStyle
+                title: >-
+                  The Inline subsystem shall write each strong emphasis of a paragraph with the configured delimiter
+                  character.
+                justification: |
+                  Double underscores and double asterisks mean the same strong emphasis, and one of them makes the
+                  documents of a project consistent.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-StrongDelimiterConverted
+                tests:
+                  - InlineSubsystem_Format_UnderscoreDelimiters_BecomeAsterisksByDefault
+                  - InlineSubsystem_Format_UnderscoreConfigured_AsteriskDelimitersBecomeUnderscores
+
+              - id: LintMark-Formatting-Inline-BareUrlsAutolinked
+                title: >-
+                  The Inline subsystem shall wrap each bare http, https, or ftp URL of a paragraph in angle brackets
+                  when the configuration asks for the autolink style, which is the default.
+                justification: |
+                  A URL in angle brackets is explicitly a link in every Markdown processor, while a bare one is a link
+                  in some processors only. The punctuation that follows a URL in a sentence is not part of it.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlWrapped
+                  - LintMark-Formatting-Inline-InlineNormalizer-TrailingPunctuationOutside
+                tests:
+                  - InlineSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise
+
+              - id: LintMark-Formatting-Inline-BareUrlsLeft
+                title: >-
+                  The Inline subsystem shall keep every bare URL of a paragraph as written when the configuration
+                  asks to leave them.
+                justification: |
+                  Projects that want bare URLs choose to keep them, and the other inline rules still apply.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsLeftWhenConfigured
+                tests:
+                  - InlineSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise
+
+              - id: LintMark-Formatting-Inline-ParagraphsInContainers
+                title: >-
+                  The Inline subsystem shall normalize a paragraph inside a list item or a block quote the same way
+                  as a paragraph at the top level.
+                justification: |
+                  Much of the text of a document is in lists and quotes, and the style of its emphasis and URLs must
+                  not depend on where the text is.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-ParagraphsInContainersNormalized
+                tests:
+                  - InlineSubsystem_Format_ParagraphsInContainers_AreNormalized
+
+              - id: LintMark-Formatting-Inline-ParagraphsOnly
+                title: >-
+                  The Inline subsystem shall keep the emphasis and the URLs of a heading and of a table cell as
+                  written.
+                justification: |
+                  Only the text of paragraphs is the subject of the inline rules. The text of a heading or a table
+                  cell is kept as the author wrote it.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
+                tests:
+                  - InlineSubsystem_Format_HeadingsAndTableCells_KeepTheirText
+
+              - id: LintMark-Formatting-Inline-CodeLinksHtmlAndAddressesKept
+                title: >-
+                  The Inline subsystem shall keep code, the destination of a link, HTML, math, and addresses that the
+                  inline rules do not own as written.
+                justification: |
+                  A delimiter or URL inside a code span, a link destination, an HTML tag, or math is content, and a
+                  www or e-mail address renders differently when it is wrapped, so changing any of them changes the
+                  document instead of its form.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeHtmlMathKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsInLinksCodeHtmlKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-WwwAndMailAddressesKept
+                tests:
+                  - InlineSubsystem_Format_CodeLinksHtmlAndAddresses_KeepTheirText
+
+              - id: LintMark-Formatting-Inline-MeaningKept
+                title: >-
+                  The Inline subsystem shall keep a paragraph as written when it cannot show that rewriting it keeps
+                  how the paragraph renders.
+                justification: |
+                  A paragraph that renders differently after a rewrite is damaged. Emphasis next to other emphasis,
+                  stray delimiter characters, link references, and unusual HTML make the effect of a change
+                  uncertain, so the paragraph stays as it is while the rest of the file is still normalized.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-NestedEmphasisKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UnpairedDelimiterParagraphKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-BracketParagraphKeptWithReferences
+                  - LintMark-Formatting-Inline-InlineNormalizer-ParagraphLeftWhenRenderingWouldChange
+                tests:
+                  - InlineSubsystem_Format_ParagraphThatMayRenderDifferently_IsLeftAlone
+                  - InlineSubsystem_Format_ParagraphsThatCannotBeShownSafe_AreKept
+
+              - id: LintMark-Formatting-Inline-DeterministicResult
+                title: >-
+                  The Inline subsystem shall propose the same changes for the same parsed document and configuration
+                  when it is called from several threads at once as when it is called one after another.
+                justification: |
+                  Files are formatted in parallel, and a result that depended on timing could not be trusted.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DeterministicResult
+                tests:
+                  - InlineSubsystem_Format_ManyThreads_GiveTheSameResult

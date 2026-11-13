@@ -500,7 +500,7 @@ public class BlocksSubsystemTests
     [InlineData("text\n\n   ## Title\n", "text\n\n## Title\n")]
     [InlineData("> # Title\n", "> # Title\n")]
     [InlineData("- # Title\n", "- # Title\n")]
-    [InlineData("-   # Title\n", "-   # Title\n")]
+    [InlineData("-   # Title\n", "- # Title\n")]
     public void BlocksSubsystem_Format_HeadingIndentation_IsRemovedOnlyOutsideContainers(string input, string expected) =>
         BlockFormatterAssertions.AssertFormats(input, expected);
 
@@ -637,5 +637,129 @@ public class BlocksSubsystemTests
         // Assert: nothing changes
         Assert.Equal(once, twice);
         Assert.Empty(result.Edits);
+    }
+
+    /// <summary>
+    ///     Test that lists are written in the canonical form: one marker character, counting numbers, aligned items,
+    ///     nested bullets indented two columns and one space after each marker.
+    /// </summary>
+    [Theory]
+    [InlineData("* a\n* b\n", "- a\n- b\n")]
+    [InlineData("1. a\n1. b\n", "1. a\n2. b\n")]
+    [InlineData("  - a\n  - b\n", "- a\n- b\n")]
+    [InlineData("- a\n    - b\n", "- a\n  - b\n")]
+    [InlineData("-   a\n    b\n", "- a\n  b\n")]
+    [InlineData("1.  a\n    - b\n", "1. a\n   - b\n")]
+    [InlineData("* ---\n", "* ---\n")]
+    public void BlocksSubsystem_Format_ListForms_AreCanonical(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that block quotes are written with one space after each marker.
+    /// </summary>
+    [Theory]
+    [InlineData(">  a\n", "> a\n")]
+    [InlineData(">   # h\n", "> # h\n")]
+    [InlineData(">  >  a\n", "> > a\n")]
+    public void BlocksSubsystem_Format_QuoteForms_AreCanonical(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that two lists are never merged into one and a list is never split, whichever markers are configured.
+    /// </summary>
+    [Theory]
+    [InlineData("Dash")]
+    [InlineData("Asterisk")]
+    [InlineData("Plus")]
+    public void BlocksSubsystem_Format_BulletLists_AreNeverMergedOrSplit(string bullet)
+    {
+        // Arrange: two lists that are only two lists because their markers differ, and a list with a nested list
+        var config = LintMarkConfig.Default with { Bullet = Enum.Parse<BulletMarker>(bullet) };
+        const string input = "- a\n\n* b\n\n+ c\n\n- d\n  * e\n  * f\n";
+
+        // Act: format and check the result renders the same and keeps its list structure
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(input, config);
+
+        // Assert: the four lists at the margin are still four lists
+        var lists = BlockFormatterAssertions.Parse(formatted).Blocks.Count(block => block.Kind == BlockKind.List && block.Parent is null);
+        Assert.Equal(4, lists);
+    }
+
+    /// <summary>
+    ///     Test that the structure of a list is kept: lazy lines, tabs and indented code stay as written, and code,
+    ///     quotes and tables inside items move with them.
+    /// </summary>
+    [Theory]
+    [InlineData("-   a\n  lazy\n", "-   a\n  lazy\n")]
+    [InlineData("-\ta\n", "-\ta\n")]
+    [InlineData("-     code\n", "-     code\n")]
+    [InlineData(
+        "-   a\n\n    ```\n    code\n    ```\n\n    > quote\n\n    | a | b |\n    |---|---|\n",
+        "- a\n\n  ```\n  code\n  ```\n\n  > quote\n\n  | a | b |\n  |---|---|\n")]
+    [InlineData("1. a\n   - b\n     1. c\n        text\n", "1. a\n   - b\n     1. c\n        text\n")]
+    [InlineData("1. a\n   - b\n", "1. a\n   - b\n")]
+    [InlineData("- a\n\n  b\n\n- c\n", "- a\n\n  b\n\n- c\n")]
+    [InlineData("> -   a\n> -   b\n", "> -   a\n> -   b\n")]
+    [InlineData("x[^n]\n\n[^n]: text\n\n    * a\n", "x[^n]\n\n[^n]: text\n\n    * a\n")]
+    public void BlocksSubsystem_Format_ListStructure_IsKept(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that the content of a block quote is kept: code, HTML, fences, lists, setext headings and tables keep their spaces.
+    /// </summary>
+    [Theory]
+    [InlineData(">  ```\n>  code\n>  ```\n")]
+    [InlineData(">  <div>\n>  html\n>  </div>\n")]
+    [InlineData(">  - a\n")]
+    [InlineData(">  Title\n>  ===\n")]
+    [InlineData(">      code\n")]
+    [InlineData("> a\n>     b\n")]
+    [InlineData(">\ttext\n")]
+    [InlineData("> a\nlazy\n")]
+    [InlineData("- >  quote\n")]
+    [InlineData(">  [^n]: note\n")]
+    [InlineData(">  $$\n>  x = 1\n>  $$\n")]
+    public void BlocksSubsystem_Format_QuoteContent_IsKept(string input) =>
+        BlockFormatterAssertions.AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that formatting a document of lists and quotes again changes nothing the second time, in every line ending.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_ListsAndQuotes_ChangeNothingTheSecondTime()
+    {
+        // Arrange: lists and quotes that break the list and quote rules
+        const string dirty = "* a\n  +   b\n1. c\n1. d\n\n>  >  e\n\n-   f\n\n    g\n";
+
+        // Act: format, and format the result again, also as it is stored with other line endings
+        var once = BlockFormatterAssertions.AssertSafeAndStable(dirty);
+        BlockFormatterAssertions.AssertFormatsOnDisk(dirty, once);
+        var (result, twice) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), once);
+
+        // Assert: nothing changes
+        Assert.Equal(once, twice);
+        Assert.Empty(result.Edits);
+    }
+
+    /// <summary>
+    ///     Test that a list and a quote are left as written when the rule that owns them is suppressed, by identifier or by alias.
+    /// </summary>
+    [Theory]
+    [InlineData("lintmark-disable bullet", "* a\n")]
+    [InlineData("markdownlint-disable MD004", "* a\n")]
+    [InlineData("markdownlint-disable MD027", ">  a\n")]
+    [InlineData("lintmark-disable blockquote-space", ">  a\n")]
+    public void BlocksSubsystem_Format_ListOrQuoteRuleSuppressed_LeavesThem(string directive, string block)
+    {
+        // Arrange: a block inside a region that disables its rule
+        var text = $"<!-- {directive} -->\n\n{block}";
+
+        // Act: format
+        var (result, formatted) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), text);
+
+        // Assert: nothing changes and nothing is reported
+        Assert.Equal(text, formatted);
+        Assert.Empty(result.Edits);
+        Assert.Empty(result.Diagnostics);
     }
 }

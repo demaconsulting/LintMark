@@ -56,10 +56,11 @@ public class FormattingSubsystemTests
     }
 
     /// <summary>
-    ///     Creates the document formatter that the tool ships: the heading, code block and thematic break formatters.
+    ///     Creates the document formatter that the tool ships: the heading, code block, thematic break, list and block
+    ///     quote formatters and the inline normalizer.
     /// </summary>
     /// <returns>The document formatter.</returns>
-    private static DocumentFormatter Shipped() => new([new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter()]);
+    private static DocumentFormatter Shipped() => BlockFormatterAssertions.ProductionFormatter();
 
     /// <summary>
     ///     Formats text with the shipped document formatter and applies the edits.
@@ -694,6 +695,206 @@ public class FormattingSubsystemTests
         Assert.Empty(canonicalResult.Edits);
         Assert.Empty(canonicalResult.Diagnostics);
         Assert.Equal(canonical, unchanged);
+    }
+
+    /// <summary>
+    ///     Test that bullet list items are written with the configured marker character.
+    /// </summary>
+    [Theory]
+    [InlineData("* a\n* b\n", "- a\n- b\n", "Dash")]
+    [InlineData("- a\n- b\n", "* a\n* b\n", "Asterisk")]
+    [InlineData("- a\n  - b\n", "+ a\n  + b\n", "Plus")]
+    public void FormattingSubsystem_Format_BulletMarkers_UseTheConfiguredCharacter(string input, string expected, string bullet)
+    {
+        // Act: format with the shipped formatters
+        var (result, patched) = FormatShipped(input, LintMarkConfig.Default with { Bullet = Enum.Parse<BulletMarker>(bullet) });
+
+        // Assert: the markers are rewritten and reported under the marker rule
+        Assert.Equal(expected, patched);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.RuleId == "bullet");
+    }
+
+    /// <summary>
+    ///     Test that the items of an ordered list are numbered the configured way, keeping the number the list starts at.
+    /// </summary>
+    [Theory]
+    [InlineData("1. a\n1. b\n", "1. a\n2. b\n", "Incrementing")]
+    [InlineData("5. a\n5. b\n", "5. a\n6. b\n", "Incrementing")]
+    [InlineData("1. a\n2. b\n", "1. a\n1. b\n", "One")]
+    public void FormattingSubsystem_Format_OrderedNumbers_FollowTheConfiguredStyle(string input, string expected, string style)
+    {
+        // Act: format with the shipped formatters
+        var (result, patched) = FormatShipped(input, LintMarkConfig.Default with { OrderedStyle = Enum.Parse<OrderedStyle>(style) });
+
+        // Assert: the numbers are rewritten and reported under the numbering rule
+        Assert.Equal(expected, patched);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.RuleId == "ordered-style");
+    }
+
+    /// <summary>
+    ///     Test that the items of a list start in the same column, that nested bullets are indented as configured and
+    ///     that one space follows each marker.
+    /// </summary>
+    [Theory]
+    [InlineData("  - a\n  - b\n", "- a\n- b\n", 2, "list-indent")]
+    [InlineData("- a\n    - b\n", "- a\n  - b\n", 2, "list-indent")]
+    [InlineData("- a\n  - b\n", "- a\n    - b\n", 4, "list-indent")]
+    [InlineData("-   a\n-   b\n", "- a\n- b\n", 2, "list-marker-space")]
+    public void FormattingSubsystem_Format_ListColumnsAndSpacing_AreCanonical(string input, string expected, int indent, string ruleId)
+    {
+        // Act: format with the shipped formatters
+        var (result, patched) = FormatShipped(input, LintMarkConfig.Default with { ListIndent = indent });
+
+        // Assert: the columns are rewritten and reported under the rule that owns them
+        Assert.Equal(expected, patched);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.RuleId == ruleId);
+    }
+
+    /// <summary>
+    ///     Test that one space follows each block quote marker.
+    /// </summary>
+    [Theory]
+    [InlineData(">  a\n", "> a\n")]
+    [InlineData(">   # h\n", "> # h\n")]
+    [InlineData(">  >  a\n", "> > a\n")]
+    public void FormattingSubsystem_Format_QuoteMarkers_AreFollowedByOneSpace(string input, string expected) =>
+        AssertShippedRule(input, expected, "blockquote-space");
+
+    /// <summary>
+    ///     Test that emphasis and strong emphasis use the configured delimiter.
+    /// </summary>
+    [Theory]
+    [InlineData("_a_ __b__\n", "*a* **b**\n", "Asterisk", "emphasis")]
+    [InlineData("*a* **b**\n", "_a_ __b__\n", "Underscore", "strong")]
+    public void FormattingSubsystem_Format_EmphasisDelimiters_UseTheConfiguredCharacter(string input, string expected, string delimiter, string ruleId)
+    {
+        // Act: format with the shipped formatters
+        var marker = Enum.Parse<EmphasisMarker>(delimiter);
+        var (result, patched) = FormatShipped(input, LintMarkConfig.Default with { Emphasis = marker, Strong = marker });
+
+        // Assert: the delimiters are rewritten and reported under the rule of their kind
+        Assert.Equal(expected, patched);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.RuleId == ruleId);
+    }
+
+    /// <summary>
+    ///     Test that a bare URL is wrapped in angle brackets by default and left as written when that is configured.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise()
+    {
+        // Act: format with the default and with the setting that leaves URLs
+        var (wrapped, patched) = FormatShipped("see http://x.com now\n");
+        var (left, unchanged) = FormatShipped("see http://x.com now\n", LintMarkConfig.Default with { BareUrls = BareUrlStyle.Leave });
+
+        // Assert: wrapped and reported, or untouched and silent
+        Assert.Equal("see <http://x.com> now\n", patched);
+        Assert.Contains(wrapped.Diagnostics, diagnostic => diagnostic.RuleId == "bare-urls");
+        Assert.Equal("see http://x.com now\n", unchanged);
+        Assert.Empty(left.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that two bullet lists that differ only by their marker stay two lists and a nested list stays nested,
+    ///     whichever bullet is configured.
+    /// </summary>
+    [Theory]
+    [InlineData("Dash", "- a\n\n* b\n\n+ c\n\n- d\n  - e\n  - f\n")]
+    [InlineData("Asterisk", "- a\n\n* b\n\n+ c\n\n- d\n  * e\n  * f\n")]
+    [InlineData("Plus", "- a\n\n* b\n\n+ c\n\n- d\n  + e\n  + f\n")]
+    public void FormattingSubsystem_Format_BulletLists_AreNeverMergedOrSplit(string bullet, string expected)
+    {
+        // Arrange: three lists that are lists of their own only because their markers differ, and a list with a nested list
+        const string input = "- a\n\n* b\n\n+ c\n\n- d\n  * e\n  * f\n";
+
+        // Act: format with the shipped formatters
+        var (_, patched) = FormatShipped(input, LintMarkConfig.Default with { Bullet = Enum.Parse<BulletMarker>(bullet) });
+
+        // Assert: the exact text, and the lists at the margin are still four lists with the nested list inside the last
+        Assert.Equal(expected, patched);
+        var lists = Parse(patched).Blocks.Where(block => block.Kind == BlockKind.List).ToList();
+        Assert.Equal(4, lists.Count(block => block.Parent is null));
+        Assert.Equal(1, lists.Count(block => block.Parent is not null));
+    }
+
+    /// <summary>
+    ///     Test that every line and block of a list item stays in its item when the item moves: a continuation line, a
+    ///     second paragraph, a nested list and fenced code, a number that gains a digit, and items in different columns.
+    /// </summary>
+    [Theory]
+    [InlineData("-   a\n    more\n", "- a\n  more\n")]
+    [InlineData("-   a\n\n    second\n\n-   b\n", "- a\n\n  second\n\n- b\n")]
+    [InlineData("-   a\n    - b\n\n    ```\n    code\n    ```\n", "- a\n  - b\n\n  ```\n  code\n  ```\n")]
+    [InlineData("1. a\n1. b\n1. c\n1. d\n1. e\n1. f\n1. g\n1. h\n1. i\n1. j\n   more\n", "1. a\n2. b\n3. c\n4. d\n5. e\n6. f\n7. g\n8. h\n9. i\n10. j\n    more\n")]
+    [InlineData("  - a\n    more\n  - b\n    other\n", "- a\n  more\n- b\n  other\n")]
+    public void FormattingSubsystem_Format_ListItemsWithContent_StayInTheirItems(string input, string expected)
+    {
+        // Act: format with the shipped formatters
+        var (_, patched) = FormatShipped(input);
+
+        // Assert: the exact text, and the formatted document has the same items with the same content
+        Assert.Equal(expected, patched);
+        Assert.Equal(
+            Parse(input).Blocks.Count(block => block.Kind == BlockKind.ListItem),
+            Parse(patched).Blocks.Count(block => block.Kind == BlockKind.ListItem));
+    }
+
+    /// <summary>
+    ///     Test that emphasis inside a list item and a block quote uses the configured delimiter and is reported.
+    /// </summary>
+    [Theory]
+    [InlineData("- _a_\n", "- *a*\n", "Asterisk")]
+    [InlineData("1. x _a_ y\n", "1. x *a* y\n", "Asterisk")]
+    [InlineData("> _a_\n", "> *a*\n", "Asterisk")]
+    [InlineData("- *a*\n", "- _a_\n", "Underscore")]
+    [InlineData("> *a*\n", "> _a_\n", "Underscore")]
+    public void FormattingSubsystem_Format_EmphasisInListsAndQuotes_UsesTheConfiguredCharacter(string input, string expected, string delimiter)
+    {
+        // Act: format with the shipped formatters
+        var marker = Enum.Parse<EmphasisMarker>(delimiter);
+        var (result, patched) = FormatShipped(input, LintMarkConfig.Default with { Emphasis = marker, Strong = marker });
+
+        // Assert: the delimiters are rewritten and reported under the emphasis rule
+        Assert.Equal(expected, patched);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.RuleId == "emphasis");
+    }
+
+    /// <summary>
+    ///     Test that a document with lists, quotes and inline text is stable after one formatting.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_ListsQuotesAndInlineText_AreStableAfterOneRun()
+    {
+        // Arrange: a document that breaks the list, quote and inline rules
+        const string dirty = "* _a_ http://x.com\n*   b\n\n1. c\n1. d\n\n>  __e__\n";
+
+        // Act: format the document and then the result
+        var (_, once) = FormatShipped(dirty);
+        var (second, twice) = FormatShipped(once);
+
+        // Assert: the result is canonical and the second run proposes nothing
+        Assert.Equal("- *a* <http://x.com>\n- b\n\n1. c\n2. d\n\n> **e**\n", once);
+        Assert.Empty(second.Edits);
+        Assert.Equal(once, twice);
+    }
+
+    /// <summary>
+    ///     Test that a document is the same whether the blocks before or after a list are formatted first, because edits are ordered by position.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_ParallelCallsOnListsAndInlineText_GiveTheSameResult()
+    {
+        // Arrange: one shared formatter and a document with lists, quotes and inline text
+        const string input = "* _a_ http://x.com\n*   b\n\n>  __e__\n\n1. c\n1. d\n";
+        var formatter = Shipped();
+        var expected = FormatAndPatch(formatter, Parse(input)).Patched;
+        var results = new string[8];
+
+        // Act: format on several threads at once
+        BlockFormatterAssertions.RunConcurrently(results.Length, index => results[index] = FormatAndPatch(formatter, Parse(input)).Patched);
+
+        // Assert: every thread gives the same text
+        Assert.All(results, result => Assert.Equal(expected, result));
     }
 }
 

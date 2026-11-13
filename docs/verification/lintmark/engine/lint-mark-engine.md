@@ -6,7 +6,7 @@
 `LintMarkEngineTests.cs` (processing, ordering, configuration, and reporting), `LintMarkEngineFixTests.cs`
 (rewriting, `--fix`, `--diff`, and the safety checks), `LintMarkEngineIgnoreTests.cs` (the `ignore` patterns), and
 `LintMarkEngineFormattingTests.cs` (the default formatting rules of the tool, with no seam: the engine creates its own
-formatter with the three block formatters).
+formatter with the five block formatters and the inline normalizer).
 Real temporary files (the `TemporaryDirectory` test helper), the real `FileDiscovery`, `SourceDocument`,
 `DocumentParser`, `SourcePatcher`, safety checkers, and reporters, and a real `Context` writing to a log file are
 used for the normal scenarios; the run helper `Execute` makes the temporary directory the current directory, runs the
@@ -87,7 +87,8 @@ collection.
 - The check mode predicts `--fix`: a rewrite that would be refused is reported as a safety diagnostic in both.
 - The default engine proposes the changes of all formatting rules: with `--fix` it rewrites a file that breaks them and
   reports nothing afterwards, a second run leaves the file alone, check mode reports each violation at its place and
-  writes nothing, `--diff` prints the change, a suppression by legacy number is honored, the settings of the
+  writes nothing (including the violations of the list, block quote, emphasis, and bare URL rules, each under its own
+  rule), `--diff` prints the change, a suppression by legacy number is honored, the settings of the
   configuration select the written form, and a document with an invalid grid table is never rewritten.
 - A rewrite is refused, with a safety diagnostic at the first changed position, the file untouched, and exit code 1,
   when it would change the rendering, change the Pandoc structure, is not stable when formatted again, creates a
@@ -256,6 +257,11 @@ and the exit code is 0.
 
 **The default engine reports each violation and writes nothing in check mode**: The same file is run without options.
 The exit code is 1, each violation is reported under its rule at its place, and the file's bytes are unchanged.
+
+**The default engine reports list, quote, and inline violations under their own rules**: A file with an asterisk bullet,
+a numbered list whose numbers repeat, a block quote with a wide gap after its marker, and a paragraph with underscore
+emphasis and a bare URL is run with `--check`. The exit code is 1, a line is reported for each of the rules `bullet`,
+`ordered-style`, `blockquote-space`, `emphasis`, and `bare-urls`, and the file's bytes are unchanged.
 
 **The default engine shows the change with the diff option**: A file with a closed heading and a trailing space is run
 with `--diff`. The lines are the two violations followed by the unified diff of the change, the exit code is 1, and

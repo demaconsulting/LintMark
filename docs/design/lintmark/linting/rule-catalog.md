@@ -51,13 +51,13 @@ moved unchanged from the table that the configuration unit held before the regis
 `MD041`, `MD043`, `MD044`, and `MD057`. A dropped alias is recognized (so a legacy configuration file is still
 accepted) but never resolves to a rule and is never stored.
 
-**Always-applied formatting rules**: Rules of kind formatting that the formatter applies to every document: the 14
+**Always-applied formatting rules**: Rules of kind formatting that the formatter applies to every document: the 22
 rules below and `line-ending` (listed with the other identifiers that the tool emits). They are enabled, not
-configurable, and may be suppressed for a passage with a comment, except `line-ending`, which has no partial form. The 14
-rules carry 15 legacy rule-number aliases (`heading-style` has two). The aliases resolve through `TryResolve`, so a
-suppression comment may use them, but a configuration that names the identifier or the alias in `rules` is still
-rejected as an unknown rule, because `TryResolveConfigurable` does not accept them. The description of each rule is the
-message of the diagnostic that the formatter reports for it.
+configurable, and may be suppressed for a passage with a comment, except `line-ending`, which has no partial form. The 22
+rules carry 24 legacy rule-number aliases (`heading-style` and `list-indent` have two each). The aliases resolve through
+`TryResolve`, so a suppression comment may use them, but a configuration that names the identifier or the alias in
+`rules` is still rejected as an unknown rule, because `TryResolveConfigurable` does not accept them. The description of
+each rule is the message of the diagnostic that the formatter reports for it.
 
 | Rule id | Alias | Description |
 | --- | --- | --- |
@@ -75,13 +75,26 @@ message of the diagnostic that the formatter reports for it.
 | `code-block-style` | `MD046` | A code block is not written in the configured style |
 | `code-fence` | `MD048` | A code fence does not use the configured fence character |
 | `final-newline` | `MD047` | The file does not end with the configured final line ending |
+| `bullet` | `MD004` | A bullet list item does not use the configured marker character |
+| `ordered-style` | `MD029` | An ordered list is not numbered in the configured style |
+| `list-indent` | `MD005`, `MD007` | List items are misaligned, or a nested bullet list is not indented as configured |
+| `list-marker-space` | `MD030` | A list marker is followed by more than one space |
+| `blockquote-space` | `MD027` | A block quote marker is followed by more than one space |
+| `emphasis` | `MD049` | Emphasis is not written with the configured delimiter |
+| `strong` | `MD050` | Strong emphasis is not written with the configured delimiter |
+| `bare-urls` | `MD034` | A bare URL is not wrapped in angle brackets |
+
+The description of `list-indent` is shortened in this table to fit the page; the registry holds "The items of a list are
+not aligned or a nested bullet list is not indented as configured".
 
 The aliases `MD018` and `MD020` are not registered: the text they describe (`#Title`, `##Title##`) is a paragraph to
-the parser, and no safe rewrite exists.
+the parser, and no safe rewrite exists. The aliases `MD037`, `MD038`, and `MD039` (spaces inside emphasis markers, code
+spans, and link text) are not registered either: the rewrite is not safe, because the text renders differently without
+the space, so no fixer exists; they are planned as lint-only rules.
 
 **Other non-configurable identifiers**: Registered so that the registry is complete, enabled, without aliases, and not
-configurable. A configuration that names one of them is rejected as an unknown rule. Together with the 14 always-applied
-rules above they make 25 non-configurable entries.
+configurable. A configuration that names one of them is rejected as an unknown rule. Together with the 22 always-applied
+rules above they make 33 non-configurable entries.
 
 | Rule id | Kind | Reported when |
 | --- | --- | --- |
@@ -99,8 +112,9 @@ rules above they make 25 non-configurable entries.
 
 The description of each of the three safety identifiers in the registry ends with "so the file is not rewritten".
 
-The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, the identifiers of the 14
-always-applied rules such as `TrailingWhitespaceRuleId` and `FinalNewlineRuleId`, `HtmlMismatchRuleId`,
+The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, the identifiers of the 22
+always-applied rules such as `TrailingWhitespaceRuleId`, `FinalNewlineRuleId`, `BulletRuleId`, `ListIndentRuleId`, and
+`BareUrlsRuleId`, `HtmlMismatchRuleId`,
 `StructureMismatchRuleId`, `NotIdempotentRuleId`, `GridTableInvalidRuleId`, `FileReadErrorRuleId`,
 `FileEncodingErrorRuleId`, `FileLineEndingErrorRuleId`, `FileParseErrorRuleId`, `FileFormatErrorRuleId`,
 `FileWriteErrorRuleId`, and `ConfigErrorRuleId`).
@@ -174,7 +188,8 @@ identifier).
   that a `rules` map must hold exactly.
 - **ConfigParser** (the `ConfigLoader` unit) — validates the names in the `rules` setting with `TryResolveConfigurable`
   and `IsDroppedAlias`.
-- **DocumentFormatter**, the block formatters of the `Blocks` subsystem, and **LintMarkEngine** — use the identifier
+- **DocumentFormatter**, the block formatters of the `Blocks` subsystem, the **InlineNormalizer** of the `Inline`
+  subsystem, and **LintMarkEngine** — use the identifier
   constants for the diagnostics and edits they create; the document formatter also reads the description of a rule to
   report an edit.
 - **DocumentParser** — resolves the rule names of suppression comments with `TryResolve`, so legacy numbers suppress the
