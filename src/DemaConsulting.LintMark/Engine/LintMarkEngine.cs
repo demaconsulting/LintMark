@@ -25,6 +25,7 @@ using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
+using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Reporting;
 using DemaConsulting.LintMark.Safety;
@@ -159,7 +160,7 @@ internal sealed class LintMarkEngine
     /// </param>
     /// <param name="formatter">
     ///     Optional replacement for the document formatter (a test seam that installs block formatters);
-    ///     <see langword="null"/> selects a formatter without block formatters.
+    ///     <see langword="null"/> selects the production formatter with the heading, code block and thematic break formatters.
     /// </param>
     /// <param name="fileWriter">
     ///     Optional replacement for the atomic file write (a test seam). It receives the path, the resolved
@@ -180,7 +181,7 @@ internal sealed class LintMarkEngine
         _documentParser = documentParser ?? DocumentParser.Parse;
         _fileProcessor = fileProcessor ?? ReadAndRewrite;
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
-        _formatter = formatter ?? new DocumentFormatter();
+        _formatter = formatter ?? new DocumentFormatter([new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter()]);
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 

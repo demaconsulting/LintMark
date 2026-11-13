@@ -23,8 +23,8 @@ identifiers ordinal-ignore-case. The listed rules (`Rules`) are held in a frozen
 them even by casting the collection.
 
 **Alias resolver**: An optional `Func<string, string>` applied to every rule identifier, both in directives
-and in queries, before comparison. It is the identity at present; a later change supplies rule alias
-resolution through it so that this unit does not change.
+and in queries, before comparison. It is the identity when none is given. `DocumentParser` supplies a resolver built on
+the rule catalog, so that rule alias resolution lives in the rule catalog and this unit does not change.
 
 Directive families (their different scoping semantics are kept distinct on purpose):
 

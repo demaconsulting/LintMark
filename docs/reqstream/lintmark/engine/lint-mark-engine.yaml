@@ -648,3 +648,38 @@ sections:
                 tests:
                   - LintMarkEngine_Process_ExplicitFileMatchingIgnore_IsProcessed
                   - LintMarkEngine_Run_IgnoreExplicitFile_IsProcessed
+
+              - id: LintMark-Engine-LintMarkEngine-DefaultFormattingRulesChecked
+                title: >-
+                  The LintMarkEngine class shall report as problems, for every file that it processes, the changes
+                  of all the formatting rules of the tool, and write nothing.
+                justification: |
+                  The tool exists to check the formatting of Markdown files, and what the shipped tool reports
+                  must not depend on how an engine is created.
+                tests:
+                  - LintMarkEngine_Run_CheckDefaultFormatters_ReportsEachViolationAndWritesNothing
+
+              - id: LintMark-Engine-LintMarkEngine-DefaultFormattingRulesPreviewed
+                title: >-
+                  The LintMarkEngine class shall print as a diff, for every file that it processes, the changes of
+                  all the formatting rules of the tool, and write nothing.
+                justification: |
+                  The tool lets users preview a rewrite, and what the shipped tool previews must not depend on how
+                  an engine is created.
+                tests:
+                  - LintMarkEngine_Run_DiffDefaultFormatters_PrintsTheChangeAndWritesNothing
+
+              - id: LintMark-Engine-LintMarkEngine-DefaultFormattingRulesFixed
+                title: >-
+                  The LintMarkEngine class shall write, for every file that it processes with the fix option, the
+                  changes of all the formatting rules of the tool.
+                justification: |
+                  The tool exists to repair the formatting of Markdown files, and what the shipped tool applies
+                  must not depend on how an engine is created.
+                tests:
+                  - LintMarkEngine_Run_FixDefaultFormatters_RewritesFileAndReportsNothing
+                  - LintMarkEngine_Run_FixDefaultFormattersTwice_SecondRunLeavesTheFileAlone
+                  - LintMarkEngine_Run_FixConfiguredSettings_WritesTheConfiguredForm
+                  - LintMarkEngine_Run_FixRuleSuppressedByAlias_LeavesTheViolation
+                  - LintMarkEngine_Run_FixInvalidGridTableDocument_IsNeverRewrittenByTheDefaultFormatters
+                  - LintMarkEngine_Process_DefaultFormatters_ChangeHasFormattedBytesAndFindings

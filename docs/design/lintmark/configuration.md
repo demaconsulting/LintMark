@@ -143,7 +143,9 @@ compensate for; the compensation is described in the unit designs.
 
 **Use of the settings**: The line ending that the editor settings or the configuration give is stored on each file's
 effective configuration and consumed by `DocumentFormatter`, which writes the file with it (see *DocumentFormatter
-Design*). The `ignore` setting is applied by the engine (see *LintMarkEngine Design*). Two consequences of a
+Design*). The settings `final-newline` and `max-blank-lines` are read by the document-level passes of
+`DocumentFormatter`, and `code-fence` and `thematic-break` by the block formatters of the `Blocks` subsystem (see
+*Blocks Design*). The `ignore` setting is applied by the engine (see *LintMarkEngine Design*). Two consequences of a
 configuration problem follow from this:
 
 - A file with an invalid configuration is still read and parsed, so its own failures are reported, but it is never
@@ -154,7 +156,8 @@ configuration problem follow from this:
   section, malformed lines) are never an error.
 
 The remaining settings of the configuration are validated and stored, and take effect as the linting and formatting
-units that read them are added.
+units that read them are added. (`heading-style`, `code-block-style`, and `trailing-whitespace` accept one value each,
+which the formatting rules apply.)
 
 **Guards against pathological files**: A configuration file that exceeds the size limit or the nesting limit
 documented in the user guide (1 MiB and 64 levels) is reported as a problem with a position, promptly. The limits

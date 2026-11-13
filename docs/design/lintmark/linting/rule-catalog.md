@@ -49,11 +49,39 @@ moved unchanged from the table that the configuration unit held before the regis
 
 **Dropped aliases**: Nine aliases of rules that no longer exist: `MD002`, `MD006`, `MD008`, `MD025`, `MD033`,
 `MD041`, `MD043`, `MD044`, and `MD057`. A dropped alias is recognized (so a legacy configuration file is still
-accepted) but never resolves to a rule and is never stored. Rules that the formatter always applies are not
-configurable; their aliases (for example `MD009`) are unknown, not dropped.
+accepted) but never resolves to a rule and is never stored.
 
-**Non-configurable identifiers**: Registered so that the registry is complete, enabled, without aliases, and not
-configurable. A configuration that names one of them is rejected as an unknown rule.
+**Always-applied formatting rules**: Rules of kind formatting that the formatter applies to every document: the 14
+rules below and `line-ending` (listed with the other identifiers that the tool emits). They are enabled, not
+configurable, and may be suppressed for a passage with a comment, except `line-ending`, which has no partial form. The 14
+rules carry 15 legacy rule-number aliases (`heading-style` has two). The aliases resolve through `TryResolve`, so a
+suppression comment may use them, but a configuration that names the identifier or the alias in `rules` is still
+rejected as an unknown rule, because `TryResolveConfigurable` does not accept them. The description of each rule is the
+message of the diagnostic that the formatter reports for it.
+
+| Rule id | Alias | Description |
+| --- | --- | --- |
+| `trailing-whitespace` | `MD009` | A line ends with trailing whitespace, or a hard break is not exactly two spaces |
+| `hard-tabs` | `MD010` | A tab character is used in text instead of spaces |
+| `max-blank-lines` | `MD012` | More blank lines in a row than the configuration allows |
+| `heading-style` | `MD003`, `MD021` | A heading is not written in the configured style (setext or closed headings) |
+| `heading-space` | `MD019` | A heading has more or less than one space after its number signs |
+| `heading-start-left` | `MD023` | A heading is indented |
+| `heading-blank-lines` | `MD022` | A heading is not surrounded by blank lines |
+| `fence-blank-lines` | `MD031` | A fenced code block is not surrounded by blank lines |
+| `list-blank-lines` | `MD032` | A list is not surrounded by blank lines |
+| `table-blank-lines` | `MD058` | A table is not surrounded by blank lines |
+| `thematic-break` | `MD035` | A thematic break is not written in the configured style |
+| `code-block-style` | `MD046` | A code block is not written in the configured style |
+| `code-fence` | `MD048` | A code fence does not use the configured fence character |
+| `final-newline` | `MD047` | The file does not end with the configured final line ending |
+
+The aliases `MD018` and `MD020` are not registered: the text they describe (`#Title`, `##Title##`) is a paragraph to
+the parser, and no safe rewrite exists.
+
+**Other non-configurable identifiers**: Registered so that the registry is complete, enabled, without aliases, and not
+configurable. A configuration that names one of them is rejected as an unknown rule. Together with the 14 always-applied
+rules above they make 25 non-configurable entries.
 
 | Rule id | Kind | Reported when |
 | --- | --- | --- |
@@ -71,7 +99,8 @@ configurable. A configuration that names one of them is rejected as an unknown r
 
 The description of each of the three safety identifiers in the registry ends with "so the file is not rewritten".
 
-The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, `HtmlMismatchRuleId`,
+The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, the identifiers of the 14
+always-applied rules such as `TrailingWhitespaceRuleId` and `FinalNewlineRuleId`, `HtmlMismatchRuleId`,
 `StructureMismatchRuleId`, `NotIdempotentRuleId`, `GridTableInvalidRuleId`, `FileReadErrorRuleId`,
 `FileEncodingErrorRuleId`, `FileLineEndingErrorRuleId`, `FileParseErrorRuleId`, `FileFormatErrorRuleId`,
 `FileWriteErrorRuleId`, and `ConfigErrorRuleId`).
@@ -85,7 +114,7 @@ The identifiers that other units emit are exposed as constants (`LineEndingRuleI
 - `ConfigurableRules`: the canonical identifiers of the configurable rules in ordinal order.
 - `Defaults`: an immutable sorted dictionary (ordinal comparer) of the default state of every configurable rule.
 - `Aliases`: an immutable sorted dictionary (comparer ignoring case) from each legacy alias of a configurable rule to
-  its canonical identifier.
+  its canonical identifier. The aliases of the always-applied rules are not in it; they resolve through `TryResolve`.
 - `DroppedAliases`: the nine dropped aliases in ordinal order.
 
 **Invariants**: identifiers are unique and every table is built once from one list, so the views cannot disagree.
@@ -108,7 +137,8 @@ never depends on the machine's locale. Every collection is immutable, so a calle
 - *Preconditions*: `name` is not null.
 
 This is the method that `ConfigParser` calls to validate the rule names of a configuration file. It keeps the
-behavior that existed before the registry: the always-applied rule and the failure identifiers are unknown there.
+behavior that existed before the registry: the always-applied rules (with their aliases, for example `MD009`) and the
+failure identifiers are unknown there.
 
 **TryGet**: Looks up a registered rule by its canonical identifier (an alias is not accepted).
 
@@ -122,8 +152,9 @@ behavior that existed before the registry: the always-applied rule and the failu
 - *Returns*: `bool`.
 - *Preconditions*: `name` is not null.
 
-The private factory methods `Configurable` and `Fixed` create the entries of the two groups, so the group of an entry
-is stated once where it is declared.
+The private factory methods `Configurable`, `Applied`, and `Fixed` create the entries of the three groups
+(configurable rules, always-applied formatting rules with aliases, and the other non-configurable identifiers), so the
+group of an entry is stated once where it is declared.
 
 #### Error Handling
 
@@ -143,4 +174,8 @@ identifier).
   that a `rules` map must hold exactly.
 - **ConfigParser** (the `ConfigLoader` unit) — validates the names in the `rules` setting with `TryResolveConfigurable`
   and `IsDroppedAlias`.
-- **DocumentFormatter** and **LintMarkEngine** — use the identifier constants for the diagnostics they create.
+- **DocumentFormatter**, the block formatters of the `Blocks` subsystem, and **LintMarkEngine** — use the identifier
+  constants for the diagnostics and edits they create; the document formatter also reads the description of a rule to
+  report an edit.
+- **DocumentParser** — resolves the rule names of suppression comments with `TryResolve`, so legacy numbers suppress the
+  rule they stand for.

@@ -33,11 +33,14 @@ namespace DemaConsulting.LintMark.Linting;
 ///         The catalog is the one place where a rule identifier is defined, so that a configuration can be
 ///         validated against it, a diagnostic can be traced to a registered rule, and the default state of every
 ///         configurable rule has one home. Three groups are registered: the configurable rules (the <c>rules</c>
-///         setting of a configuration can switch them on or off), the always-applied formatting rule
-///         <c>line-ending</c>, and the identifiers under which the tool reports its own failures (file, safety
-///         and configuration problems). The last two groups are known but not configurable, so a configuration
-///         that names one is still rejected as an unknown rule. Aliases of dropped rules are recognized (so a
-///         legacy entry is accepted and ignored) but never resolve to a rule.
+///         setting of a configuration can switch them on or off), the always-applied formatting rules
+///         (<c>line-ending</c>, the whitespace, blank-line, block-spacing, heading, code block, thematic break
+///         and final newline rules, some of which carry legacy rule-number aliases), and the identifiers under
+///         which the tool reports its own failures (file, safety and configuration problems). The last two
+///         groups are known but not configurable, so a configuration that names one (by id or by alias) is
+///         still rejected as an unknown rule; their aliases do resolve where a suppression comment names a rule.
+///         Aliases of dropped rules are recognized (so a legacy entry is accepted and ignored) but never
+///         resolve to a rule.
 ///     </para>
 ///     <para>
 ///         Names are compared with an ordinal comparison that ignores case, independent of the current culture, so
@@ -53,6 +56,76 @@ internal static class RuleCatalog
     ///     The identifier of the always-applied rule that makes line endings uniform.
     /// </summary>
     public const string LineEndingRuleId = "line-ending";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that removes trailing whitespace.
+    /// </summary>
+    public const string TrailingWhitespaceRuleId = "trailing-whitespace";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that replaces tab characters in text by spaces.
+    /// </summary>
+    public const string HardTabsRuleId = "hard-tabs";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that limits consecutive blank lines.
+    /// </summary>
+    public const string MaxBlankLinesRuleId = "max-blank-lines";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes headings in the configured style.
+    /// </summary>
+    public const string HeadingStyleRuleId = "heading-style";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that puts exactly one space after the number signs of a heading.
+    /// </summary>
+    public const string HeadingSpaceRuleId = "heading-space";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that starts headings at the left margin.
+    /// </summary>
+    public const string HeadingStartLeftRuleId = "heading-start-left";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that surrounds headings with blank lines.
+    /// </summary>
+    public const string HeadingBlankLinesRuleId = "heading-blank-lines";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that surrounds fenced code blocks with blank lines.
+    /// </summary>
+    public const string FenceBlankLinesRuleId = "fence-blank-lines";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that surrounds lists with blank lines.
+    /// </summary>
+    public const string ListBlankLinesRuleId = "list-blank-lines";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that surrounds tables with blank lines.
+    /// </summary>
+    public const string TableBlankLinesRuleId = "table-blank-lines";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes thematic breaks in the configured style.
+    /// </summary>
+    public const string ThematicBreakRuleId = "thematic-break";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes code blocks in the configured style.
+    /// </summary>
+    public const string CodeBlockStyleRuleId = "code-block-style";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes code fences with the configured character.
+    /// </summary>
+    public const string CodeFenceRuleId = "code-fence";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that decides whether a file ends with a line ending.
+    /// </summary>
+    public const string FinalNewlineRuleId = "final-newline";
 
     /// <summary>
     ///     The identifier reported when a rewrite would change how the document renders.
@@ -140,8 +213,22 @@ internal static class RuleCatalog
         Configurable("blockquote-blank-line", DiagnosticKind.LintOnly, "A blank line separates two block quotes.", true, "MD028"),
         Configurable("dollar-sign-in-shell-code", DiagnosticKind.LintOnly, "A shell command in a code block starts with a dollar sign.", false, "MD014"),
 
-        // Always-applied formatting rule
+        // Always-applied formatting rules
         Fixed(LineEndingRuleId, DiagnosticKind.Formatting, "A line ending differs from the line ending chosen for the file."),
+        Applied(TrailingWhitespaceRuleId, "A line ends with trailing whitespace, or a hard break is not exactly two spaces.", "MD009"),
+        Applied(HardTabsRuleId, "A tab character is used in text instead of spaces.", "MD010"),
+        Applied(MaxBlankLinesRuleId, "More blank lines in a row than the configuration allows.", "MD012"),
+        Applied(HeadingStyleRuleId, "A heading is not written in the configured style (setext or closed headings).", "MD003", "MD021"),
+        Applied(HeadingSpaceRuleId, "A heading has more or less than one space after its number signs.", "MD019"),
+        Applied(HeadingStartLeftRuleId, "A heading is indented.", "MD023"),
+        Applied(HeadingBlankLinesRuleId, "A heading is not surrounded by blank lines.", "MD022"),
+        Applied(FenceBlankLinesRuleId, "A fenced code block is not surrounded by blank lines.", "MD031"),
+        Applied(ListBlankLinesRuleId, "A list is not surrounded by blank lines.", "MD032"),
+        Applied(TableBlankLinesRuleId, "A table is not surrounded by blank lines.", "MD058"),
+        Applied(ThematicBreakRuleId, "A thematic break is not written in the configured style.", "MD035"),
+        Applied(CodeBlockStyleRuleId, "A code block is not written in the configured style.", "MD046"),
+        Applied(CodeFenceRuleId, "A code fence does not use the configured fence character.", "MD048"),
+        Applied(FinalNewlineRuleId, "The file does not end with the configured final line ending.", "MD047"),
 
         // Safety refusals
         Fixed(HtmlMismatchRuleId, DiagnosticKind.LintOnly, "A rewrite would change how the document renders, so the file is not rewritten."),
@@ -299,6 +386,20 @@ internal static class RuleCatalog
     /// <returns>The entry.</returns>
     private static RuleInfo Configurable(string id, DiagnosticKind kind, string description, bool defaultEnabled, params string[] aliases) =>
         new(id, kind, description, [.. aliases], defaultEnabled, IsConfigurable: true);
+
+    /// <summary>
+    ///     Creates the entry of an always-applied formatting rule.
+    /// </summary>
+    /// <param name="id">The canonical id.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="aliases">The legacy rule-number aliases, if any.</param>
+    /// <returns>The entry (formatting kind, enabled, not configurable).</returns>
+    /// <remarks>
+    ///     The rule is not configurable, so a configuration that names it or one of its aliases is still rejected;
+    ///     the aliases resolve for suppression comments.
+    /// </remarks>
+    private static RuleInfo Applied(string id, string description, params string[] aliases) =>
+        new(id, DiagnosticKind.Formatting, description, [.. aliases], DefaultEnabled: true, IsConfigurable: false);
 
     /// <summary>
     ///     Creates the entry of a rule that is always applied or only labels a failure.

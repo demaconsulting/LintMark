@@ -21,8 +21,9 @@ its outputs, and use them][workflow]
 
 ## Features
 
-LintMark currently provides the following (the individual markdown linting and formatting rules are planned but not
-yet implemented; the line endings of a file are the first thing that is checked and rewritten):
+LintMark currently provides the following (the formatting rules for whitespace, blank lines, headings, code blocks,
+thematic breaks, the end of the file, and line endings are implemented; the rules for paragraphs, lists, tables, and
+links, and the lint-only rules, are planned but not yet implemented):
 
 - **Markdown File Discovery**: Select files by path, directory, or glob pattern (with `!` exclusions);
   with no arguments every `**/*.md` file under the current directory is used
@@ -31,9 +32,21 @@ yet implemented; the line endings of a file are the first thing that is checked 
 - **Deterministic Parallel Processing**: Files are processed in parallel and reported in a stable order, so
   output does not depend on scheduling
 - **Check Mode**: Without `--fix`, files are only checked and never modified; `--check` states this explicitly
-- **Fix Mode**: `--fix` rewrites each file into its canonical form (currently its line endings) and reports what
+- **Fix Mode**: `--fix` rewrites each file into its canonical form (the formatting rules below) and reports what
   remains; a file that is already compliant is not touched
-- **Diff Preview**: `--diff` prints a unified diff of what `--fix` would change and writes no file
+- **Diff Preview**: `--diff` reports the findings and prints a unified diff of what `--fix` would change; it writes no
+  file
+- **Formatting Rules**: Fourteen always-applied rules, each with an identifier and a markdownlint number: trailing
+  whitespace (`trailing-whitespace`, MD009), tabs (`hard-tabs`, MD010), runs of blank lines (`max-blank-lines`, MD012),
+  heading style, spacing, and indentation (`heading-style`, `heading-space`, `heading-start-left`; MD003, MD019, MD021,
+  MD023), blank lines around headings, fences, lists, and tables (`heading-blank-lines`, `fence-blank-lines`,
+  `list-blank-lines`, `table-blank-lines`; MD022, MD031, MD032, MD058), thematic breaks (`thematic-break`, MD035),
+  code blocks and fences (`code-block-style`, `code-fence`; MD046, MD048), and the final newline (`final-newline`,
+  MD047). Code, HTML, math, and front matter are never changed, and a conversion that could change the meaning of a
+  document is not made. MD018 and MD020 are not implemented. Each rule is documented, with examples, in the
+  [User Guide][link-guide-rules]
+- **Rule Suppression**: `lintmark-disable` and `markdownlint-disable` comments, by identifier or by legacy number, leave
+  a passage as it is
 - **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
   (fences, grid table borders, and so on), and is stable when formatted again; this includes a rewrite that only
   changes the line endings, because the renderer shows some text differently for CRLF and LF; otherwise the file
@@ -153,8 +166,10 @@ lintmark [options] [paths...]
 
 LintMark is configured with an optional `.lintmark.yaml` file. Every setting has a built-in default, so a file only
 lists the settings it changes. This release finds, reads, and validates the configuration that applies to each
-Markdown file and reports every problem in it. It applies `end-of-line`, `ignore`, and the `grid-table-invalid`
-entry of `rules`; the other settings are validated and stored, but no linting or formatting rule uses them yet.
+Markdown file and reports every problem in it. It applies `end-of-line`, `final-newline`, `max-blank-lines`,
+`code-fence`, `thematic-break`, `heading-style`, `code-block-style`, `trailing-whitespace`, `ignore`, and the
+`grid-table-invalid` entry of `rules`; the other settings are validated and stored, but no linting or formatting rule
+uses them yet.
 
 - **Discovery**: For each Markdown file the search starts in the file's directory and walks up. The nearest
   `.lintmark.yaml` wins and files are never merged. The search stops after the repository root (the first directory
@@ -260,17 +275,23 @@ Paths are relative to the current directory and use `/` separators; lines are or
 ```text
 docs/broken.md:2:3: file-encoding-error Invalid UTF-8 byte sequence
 docs/guide.md:1:1: line-ending Line endings are CRLF; expected LF
+docs/start.md:9:1: heading-blank-lines A heading is not surrounded by blank lines.
 a.md:3:1: grid-table-invalid Line looks like a grid table border but the table is not valid; the file is never rewritten
 missing.md:1:1: file-read-error File not found
 missing.yaml:1:1: config-error Configuration file not found
 ```
 
 The reported rule identifiers are `file-read-error`, `file-encoding-error`, `file-line-ending-error`,
-`file-parse-error`, `config-error`, `line-ending`, `grid-table-invalid`, `safety-html-mismatch`,
+`file-parse-error`, `config-error`, `line-ending`, the 14 formatting rules (`trailing-whitespace`, `hard-tabs`,
+`max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`, `heading-blank-lines`, `fence-blank-lines`,
+`list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`, and `final-newline`, each
+reported at the place that `--fix` would change), `grid-table-invalid`, `safety-html-mismatch`,
 `safety-structure-mismatch`, `safety-not-idempotent`, `file-format-error`, and `file-write-error`. A `safety-*`
 identifier means that a rewrite was refused because it could damage the document; the file is left as it was. A
-grid table problem (`grid-table-invalid`) is never rewritten, and `line-ending` follows the resolved line ending, so
-it is neither configurable in `rules` nor suppressible. `--diff` writes its unified diff to standard output.
+grid table problem (`grid-table-invalid`) is never rewritten, and the formatting rules and `line-ending` are always
+applied, so they are not configurable in `rules` (a comment switches a formatting rule off for a passage; `line-ending`
+is not suppressible). `--diff` reports the findings on standard error, as in check mode, and writes its unified diff to
+standard output.
 
 The exit code is `0` when every file was processed and nothing is left to report, and `1` when any problem was
 reported (including any configuration problem) or an argument was invalid. After `--fix`, the problems that
@@ -380,4 +401,5 @@ By contributing to this project, you agree that your contributions will be licen
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_LintMark
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.LintMark
 [link-guide]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/introduction.md
+[link-guide-rules]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/formatting-rules.md
 [link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance

@@ -95,8 +95,10 @@ sections:
             children:
               - LintMark-Linting-RuleCatalog-ResolveLegacyNumbers
               - LintMark-Linting-RuleCatalog-DroppedAliases
+              - LintMark-Linting-RuleCatalog-FormattingRuleAliases
             tests:
               - LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable
+              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
 
           - id: LintMark-Linting-RuleDefaults
             title: >-
@@ -119,3 +121,30 @@ sections:
               - LintMark-Linting-RuleCatalog-RuleKinds
             tests:
               - LintingSubsystem_RuleRegistry_FormattingAndLintOnlyRules_AreRegistered
+
+          - id: LintMark-Linting-FormattingRulesRegistered
+            title: >-
+              The Linting subsystem shall register each formatting rule that the tool always applies, with its
+              description.
+            justification: |
+              Reports, suppression comments, and the documentation of the rules all name a rule, so every rule
+              that the formatter applies must be in the registry that they consult.
+            children:
+              - LintMark-Linting-RuleCatalog-AlwaysAppliedFormattingRules
+            tests:
+              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
+              - LintingSubsystem_RuleRegistry_EveryEmittedRuleId_IsRegistered
+
+          - id: LintMark-Linting-FormattingRulesNotConfigurable
+            title: >-
+              The Linting subsystem shall not accept the name or legacy rule number of a formatting rule that the
+              tool always applies as a rule of a configuration.
+            justification: |
+              The formatting rules define the canonical form of a file, and a configuration that switched one off
+              would give the file a form that nobody chose. A rule is switched off for a passage with a
+              suppression comment instead.
+            children:
+              - LintMark-Linting-RuleCatalog-ResolveConfigurableOnly
+            tests:
+              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
+              - LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable

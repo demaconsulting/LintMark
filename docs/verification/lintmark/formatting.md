@@ -3,10 +3,11 @@
 ### Verification Approach
 
 The `Formatting` subsystem is verified by integration tests in `FormattingSubsystemTests.cs`. Each test parses a small
-Markdown text with the real `DocumentParser`, runs a real `DocumentFormatter` that is built with block formatters
-from the test helpers, and applies the result with the real `SourcePatcher`. A private helper formats a document and
-patches it in one step. The tool as shipped has no block formatter that changes text, so the tests use test doubles
-that exist only in the test project:
+Markdown text with the real `DocumentParser`, runs the real `DocumentFormatter`, and applies the result with the real
+`SourcePatcher`. The scenarios of the formatting rules build the `DocumentFormatter` with the three real block
+formatters of the tool (heading, code block, and thematic break), as the default engine does. The contract scenarios
+build it with test doubles instead. Private helpers format a document and patch it in one step. The doubles exist only
+in the test project, so that the subsystem tests can use rules that are deliberately simple or deliberately broken:
 
 - `ReplacingFormatter` (from `TestBlockFormatters.cs`) is a simple and correct paragraph formatter that replaces one
   text by another and is registered under the `paragraph-wrap` rule, so suppression comments for that rule apply.
@@ -24,6 +25,10 @@ each other. The subsystem tests cover the behavior that crosses unit boundaries.
 subsystem requirement (a document without line terminators, a tie between the line endings, a mixed file, a
 `disable-next-line` comment, and every rejected argument) are verified by the unit tests and are described in the unit
 documents.
+
+The rules of the tool that change text (whitespace, blank lines, spacing between blocks, the final newline, headings,
+code blocks, and thematic breaks) are verified in this file with the shipped formatters, each with the small cases that
+show its behavior. The `Blocks` verification adds the corpus of documents and the safety checks for the same rules.
 
 ### Test Environment
 
@@ -46,6 +51,25 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
   use the line ending that the configuration asks for.
 - Without a configured line ending the majority ending of the file is written, and a file whose line endings all agree
   with the target has no `line-ending` problem.
+- Trailing whitespace is removed from text, including a line of only whitespace, and kept in code; a hard break keeps
+  its meaning, with two spaces or a backslash.
+- A tab in plain text becomes spaces up to the next tab stop, and a tab in a code span, in indentation, or in a code
+  block is kept.
+- A run of blank lines is reduced to the configured maximum.
+- A document ends with exactly one line ending when the configuration asks for a final newline, and with none when it
+  does not.
+- A heading, a fenced code block, a list, and a table that touch the text around them get a blank line, and no blank
+  line is added or removed inside quotes and lists.
+- A setext heading becomes an ATX heading where that keeps the meaning, closing number signs are removed, the blanks
+  after the number signs become one space, and an indented heading starts at the left margin; a multi-line setext
+  heading, text that ends in a number sign, and `#Title` stay as written.
+- A thematic break and a code fence are written in the style that the configuration names, an indented code block
+  becomes a fenced one, and a braced fence keeps its character.
+- Code, HTML, math, front matter, and a fence that is never closed keep their content.
+- A line that looks like the border of a grid table is not changed.
+- No blank line is inserted next to a line that looks like the border of a grid table.
+- Each change is reported as a formatting problem of its rule at the place where the change starts.
+- The canonical document, and the result of formatting a document, produce no edit and no problem.
 
 ### Test Scenarios
 
@@ -56,7 +80,7 @@ double space is formatted by a `ReplacingFormatter` (double space to single spac
 result holds two edits, the heading edit (rule `heading-style`) first and the paragraph edit (rule `paragraph-wrap`)
 second, and the patched text is `# TITLE`, a blank line, and `body text`.
 
-**A document without formatters stays identical**: A document with a double space is formatted by a
+**A document without formatters stays identical**: A clean document with a double space is formatted by a
 `DocumentFormatter` that has no block formatters. The result has no edit, and the patched text is the same string
 instance as the source text.
 
@@ -85,7 +109,88 @@ problem is reported, and the bytes produced from the patched text with that line
 **A file whose line endings all agree has no problem**: A CRLF file is formatted with a configuration that asks for
 CRLF. No problem is reported and the line ending of the result is CRLF.
 
+**Trailing whitespace is removed from text only**: Text with trailing spaces, a line of only spaces, a line that ends in
+a tab, and a fenced code block with trailing spaces are formatted. The whitespace of the text lines is gone, the line of
+spaces is empty, and the code line is as written.
+
+**Hard breaks keep their meaning**: Lines that end in two spaces, in one space, in a backslash, and in three spaces are
+formatted. The two spaces and the backslash stay, the three spaces become two, and the single space is removed.
+
+**Tabs are expanded only in plain text**: A tab between two words becomes spaces up to the next tab stop. A tab inside a
+code span, a tab that indents a nested list item, and a tab inside a fenced code block are kept.
+
+**A run of blank lines is reduced to the configured maximum**: Three blank lines between two paragraphs are formatted
+with a maximum of one blank line, and again with a maximum of two. One blank line, and two blank lines, remain.
+
+**A document ends with exactly one line ending**: A document without a final line ending, and one with several blank
+lines at the end, are formatted with the default configuration. Both end with exactly one line ending.
+
+**A document ends without a line ending when none is configured**: A document that ends with a line ending is formatted
+with a configuration that turns the final newline off. The line ending is gone.
+
+**A heading that touches text gets blank lines**: A heading directly before a paragraph, and a heading directly after
+one, are formatted. A blank line separates them.
+
+**A fence that touches text gets blank lines**: A fenced code block between two lines of text is formatted. A blank line
+is inserted on both sides of the fence.
+
+**A list that touches text gets a blank line**: A list directly after a line of text is formatted. A blank line
+separates them.
+
+**A table that touches text gets a blank line**: A table directly after a line of text is formatted. A blank line
+separates them.
+
+**A setext heading becomes an ATX heading where that is safe**: A one-line setext heading is formatted and becomes an
+ATX heading. A multi-line setext heading, and one whose text ends in a number sign, stay as written.
+
+**A closed heading loses its closing signs**: A heading with closing number signs is formatted, and the signs go. A
+heading whose text ends in a number sign is as written, and no other problem is reported for it.
+
+**The blanks after the number signs become one space**: A heading with four spaces after its number signs is formatted
+and gets one space. `#Title`, which is a paragraph, is as written.
+
+**An indented heading starts at the left margin**: A heading that is indented by three spaces is formatted and has no
+indentation.
+
+**Thematic breaks use the configured style**: A break written with asterisks is formatted with the default and becomes
+three dashes. A break written with dashes is formatted with the asterisk style and becomes three asterisks. A break that
+touches the text before it is as written.
+
+**Code fences use the configured fence character**: A tilde fence with an info string is formatted with the default and
+becomes a backtick fence. A backtick fence is formatted with the tilde style and becomes a tilde fence. A braced fence
+is as written under the tilde style.
+
+**An indented code block becomes a fenced one**: An indented code block after a heading is formatted. It becomes a
+fenced code block with the same content, separated from the heading by a blank line.
+
+**Code, HTML, math, front matter, and grid tables keep their content**: A document with front matter, a fenced code
+block, an HTML block, a math block, and a grid table, each with trailing whitespace, tabs, and blank lines, is formatted.
+No edit and no problem result.
+
+**A line that looks like a grid table border is not changed**: Lines that start with a plus sign after a list marker or
+a quote marker, with trailing whitespace, are formatted with the heading, code block, and thematic break formatters. No
+edit and no problem result.
+
+**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
+directly after text, is formatted with the same formatters. No blank line is inserted.
+
+**Quotes and lists keep their blank lines**: A list item with a fence, a quote with a heading directly followed by text,
+and a list with two blank lines between its items are formatted. No edit results.
+
+**Violations are reported per rule at their place**: A heading with two spaces after its number sign that touches a
+paragraph with trailing whitespace is formatted. Three formatting problems are reported in document order, one for the
+space after the number sign, one for the missing blank line, and one for the trailing whitespace, each at the line
+and column where its change starts.
+
+**A canonical document and a rewritten document need nothing more**: A document that breaks several rules is formatted
+once, and its result and a hand-written canonical document are formatted again. No edit and no problem result for
+either.
+
 #### Boundary conditions
+
+**A fence that is never closed stays as written**: A document with a backtick fence that the document never closes,
+followed by trailing whitespace and blank lines after its code, is formatted. A second document with a tilde fence
+that is never closed is formatted too. The text of both is unchanged.
 
 **A document that is unsafe to rewrite produces nothing**: A document with a line that looks like the border of a grid
 table, but is not a valid grid table, is flagged as unsafe to rewrite. Formatting it with a `ReplacingFormatter`

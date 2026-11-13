@@ -57,8 +57,9 @@ suppressed at an offset or inside a range.
 - *Contract*: See *ReferenceIndex Design*.
 - *Constraints*: Immutable after construction; safe for concurrent reads.
 
-The subsystem consumes the Markdig library (syntax tree and source ranges) and the .NET base class
-library; it uses no other subsystem. It is consumed by the `Engine` subsystem, the `Formatting` subsystem (the
+The subsystem consumes the Markdig library (syntax tree and source ranges), the `Linting` subsystem (`RuleCatalog`, for
+resolving the rule names of suppression comments), and the .NET base class
+library. It is consumed by the `Engine` subsystem, the `Formatting` subsystem (the
 document, its blocks, and its suppressions), and the `Safety` subsystem (the shared Markdown pipeline).
 
 ### Design
@@ -100,6 +101,10 @@ response to any failure of the nesting check; the grid table parser is the only 
 The `SuppressionMap` and `ReferenceIndex` units consume the `BlockInfo` and `BlockKind` types that are
 declared with `DocumentParser`, while the parser builds both of them. This is a cycle of types only: the
 parser calls the two units and they never call back into it, so there is no cycle of behavior.
+
+`DocumentParser` also passes a rule-name resolver built on the `RuleCatalog` of the `Linting` subsystem to the
+`SuppressionMap`, so a suppression comment that names a rule by its legacy rule number suppresses the canonical rule.
+The `Linting` subsystem does not depend on `Document`, so this adds no cycle.
 
 Thread safety follows the tool-wide rules in the *LintMark* system design: the only state shared
 between threads is the immutable Markdown pipeline. Every other object is created per file and

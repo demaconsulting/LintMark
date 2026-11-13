@@ -187,6 +187,18 @@ sections:
             tests:
               - DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults
 
+          - id: LintMark-Document-SuppressionRuleAliases
+            title: >-
+              The Document subsystem shall treat a rule that a suppression comment names by its legacy rule number
+              as the rule that the number stands for.
+            justification: |
+              Authors who come from other Markdown tools write suppression comments with the rule numbers they
+              know, and such a comment must switch off the same rule as the name of the rule does.
+            children:
+              - LintMark-Document-DocumentParser-SuppressionResolvesAliases
+            tests:
+              - DocumentSubsystem_Suppressions_RuleNamedByLegacyNumber_SuppressesTheRule
+
           - id: LintMark-Document-References
             title: >-
               The Document subsystem shall provide the link reference definitions of a document with their

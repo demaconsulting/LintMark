@@ -1,0 +1,258 @@
+---
+# Software Unit Requirements for the HeadingFormatter Class
+#
+# The HeadingFormatter class proposes the changes that bring a heading into canonical form: ATX style, one space
+# after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs in the text.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: HeadingFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-AcceptsHeadings
+                    title: >-
+                      The HeadingFormatter class shall accept an ATX heading and a setext heading, and no other
+                      kind of block.
+                    justification: |
+                      The document formatter gives each block to the first formatter that accepts it, so a
+                      formatter that accepted another kind of block would take it away from the rule that owns it.
+                    tests:
+                      - HeadingFormatter_CanFormat_AtxAndSetextHeadings_ReturnsTrue
+                      - HeadingFormatter_CanFormat_OtherBlocks_ReturnsFalse
+                      - HeadingFormatter_CanFormat_HeadingKindWithoutHeadingNode_ReturnsFalse
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-RejectsMissingArguments
+                    title: >-
+                      The HeadingFormatter class shall throw an ArgumentNullException that names the parameter when
+                      an argument is null.
+                    justification: |
+                      Missing arguments are programming errors that must be reported as such.
+                    tests:
+                      - HeadingFormatter_CanFormat_NullBlock_Throws
+                      - HeadingFormatter_Format_NullArguments_Throw
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-RejectsOtherBlocks
+                    title: The HeadingFormatter class shall refuse to format a block that is not a heading.
+                    justification: |
+                      A block of another kind has a different shape, and edits computed for it would damage it.
+                    tests:
+                      - HeadingFormatter_Format_NonHeadingBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-RuleIdsImmutable
+                    title: >-
+                      The HeadingFormatter class shall list the rules it enforces in a form that its holders cannot
+                      change.
+                    justification: |
+                      The list decides which suppressions affect the formatter, and one instance is shared by every
+                      thread.
+                    tests:
+                      - HeadingFormatter_RuleIds_Read_ListsTheHeadingRulesAndIsImmutable
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SetextToAtx
+                    title: >-
+                      The HeadingFormatter class shall write a setext heading of one line as an ATX heading of the
+                      same level.
+                    justification: |
+                      One heading style makes a document consistent, and the level and the text are the meaning of
+                      the heading.
+                    tests:
+                      - HeadingFormatter_Format_SetextHeading_ConvertsToAtx
+                      - HeadingFormatter_Format_SetextHeadingAfterDefinition_ConvertsSafely
+                      - HeadingFormatter_Format_SetextTextWithTab_ConvertsAndExpandsTheTab
+                      - HeadingFormatter_Format_SetextTextWithTabNotOnFirstLine_ConvertsAndExpandsTheTab
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SetextMultiLineKept
+                    title: >-
+                      The HeadingFormatter class shall leave a setext heading of several lines as a setext heading.
+                    justification: |
+                      An ATX heading has one line, so joining the lines could change the text and its line breaks.
+                    tests:
+                      - HeadingFormatter_Format_MultiLineSetextHeading_StaysSetextAndKeepsHardBreak
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SetextNestedKept
+                    title: >-
+                      The HeadingFormatter class shall leave a setext heading inside a quote or list as a setext
+                      heading.
+                    justification: |
+                      The text of such a heading may continue lazily, so the conversion could change which lines
+                      belong to the container.
+                    tests:
+                      - HeadingFormatter_Format_SetextHeadingInContainer_StaysSetext
+                      - HeadingFormatter_Format_MultiLineSetextInQuote_StaysSetext
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SetextLookalikeKept
+                    title: >-
+                      The HeadingFormatter class shall leave a setext heading as a setext heading when its text
+                      would read differently as an ATX heading.
+                    justification: |
+                      Text that ends with number signs, or that starts like a list, a quote, or a Pandoc construct,
+                      has another meaning after the conversion.
+                    tests:
+                      - HeadingFormatter_Format_SetextTextEndingWithMarker_StaysSetext
+                      - HeadingFormatter_Format_SetextTextStartingLikeStructure_StaysSetext
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SetextBackslashSpacesKept
+                    title: >-
+                      The HeadingFormatter class shall keep the trailing whitespace behind a final backslash of a
+                      line of a setext heading that stays setext.
+                    justification: |
+                      Removing the spaces would turn the backslash into a hard break and change the text. An ATX
+                      heading has one line, so its trailing whitespace behind a backslash is removed.
+                    tests:
+                      - HeadingFormatter_Format_SetextTextEndingWithBackslashAndSpaces_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-ClosedToOpen
+                    title: >-
+                      The HeadingFormatter class shall remove the closing number signs of an ATX heading together
+                      with the spaces before them.
+                    justification: |
+                      Closing number signs have no meaning, and one style makes headings consistent.
+                    tests:
+                      - HeadingFormatter_Format_ClosedAtxHeading_RemovesTheClosingSequence
+                      - HeadingFormatter_Format_EmptyClosedHeading_KeepsTheMarkerOnly
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-TextNumberSignsKept
+                    title: >-
+                      The HeadingFormatter class shall keep number signs that belong to the text of a heading.
+                    justification: |
+                      A run of number signs without a space before it, or one that is escaped, is part of the
+                      text, and removing it would change the heading.
+                    tests:
+                      - HeadingFormatter_Format_NumberSignsInText_AreNotAClosingSequence
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-EmptyHeadingKept
+                    title: >-
+                      The HeadingFormatter class shall write an empty ATX heading as its number signs alone.
+                    justification: |
+                      An empty heading has no text to separate from the number signs, so spaces after them are
+                      trailing whitespace.
+                    tests:
+                      - HeadingFormatter_Format_EmptyHeading_KeepsTheMarkerOnly
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SingleSpaceAfterMarker
+                    title: >-
+                      The HeadingFormatter class shall put exactly one space between the number signs of an ATX
+                      heading and its text.
+                    justification: |
+                      Extra spaces or tabs after the number signs have no meaning and make headings inconsistent.
+                    tests:
+                      - HeadingFormatter_Format_BlanksAfterMarker_BecomeOneSpace
+                      - HeadingFormatter_Format_TabAfterMarkerNotOnFirstLine_IsSafeAndStable
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-MissingSpaceKept
+                    title: >-
+                      The HeadingFormatter class shall leave text that starts with number signs but is not a
+                      heading, because no space follows them, as it is.
+                    justification: |
+                      Such text is a paragraph. Adding the space would turn it into a heading and change how the
+                      document renders.
+                    tests:
+                      - HeadingFormatter_Format_NoSpaceAfterMarker_LeavesTheParagraph
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-IndentationRemoved
+                    title: >-
+                      The HeadingFormatter class shall remove the indentation of a heading that is not inside a
+                      quote or list.
+                    justification: |
+                      An indented heading looks like a mistake and has no meaning that the left margin lacks.
+                    tests:
+                      - HeadingFormatter_Format_IndentedHeading_RemovesTheIndentation
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-NestedHeadingKept
+                    title: >-
+                      The HeadingFormatter class shall keep the quote or list prefix and the indentation of a
+                      heading inside a quote or list.
+                    justification: |
+                      The prefix is what puts the heading in its container.
+                    tests:
+                      - HeadingFormatter_Format_HeadingInContainer_KeepsThePrefix
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-TrailingWhitespaceRemoved
+                    title: The HeadingFormatter class shall remove the trailing whitespace of a heading.
+                    justification: |
+                      Trailing whitespace is invisible and carries no meaning.
+                    tests:
+                      - HeadingFormatter_Format_TrailingWhitespace_IsRemoved
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-TabsExpanded
+                    title: >-
+                      The HeadingFormatter class shall replace each tab in the text of a heading by spaces up to
+                      the next tab stop of four columns, counted from the column that the text has in the canonical
+                      heading.
+                    justification: |
+                      Tabs show at different widths in different tools, and counting from the canonical column makes
+                      the result the same as when the heading is formatted again.
+                    tests:
+                      - HeadingFormatter_Format_TabInText_ExpandsToTheTabStop
+                      - HeadingFormatter_Format_TabInClosedOrNestedHeading_IsExpanded
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-ProtectedSpansKept
+                    title: >-
+                      The HeadingFormatter class shall keep a tab that is part of a code span, inline HTML, or
+                      other literal text of a heading.
+                    justification: |
+                      Literal text keeps its whitespace, because it is part of what the document renders.
+                    tests:
+                      - HeadingFormatter_Format_TabInProtectedSpan_IsKept
+                      - HeadingFormatter_Format_SetextTextWithTabInCodeSpan_KeepsTheTab
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-SuppressedRuleKept
+                    title: >-
+                      The HeadingFormatter class shall propose no change for a heading in which a comment of the
+                      document disables the rule of the change.
+                    justification: |
+                      An author who switched a rule off for a passage expects the passage to stay as written.
+                    tests:
+                      - HeadingFormatter_Format_RuleSuppressed_LeavesTheHeading
+                      - HeadingFormatter_Format_RuleEnabledAgain_FormatsTheLaterHeading
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-EditsUnderOwnRule
+                    title: >-
+                      The HeadingFormatter class shall attribute each change that it proposes to the rule that the
+                      change enforces.
+                    justification: |
+                      The rule of a change decides how it is reported and which suppression comment switches it off.
+                    tests:
+                      - HeadingFormatter_Format_NonCanonicalHeading_ReportsEachEditUnderItsRule
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-CanonicalUnchanged
+                    title: The HeadingFormatter class shall propose no change for a heading in canonical form.
+                    justification: |
+                      A canonical heading must not be reported or rewritten.
+                    tests:
+                      - HeadingFormatter_Format_CanonicalHeading_ProposesNothing
+                      - HeadingFormatter_Format_TabHeadingAfterParagraphWithoutBlankLine_IsStableOnTheSecondRun
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-LineEndingsKept
+                    title: >-
+                      The HeadingFormatter class shall propose the same changes for a document with CRLF or mixed
+                      line endings as for the same document with LF line endings.
+                    justification: |
+                      The line ending is not part of the text of a heading.
+                    tests:
+                      - HeadingFormatter_Format_CrlfLineEndings_ProposesTheSameEdits
+                      - HeadingFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-ByteOrderMarkKept
+                    title: >-
+                      The HeadingFormatter class shall propose the same changes for a document with a byte order
+                      mark as for the same document without one.
+                    justification: |
+                      The byte order mark is not part of the text of a heading.
+                    tests:
+                      - HeadingFormatter_Format_ByteOrderMark_ProposesTheSameEdits
+                      - HeadingFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
+
+                  - id: LintMark-Formatting-Blocks-HeadingFormatter-DeterministicResult
+                    title: >-
+                      The HeadingFormatter class shall propose the same changes for the same parsed document when
+                      one instance is called from several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel by one shared instance, and a result that depended on timing
+                      could not be trusted.
+                    tests:
+                      - HeadingFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult

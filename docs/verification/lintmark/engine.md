@@ -14,8 +14,9 @@ or must not be read: a reported diagnostic proves that a file was read, and sile
 tests change the current directory and are therefore run sequentially with the other tests that touch process-wide
 state.
 
-The default engine has no block formatters, so the only rewrite it can propose is a change of line endings. The
-scenarios that need a change of the text, or a refusal by a safety check, install test doubles through the engine's
+The default engine is created with the three block formatters of the `Blocks` subsystem, so it applies every formatting
+rule of the tool to the files it processes. The scenarios that need a change of the text that is independent of those
+rules, or a refusal by a safety check, install test doubles through the engine's
 `formatter` seam: the paragraph formatters from `Formatting/TestBlockFormatters.cs`, which are the replacing
 formatter (collapses a double space) and the broken formatter that drops a hard break (so that the rendering
 would change). Editor settings that cannot be read are provoked through the `editorConfigFactory` seam with a
@@ -68,6 +69,10 @@ directory and are removed with it.
   mark and chosen line ending included), no temporary file remains, and the diagnostics that the rewrite removed are
   no longer reported; without `--fix` no file is ever written.
 - With `--diff` the unified diff of the proposed change is printed and no file is written.
+- The default engine checks a file that breaks formatting rules, reporting each violation under the identifier of its
+  rule, and writes nothing.
+- The default engine previews the change that the fix option would make to such a file, and writes nothing.
+- The default engine repairs such a file with `--fix` and finds nothing in the repaired file.
 - A rewrite that a safety check refuses is reported as a safety diagnostic and the file is left byte for byte as it
   was; this includes a conversion of the line endings that would change how the document renders.
 - A document with an invalid grid table is reported as `grid-table-invalid` at the offending line and is never
@@ -156,6 +161,20 @@ through the `formatter` seam are run with `--diff`; the exit code is 0, the outp
 **Fix gives the same report and the same files for any degree of parallelism**: Two identical trees of 40 files
 (CRLF, clean, and undecodable) with `end-of-line: lf` are fixed, one with one worker and one with sixteen; the
 exit code is 1, the lines are identical and in ordinal order, and every file has the same bytes in both trees.
+
+**The default engine reports each formatting violation and writes nothing in check mode**: A file whose heading has two
+spaces after the number sign and touches its paragraph, and whose paragraph ends with spaces, is checked by the default
+engine. The check reports `heading-space`, `heading-blank-lines`, and `trailing-whitespace`, exits with 1, and the file
+is byte for byte as it was.
+
+**The default engine shows the change with the diff option**: The same file is run with `--diff` by the default engine.
+The exit code is 1, the output shows the heading and the paragraph before and after the change, and the file is byte
+for byte as it was.
+
+**The default engine applies the formatting rules**: The same file is checked, fixed, and checked again by the default
+engine. The first check reports `heading-space`, `heading-blank-lines`, and `trailing-whitespace` and exits with 1,
+the fix leaves the file with the canonical heading, a blank line, and the paragraph without trailing spaces, and the
+last check reports nothing.
 
 #### Boundary conditions
 

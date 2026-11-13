@@ -312,13 +312,15 @@ match timeout. A block range that would fall outside the text is clamped.
 - **Markdig** — parsing and the syntax tree (see the Markdig OTS design).
 - **SourceDocument** — the normalized text and the line table.
 - **SuppressionMap** and **ReferenceIndex** — built for every document by calling their `Build` methods.
+- **RuleCatalog** (`Linting` subsystem) — `Parse` passes a function built on `RuleCatalog.TryResolve` to
+  `SuppressionMap.Build`.
 
-**Follow-up (alias wiring)**: `SuppressionMap.Build` accepts an optional function that canonicalizes the rule names of
-suppression comments, but `Parse` does not pass one: the names in a comment are compared as written. That is enough
-while the only rule a block formatter or the engine asks about is `grid-table-invalid`, which has no alias. Before
-block formatters honor comments such as `markdownlint-disable MD009` (no later than the first block formatters, a
-later phase), `Parse` must pass a function built on `RuleCatalog.TryResolve`. It is recorded here so that the wiring
-is not forgotten; it is not done yet.
+**Alias resolution**: `SuppressionMap.Build` accepts a function that canonicalizes the rule names of suppression
+comments, and `Parse` passes `ResolveRuleName`: a name that is a registered rule (an identifier or a legacy rule-number
+alias, in any letter case) becomes the canonical identifier, so `markdownlint-disable MD009` suppresses
+`trailing-whitespace`; a name that is not registered is passed on unchanged, so it suppresses nothing that the tool
+asks about. This is a dependency of the `Document` subsystem on the `Linting` subsystem; `Linting` depends on nothing
+in `Document`, so there is no cycle.
 
 `SuppressionMap` and `ReferenceIndex` in turn read the `BlockInfo` and `BlockKind` types that are declared with
 this unit. This is a cycle at the level of types only: the parser calls the two units, and they never call
@@ -330,6 +332,7 @@ to build their inputs, which is a test-time dependency only.
 - **LintMarkEngine** — parses every file it reads (the call can be replaced in tests through a seam), and parses the
   proposed text again in the safety checks; it reads `GridFallback` to refuse and report a document that must not be
   rewritten.
-- **DocumentFormatter** — reads `IsFormatUnsafe`, the blocks, and the suppressions of the parsed document.
+- **DocumentFormatter** and the block formatters of the `Blocks` subsystem — read `IsFormatUnsafe`, the blocks, and the
+  suppressions of the parsed document.
 - **HtmlEquivalenceChecker** — renders with the shared `Pipeline`.
 - `GetLines` and `GetContinuationPrefix` have no production callers yet (see *Key Methods*).

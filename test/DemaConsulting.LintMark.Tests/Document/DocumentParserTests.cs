@@ -1392,6 +1392,61 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that a suppression comment that names a rule by its legacy number suppresses the canonical rule.
+    /// </summary>
+    [Theory]
+    [InlineData("markdownlint-disable MD009", "trailing-whitespace")]
+    [InlineData("markdownlint-disable md009", "trailing-whitespace")]
+    [InlineData("lintmark-disable MD010", "hard-tabs")]
+    [InlineData("markdownlint-disable MD003", "heading-style")]
+    [InlineData("markdownlint-disable MD021", "heading-style")]
+    [InlineData("markdownlint-disable MD047", "final-newline")]
+    [InlineData("markdownlint-disable MD013", "line-length")]
+    [InlineData("markdownlint-disable trailing-whitespace", "trailing-whitespace")]
+    public void DocumentParser_Parse_SuppressionCommentWithAlias_SuppressesTheCanonicalRule(string directive, string canonical)
+    {
+        // Arrange: a comment that disables a rule by its alias, and a paragraph after it
+        var text = $"<!-- {directive} -->\n\ntext\n";
+        var document = Parse(text);
+        var offset = text.IndexOf("text", StringComparison.Ordinal);
+
+        // Act & Assert: the canonical rule is suppressed there, and an unrelated rule is not
+        Assert.True(document.Suppressions.IsSuppressed(offset, canonical));
+        Assert.False(document.Suppressions.IsSuppressed(offset, "image-alt-text"));
+    }
+
+    /// <summary>
+    ///     Test that a line-scoped suppression by alias applies to the canonical rule on the next line only.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_DisableNextLineWithAlias_SuppressesTheNextLineOnly()
+    {
+        // Arrange: a next-line directive by alias, and two lines after it
+        const string text = "<!-- markdownlint-disable-next-line MD009 -->\nfirst\nsecond\n";
+        var document = Parse(text);
+
+        // Act & Assert: only the line right after the directive is suppressed
+        Assert.True(document.Suppressions.IsSuppressed(text.IndexOf("first", StringComparison.Ordinal), "trailing-whitespace"));
+        Assert.False(document.Suppressions.IsSuppressed(text.IndexOf("second", StringComparison.Ordinal), "trailing-whitespace"));
+    }
+
+    /// <summary>
+    ///     Test that a name that is not a registered rule suppresses nothing and is kept as written.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_SuppressionCommentWithUnknownName_SuppressesNoRegisteredRule()
+    {
+        // Arrange: a comment that names an unknown rule
+        const string text = "<!-- markdownlint-disable MD999 -->\n\ntext\n";
+        var document = Parse(text);
+        var offset = text.IndexOf("text", StringComparison.Ordinal);
+
+        // Act & Assert: the unknown name is suppressed under its own name, registered rules are not
+        Assert.True(document.Suppressions.IsSuppressed(offset, "MD999"));
+        Assert.False(document.Suppressions.IsSuppressed(offset, "trailing-whitespace"));
+    }
+
+    /// <summary>
     ///     Test that an indented continuation of a footnote's first paragraph is not lazy.
     /// </summary>
     [Fact]

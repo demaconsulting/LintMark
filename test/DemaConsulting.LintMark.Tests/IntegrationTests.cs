@@ -445,9 +445,9 @@ public class IntegrationTests
     [Fact]
     public void LintMark_CheckFlag_Provided_LintsWithoutWriting()
     {
-        // Arrange: a valid file with CRLF endings and a missing final newline
+        // Arrange: a valid file with CRLF endings
         using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("ok.md", "# Title\r\n\r\ntext"u8.ToArray());
+        var file = directory.WriteBytes("ok.md", "# Title\r\n\r\ntext\r\n"u8.ToArray());
         var before = File.ReadAllBytes(file);
         var timestamp = File.GetLastWriteTimeUtc(file);
 
@@ -932,10 +932,10 @@ public class IntegrationTests
     [Fact]
     public void LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess()
     {
-        // Arrange: the documented sample with every setting, rule alias and ignore patterns (it asks for CRLF line endings, so the file has them)
+        // Arrange: the documented sample with every setting, rule alias and ignore patterns (it asks for CRLF line endings and no final line ending, so the file has them)
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", ConfigurationSamples.FullSample);
-        var file = directory.WriteFile("a.md", "# Title\r\n\r\nText.\r\n");
+        var file = directory.WriteFile("a.md", "# Title\r\n\r\nText.");
 
         // Act: run the tool with the file
         var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
@@ -1759,6 +1759,330 @@ public class IntegrationTests
         // Assert: the exclude removes the file
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("file-encoding-error", output);
+    }
+
+    /// <summary>
+    ///     Runs the tool with the fix option over one file and returns the file's bytes as text.
+    /// </summary>
+    /// <param name="directory">The temporary directory that holds the file and, when given, the configuration.</param>
+    /// <param name="content">The content of the file.</param>
+    /// <param name="config">The content of the configuration file, or <see langword="null"/> for none.</param>
+    /// <returns>The exit code, the output and the text of the file after the run.</returns>
+    private (int ExitCode, string Output, string Text) FixFile(TemporaryDirectory directory, string content, string? config = null)
+    {
+        if (config is not null)
+        {
+            directory.WriteFile(".lintmark.yaml", config);
+        }
+
+        var file = directory.WriteBytes("a.md", Bytes(content));
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
+        return (exitCode, output, System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(file)));
+    }
+
+    /// <summary>
+    ///     Test that the check option reports a whitespace violation with its rule and position and writes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing()
+    {
+        // Arrange: a file with trailing whitespace on its first line
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("text \nmore\n"));
+        var before = File.ReadAllBytes(file);
+
+        // Act: run the tool with the check option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--check", file);
+
+        // Assert: the rule and position are reported, the exit code is one, the file is unchanged
+        Assert.Equal(1, exitCode);
+        Assert.Contains("a.md:1:5: trailing-whitespace", output);
+        Assert.Equal(before, File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that the fix option removes trailing whitespace but keeps the two spaces of a hard break.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_TrailingWhitespace_RemovesItAndKeepsHardBreak()
+    {
+        // Arrange: a paragraph with a hard break, a trailing space and a backslash break
+        using var directory = new TemporaryDirectory();
+
+        // Act: fix the file
+        var (exitCode, output, text) = FixFile(directory, "one  \ntwo \nthree\\\nfour   \nfive\n");
+
+        // Assert: only the single trailing space and the third space go
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("trailing-whitespace", output);
+        Assert.Equal("one  \ntwo\nthree\\\nfour  \nfive\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option replaces tabs in text by spaces up to the next tab stop and keeps tabs in code.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_HardTabs_ExpandsTabsInTextOnly()
+    {
+        // Arrange: a tab in text and a tab in a code span
+        using var directory = new TemporaryDirectory();
+
+        // Act: fix the file
+        var (exitCode, _, text) = FixFile(directory, "a\tb `c\td`\n");
+
+        // Assert: the tab in text became three spaces, the code span is unchanged
+        Assert.Equal(0, exitCode);
+        Assert.Equal("a   b `c\td`\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option collapses blank lines to the default maximum of one, or to the configured maximum.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_MaxBlankLines_CollapsesToTheMaximum()
+    {
+        // Arrange: four blank lines between paragraphs
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+
+        // Act: fix once with the default and once with a maximum of two
+        var (_, _, byDefault) = FixFile(first, "a\n\n\n\n\nb\n");
+        var (_, _, withTwo) = FixFile(second, "a\n\n\n\n\nb\n", "max-blank-lines: 2\n");
+
+        // Assert: one blank line by default, two when configured
+        Assert.Equal("a\n\nb\n", byDefault);
+        Assert.Equal("a\n\n\nb\n", withTwo);
+    }
+
+    /// <summary>
+    ///     Test that the fix option gives a file exactly one final line ending by default.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_FinalNewline_EndsWithExactlyOneLineEnding()
+    {
+        // Arrange: two temporary folders with two files
+        using var missing = new TemporaryDirectory();
+        using var extra = new TemporaryDirectory();
+
+        // Act: fix a file without a final line ending and a file with extra blank lines
+        var (_, _, added) = FixFile(missing, "text");
+        var (_, _, trimmed) = FixFile(extra, "text\n\n\n");
+
+        // Assert: the final line ending is exactly one in both files
+        Assert.Equal("text\n", added);
+        Assert.Equal("text\n", trimmed);
+    }
+
+    /// <summary>
+    ///     Test that the fix option removes the final line ending when the configuration says so.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_FinalNewlineOff_RemovesTheLineEnding()
+    {
+        // Arrange: a file with a final line ending under final-newline false
+        using var directory = new TemporaryDirectory();
+
+        // Act: fix the file
+        var (_, _, removed) = FixFile(directory, "text\n", "final-newline: false\n");
+
+        // Assert: the file ends without a line ending
+        Assert.Equal("text", removed);
+    }
+
+    /// <summary>
+    ///     Test that the fix option writes setext, closed and badly spaced headings as plain ATX headings.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_Headings_BecomeAtxWithOneSpace()
+    {
+        // Arrange: a setext heading, a closed heading, an indented heading and one with many spaces
+        using var directory = new TemporaryDirectory();
+
+        // Act: fix the file
+        var (exitCode, _, text) = FixFile(directory, "Title\n=====\n\n## Closed ##\n\n   ### Indented\n\n####    Spaced\n");
+
+        // Assert: every heading is in canonical form
+        Assert.Equal(0, exitCode);
+        Assert.Equal("# Title\n\n## Closed\n\n### Indented\n\n#### Spaced\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option inserts the blank lines that headings, fences, lists and tables need.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks()
+    {
+        // Arrange: a heading, a fence, a list and a table directly after each other
+        using var directory = new TemporaryDirectory();
+
+        // Act: fix the file
+        var (exitCode, _, text) = FixFile(directory, "# H\ntext\n```\ncode\n```\n- a\n- b\n\nmore\n| a | b |\n|---|---|\n| 1 | 2 |\n");
+
+        // Assert: every boundary has one blank line
+        Assert.Equal(0, exitCode);
+        Assert.Equal("# H\n\ntext\n\n```\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n|---|---|\n| 1 | 2 |\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option writes thematic breaks in the default or the configured style.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_ThematicBreak_UsesTheConfiguredStyle()
+    {
+        // Arrange: breaks in several forms
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+        const string input = "text\n\n***\n\n___\n\n- - -\n";
+
+        // Act: fix with the default and with asterisks
+        var (_, _, byDefault) = FixFile(first, input);
+        var (_, _, asterisks) = FixFile(second, input, "thematic-break: asterisks\n");
+
+        // Assert: three dashes by default, three asterisks when configured
+        Assert.Equal("text\n\n---\n\n---\n\n---\n", byDefault);
+        Assert.Equal("text\n\n***\n\n***\n\n***\n", asterisks);
+    }
+
+    /// <summary>
+    ///     Test that the fix option writes code fences with the default or the configured character and fences indented code.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence()
+    {
+        // Arrange: a tilde fence and an indented block
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+        const string input = "~~~js\none\n~~~\n\n    two\n";
+
+        // Act: fix with the default and with tildes
+        var (_, _, byDefault) = FixFile(first, input);
+        var (_, _, tildes) = FixFile(second, input, "code-fence: tilde\n");
+
+        // Assert: backticks by default, tildes when configured
+        Assert.Equal("```js\none\n```\n\n```\ntwo\n```\n", byDefault);
+        Assert.Equal("~~~js\none\n~~~\n\n~~~\ntwo\n~~~\n", tildes);
+    }
+
+    /// <summary>
+    ///     Test that the fix option never changes code, HTML, math or front matter.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_CodeHtmlMathAndFrontMatter_AreNeverChanged()
+    {
+        // Arrange: content with trailing whitespace, tabs and blank lines inside protected blocks
+        using var directory = new TemporaryDirectory();
+        const string content =
+            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n";
+
+        // Act: fix the file
+        var (exitCode, output, text) = FixFile(directory, content);
+
+        // Assert: nothing is reported or changed
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain(": trailing-whitespace", output);
+        Assert.Equal(content, text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option does not add blank lines inside list items and quotes.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_NestedBlocks_KeepTheirSpacing()
+    {
+        // Arrange: a tight list item with a fence and a quote with a heading directly followed by text
+        using var directory = new TemporaryDirectory();
+        const string content = "- a\n  ```\n  code\n  ```\n- b\n\n> # H\n> text\n";
+
+        // Act: fix the file
+        var (exitCode, _, text) = FixFile(directory, content);
+
+        // Assert: unchanged
+        Assert.Equal(0, exitCode);
+        Assert.Equal(content, text);
+    }
+
+    /// <summary>
+    ///     Test that a rule disabled by a comment with its legacy number is neither fixed nor reported.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation()
+    {
+        // Arrange: trailing whitespace inside a region that disables MD009
+        using var directory = new TemporaryDirectory();
+        const string content = "<!-- markdownlint-disable MD009 -->\n\ntext \nmore\n";
+
+        // Act: fix the file
+        var (exitCode, output, text) = FixFile(directory, content);
+
+        // Assert: nothing is reported or changed
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("trailing-whitespace", output);
+        Assert.Equal(content, text);
+    }
+
+    /// <summary>
+    ///     Test that the diff option shows what the fix option would change and writes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_DiffFlag_FormattingViolations_ShowsTheChange()
+    {
+        // Arrange: a closed heading and trailing whitespace
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("# Title #\n\ntext \n"));
+
+        // Act: run the tool with the diff option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--diff", file);
+
+        // Assert: the removed and added lines are shown, the file is unchanged
+        Assert.Equal(1, exitCode);
+        Assert.Contains("-# Title #", output);
+        Assert.Contains("+# Title", output);
+        Assert.Contains("-text ", output);
+        Assert.Contains("+text", output);
+        Assert.Equal(Bytes("# Title #\n\ntext \n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a second fix run after the first one reports nothing and changes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_FormattingRules_SecondRunReportsNothing()
+    {
+        // Arrange: a document that breaks many rules, fixed by a first run
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("Title\n=====\ntext  \n- a\n\n\n\n~~~\ncode\n~~~\n    indented\n***\n"));
+        Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+        var afterFirst = File.ReadAllBytes(file);
+
+        // Act: run the check option on the result, then the fix option again
+        var checkExit = Runner.Run(out var checkOutput, "dotnet", _dllPath, "--check", file);
+        var fixExit = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: nothing is reported and the bytes stay the same
+        Assert.Equal(0, checkExit);
+        Assert.DoesNotContain("a.md:", checkOutput);
+        Assert.Equal(0, fixExit);
+        Assert.Equal(afterFirst, File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a configuration cannot switch off an always-applied formatting rule by its legacy number.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigRules_AlwaysAppliedRuleByAlias_ReportsUnknownRule()
+    {
+        // Arrange: a configuration that tries to switch MD009 off
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "rules:\n  MD009: false\n");
+        var file = directory.WriteBytes("a.md", Bytes("text\n"));
+
+        // Act: run the tool
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: the rule is reported as unknown
+        Assert.Equal(1, exitCode);
+        Assert.Contains("config-error", output);
+        Assert.Contains("MD009", output);
     }
 }
 

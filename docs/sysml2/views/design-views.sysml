@@ -46,6 +46,10 @@ package LintMark {
         expose FormattingSubsystem;
     }
 
+    view BlocksView {
+        expose BlocksSubsystem;
+    }
+
     view SafetyView {
         expose SafetySubsystem;
     }

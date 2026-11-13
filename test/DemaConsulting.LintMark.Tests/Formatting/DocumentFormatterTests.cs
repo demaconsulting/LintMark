@@ -257,24 +257,45 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that a format-unsafe document gets no edit and no diagnostic, even when its line endings differ from the configuration.
+    ///     Parses a CRLF file that looks like it holds an invalid grid table, so that it is format-unsafe, and formats it
+    ///     with a configuration that asks for LF.
     /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_FormatUnsafeDocument_ReturnsNothingEvenWithCrlf()
+    /// <returns>The document and the result.</returns>
+    private static (ParsedDocument Document, FormatResult Result) FormatUnsafeCrlfDocument()
     {
-        // Arrange: a CRLF file with a line that looks like an invalid grid table border; the configuration asks for LF
+        // A CRLF file with a line that looks like an invalid grid table border; the configuration asks for LF
         var document = ParseFile("para  x\r\n+---+---+\r\n");
         Assert.True(document.IsFormatUnsafe);
         var config = LintMarkConfig.Default with { EndOfLine = LineEnding.Lf };
+        return (document, DoubleSpaceFormatter().Format(document, config));
+    }
 
-        // Act: format
-        var result = DoubleSpaceFormatter().Format(document, config);
+    /// <summary>
+    ///     Test that a format-unsafe document gets no edit, even when its line endings differ from the configuration.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_FormatUnsafeDocument_ProposesNoEditEvenWithCrlf()
+    {
+        // Act: format the unsafe document
+        var (document, result) = FormatUnsafeCrlfDocument();
 
-        // Assert: nothing is proposed or reported, and the file keeps its own majority line ending
+        // Assert: nothing is proposed, and the file keeps its own majority line ending
         Assert.Empty(result.Edits);
-        Assert.Empty(result.Diagnostics);
         Assert.Equal(document.Source.MajorityLineEnding, result.LineEnding);
         Assert.Equal(LineEnding.CrLf, result.LineEnding);
+    }
+
+    /// <summary>
+    ///     Test that a format-unsafe document gets no diagnostic, not even for its line endings.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_FormatUnsafeDocument_ReportsNoProblemEvenWithCrlf()
+    {
+        // Act: format the unsafe document
+        var (_, result) = FormatUnsafeCrlfDocument();
+
+        // Assert: nothing is reported
+        Assert.Empty(result.Diagnostics);
     }
 
     /// <summary>
@@ -369,9 +390,9 @@ public class DocumentFormatterTests
         var lf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.Lf });
         var crlf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.CrLf });
 
-        // Assert: neither reports anything
-        Assert.Empty(lf.Diagnostics);
-        Assert.Empty(crlf.Diagnostics);
+        // Assert: neither reports a line ending violation (the missing final newline is another rule)
+        Assert.DoesNotContain(lf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
+        Assert.DoesNotContain(crlf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
     }
 
     /// <summary>
@@ -438,9 +459,9 @@ public class DocumentFormatterTests
         // Act: format
         var result = new DocumentFormatter().Format(document, LintMarkConfig.Default);
 
-        // Assert: LF is the target and nothing is reported
+        // Assert: LF is the target and no line ending violation is reported (the missing final newline is another rule)
         Assert.Equal(LineEnding.Lf, result.LineEnding);
-        Assert.Empty(result.Diagnostics);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
     }
 
     /// <summary>
@@ -564,26 +585,32 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that a format result with a default array or a default edit is rejected.
+    ///     Test that a format result with a default list of edits is rejected.
     /// </summary>
     [Fact]
-    public void FormatResult_Constructor_InvalidEdits_Throws()
-    {
-        // Arrange / Act / Assert: a default array and a default edit are rejected
+    public void FormatResult_Constructor_DefaultEditList_Throws() =>
         Assert.Throws<ArgumentException>(() => new FormatResult(default, LineEnding.Lf, []));
-        Assert.Throws<ArgumentException>(() => new FormatResult([default], LineEnding.Lf, []));
-    }
 
     /// <summary>
-    ///     Test that a format result with default or null diagnostics is rejected.
+    ///     Test that a format result with a default edit is rejected.
     /// </summary>
     [Fact]
-    public void FormatResult_Constructor_InvalidDiagnostics_Throws()
-    {
-        // Arrange / Act / Assert: a default array and a null element are rejected
+    public void FormatResult_Constructor_DefaultEdit_Throws() =>
+        Assert.Throws<ArgumentException>(() => new FormatResult([default], LineEnding.Lf, []));
+
+    /// <summary>
+    ///     Test that a format result with a default list of diagnostics is rejected.
+    /// </summary>
+    [Fact]
+    public void FormatResult_Constructor_DefaultDiagnosticList_Throws() =>
         Assert.Throws<ArgumentException>(() => new FormatResult([], LineEnding.Lf, default));
+
+    /// <summary>
+    ///     Test that a format result with a missing diagnostic is rejected.
+    /// </summary>
+    [Fact]
+    public void FormatResult_Constructor_NullDiagnostic_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new FormatResult([], LineEnding.Lf, [null!]));
-    }
 
     /// <summary>
     ///     Test that a format result with an undefined line ending is rejected.

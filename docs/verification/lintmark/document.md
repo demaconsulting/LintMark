@@ -86,6 +86,7 @@ skipping it, so coverage cannot be lost silently. Otherwise the standard test en
   line, whether loaded from LF or CRLF bytes; a document with only a valid grid table is not marked and keeps the
   grid table; the same document parsed again reports the same location.
 - Suppression, reference lookup, and line-ending facts of one document agree with its content.
+- A suppression comment that names a rule by its legacy rule number suppresses the canonical rule.
 - No collection exposed by a parse result can be modified by a caller that casts it.
 
 ### Test Scenarios
@@ -136,6 +137,11 @@ CRLF endings, a suppression region, link reference definitions (the last repeati
 another letter case), and an unreferenced footnote is loaded and parsed; the line-ending facts, the suppressed
 rules at known offsets, the definitions with their lines, the first-definition-wins lookup by a label that
 differs in case and whitespace, the footnote block, and the tiling all give the expected results.
+
+**A suppression comment names a rule by its legacy number**: A document with a `markdownlint-disable MD009` comment
+around a paragraph, and an enable comment after it, is parsed. The canonical rule `trailing-whitespace` is suppressed
+inside the region, a rule that the number does not stand for is not, and the rule is not suppressed after the enable
+comment.
 
 **A valid grid table is kept and the document is not marked**: CRLF bytes with a valid grid table between two
 paragraphs are loaded and parsed; there is no fallback location, the document is not format-unsafe, exactly one block

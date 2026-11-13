@@ -13,11 +13,12 @@ markdown files into a preferred format, with optional tweaks via a `.lintmark.ya
 This release selects Markdown files by path, directory, or glob pattern, reads and parses each one, and reports
 the files it cannot read or parse. It finds, reads, and validates the `.lintmark.yaml` configuration (and the
 line ending from `.editorconfig`) that applies to each file, and reports every configuration problem. It checks
-and, with `--fix`, rewrites the line endings of each file, and `--diff` previews what `--fix` would change. A
-rewrite is written only when every safety check passes, and it is written atomically. The `ignore` patterns of the
-configuration are applied. The individual Markdown linting and formatting rules are planned but not yet
-implemented, so their settings are validated and stored but do not change any file yet. LintMark also provides the
-standard command-line interface and self-validation.
+and, with `--fix`, rewrites each file with 14 formatting rules and the line ending rule (whitespace, blank lines,
+headings, code blocks, thematic breaks, and the end of the file; see *Formatting Rules*), and `--diff` previews what
+`--fix` would change. A rewrite is written only when every safety check passes, and it is written atomically. The
+`ignore` patterns of the configuration are applied. The remaining Markdown rules (for example paragraph wrapping,
+lists, tables, links, and the lint-only rules) are planned but not yet implemented, so their settings are validated and
+stored but do not change any file yet. LintMark also provides the standard command-line interface and self-validation.
 
 ## Scope
 
@@ -27,6 +28,7 @@ This user guide covers:
 - Usage examples for common tasks
 - Command-line options reference
 - Configuration file (`.lintmark.yaml`) reference
+- Formatting rules reference, with the identifier, legacy number, setting, and an example of each rule
 - Practical examples for various scenarios
 
 # Continuous Compliance
@@ -133,11 +135,14 @@ lintmark --check docs
 ```
 
 A file whose line endings are not the ones chosen for it (see *Line Endings and .editorconfig*) is reported with
-the rule identifier `line-ending`, at line 1, column 1:
+the rule identifier `line-ending`, at line 1, column 1, and every place at which a formatting rule would change the file
+is reported with the identifier of that rule, at the line and column of the change (see *Formatting Rules*):
 
 ```text
 docs/guide.md:1:1: line-ending Line endings are CRLF; expected LF
 docs/notes.md:1:1: line-ending Mixed line endings (2 CRLF, 5 LF); expected LF
+docs/start.md:7:12: trailing-whitespace A line ends with trailing whitespace, or a hard break is not exactly two spaces.
+docs/start.md:9:1: heading-blank-lines A heading is not surrounded by blank lines.
 ```
 
 Every problem of this kind can be corrected with `--fix`. The exit code is `1` when any problem is reported.
@@ -152,8 +157,9 @@ lintmark --fix docs
 
 - A file is rewritten only when the rewrite changes it and every safety check passes (see *Safety Checks*). A file
   that is already compliant is not touched at all: its content and its modification time stay as they are.
-- Only what can be fixed is rewritten. A problem that rewriting removes, such as `line-ending`, is no longer
-  reported after the file was written; problems that remain, and files that were refused, are reported as usual.
+- Only what can be fixed is rewritten. A problem that rewriting removes, such as `line-ending` or a formatting rule, is
+  no longer reported after the file was written; problems that remain, and files that were refused, are reported as
+  usual.
   The exit code is `0` when nothing remains to report and `1` otherwise, so a second `--fix` run over the same
   files reports nothing and changes nothing.
 - A file is never rewritten when its configuration is invalid or its editor settings cannot be read, because the
@@ -245,10 +251,11 @@ line endings; the `line-ending` finding stays.
 LintMark is configured with an optional `.lintmark.yaml` file. Every setting has a built-in default, so a
 configuration file only needs to list the settings it changes. This release finds, reads, and validates the
 configuration that applies to each Markdown file and reports every problem in it. The settings that this release
-applies are `end-of-line` (see *Line Endings and .editorconfig*), `ignore` (see *Ignore Patterns*), and the
-`grid-table-invalid` entry of `rules` (see *Grid Table Parse Problems*). The other settings are validated and
-stored, but no linting or formatting rule uses them yet, so a mistake in a configuration is reported now rather
-than when the rules are introduced.
+applies are `end-of-line` (see *Line Endings and .editorconfig*), `final-newline`, `max-blank-lines`, `code-fence`,
+`thematic-break`, `heading-style`, `code-block-style`, and `trailing-whitespace` (see *Formatting Rules*), `ignore` (see
+*Ignore Patterns*), and the `grid-table-invalid` entry of `rules` (see *Grid Table Parse Problems*). The other settings
+are validated and stored, but no linting or formatting rule uses them yet, so a mistake in a configuration is reported
+now rather than when the rules are introduced.
 
 ### Configuration Files
 
@@ -339,7 +346,8 @@ What the settings describe:
 - `link-refactor` is an opt-in conversion of inline links to reference links; `threshold` is the width of the
   inline link that triggers the conversion.
 - `heading-style`, `code-block-style`, and `trailing-whitespace` currently accept only their default value; they
-  exist so that the canonical form is explicit.
+  exist so that the canonical form is explicit. `hard-break` is validated but does not convert hard breaks yet (a break
+  written with spaces is only normalized to exactly two spaces; see *Formatting Rules*).
 
 Every value is checked strictly, so that a typo can never silently fall back to a default:
 
@@ -403,9 +411,10 @@ rules:
   `MD033`, `MD041`, `MD043`, `MD044`, and `MD057`. A configuration that still contains them stays valid, but
   repeating one of them is still a duplicate.
 - Rules that the formatter always applies cannot be switched off, so their identifiers and aliases (for example
-  `line-ending` and `MD009`) are unknown names in `rules`.
+  `line-ending`, `trailing-whitespace`, and `MD009`) are unknown names in `rules`. They are switched off for a passage
+  with a suppression comment (see *Formatting Rules*).
 - This release evaluates only `grid-table-invalid` (see *Grid Table Parse Problems*). The other toggles are
-  validated and stored; no other rule runs yet.
+  validated and stored; no other rule that `rules` can switch runs yet.
 
 ### Ignore Patterns
 
@@ -609,6 +618,7 @@ the problems that rewriting removed are not reported.
 | `file-parse-error`          | The Markdown parser failed for the file (1:1)                                      |
 | `config-error`              | A configuration file or `.editorconfig` problem (see *Configuration Errors*)       |
 | `line-ending`               | A line ending differs from the one chosen for the file (1:1; fixable)              |
+| formatting rules            | A formatting rule would change the file at this place (fixable; see below)         |
 | `grid-table-invalid`        | A line looks like a grid table border but the table is not valid (never rewritten) |
 | `safety-html-mismatch`      | A rewrite would change how the document renders; the file is not rewritten         |
 | `safety-structure-mismatch` | A rewrite would change Pandoc structure; the file is not rewritten                 |
@@ -617,7 +627,12 @@ the problems that rewriting removed are not reported.
 | `file-write-error`          | The rewritten file could not be written (1:1)                                      |
 
 Every identifier in the table except `grid-table-invalid` always applies and cannot be switched off; switching
-`grid-table-invalid` off in `rules` hides its report only.
+`grid-table-invalid` off in `rules` hides its report only. The formatting rules are the identifiers of *Formatting
+Rules* (`trailing-whitespace`, `hard-tabs`, `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`,
+`heading-blank-lines`, `fence-blank-lines`, `list-blank-lines`, `table-blank-lines`, `thematic-break`,
+`code-block-style`, `code-fence`, and `final-newline`); each is reported at the line and column that its change starts
+at (for an inserted blank line, the line before which it is inserted), at most once for each rule and line, with the
+description of the rule as the message.
 
 The exit code is `0` when no problem was reported and `1` when at least one problem was reported, including any
 configuration problem, or when an argument is invalid. There is no other exit code. A `--fix` run that rewrote every

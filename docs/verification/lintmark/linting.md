@@ -32,8 +32,9 @@ process-wide state.
   identifier constant of the catalog, is registered under its own canonical identifier.
 - A legacy rule number in the `rules` setting switches the canonical rule, and the number of a removed rule is
   accepted and changes nothing.
-- The always-applied rule and the identifiers of failures are reported as unknown rules when a configuration names
-  them.
+- The always-applied rules, by identifier and by legacy number, and the identifiers of failures are reported as unknown
+  rules when a configuration names them; the always-applied formatting rules are registered as fixable formatting rules
+  with a description and their legacy numbers.
 
 ### Test Scenarios
 
@@ -65,6 +66,10 @@ reporting unit can use an identifier that the registry does not know.
 **A legacy rule number is accepted in the rules setting**: A configuration with `MD013: false` is parsed. It has no
 errors, and the canonical rule `line-length` is switched off.
 
+**An always-applied formatting rule is registered with its legacy number**: The entry of `trailing-whitespace` is
+looked up and the number `MD009` is resolved. The entry has the formatting kind, a description, and the alias `MD009`,
+is not configurable, and the number resolves to the identifier.
+
 #### Boundary conditions
 
 **The number of a removed rule is accepted and changes nothing**: A configuration with `MD033: false` is parsed. It
@@ -79,3 +84,7 @@ line 0, with column 0, or with a message that holds a line break each throws an 
 `config-error` are parsed. Neither produces a configuration. Each gives exactly one error at line 2, column 3, with
 the message `Unknown rule` followed by the quoted name, so the protection of the files of the user cannot be
 switched off in a configuration.
+
+**An always-applied formatting rule cannot be configured by name or by number**: Configurations that name
+`trailing-whitespace` and `MD009` are parsed. Neither produces a configuration, and each gives exactly one error with the
+message `Unknown rule` followed by the quoted name.

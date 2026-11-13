@@ -2,8 +2,8 @@
 # Software Unit Requirements for the RuleCatalog Class
 #
 # The RuleCatalog class (with the RuleInfo record) is the single registry of rule identifiers: the configurable
-# rules with their legacy numbers and defaults, the legacy numbers of removed rules, and the identifiers that the
-# tool reports for findings that are not configurable.
+# rules with their legacy numbers and defaults, the formatting rules that the tool always applies, the legacy
+# numbers of removed rules, and the identifiers that the tool reports for findings that are not configurable.
 
 sections:
   - title: LintMark Requirements
@@ -58,17 +58,18 @@ sections:
               - id: LintMark-Linting-RuleCatalog-ResolveConfigurableOnly
                 title: >-
                   The RuleCatalog class shall offer only the rules that a configuration may switch on or off when
-                  asked for the configurable rules, so that the always-on rule and the identifiers of failures
-                  are not accepted there.
+                  asked for the configurable rules, so that the rules that are always applied and the identifiers of
+                  failures are not accepted there.
                 justification: |
-                  A configuration that switched off the line ending rule or a safety identifier would
-                  weaken the protection of the user's files, so such names must be unknown in a
-                  configuration.
+                  A configuration that switched off a formatting rule that defines the canonical form, the line
+                  ending rule, or a safety identifier would give files a form that nobody chose or weaken the
+                  protection of the user's files, so such names must be unknown in a configuration.
                 tests:
                   - RuleCatalog_TryResolve_LineEnding_ReturnsRuleButNotConfigurable
                   - RuleCatalog_TryResolveConfigurable_LineEnding_ReturnsFalse
                   - RuleCatalog_TryResolveConfigurable_KebabIdAndAlias_ReturnsCanonical
                   - RuleCatalog_TryResolveConfigurable_DroppedAlias_ReturnsFalse
+                  - RuleCatalog_TryResolve_FormattingRuleAlias_ResolvesButIsNotConfigurable
 
               - id: LintMark-Linting-RuleCatalog-DroppedAliases
                 title: >-
@@ -78,7 +79,7 @@ sections:
                   Removed rules must stay recognizable so that an old entry is neither an error nor a rule.
                 tests:
                   - RuleCatalog_TryResolve_DroppedAlias_ReturnsFalseAndIsDropped
-                  - RuleCatalog_Rules_Configurable22AndDropped9_CountsMatch
+                  - RuleCatalog_Rules_Configurable22NonConfigurable25AndDropped9_CountsMatch
 
               - id: LintMark-Linting-RuleCatalog-Defaults
                 title: >-
@@ -99,6 +100,26 @@ sections:
                   is allowed, or documented.
                 tests:
                   - RuleCatalog_Rules_NonConfigurableEntries_ListTheAlwaysOnAndFailureIds
+
+              - id: LintMark-Linting-RuleCatalog-AlwaysAppliedFormattingRules
+                title: >-
+                  The RuleCatalog class shall register each formatting rule that the tool always applies, as a
+                  formatting rule that a configuration cannot switch off, with a description.
+                justification: |
+                  The formatter reports and suppresses its rules by identifier, and the documentation of the
+                  rules is made from the registry, so each rule that it applies must be registered.
+                tests:
+                  - RuleCatalog_Rules_FormattingRules_AreTheConfigurableOnesLineEndingAndTheAlwaysApplied
+                  - RuleCatalog_Rules_NonConfigurableEntries_ListTheAlwaysOnAndFailureIds
+
+              - id: LintMark-Linting-RuleCatalog-FormattingRuleAliases
+                title: >-
+                  The RuleCatalog class shall identify each formatting rule that the tool always applies and that
+                  has one by its legacy rule number.
+                justification: |
+                  Authors who come from other tools name the rules they know by number in suppression comments.
+                tests:
+                  - RuleCatalog_TryResolve_FormattingRuleAlias_ResolvesButIsNotConfigurable
 
               - id: LintMark-Linting-RuleCatalog-RuleDescriptions
                 title: >-
@@ -144,7 +165,7 @@ sections:
                 justification: |
                   The kind of a rule decides whether the fix option removes its problems.
                 tests:
-                  - RuleCatalog_Rules_FormattingRules_AreLineLengthParagraphWrapAndLineEnding
+                  - RuleCatalog_Rules_FormattingRules_AreTheConfigurableOnesLineEndingAndTheAlwaysApplied
 
               - id: LintMark-Linting-RuleCatalog-ImmutableResults
                 title: >-

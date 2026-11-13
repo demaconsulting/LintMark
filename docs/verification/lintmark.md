@@ -15,17 +15,18 @@ the tool with absolute paths for the Markdown files and for any file named with 
 combined output with the path tail that the report prints (for example `docs/.lintmark.yaml:1:14`). The report
 prints each path relative to the current directory of the tool process, so the assertions match on the part of the
 path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
-check whether a configuration problem is reported, where, in what form, and with what exit status. The only
-setting that changes what the tool does to a file is the line ending, so the scenarios
-that name a line ending in a configuration file or in editor settings check the effect on the bytes of the
-rewritten file.
+check whether a configuration problem is reported, where, in what form, and with what exit status. The settings that
+change what the tool does to a file are the line ending (`end-of-line`), `final-newline`, `max-blank-lines`,
+`code-fence`, and `thematic-break`, so the scenarios that name them in a configuration file or in editor settings check
+the effect on the bytes of the rewritten file.
 
 The scenarios about the `--fix` and `--diff` options write a file with known bytes, run the tool, and then read
 the bytes of the file back, so that they observe exactly what the tool did to it. The scenarios that must show that
 a file was not written also compare the last write time with a time set far in the past, and the scenario about
-temporary files lists the directory after the rewrite. The line ending is the only text that the shipped
-formatting changes, so these scenarios use line endings to observe the rewrite. Refusals that a faulty rule would
-cause cannot be reached through the command line, because no shipped rule changes text; the Engine subsystem
+temporary files lists the directory after the rewrite. The scenarios about the formatting rules write a file that
+breaks one rule or several, run the tool with `--check`, `--diff`, or `--fix` (with a configuration file where a setting
+selects the form), and compare the report and the bytes of the file afterward. Refusals that a faulty rule would
+cause cannot be reached through the command line, because no rule of the tool is faulty; the Engine subsystem
 tests with deliberately faulty rules verify them, and the system scenarios show the refusals that do not depend on
 a rule.
 
@@ -62,6 +63,15 @@ a file without permissions, such as when the tests run as a privileged user.
 - `--fix` rewrites a file with the line ending that its configuration, then its editor settings, then most of its
   lines give; keeps the byte order mark and all other text; leaves a compliant file unwritten; leaves no temporary
   file behind; and a second run finds nothing to repair.
+- The formatting rules are applied: trailing whitespace goes except for a hard break, tabs in text become spaces, runs
+  of blank lines are reduced to the configured maximum, a file ends with exactly one line ending or none as configured,
+  headings are ATX headings with one space, headings, fences, lists, and tables are separated from their neighbors by
+  blank lines, thematic breaks and code fences take the configured style, and indented code becomes fenced code.
+- Code, HTML, math, and front matter keep their content, no blank line is added or removed inside quotes and lists, and
+  a rule that a suppression comment disables by its legacy number is neither fixed nor reported.
+- `--check` reports each place that a formatting rule would change under the rule identifier at its line and column,
+  `--diff` shows the change of such a rule, a second `--fix` run finds nothing, and a configuration that names a
+  formatting rule or its legacy number in `rules` is reported as an unknown rule.
 - A file with an invalid grid table, with an invalid configuration, with editor settings that cannot be read, or whose
   conversion to another line ending would change how the document renders is never rewritten; the reason is reported,
   except that an invalid grid table is reported only while the
@@ -231,6 +241,60 @@ is CRLF.
 terminator is passed first without options and then with `--fix`; the first run gives exit code 1 and the output
 contains `a.md:1:1: line-ending Mixed line endings (2 CRLF, 1 LF); expected CRLF`, and the second run gives exit
 code 0 and no `line-ending` report.
+
+**Check reports a formatting violation with its rule and position**: A file `text` (with a trailing space) and
+`more` is passed without options; the exit code is 1, the output contains `a.md:1:5: trailing-whitespace`, and the
+file's bytes are unchanged.
+
+**Fix removes trailing whitespace and keeps a hard break**: A file with a line that ends with two spaces, one with
+one space, one with a backslash, and one with three spaces is passed with `--fix`; the exit code is 0, nothing is
+reported, and only the single space and the third space are gone.
+
+**Fix expands tabs in text only**: A file with a tab in text and a tab in a code span is passed with `--fix`; the tab in
+text becomes three spaces and the code span is unchanged.
+
+**Fix collapses blank lines to the maximum**: A file with three blank lines between two paragraphs is passed with
+`--fix` without a configuration and with `max-blank-lines: 2`; one blank line and two blank lines remain.
+
+**Fix gives the file exactly one final line ending**: A file without a final line ending and one with extra blank lines
+at the end are passed with `--fix`; both end with exactly one line ending.
+
+**Fix removes the final line ending when configured**: A file with a final line ending under `final-newline: false` is
+passed with `--fix`; it ends with no line ending.
+
+**Fix writes headings as ATX headings with one space**: A file with a setext heading, a closed heading, an indented
+heading, and a heading with several spaces is passed with `--fix`; each heading is in canonical form.
+
+**Fix adds blank lines around headings, fences, lists, and tables**: A file whose heading, fence, list, and table touch
+their neighbors is passed with `--fix`; every boundary has exactly one blank line.
+
+**Fix writes thematic breaks in the configured style**: A file with breaks written with asterisks, underscores, and
+spaced dashes is passed with `--fix` without a configuration and with `thematic-break: asterisks`; the breaks are three
+dashes and three asterisks.
+
+**Fix writes code fences with the configured character and fences indented code**: A file with a tilde fence and an
+indented block is passed with `--fix` without a configuration and with `code-fence: tilde`; the blocks are fenced with
+backticks and with tildes.
+
+**Fix never changes code, HTML, math, or front matter**: A file with trailing whitespace, tabs, and blank lines inside
+front matter, fenced code, an HTML block, and a math block is passed with `--fix`; the exit code is 0, nothing is
+reported, and the bytes are the same.
+
+**Fix adds no blank lines inside lists and quotes**: A file with a fence in a list item and a heading directly followed
+by text in a quote is passed with `--fix`; the exit code is 0 and the bytes are the same.
+
+**A rule disabled by its legacy number is neither fixed nor reported**: A file with trailing whitespace after a comment
+that disables `MD009` is passed with `--fix`; nothing is reported and the bytes are the same.
+
+**Diff shows the change of a formatting rule**: A file with a closed heading and a trailing space is passed with
+`--diff`; the exit code is 1, the output shows the removed and the added lines of both changes, and the file is
+unchanged.
+
+**Second fix run finds nothing after the formatting rules**: A file that breaks many rules is fixed by a first run; a
+check run on the result reports nothing, and a second `--fix` run gives exit code 0 and the same bytes.
+
+**A formatting rule cannot be switched off in the configuration**: A configuration lists `MD009: false` under `rules`;
+the exit code is 1 and the output reports a `config-error` for the unknown rule `MD009`.
 
 **Ignore patterns skip the matching files of a glob**: A configuration ignores `drafts/**` and both `drafts/bad.md`
 and `kept/bad.md` are undecodable; an absolute glob that selects every Markdown file gives exit code 1, a

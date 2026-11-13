@@ -465,3 +465,38 @@ sections:
               - LintMark-Engine-LintMarkEngine-IgnoreExplicitFile
             tests:
               - EngineSubsystem_Ignore_ExplicitFile_Processed
+
+          - id: LintMark-Engine-DefaultFormattingRulesChecked
+            title: >-
+              The Engine subsystem shall report with all the formatting rules of the tool the problems of each
+              file that it processes.
+            justification: |
+              A user who runs the tool expects every rule of the tool to apply, without having to assemble
+              the rules.
+            children:
+              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesChecked
+            tests:
+              - EngineSubsystem_Check_FormattingViolations_ReportsEachRuleAndWritesNothing
+
+          - id: LintMark-Engine-DefaultFormattingRulesPreviewed
+            title: >-
+              The Engine subsystem shall print with all the formatting rules of the tool the change that the fix
+              option would make to each file that it processes.
+            justification: |
+              A user who previews a rewrite expects it to show what every rule of the tool would change.
+            children:
+              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesPreviewed
+            tests:
+              - EngineSubsystem_Diff_FormattingViolations_PrintsTheChangeWithTheDefaultRules
+
+          - id: LintMark-Engine-DefaultFormattingRulesFixed
+            title: >-
+              The Engine subsystem shall repair each file that it processes with the fix option by all the
+              formatting rules of the tool.
+            justification: |
+              A user who repairs files expects every rule of the tool to apply, without having to assemble the
+              rules.
+            children:
+              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesFixed
+            tests:
+              - EngineSubsystem_Fix_FormattingViolations_RewritesWithTheDefaultRules

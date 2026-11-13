@@ -56,7 +56,8 @@ rather than modeled as SysML2 parts. The system is made of the entry point `Prog
 `Linting` (findings and the rule registry), `Formatting` (edits and the document formatter), `Safety` (the checks that
 decide whether a rewrite may be written), and `Reporting` (text and diff output) are the subsystems that make rewriting
 files possible and safe; `AtomicFileWriter` is a unit of the `Engine` subsystem and `TextWidth` a unit of the
-`Utilities` subsystem.
+`Utilities` subsystem. `Formatting` contains a nested subsystem, `Blocks`, which holds the block formatters of the tool
+(`HeadingFormatter`, `CodeBlockFormatter`, and `ThematicBreakFormatter`); it is the only nested subsystem.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -89,7 +90,12 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
       - `TextEdit.cs`, `EditSet.cs` - the `EditSet` unit
       - `SourcePatcher.cs` - the `SourcePatcher` unit
       - `DocumentFormatter.cs`, `IBlockFormatter.cs`, `FormatContext.cs`, `FormatResult.cs` - the `DocumentFormatter`
-        unit
+        unit, with the internal helpers `LineLayout.cs`, `LineOwnership.cs`, `InlineMap.cs`, `LeafWhitespace.cs`,
+        `FrontMatterGuard.cs`, `BlankLinePass.cs`, `BlockSpacingPass.cs`, and `TrailerPass.cs`
+      - **Blocks/** - the nested `Blocks` subsystem (block formatters)
+        - `HeadingFormatter.cs` - the `HeadingFormatter` unit
+        - `CodeBlockFormatter.cs` - the `CodeBlockFormatter` unit
+        - `ThematicBreakFormatter.cs` - the `ThematicBreakFormatter` unit
     - **Linting/** - findings and rule registry subsystem
       - `Diagnostic.cs`, `DiagnosticKind.cs` - the `Diagnostic` unit
       - `RuleCatalog.cs`, `RuleInfo.cs` - the `RuleCatalog` unit
@@ -134,7 +140,11 @@ unit of one subsystem keeps the folder of that subsystem in every artifact tree:
 `Engine` subsystem (`docs/design/lintmark/engine/atomic-file-writer.md`) and `TextWidth` is a unit of the `Utilities`
 subsystem (`docs/design/lintmark/utilities/text-width.md`). A supporting type that has no design document of its own
 is described in the document of the unit that owns it (for example `TextEdit` in the `EditSet` design, and
-`SafetyStatus` in the `Safety` subsystem design).
+`SafetyStatus` in the `Safety` subsystem design). A nested subsystem keeps the folder of its parent in every artifact
+tree: the `Blocks` subsystem of `Formatting` has the design document `docs/design/lintmark/formatting/blocks.md`, its
+units have `docs/design/lintmark/formatting/blocks/heading-formatter.md` and the like, the source folder
+`src/DemaConsulting.LintMark/Formatting/Blocks/`, and the test files `BlocksSubsystemTests.cs` and
+`HeadingFormatterTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Blocks/`.
 
 OTS items have integration/usage design documentation parallel to system folders:
 
