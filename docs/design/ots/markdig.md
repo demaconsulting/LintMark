@@ -31,9 +31,11 @@ Not used: automatic heading identifiers, generic attributes, the advanced extens
 
 HTML rendering: `HtmlEquivalenceChecker` of the `Safety` subsystem renders the original and the proposed text of a
 file to HTML with `Markdown.ToHtml` and the same shared pipeline that `DocumentParser` parses with, and compares the
-normalized HTML. This is the first safety check before a rewrite is written. Rendering is done on LF-normalized text
-only, because Markdig renders a multi-line code span differently for CRLF input, and the checker rejects text that
-contains a carriage return. Rendering the same text
+normalized HTML. This is the first safety check before a rewrite is written. The text of the rewrite is rendered as
+LF-normalized text, because Markdig renders a multi-line code span differently for CRLF input, and `Check` rejects
+text that contains a carriage return; since that difference means that converting the line endings can change the
+page, `CheckOnDisk` also renders the original and the proposed text with the line endings they have on disk.
+Rendering the same text
 with the same pipeline is deterministic, and one shared pipeline renders in parallel from many threads with identical
 results; both are pinned by the integration tests. Grid tables and pipe tables render as tables.
 

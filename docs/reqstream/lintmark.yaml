@@ -774,14 +774,16 @@ sections:
         justification: |
           A formatter that damages a document is worse than none. Rewriting is therefore allowed only
           when rendering, structure, and stability of the result have been checked, and a refusal is
-          reported so that it cannot pass unnoticed. Line endings do not change the text, so they are
-          rewritten without the text checks; the text checks matter for the rules that change text.
+          reported so that it cannot pass unnoticed. A change of the line endings can change how a document
+          renders, so it is checked in the same way as a change of the text; the other text checks matter
+          for the rules that change text.
           The tool as shipped does not yet have such a rule, so the system tests show the refusals that
           do not depend on one, and the refusals caused by a rule that damages a document are shown by
           the Engine subsystem tests with deliberately faulty rules.
         children:
           - LintMark-Engine-SafeRewrite
           - LintMark-Safety-HtmlEquivalence
+          - LintMark-Safety-LineEndingEquivalence
           - LintMark-Safety-StructureEquivalence
           - LintMark-Safety-Idempotency
           - LintMark-Safety-IdempotencyFailsClosed
@@ -792,6 +794,7 @@ sections:
           - LintMark-Formatting-FormatterFailuresPropagate
         tests:
           - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
+          - LintMark_FixFlag_CodeSpanLineEndingChange_LeavesFileUntouched
           - LintMark_FixFlag_InvalidConfig_LeavesFileUntouched
 
       - id: LintMark-System-GridTableInvalid

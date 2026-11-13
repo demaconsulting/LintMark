@@ -42,8 +42,10 @@ namespace DemaConsulting.LintMark.Safety;
 ///         no-break space is a difference.
 ///     </para>
 ///     <para>
-///         Rendering is done on LF-normalized text only, because the Markdown parser renders a multi-line code
-///         span differently for CRLF input; text that contains a carriage return is rejected. A check that
+///         Rendering is normally done on LF-normalized text, because the Markdown parser renders a multi-line
+///         code span differently for CRLF input; <c>Check</c> rejects text that contains a carriage return.
+///         <c>CheckOnDisk</c> accepts text with its real line endings, so that a rewrite that only changes the
+///         line endings can be proved not to change the page either. A check that
 ///         cannot be completed (the renderer throws, a pattern times out) reports a difference, so an
 ///         undecided check refuses the rewrite.
 ///     </para>
@@ -166,6 +168,62 @@ internal static partial class HtmlEquivalenceChecker
             throw new ArgumentException("The text must be LF-normalized.", nameof(afterLf));
         }
 
+        return Compare(beforeLf, afterLf, render);
+    }
+
+    /// <summary>
+    ///     Checks that two versions of a document, with the line endings they have on disk, render to the same page.
+    /// </summary>
+    /// <param name="before">The original text with its real line endings. Must not be null.</param>
+    /// <param name="after">The rewritten text with its real line endings. Must not be null.</param>
+    /// <returns>
+    ///     An equivalent result when the normalized HTML is identical; otherwise a result that names the first
+    ///     difference with some context, or states that the check could not be completed.
+    /// </returns>
+    /// <remarks>
+    ///     Unlike <see cref="Check(string, string)"/> the texts may contain carriage returns, because the Markdown
+    ///     parser renders some constructs (a multi-line code span) differently for CRLF and LF input, so a rewrite
+    ///     that only converts the line endings can still change the page.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public static EquivalenceResult CheckOnDisk(string before, string after) =>
+        CheckOnDisk(before, after, text => Markdown.ToHtml(text, DocumentParser.Pipeline));
+
+    /// <summary>
+    ///     Checks that two versions of a document, with the line endings they have on disk, render to the same
+    ///     page, using the given renderer.
+    /// </summary>
+    /// <param name="before">The original text with its real line endings. Must not be null.</param>
+    /// <param name="after">The rewritten text with its real line endings. Must not be null.</param>
+    /// <param name="render">The function that renders a text to HTML. Must not be null.</param>
+    /// <returns>
+    ///     An equivalent result when the normalized HTML is identical; otherwise a result that names the first
+    ///     difference with some context, or states that the check could not be completed.
+    /// </returns>
+    /// <remarks>
+    ///     This overload is a seam for tests, so that a renderer that fails can be simulated; the public
+    ///     overload uses the tool's fixed pipeline.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    internal static EquivalenceResult CheckOnDisk(string before, string after, Func<string, string> render)
+    {
+        // Validate input: carriage returns are allowed here
+        ArgumentNullException.ThrowIfNull(render);
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+
+        return Compare(before, after, render);
+    }
+
+    /// <summary>
+    ///     Renders and compares two already validated texts.
+    /// </summary>
+    /// <param name="beforeLf">The original text.</param>
+    /// <param name="afterLf">The rewritten text.</param>
+    /// <param name="render">The function that renders a text to HTML.</param>
+    /// <returns>The verdict; a check that cannot be completed is a difference (fail closed).</returns>
+    private static EquivalenceResult Compare(string beforeLf, string afterLf, Func<string, string> render)
+    {
         // Identical text renders identically
         if (string.Equals(beforeLf, afterLf, StringComparison.Ordinal))
         {

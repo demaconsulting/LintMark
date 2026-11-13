@@ -59,9 +59,10 @@ sections:
             justification: |
               LintMark decides whether a rewrite changes how a document renders by comparing the HTML that
               the library renders for the text before and after it. The comparison is only meaningful if
-              rendering is deterministic and thread-safe. The CRLF difference is the reason why only
-              text with normalized line endings is compared, and the tests pin it, so that a library
-              update that removes or changes it is noticed.
+              rendering is deterministic and thread-safe. The CRLF difference is the reason why the text of
+              a rewrite is compared with normalized line endings and also with the line endings it has on
+              disk, so that converting the line endings cannot change a page unnoticed, and the tests pin it,
+              so that a library update that removes or changes it is noticed.
             tags: [ots]
             tests:
               - Markdig_HtmlRendering_SamePipelineAndText_IsDeterministic

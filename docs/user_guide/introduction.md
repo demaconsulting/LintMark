@@ -204,14 +204,16 @@ which has no further effect, but not with `--fix`.
 ## Safety Checks
 
 A rewrite replaces a file, so LintMark proves that it cannot damage the document before anything is written. Each
-proposed rewrite that changes the text (not only the line endings) must pass these checks, in this order. A file that
+proposed rewrite must pass these checks, in this order, also a rewrite that only changes the line endings (the
+renderer shows some text, such as a code span that spans lines, differently for CRLF and LF, so the HTML of the text
+with its line endings is compared as well). A file that
 fails one is **refused**: it is never written, the finding is reported with the rule identifier below at the line
 where the text would first differ, and the other files are not affected. The refusal is reported by `--check` and
 `--diff` as well, so a problem in the formatting is visible before `--fix` is used.
 
 | Rule identifier             | Refused because                                                           |
 | --------------------------- | ------------------------------------------------------------------------- |
-| `safety-html-mismatch`      | The rewritten text would render to different HTML than the original       |
+| `safety-html-mismatch`      | The rewrite would render to different HTML (also with other line endings) |
 | `safety-structure-mismatch` | The rewrite would change Pandoc structure that the HTML does not show     |
 | `safety-not-idempotent`     | Formatting the rewritten text again would change it again                 |
 
@@ -232,9 +234,11 @@ Two further problems stop a rewrite and are reported with the file left as it wa
 | `file-write-error`  | The rewritten file could not be written (1:1; see *Fixing Files*)                |
 
 The refusals and `file-format-error` show a defect in a formatting rule, never a mistake in the document, and are
-worth reporting as a bug. The safety diagnostics, `file-format-error`, and `file-write-error` cannot be switched
-off, and are not listed under `rules`. A rewrite of the line endings alone cannot change the text and is not
-refused.
+worth reporting as a bug, with one exception: a refused conversion of the line endings is caused by the document
+itself. The safety diagnostics, `file-format-error`, and `file-write-error` cannot be switched
+off, and are not listed under `rules`. A file whose conversion to another line ending would change how it renders,
+such as a code span that spans lines, is refused too (`safety-html-mismatch` at line 1, column 1) and keeps its
+line endings; the `line-ending` finding stays.
 
 ## Configuration
 

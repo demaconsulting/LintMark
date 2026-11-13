@@ -26,6 +26,8 @@ N/A - standard test environment. The tests use only in-memory text and need no f
 - All integration tests pass with zero failures.
 - A reflow that does not change the page passes the HTML check, and a change of the page is refused with a
   description.
+- A conversion of the line endings that changes how the page renders is refused by the HTML check of the text with its
+  line endings, and a conversion of an ordinary document is accepted.
 - Pandoc structure that was joined into prose is refused by the structure check although the HTML check accepts the
   same pair.
 - A formatter that flips between two layouts or keeps growing the text is refused by the idempotency check although the
@@ -43,6 +45,13 @@ original; the verdict is equivalent.
 
 **A semantic change fails the HTML check**: A paragraph with a hard break is compared with the same text without the
 hard break; the verdict is not equivalent and a description is given.
+
+**A conversion of the line endings of a code span fails the HTML check of the text with its line endings**: A code span
+framed by line breaks is compared with its CRLF form with the line endings kept; the verdict is not equivalent and a
+description is given.
+
+**A conversion of the line endings of an ordinary document passes**: A paragraph and a list are compared with their CRLF
+form with the line endings kept; the verdict is equivalent.
 
 **A joined fence fails the structure check**: A fenced div of three lines is compared with the same words joined into
 one line; the verdict is not equivalent.

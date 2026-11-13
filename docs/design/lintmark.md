@@ -380,9 +380,11 @@ flowchart TD
       configuration's `end-of-line`, else the editor setting, else the majority line ending of the file) and the
       `line-ending` diagnostic; `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
       text with the byte order mark and the target line ending restored. Bytes that equal the file mean no change.
-   7. **Safety checks**: when the text changed, the HTML, structure, reparse, and idempotency checks run in that order;
-      the first that fails refuses the rewrite and becomes a diagnostic. A rewrite of the line endings alone leaves the
-      text unchanged and needs no check. A rewrite that passed becomes the change of the file.
+   7. **Safety checks**: for every rewrite that changes bytes, the HTML check of the text as it is on disk runs, and when
+      the text changed, the HTML, structure, reparse, and idempotency checks of the LF-normalized text run as well; the
+      first that fails refuses the rewrite and becomes a diagnostic. A rewrite of the line endings alone is checked
+      too, because the rendering of some text depends on the line endings. A rewrite that passed becomes the change of
+      the file.
    Results are stored by input index, then sorted by path.
 7. After all workers have finished, `LintMarkEngine.Run` writes the changes when `--fix` is given: one file after the
    other, in path order, from the calling thread, through `AtomicFileWriter`, which refuses a file that changed after it

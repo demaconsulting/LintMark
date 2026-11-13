@@ -20,6 +20,7 @@
 
 using System.Collections.Immutable;
 using System.Security;
+using System.Text;
 using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
@@ -512,9 +513,9 @@ internal sealed class LintMarkEngine
             return new FileResult(path, format.Diagnostics);
         }
 
-        // A changed text must pass every safety check; a rewrite of the line endings alone leaves the text as it is
-        if (!string.Equals(newLf, source.Text, StringComparison.Ordinal)
-            && CheckSafety(path, source, newLf, config) is { } refusal)
+        // Every rewrite that changes bytes must pass the safety checks, also one that changes the line endings alone:
+        // the Markdown parser renders some text differently for CRLF and LF
+        if (CheckSafety(path, source, newLf, bytes, newBytes, config) is { } refusal)
         {
             return new FileResult(path, format.Diagnostics.Add(refusal.Diagnostic)) { Safety = refusal.Status };
         }
@@ -561,28 +562,50 @@ internal sealed class LintMarkEngine
     /// </summary>
     /// <param name="path">Path of the file.</param>
     /// <param name="source">The original document.</param>
-    /// <param name="newLf">The proposed LF-normalized text; differs from the original text.</param>
+    /// <param name="newLf">The proposed LF-normalized text.</param>
+    /// <param name="bytes">The exact bytes of the file.</param>
+    /// <param name="newBytes">The exact bytes that would be written; differ from <paramref name="bytes"/>.</param>
     /// <param name="config">The configuration the rewrite was computed under.</param>
     /// <returns>The status and diagnostic of the first check that failed, or <see langword="null"/> when every check passed.</returns>
     /// <remarks>
-    ///     Order: rendered HTML, Pandoc structure, that the rewritten text is still read with grid tables, and
-    ///     idempotency. A check that throws is a failed check (fail closed). The diagnostic is placed at the
+    ///     Order: rendered HTML of the LF-normalized text, rendered HTML of the text with the line endings it has
+    ///     on disk, Pandoc structure, that the rewritten text is still read with grid tables, and idempotency.
+    ///     A rewrite that changes the line endings alone leaves the LF-normalized text as it is, so only the
+    ///     rendering of the text on disk is checked for it, because the parser renders some text differently for
+    ///     CRLF and LF. A check that throws is a failed check (fail closed). The diagnostic is placed at the
     ///     first line where the original and the proposed text differ.
     /// </remarks>
-    private (SafetyStatus Status, Diagnostic Diagnostic)? CheckSafety(string path, SourceDocument source, string newLf, LintMarkConfig config)
+    private (SafetyStatus Status, Diagnostic Diagnostic)? CheckSafety(
+        string path,
+        SourceDocument source,
+        string newLf,
+        byte[] bytes,
+        byte[] newBytes,
+        LintMarkConfig config)
     {
         // Each check yields a verdict; the first that is not equivalent decides
-        var checks = new (SafetyStatus Status, string RuleId, string Sentence, Func<EquivalenceResult> Run)[]
+        var textChanged = !string.Equals(newLf, source.Text, StringComparison.Ordinal);
+        var checks = new List<(SafetyStatus Status, string RuleId, string Sentence, Func<EquivalenceResult> Run)>();
+
+        // The checks on the LF-normalized text are decided in advance when only the line endings change
+        if (textChanged)
         {
-            (SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders",
-                () => HtmlEquivalenceChecker.Check(source.Text, newLf)),
-            (SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would change the Pandoc structure",
-                () => StructuralTokenChecker.Check(source.Text, newLf)),
-            (SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would not be read as before",
-                () => CheckReparse(path, newLf)),
-            (SafetyStatus.NotIdempotent, RuleCatalog.NotIdempotentRuleId, "Formatting is not stable",
-                () => IdempotencyChecker.Check(newLf, text => Reformat(path, text, config)))
-        };
+            checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders",
+                () => HtmlEquivalenceChecker.Check(source.Text, newLf)));
+        }
+
+        // The text as it is on disk, with its real line endings, always has to render the same
+        checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders because of its line endings",
+            () => HtmlEquivalenceChecker.CheckOnDisk(DecodeContent(bytes, source), DecodeContent(newBytes, source))));
+        if (textChanged)
+        {
+            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would change the Pandoc structure",
+                () => StructuralTokenChecker.Check(source.Text, newLf)));
+            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would not be read as before",
+                () => CheckReparse(path, newLf)));
+            checks.Add((SafetyStatus.NotIdempotent, RuleCatalog.NotIdempotentRuleId, "Formatting is not stable",
+                () => IdempotencyChecker.Check(newLf, text => Reformat(path, text, config))));
+        }
 
         foreach (var (status, ruleId, sentence, run) in checks)
         {
@@ -592,14 +615,26 @@ internal sealed class LintMarkEngine
                 continue;
             }
 
-            // Position the finding where the proposed text first differs from the file
-            var index = Math.Min(EquivalenceResult.FirstDifference(source.Text, newLf), source.Text.Length);
+            // Position the finding where the proposed text first differs from the file; a change of the line endings alone is at 1:1
+            var index = textChanged ? Math.Min(EquivalenceResult.FirstDifference(source.Text, newLf), source.Text.Length) : 0;
             var (line, column) = source.PositionOf(index);
             var message = $"{sentence} ({verdict.Description}); the file is not rewritten";
             return (status, Problem(path, ruleId, line, column, message));
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Decodes the bytes of a file, or of its proposed rewrite, to text with the line endings it has on disk.
+    /// </summary>
+    /// <param name="content">The bytes, starting with the byte order mark when the document had one.</param>
+    /// <param name="source">The original document, which says whether there is a byte order mark.</param>
+    /// <returns>The text without a byte order mark and with its line terminators unchanged.</returns>
+    private static string DecodeContent(byte[] content, SourceDocument source)
+    {
+        var skip = source.HasBom ? source.Encoding.GetPreamble().Length : 0;
+        return Encoding.UTF8.GetString(content, skip, content.Length - skip);
     }
 
     /// <summary>

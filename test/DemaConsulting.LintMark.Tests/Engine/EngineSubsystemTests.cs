@@ -484,6 +484,26 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a conversion of the line endings that would change how the document renders is refused through the real units.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Fix_CodeSpanLineEndingChange_RefusesAndLeavesFile()
+    {
+        // Arrange: a code span framed by line breaks and a configuration that asks for CRLF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        var path = directory.WriteBytes("a.md", "`\nbb\n`\n"u8.ToArray());
+
+        // Act: run with the fix option
+        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, new LintMarkEngine(2), "--fix");
+
+        // Assert: the refusal is reported and the file is untouched
+        Assert.Equal(1, exitCode);
+        Assert.Contains(lines, l => l.StartsWith("a.md:1:1: safety-html-mismatch ", StringComparison.Ordinal));
+        Assert.Equal("`\nbb\n`\n"u8.ToArray(), File.ReadAllBytes(path));
+    }
+
+    /// <summary>
     ///     Test that a diff of a formatter's change is printed and the file is not written.
     /// </summary>
     [Fact]

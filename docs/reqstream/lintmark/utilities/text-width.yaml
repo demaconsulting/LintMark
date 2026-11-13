@@ -79,13 +79,15 @@ sections:
 
               - id: LintMark-Utilities-TextWidth-ZeroWidthCharacters
                 title: >-
-                  The TextWidth class shall count combining marks, zero-width characters, variation selectors,
+                  The TextWidth class shall count combining marks (non-spacing, spacing, and enclosing marks),
+                  zero-width characters, variation selectors,
                   control characters, tabs, line and paragraph separators, and the soft hyphen as zero columns.
                 justification: |
                   These characters take no space on a screen. Counting them would make a line look longer
                   than it is.
                 tests:
                   - TextWidth_Of_LoneCombiningMark_ReturnsZero
+                  - TextWidth_Of_LoneSpacingCombiningMark_ReturnsZero
                   - TextWidth_Of_CombiningMarkInsideWideRange_ReturnsZeroAlone
                   - TextWidth_Of_ZeroWidthCharacters_ReturnsZero
                   - TextWidth_Of_ZeroWidthNoBreakSpace_ReturnsZero
@@ -107,6 +109,8 @@ sections:
                 tests:
                   - TextWidth_Of_BaseWithCombiningMark_ReturnsOne
                   - TextWidth_Of_WideCharacterWithCombiningMark_ReturnsTwo
+                  - TextWidth_Of_BaseWithSpacingCombiningMark_ReturnsOne
+                  - TextWidth_Of_SpacingCombiningMarkAtStart_UsesFirstVisibleCharacter
                   - TextWidth_Of_HangulConjoiningLettersSequence_ReturnsTwoAsOneCluster
                   - TextWidth_Of_HangulExtendedBLetterBoundaries_MeasuresEachRangeEdge
                   - TextWidth_Of_HangulExtendedBLettersAfterLeadingConsonant_ReturnsTwo

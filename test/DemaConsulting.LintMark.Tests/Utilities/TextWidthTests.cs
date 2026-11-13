@@ -141,7 +141,8 @@ public class TextWidthTests
     ///     The inclusive code point ranges that the test expects to be two columns wide: the East Asian Wide and
     ///     full-width ranges of Unicode 18.0.0 (merged where adjacent) and the regional indicators. The code points
     ///     just before and after each range are expected not to be wide. A range edge that is a combining mark
-    ///     (U+3099 and U+16FE4) is moved inward, because a combining mark has no width of its own.
+    ///     (U+3099, U+16FE4, and the spacing combining marks U+16FF0 and U+16FF1) is moved inward, because a
+    ///     combining mark has no width of its own.
     /// </summary>
     private static readonly (int First, int Last)[] ExpectedWideRanges =
     [
@@ -155,7 +156,7 @@ public class TextWidthTests
         (0x309B, 0x30FF), (0x3105, 0x312F), (0x3131, 0x318E), (0x3190, 0x31E5), (0x31EF, 0x321E), (0x3220, 0x3247),
         (0x3250, 0xA48C), (0xA490, 0xA4C6), (0xA960, 0xA97C), (0xAC00, 0xD7A3), (0xF900, 0xFAFF), (0xFE10, 0xFE19),
         (0xFE30, 0xFE52), (0xFE54, 0xFE66), (0xFE68, 0xFE6B), (0xFF01, 0xFF60), (0xFFE0, 0xFFE6),
-        (0x16FE0, 0x16FE3), (0x16FF0, 0x16FF6), (0x17000, 0x18CDA), (0x18CFF, 0x18D20), (0x18D80, 0x18DF2),
+        (0x16FE0, 0x16FE3), (0x16FF2, 0x16FF6), (0x17000, 0x18CDA), (0x18CFF, 0x18D20), (0x18D80, 0x18DF2),
         (0x18E00, 0x19191), (0x191A0, 0x191D2), (0x1AFF0, 0x1AFF3), (0x1AFF5, 0x1AFFB), (0x1AFFD, 0x1AFFE),
         (0x1B000, 0x1B128), (0x1B132, 0x1B132), (0x1B150, 0x1B152), (0x1B155, 0x1B155), (0x1B164, 0x1B168),
         (0x1B170, 0x1B2FB), (0x1D300, 0x1D356), (0x1D360, 0x1D376), (0x1F004, 0x1F004), (0x1F0CF, 0x1F0CF),
@@ -465,6 +466,55 @@ public class TextWidthTests
 
         // Assert: it is invisible on its own
         Assert.Equal(0, width);
+    }
+
+    /// <summary>
+    ///     Test that a spacing combining mark with no base has no width.
+    /// </summary>
+    [Fact]
+    public void TextWidth_Of_LoneSpacingCombiningMark_ReturnsZero()
+    {
+        // Act: measure the spacing combining mark U+0903 alone
+        var width = TextWidth.Of("\u0903");
+
+        // Assert: combining marks of every kind take no column
+        Assert.Equal(0, width);
+    }
+
+    /// <summary>
+    ///     Test that a spacing combining mark adds no width to its base character.
+    /// </summary>
+    [Fact]
+    public void TextWidth_Of_BaseWithSpacingCombiningMark_ReturnsOne()
+    {
+        // Act: measure the Devanagari letter ka followed by the vowel sign aa, and the letter alone
+        var withMark = TextWidth.Of("\u0915\u093E");
+        var letter = TextWidth.Of("\u0915");
+
+        // Assert: the vowel sign adds nothing
+        Assert.Equal(1, withMark);
+        Assert.Equal(1, letter);
+    }
+
+    /// <summary>
+    ///     Test that a cluster or text that starts with a spacing combining mark is measured by its first visible character.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="expected">The expected width.</param>
+    [Theory]
+    [InlineData("\u0903\u0301", 0)]
+    [InlineData("\u0903A", 1)]
+    [InlineData("\u093E\u0915", 1)]
+    [InlineData("\u0903\u6F22", 2)]
+    public void TextWidth_Of_SpacingCombiningMarkAtStart_UsesFirstVisibleCharacter(string text, int expected)
+    {
+        // Act: measure the text alone and followed by a narrow letter
+        var width = TextWidth.Of(text);
+        var withLetter = TextWidth.Of(text + "x");
+
+        // Assert: the leading mark itself adds no column, and the next cluster is counted as usual
+        Assert.Equal(expected, width);
+        Assert.Equal(expected + 1, withLetter);
     }
 
     /// <summary>

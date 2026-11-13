@@ -66,6 +66,22 @@ before the difference.
 pass a renderer that throws, to prove that a comparison that cannot be completed is reported as a difference. The
 arguments are validated in this overload, and a null renderer throws `ArgumentNullException`.
 
+**CheckOnDisk**: Checks that two versions of a document render to the same page when each keeps the line endings it
+has on disk.
+
+- *Parameters*: `string before` (the original text with its real line endings); `string after` (the rewritten text with
+  its real line endings).
+- *Returns*: `EquivalenceResult`.
+- *Preconditions*: neither text is null. Carriage returns are allowed.
+- *Postconditions*: as `Check`.
+
+Algorithm: as `Check`, without the carriage return validation: identical texts are equivalent, otherwise both texts are
+rendered as they are, normalized, and compared. It exists because the Markdown parser renders some constructs (such as a
+code span whose content is framed by line breaks) differently for CRLF and LF text, so converting the line endings can
+change the page. A carriage return in the rendered HTML is HTML whitespace and is collapsed like a line feed outside the
+verbatim elements. `CheckOnDisk` has an internal overload with a renderer parameter, like `Check`, and shares the
+comparison and the fail-closed handling with it.
+
 **Normalize** (private): Applies the rules above with a single left-to-right scan. The text is cut into plain parts and
 verbatim elements. For each part, the next opening tag of each element kind is found (a tag counts only when the name
 is not the prefix of a longer word) and the earliest wins. The element runs from its opening tag to the first closing
@@ -80,8 +96,9 @@ in the text, also for many unclosed block-level opening tags.
 
 #### Error Handling
 
-`ArgumentNullException` for a null text and `ArgumentException` for a text with a carriage return (the engine always
-passes normalized text, so this signals a programming error). Everything else fails closed: the render and the
+`ArgumentNullException` for a null text and, for `Check`, `ArgumentException` for a text with a carriage return (the
+engine passes normalized text to it, so this signals a programming error); `CheckOnDisk` accepts carriage returns.
+Everything else fails closed: the render and the
 normalization run inside one `try` block, and any exception, including a regular expression timeout, is caught and
 returned as a result that is not equivalent with the description `The rendered output could not be compared
 (ExceptionType)`. The result then refuses the rewrite.
@@ -95,5 +112,6 @@ returned as a result that is not equivalent with the description `The rendered o
 
 #### Callers
 
-- **LintMarkEngine** — runs the check first, on the original and the proposed LF-normalized text of a file whose text
-  would change.
+- **LintMarkEngine** — runs `Check` first, on the original and the proposed LF-normalized text of a file whose text
+  would change, and `CheckOnDisk` on the original and the proposed bytes, decoded, of every file whose bytes would
+  change, also when only the line endings change.

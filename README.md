@@ -35,7 +35,9 @@ yet implemented; the line endings of a file are the first thing that is checked 
   remains; a file that is already compliant is not touched
 - **Diff Preview**: `--diff` prints a unified diff of what `--fix` would change and writes no file
 - **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
-  (fences, grid table borders, and so on), and is stable when formatted again; otherwise the file is refused
+  (fences, grid table borders, and so on), and is stable when formatted again; this includes a rewrite that only
+  changes the line endings, because the renderer shows some text differently for CRLF and LF; otherwise the file
+  is refused
   (`safety-html-mismatch`, `safety-structure-mismatch`, `safety-not-idempotent`) and left as it was
 - **Atomic Writes**: A rewrite replaces the file in one step, keeps its permissions, and never overwrites a file
   that changed after it was read

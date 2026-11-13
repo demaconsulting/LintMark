@@ -277,6 +277,7 @@ sections:
             children:
               - LintMark-Engine-LintMarkEngine-FixRewrites
               - LintMark-Engine-LintMarkEngine-FixLeavesCompliantFiles
+              - LintMark-Engine-LintMarkEngine-AllowsHarmlessLineEndingChange
             tests:
               - EngineSubsystem_Fix_CrlfFile_RewritesAndReportsNothing
 
@@ -391,6 +392,7 @@ sections:
               other files are still processed.
             children:
               - LintMark-Engine-LintMarkEngine-RefuseHtmlChange
+              - LintMark-Engine-LintMarkEngine-RefuseLineEndingHtmlChange
               - LintMark-Engine-LintMarkEngine-RefuseStructureChange
               - LintMark-Engine-LintMarkEngine-RefuseUnstableFormatting
               - LintMark-Engine-LintMarkEngine-RefuseUnreadableResult
@@ -401,6 +403,7 @@ sections:
               - LintMark-Engine-LintMarkEngine-NeverRewriteInvalidConfiguration
             tests:
               - EngineSubsystem_Fix_BrokenFormatter_RefusesAndReports
+              - EngineSubsystem_Fix_CodeSpanLineEndingChange_RefusesAndLeavesFile
 
           - id: LintMark-Engine-GridTableInvalid
             title: >-

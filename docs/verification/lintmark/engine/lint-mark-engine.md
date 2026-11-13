@@ -86,6 +86,9 @@ collection.
   when it would change the rendering, change the Pandoc structure, is not stable when formatted again, creates a
   grid table border, or would be read as an invalid grid table; a refusal never stops other files from being
   written.
+- A rewrite that only converts the line endings is checked as well: when the document renders differently for the two
+  line endings it is refused with a `safety-html-mismatch` diagnostic at 1:1 (in check mode and `--diff` too), the file
+  and its directory are untouched, and an ordinary document is still converted.
 - A safety check that cannot be completed (for example a parser that throws for the rewritten text) refuses the
   rewrite with a message that says the check failed, leaves the file untouched, and gives exit code 1.
 - A formatter that throws, proposes conflicting or out-of-range edits, or inserts a carriage return gives a
@@ -376,6 +379,19 @@ file is untouched. At the `Process` level the result has the diagnostic, no chan
 `safety-html-mismatch` line starts with `a.md:1:2: ... The rewrite would change how the document renders (` and ends
 with `); the file is not rewritten`, the exit code is 1, and the file is untouched. At the `Process` level the status
 is `HtmlMismatch`, there is no change, and the diagnostic has that rule.
+
+**A conversion of the line endings that changes the rendering is refused**: A document that holds a code span framed by
+line breaks (`` ` ``, a line break, `bb`, a line break, `` ` ``) is written with LF line endings under a configuration
+that asks for CRLF, and with CRLF line endings under a configuration that asks for LF. With `--fix` the exit code is 1,
+the lines are the `line-ending` finding at 1:1 and a `safety-html-mismatch` line at 1:1 that starts with `The rewrite
+would change how the document renders because of its line endings (` and ends with `); the file is not rewritten`, the
+file keeps its bytes and last write time, and the directory holds no file but the document, the configuration, and the
+log. In check mode and with `--diff` the same lines are reported, the exit code is 1, and nothing is written. At the
+`Process` level the status is `HtmlMismatch` with no change.
+
+**A harmless conversion of the line endings is still written**: A document with a heading, a one-line code span, a soft
+break, a list, and a fenced block is converted from LF to CRLF and from CRLF to LF with `--fix`; the exit code is 0,
+nothing is reported, and the file has exactly the converted bytes.
 
 **A rewrite that changes the Pandoc structure is refused**: With the line-joining formatter on a fenced div, one
 `safety-structure-mismatch` line at `a.md:1:8` starts with `The rewrite would change the Pandoc structure (`, the

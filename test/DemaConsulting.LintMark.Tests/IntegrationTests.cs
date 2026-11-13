@@ -1626,6 +1626,26 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that a conversion of the line endings that would change how the document renders is never written.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_CodeSpanLineEndingChange_LeavesFileUntouched()
+    {
+        // Arrange: a code span framed by line breaks and a configuration that asks for CRLF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        var file = directory.WriteBytes("a.md", Bytes("`\nbb\n`\n"));
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: reported, exit code one, bytes identical
+        Assert.Equal(1, exitCode);
+        Assert.Contains("a.md:1:1: safety-html-mismatch", output);
+        Assert.Equal(Bytes("`\nbb\n`\n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
     ///     Test that a file with an invalid configuration is never rewritten by the fix option.
     /// </summary>
     [Fact]

@@ -58,6 +58,33 @@ public class SafetySubsystemTests
     }
 
     /// <summary>
+    ///     Test that a rewrite that only converts the line endings of a code span document fails the HTML check.
+    /// </summary>
+    [Fact]
+    public void SafetySubsystem_HtmlEquivalence_LineEndingChangeOfCodeSpan_Detected()
+    {
+        // Arrange / Act: a code span framed by line breaks that is only converted to CRLF
+        var result = HtmlEquivalenceChecker.CheckOnDisk("`\nbb\n`\n", "`\r\nbb\r\n`\r\n");
+
+        // Assert: the check refuses and says why
+        Assert.False(result.IsEquivalent);
+        Assert.NotNull(result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a rewrite that only converts the line endings of an ordinary document passes the HTML check.
+    /// </summary>
+    [Fact]
+    public void SafetySubsystem_HtmlEquivalence_LineEndingChangeOfOrdinaryText_Equivalent()
+    {
+        // Arrange / Act: a paragraph and a list that are only converted to CRLF
+        var result = HtmlEquivalenceChecker.CheckOnDisk("alpha\nbeta\n\n- one\n- two\n", "alpha\r\nbeta\r\n\r\n- one\r\n- two\r\n");
+
+        // Assert: same page
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
     ///     Test that a rewrite that changes the page fails the HTML check.
     /// </summary>
     [Fact]

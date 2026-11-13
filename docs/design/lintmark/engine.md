@@ -108,7 +108,9 @@ file, because the `ignore` patterns decide whether the file is read at all:
 
 The worker then reads, decodes, and parses the file (the engine's `documentParser` seam), formats it with
 `DocumentFormatter`, applies the edits with `SourcePatcher`, and runs the safety checks on a proposed change of the
-text. A read, encoding, line-ending, parse, or format failure becomes a diagnostic for that file only. The details of
+text or of the bytes: every rewrite that changes bytes is checked, also one that only changes the line endings, because
+the parser renders some text differently for CRLF and LF. A read, encoding, line-ending, parse, or format failure
+becomes a diagnostic for that file only. The details of
 the pipeline are in *LintMarkEngine Design*.
 
 When all workers have finished, the results are sorted by path. With `--fix` the engine writes the rewrites in path

@@ -390,6 +390,117 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
+    ///     Test that a rewrite that only changes the line endings is refused when the document renders differently
+    ///     for the two line endings, and that the file is left as it is.
+    /// </summary>
+    /// <param name="text">The document text as written to the file.</param>
+    /// <param name="endOfLine">The line ending that the configuration asks for.</param>
+    [Theory]
+    [InlineData("`\nbb\n`\n", "crlf")]
+    [InlineData("`\r\nbb\r\n`\r\n", "lf")]
+    public void LintMarkEngine_Run_FixCodeSpanLineEndingChange_RefusesWithHtmlMismatchAndLeavesFile(string text, string endOfLine)
+    {
+        // Arrange: a code span framed by line breaks (rendered differently for CRLF and LF) and a configuration that asks for the other ending
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", $"end-of-line: {endOfLine}\n");
+        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(text));
+
+        // Act: run with the fix option
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
+
+        // Assert: the refusal is reported at 1:1 beside the line ending finding, and the file and its directory are untouched
+        Assert.Equal(1, exitCode);
+        Assert.Equal(2, lines.Length);
+        Assert.StartsWith("a.md:1:1: line-ending ", lines[0], StringComparison.Ordinal);
+        Assert.StartsWith(
+            "a.md:1:1: safety-html-mismatch The rewrite would change how the document renders because of its line endings (",
+            lines[1],
+            StringComparison.Ordinal);
+        Assert.EndsWith("); the file is not rewritten", lines[1], StringComparison.Ordinal);
+        AssertUntouched(path, Utf8(text), writeTime);
+        Assert.Equal(
+            [".lintmark.yaml", "a.md"],
+            Directory.GetFiles(directory.FullPath, "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetFileName(f))
+                .Where(n => n != "report.log")
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    /// <summary>
+    ///     Test that the check option reports the refusal of a rewrite of the line endings that would change how the document renders.
+    /// </summary>
+    /// <param name="text">The document text as written to the file.</param>
+    /// <param name="endOfLine">The line ending that the configuration asks for.</param>
+    [Theory]
+    [InlineData("`\nbb\n`\n", "crlf")]
+    [InlineData("`\r\nbb\r\n`\r\n", "lf")]
+    public void LintMarkEngine_Run_CheckCodeSpanLineEndingChange_ReportsHtmlMismatchAndWritesNothing(string text, string endOfLine)
+    {
+        // Arrange: the same code span document and configuration
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", $"end-of-line: {endOfLine}\n");
+        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(text));
+
+        // Act: run in check mode and in diff mode
+        var check = Execute(directory, new LintMarkEngine(1), "--check");
+        var diff = Execute(directory, new LintMarkEngine(1), "--diff");
+
+        // Assert: the refusal is predicted by both, nothing is shown as a change, and the file is untouched
+        Assert.Equal(1, check.ExitCode);
+        Assert.Contains(check.Lines, l => l.StartsWith("a.md:1:1: safety-html-mismatch ", StringComparison.Ordinal));
+        Assert.Equal(1, diff.ExitCode);
+        Assert.Equal(check.Lines, diff.Lines);
+        AssertUntouched(path, Utf8(text), writeTime);
+    }
+
+    /// <summary>
+    ///     Test that processing a document that renders differently for CRLF and LF yields the HTML status and no change
+    ///     when only the line endings would change.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_CodeSpanLineEndingChange_SetsHtmlMismatchAndNoChange()
+    {
+        // Arrange: a code span framed by line breaks and a configuration that asks for CRLF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        var path = directory.WriteFile("a.md", "`\nbb\n`\n");
+
+        // Act: process the file
+        var result = Assert.Single(new LintMarkEngine(1).Process([path], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
+
+        // Assert: refused with the HTML status, no change
+        Assert.Equal(SafetyStatus.HtmlMismatch, result.Safety);
+        Assert.Null(result.Change);
+        Assert.Contains(result.Diagnostics, d => d.RuleId == "safety-html-mismatch");
+    }
+
+    /// <summary>
+    ///     Test that a rewrite that only changes the line endings of an ordinary document is still written.
+    /// </summary>
+    /// <param name="before">The document with its original line endings.</param>
+    /// <param name="after">The document with the line endings that the configuration asks for.</param>
+    /// <param name="endOfLine">The line ending that the configuration asks for.</param>
+    [Theory]
+    [InlineData("# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```\nx  y\n```\n", "# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```\r\nx  y\r\n```\r\n", "crlf")]
+    [InlineData("# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```\r\nx  y\r\n```\r\n", "# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```\nx  y\n```\n", "lf")]
+    public void LintMarkEngine_Run_FixOrdinaryLineEndingChange_StillWritten(string before, string after, string endOfLine)
+    {
+        // Arrange: an ordinary document with a code span, a soft break, a list and a fenced block
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", $"end-of-line: {endOfLine}\n");
+        var path = directory.WriteBytes("a.md", Utf8(before));
+
+        // Act: run with the fix option
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
+
+        // Assert: the line endings are converted and nothing is reported
+        Assert.Equal(Utf8(after), File.ReadAllBytes(path));
+        Assert.Equal(0, exitCode);
+        Assert.Empty(lines);
+    }
+
+    /// <summary>
     ///     Test that a rewrite that glues Pandoc fence lines into prose is refused although the rendered output is the same.
     /// </summary>
     [Fact]

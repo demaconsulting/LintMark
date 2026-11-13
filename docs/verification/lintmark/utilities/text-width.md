@@ -11,7 +11,8 @@ data would be repaired. The test for the edges of the wide ranges is data-driven
 full-width
 ranges of Unicode 18.0.0 (merged where adjacent) and the regional indicators: for each range it measures the first and
 last code point, which must be wide, and the code points just before and after, which must not be wide, so that every
-edge of the binary search over the range table is exercised. A range edge that is a combining mark is moved inward.
+edge of the binary search over the range table is exercised. A range edge that is a combining mark (non-spacing,
+spacing, or enclosing) is moved inward.
 The test for culture independence sets `CultureInfo.CurrentCulture` to the invariant culture
 and then to `tr-TR` and restores the original culture in a `finally` block. The test for linear time measures texts of
 one million and half a million characters after a warm-up, against a time limit that a linear algorithm meets by a wide
@@ -32,9 +33,12 @@ afterward.
   and mixed text is the sum of its parts.
 - Emoji, emoji sequences, flags, numbered key sequences, and symbols with the emoji presentation selector take two
   columns, and a symbol with the text presentation selector takes one.
-- Combining marks, zero-width characters, variation selectors, control characters, tabs, line and paragraph
+- Combining marks (non-spacing, spacing, and enclosing), zero-width characters, variation selectors, control
+  characters, tabs, line and paragraph
   separators, and the soft hyphen take no column.
-- A base character with combining marks keeps its own width, and a sequence of conjoining Hangul letters, also those
+- A base character with combining marks keeps its own width, also when the mark is a spacing combining mark, a text
+  that starts with a combining mark is measured by its first visible character, and a sequence of conjoining Hangul
+  letters, also those
   of the extended block, is one wide character.
 - A lone surrogate takes one column, and a null text throws `ArgumentNullException`.
 - The result does not depend on the culture, and very long texts are measured within a time limit that only a linear
@@ -115,11 +119,12 @@ Turkish culture treats specially. It gives 7 columns under the invariant culture
 **The edges of every wide range are measured by range**: For each range of the table of wide characters (126 ranges
 that follow Unicode 18.0.0 and the regional indicators), the first and last code point give 2, and the code point just
 before and the one just after the range do not give 2. This covers the first and last entries of the table, entries
-with a single code point, and the ranges that were added to follow the property (for example `U+16FF0` to `U+16FF6`,
-`U+18CFF` to `U+18D20`, and `U+1AFF0` to `U+1AFF3`). A combining mark at the edge of a range (`U+3099` and `U+16FE4`) is
-not measured as an edge; the first edge of that Katakana range is `U+309B`, and the last edge of the range that starts
+with a single code point, and the ranges that were added to follow the property (for example `U+16FF2` to `U+16FF6`,
+`U+18CFF` to `U+18D20`, and `U+1AFF0` to `U+1AFF3`). A combining mark at the edge of a range (`U+3099`, `U+16FE4`,
+`U+16FF0`, and `U+16FF1`) is
+not measured as an edge; the first edge of that Katakana range is `U+309B`, the last edge of the range that starts
 at `U+16FE0` is
-`U+16FE3`.
+`U+16FE3`, and the first edge of the range that ends at `U+16FF6` is `U+16FF2`.
 
 **A combining mark inside a wide range has no width**: The combining voiced sound mark `U+3099`, which lies inside a
 wide range, gives 0 alone, and after a Hiragana letter the pair gives 2.
@@ -134,6 +139,15 @@ consonants (`U+D7B0`, `U+D7C6`, `U+D7FB`, and `U+D7FF`) give 0. Appending a lett
 leading consonant followed by an extended vowel and an extended final consonant gives 2 as one cluster.
 
 **A lone combining mark has no width**: A combining acute accent without a base gives 0.
+
+**A lone spacing combining mark has no width**: The spacing combining mark `U+0903` without a base gives 0.
+
+**A spacing combining mark does not change the width of its base**: The letter `U+0915` followed by the spacing
+combining vowel sign `U+093E` gives 1, as does the letter alone.
+
+**A text that starts with a spacing combining mark is measured by its first visible character**: The mark `U+0903`
+followed by a combining acute accent gives 0, the mark followed by `A` gives 1, the vowel sign `U+093E` followed by the
+letter `U+0915` gives 1, and the mark followed by an ideograph gives 2.
 
 **A lone variation selector has no width**: Each of the emoji and text presentation selectors alone gives 0, also
 the emoji one, and a letter after it is still counted (1).

@@ -164,19 +164,27 @@ Steps: (1) a document with a `GridFallback` is never formatted: the result carri
 diagnostic, and no change; (2) format with `DocumentFormatter`, apply the edits with `SourcePatcher`, and reject a
 result that contains a carriage return; any exception of this step is a `file-format-error`; (3) convert the text to
 bytes with the target line ending (`SourceDocument.ToBytes`) and, when the bytes equal the file, return the formatting
-diagnostics with no change; (4) when the text itself changed, run the safety checks; a refusal returns the formatting
-diagnostics plus the safety diagnostic and the `SafetyStatus`, with no change; a rewrite of the line endings alone
-leaves the text as it is and skips the checks; (5) otherwise return the formatting diagnostics and a `FileChange`.
+diagnostics with no change; (4) run the safety checks for every rewrite that changes bytes: when the text itself changed,
+the checks on the LF-normalized text run first, and the rendering of the texts as they are on disk (the original bytes and
+the proposed bytes, decoded without the byte order mark, so with the real line endings) always runs, also when only the
+line endings change, because the parser renders some text differently for CRLF and LF; a refusal returns the formatting
+diagnostics plus the safety diagnostic and the `SafetyStatus`, with no change; (5) otherwise return the formatting
+diagnostics and a `FileChange`.
 
 **ReportGridFallback** (private): Creates the `grid-table-invalid` diagnostic at the offending position, unless the rule
 is switched off in the configuration or suppressed at that offset. Switching the report off never lets the file be
 rewritten: the guard of step (1) of `Rewrite` is applied regardless.
 
-**CheckSafety** (private): Runs four checks in this order: rendered HTML (`HtmlEquivalenceChecker`), Pandoc structure
-(`StructuralTokenChecker`), that the proposed text still parses without the grid table fallback (so an edit cannot
+**CheckSafety** (private): Runs up to five checks in this order: rendered HTML of the LF-normalized text
+(`HtmlEquivalenceChecker.Check`), rendered HTML of the text with the line endings it has on disk
+(`HtmlEquivalenceChecker.CheckOnDisk`, on the original and the proposed bytes decoded without the byte order mark),
+Pandoc structure (`StructuralTokenChecker`), that the proposed text still parses without the grid table fallback (so an
+edit cannot
 create a grid-table-looking line that is not a valid table; the proposed text is parsed with the `documentParser`
 seam), and idempotency (`IdempotencyChecker` with a delegate that parses, formats, and patches LF-normalized text under
-the same configuration). The first check that is not equivalent decides: the status is `HtmlMismatch`,
+the same configuration). When only the line endings change, the LF-normalized text is unchanged, so only the check
+on the text as it is on disk runs; its refusal is reported at line 1, column 1 and says that the line endings are the
+cause. The first check that is not equivalent decides: the status is `HtmlMismatch` (for both HTML checks),
 `StructureMismatch` (also for the parse check), or `NotIdempotent`, and the diagnostic is placed at the first line where
 the original and the proposed text differ. A check that throws is a failed check (fail closed): the exception is
 caught around each check, and the problem says `the check failed` and names the exception type. A parser that throws

@@ -81,7 +81,9 @@ a change would make the output depend on the order in which formatters ran.
 The line ending is not an edit. The text that every unit sees is LF-normalized, so there is no line ending in it to
 edit. `DocumentFormatter` therefore returns the line ending to write beside the edits, and the engine applies it when
 it converts the proposed text back to bytes. The line-ending rule is always applied: it cannot be switched off with the
-`rules` setting and cannot be suppressed by a comment.
+`rules` setting and cannot be suppressed by a comment. A change of the line ending is nevertheless a proposal that the
+`Safety` subsystem verifies like any other, because the parser renders some text (a multi-line code span) differently for
+CRLF and LF, so the engine refuses it when it would change how the document renders.
 
 Safety of the whole subsystem rests on three properties: nothing is applied here, so the caller can still verify the
 result; a document the parser could only read by dropping grid tables is never formatted; and a block with a

@@ -451,6 +451,31 @@ sections:
                   - LintMarkEngine_Run_FixHardBreakDropped_RefusesWithHtmlMismatch
                   - LintMarkEngine_Process_HardBreakFormatter_SetsHtmlMismatchAndNoChange
 
+              - id: LintMark-Engine-LintMarkEngine-RefuseLineEndingHtmlChange
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite, also one that
+                  only changes the line endings, would change how the document renders as HTML with the line
+                  endings it has on disk, report it as a `safety-html-mismatch` problem, and leave the file as it
+                  is.
+                justification: |
+                  The renderer shows some text, such as a code span that spans lines, differently for CRLF and LF,
+                  so converting the line endings can change what a reader sees. The tool must never write a file
+                  whose rendering changes, whatever the reason.
+                tests:
+                  - LintMarkEngine_Run_FixCodeSpanLineEndingChange_RefusesWithHtmlMismatchAndLeavesFile
+                  - LintMarkEngine_Run_CheckCodeSpanLineEndingChange_ReportsHtmlMismatchAndWritesNothing
+                  - LintMarkEngine_Process_CodeSpanLineEndingChange_SetsHtmlMismatchAndNoChange
+
+              - id: LintMark-Engine-LintMarkEngine-AllowsHarmlessLineEndingChange
+                title: >-
+                  The LintMarkEngine class shall write a rewrite that only changes the line endings of a file
+                  when the document renders as the same HTML with both line endings.
+                justification: |
+                  Most documents render the same with either line ending, and the fix option must still
+                  convert them.
+                tests:
+                  - LintMarkEngine_Run_FixOrdinaryLineEndingChange_StillWritten
+
               - id: LintMark-Engine-LintMarkEngine-RefuseStructureChange
                 title: >-
                   The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite would change

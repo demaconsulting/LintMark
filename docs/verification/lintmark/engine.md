@@ -69,7 +69,7 @@ directory and are removed with it.
   no longer reported; without `--fix` no file is ever written.
 - With `--diff` the unified diff of the proposed change is printed and no file is written.
 - A rewrite that a safety check refuses is reported as a safety diagnostic and the file is left byte for byte as it
-  was.
+  was; this includes a conversion of the line endings that would change how the document renders.
 - A document with an invalid grid table is reported as `grid-table-invalid` at the offending line and is never
   rewritten.
 
@@ -180,6 +180,10 @@ others.
 **Fix refuses a rewrite that the safety checks reject and reports it**: A file with a hard break and the broken
 formatter that drops it are run with `--fix`; the exit code is 1, the only line is a `safety-html-mismatch`
 diagnostic at line 1, column 2, and the file is byte for byte as it was.
+
+**Fix refuses a conversion of the line endings that changes the rendering**: A code span framed by line breaks in an LF
+file and a configuration that asks for CRLF are run with `--fix`; the exit code is 1, a `safety-html-mismatch`
+diagnostic at line 1, column 1 is reported, and the file is byte for byte as it was.
 
 **Editor settings that cannot be read are reported at the Markdown file and the file is not rewritten**: A CRLF
 Markdown file and an engine whose resolver throws an `IOException` are run with `--fix`; the exit code is 1, the

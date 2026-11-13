@@ -62,8 +62,9 @@ a file without permissions, such as when the tests run as a privileged user.
 - `--fix` rewrites a file with the line ending that its configuration, then its editor settings, then most of its
   lines give; keeps the byte order mark and all other text; leaves a compliant file unwritten; leaves no temporary
   file behind; and a second run finds nothing to repair.
-- A file with an invalid grid table, with an invalid configuration, or with editor settings that cannot be read is
-  never rewritten; the reason is reported, except that an invalid grid table is reported only while the
+- A file with an invalid grid table, with an invalid configuration, with editor settings that cannot be read, or whose
+  conversion to another line ending would change how the document renders is never rewritten; the reason is reported,
+  except that an invalid grid table is reported only while the
   `grid-table-invalid` rule is not switched off, and the file is not rewritten in either case.
 - `--fix` combined with `--check` or `--diff` is rejected with exit code 1.
 - `--validate` combined with paths, `--check`, `--fix`, or `--diff` is rejected with exit code 1 and without running
@@ -370,6 +371,10 @@ configuration switches the `grid-table-invalid` rule off; the exit code is 0, th
 **File with an invalid configuration is never rewritten**: A configuration with an unknown setting and a file with
 mixed line endings are passed with `--fix`; the exit code is 1, the output contains
 `config-error Unknown setting 'bogus'`, and the file's bytes are unchanged.
+
+**A conversion of the line endings that changes the rendering is never written**: A file with a code span framed by
+line breaks and LF line endings and a configuration that asks for CRLF are passed with `--fix`; the exit code is 1, the
+output contains `a.md:1:1: safety-html-mismatch`, and the file's bytes are unchanged.
 
 ### Display width
 

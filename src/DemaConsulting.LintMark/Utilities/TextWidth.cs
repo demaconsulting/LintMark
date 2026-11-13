@@ -164,12 +164,14 @@ internal static class TextWidth
     /// <returns>0 for control, format and combining characters, 2 for wide characters, otherwise 1.</returns>
     private static int RuneWidth(Rune rune)
     {
-        // Control, format (zero-width space and joiners, bidirectional marks) and combining characters are invisible
+        // Control, format (zero-width space and joiners, bidirectional marks) and combining characters (non-spacing,
+        // spacing and enclosing marks) are invisible
         switch (Rune.GetUnicodeCategory(rune))
         {
             case UnicodeCategory.Control:
             case UnicodeCategory.Format:
             case UnicodeCategory.NonSpacingMark:
+            case UnicodeCategory.SpacingCombiningMark:
             case UnicodeCategory.EnclosingMark:
             case UnicodeCategory.LineSeparator:
             case UnicodeCategory.ParagraphSeparator:

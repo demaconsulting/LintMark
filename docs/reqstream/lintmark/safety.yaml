@@ -56,6 +56,24 @@ sections:
               - SafetySubsystem_HtmlEquivalence_BenignReflow_Equivalent
               - SafetySubsystem_HtmlEquivalence_SemanticChange_Detected
 
+          - id: LintMark-Safety-LineEndingEquivalence
+            title: >-
+              The Safety subsystem shall decide whether two texts of one document, with the line endings they
+              have on disk, render to equivalent HTML, so that a change of the line endings alone is detected
+              when it changes how the document renders.
+            justification: |
+              The renderer shows some text differently for CRLF and LF, so converting the line endings of a
+              file can change its page although no character of the text changes. A rewrite that changes the
+              page has changed the meaning of the document, whatever the reason.
+            children:
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndings
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsFailsClosed
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsRejectsMissingText
+            tests:
+              - SafetySubsystem_HtmlEquivalence_LineEndingChangeOfCodeSpan_Detected
+              - SafetySubsystem_HtmlEquivalence_LineEndingChangeOfOrdinaryText_Equivalent
+
           - id: LintMark-Safety-StructureEquivalence
             title: >-
               The Safety subsystem shall decide whether two texts of one document have the same structure that

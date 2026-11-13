@@ -304,7 +304,7 @@ public class MarkdigTests
 
     /// <summary>
     ///     Documents that a multi-line code span whose content starts and ends with a line break renders differently for
-    ///     CRLF and LF input, which is why LintMark renders LF-normalized text only.
+    ///     CRLF and LF input, which is why LintMark also compares the rendering of a rewrite with the line endings it has on disk.
     /// </summary>
     [Fact]
     public void Markdig_HtmlRendering_CrlfVersusLfCodeSpan_DiffersAsDocumented()

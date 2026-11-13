@@ -41,20 +41,23 @@ and next to the ranges, are narrow. The ranges cover, in order:
 
 The half-width forms (`U+FF61` to `U+FFDC` and `U+FFE8` to `U+FFEE`), which include half-width Katakana and Hangul,
 lie outside the table, so they are narrow. Characters whose width is ambiguous (such as Greek and Cyrillic letters)
-are measured as narrow, the choice western terminals make. A range may contain a combining mark (such as `U+3099`);
+are measured as narrow, the choice western terminals make. A range may contain a combining mark (such as `U+3099`
+or the spacing combining mark `U+16FF0`);
 the mark has width 0 because the category test comes before the table lookup.
 
 **Cluster model**: The text is cut into grapheme clusters (what a reader perceives as one character) with
 `StringInfo`, and each cluster is measured as a unit:
 
-- a cluster whose characters are all control, format, combining, or separator characters has width 0;
+- a cluster whose characters are all control, format, combining (non-spacing, spacing, or enclosing marks), or
+  separator characters has width 0;
 - the width of a cluster is the width of its first visible character: 2 for a wide character, otherwise 1;
 - a cluster that carries the emoji presentation selector has width 2, which makes emoji sequences joined with the
   zero-width joiner, emoji with a skin tone modifier, key-cap sequences, and flags one wide character;
 - a lone surrogate counts as one narrow character.
 
 A character has width 0 when its Unicode category is control, format (zero-width space, joiners, bidirectional marks,
-soft hyphen), non-spacing mark, enclosing mark, line separator, or paragraph separator, and for the conjoining Hangul
+soft hyphen), non-spacing mark, spacing combining mark (such as the vowel signs of Indic scripts, for example `U+0903`
+and `U+093E`), enclosing mark, line separator, or paragraph separator, and for the conjoining Hangul
 vowels and final consonants (`U+1160` to `U+11FF` and `U+D7B0` to `U+D7FF`, the two blocks of conjoining Hangul
 letters), which only extend a syllable that starts with a leading consonant.
 A tab and a line break have width 0, so a caller measures one line at a time and accounts for tabs itself.

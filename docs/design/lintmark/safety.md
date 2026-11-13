@@ -28,6 +28,14 @@ unit.
 - *Constraints*: Throws `ArgumentNullException` for a null text and `ArgumentException` for a text with a carriage
   return. Safe for concurrent use.
 
+**HtmlEquivalenceChecker.CheckOnDisk**: Compares the rendered HTML of two texts with the line endings they have on disk.
+
+- *Type*: In-process .NET static method.
+- *Role*: Provider.
+- *Contract*: As `HtmlEquivalenceChecker.Check`, but the texts may contain carriage returns and are rendered as they are,
+  so that a difference that only the line endings cause is reported.
+- *Constraints*: Throws `ArgumentNullException` for a null text. Fails closed and is safe for concurrent use.
+
 **StructuralTokenChecker.Check**: Compares the Pandoc structural tokens of two texts.
 
 - *Type*: In-process .NET static method.
@@ -74,8 +82,8 @@ rewrite but never accept a harmful one that changes these tokens.
 only when the check positively established it, and otherwise a description of the first difference in one line of
 bounded length.
 
-**SafetyStatus**: An enumeration with the members `Ok` (every check passed, or no check was needed because the text
-does not change), `HtmlMismatch`, `StructureMismatch` (which also covers a rewrite that the parser would read
+**SafetyStatus**: An enumeration with the members `Ok` (every check passed), `HtmlMismatch` (also when only the line
+endings would change the page), `StructureMismatch` (which also covers a rewrite that the parser would read
 differently), and `NotIdempotent`. Everything other than `Ok` means the file must not be written.
 
 **Fail closed**: Each checker catches every exception of its own work and returns a result that is not equivalent
@@ -84,9 +92,13 @@ an exception that escapes a checker is also a failed check. No path of the subsy
 The renderer of the HTML check and the token collection of the structural check can be replaced through an internal
 overload of `Check`; production code always uses the real ones, and tests use the overload to make the work fail.
 
-**Rendering on LF-normalized text**: Both checkers that look at text accept only LF-normalized text and reject a
+**Rendering on LF-normalized text**: The checks of the rewritten text itself accept only LF-normalized text and reject a
 carriage return with `ArgumentException`, because the Markdown parser renders a multi-line code span differently for
-CRLF input. The engine always passes the normalized text of the document.
+CRLF input. The engine passes the normalized text of the document to them. Because of that very difference, a
+rewrite that only converts the line endings can change how the page renders, so the HTML check has a second entry
+point, `HtmlEquivalenceChecker.CheckOnDisk`, that renders texts with the line endings they really have; the engine runs
+it on the bytes it would replace and the bytes it would write, for every rewrite that changes bytes, also when only the
+line endings change.
 
 Thread safety: all three checkers are static and stateless apart from the immutable shared pipeline and compiled
 regular expressions, so they are safe for concurrent use. Every regular expression has a match timeout; a timeout is

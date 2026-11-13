@@ -45,8 +45,11 @@ test machine, because its bound is ten seconds for input that is checked in a sm
   its difference is found.
 - A renderer that throws gives a difference that names the exception type, and identical texts are still equivalent.
 - Concurrent calls give the same results as sequential calls.
-- A carriage return in either text throws `ArgumentException`, and a null text or a null renderer throws
-  `ArgumentNullException`.
+- A carriage return in either text throws `ArgumentException` when normalized text is compared, and a null text or a
+  null renderer throws `ArgumentNullException`.
+- When texts are compared with the line endings they have on disk, carriage returns are accepted, a conversion of the
+  line endings of a code span framed by line breaks is a difference, a conversion of an ordinary document is
+  equivalent, a failing renderer gives a difference, and a null text or renderer throws `ArgumentNullException`.
 
 #### Test Scenarios
 
@@ -150,3 +153,24 @@ first argument throws `ArgumentException`.
 `ArgumentException`.
 
 **Null texts are rejected**: A null first text and a null second text each throw `ArgumentNullException`.
+
+**A conversion of the line endings of a code span is a difference**: A code span framed by line breaks is compared with
+its CRLF form and, the other way round, its CRLF form with its LF form; with the line endings kept, the verdict is not
+equivalent and the description gives the offset.
+
+**A conversion of the line endings of an ordinary document is equivalent**: A document with a heading, a one-line code
+span, a soft break, a hard break, a list, a fenced block, and a raw `pre` block is compared with its CRLF form in both
+directions; the verdict is equivalent.
+
+**A text change with CRLF line endings is still a difference**: Two CRLF texts that differ in a hard break give a
+verdict that is not equivalent.
+
+**Identical text with line endings never uses the renderer**: Two identical texts that contain a carriage return are
+compared with a renderer that always throws; the verdict is equivalent with no description.
+
+**A renderer that throws is a difference when line endings are compared**: Two different texts with a carriage return
+are compared with a renderer that throws `InvalidOperationException`; the verdict is not equivalent and names the
+exception type.
+
+**Null texts and a null renderer are rejected when line endings are compared**: A null first text, a null second text,
+and a null renderer each throw `ArgumentNullException`.

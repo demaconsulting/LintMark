@@ -465,6 +465,101 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
+    ///     Test that the same code span with CRLF and with LF line endings is a difference, as the renderer shows it differently.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_CrlfVersusLfCodeSpan_Different()
+    {
+        // Arrange / Act: a code span framed by line breaks, with CRLF and with LF line endings
+        var result = HtmlEquivalenceChecker.CheckOnDisk("`\r\nbb\r\n`\r\n", "`\nbb\n`\n");
+        var reverse = HtmlEquivalenceChecker.CheckOnDisk("`\nbb\n`\n", "`\r\nbb\r\n`\r\n");
+
+        // Assert: both directions are differences that name the renderings
+        Assert.False(result.IsEquivalent);
+        Assert.Contains("offset", result.Description, StringComparison.Ordinal);
+        Assert.False(reverse.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a conversion of the line endings of an ordinary document is equivalent.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_CrlfVersusLfOrdinaryText_Equivalent()
+    {
+        // Arrange: a document with a soft break, a hard break, a list, a code span, and a fenced and an HTML pre block
+        const string lf = "# T\n\nA `code` span\nand a soft break,  \nand a hard break.\n\n- one\n- two\n\n```\nx  y\n\nz\n```\n\n<pre>\na\n\nb\n</pre>\n";
+        var crlf = lf.Replace("\n", "\r\n", StringComparison.Ordinal);
+
+        // Act: compare the two line ending styles in both directions
+        var toLf = HtmlEquivalenceChecker.CheckOnDisk(crlf, lf);
+        var toCrlf = HtmlEquivalenceChecker.CheckOnDisk(lf, crlf);
+
+        // Assert: the page is the same
+        Assert.True(toLf.IsEquivalent, toLf.Description);
+        Assert.True(toCrlf.IsEquivalent, toCrlf.Description);
+    }
+
+    /// <summary>
+    ///     Test that a change of the text is still a difference when the line endings are compared as they are on disk.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_TextChangedWithCrlf_Different()
+    {
+        // Arrange / Act: a hard break that is dropped, with CRLF line endings
+        var result = HtmlEquivalenceChecker.CheckOnDisk("a  \r\nb\r\n", "a\r\nb\r\n");
+
+        // Assert: still detected
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that identical text is equivalent without the renderer being used.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_IdenticalTextRendererThrows_StillEquivalent()
+    {
+        // Arrange / Act: the same text with a carriage return twice and a renderer that must never run
+        var result = HtmlEquivalenceChecker.CheckOnDisk(
+            "a\r\n",
+            "a\r\n",
+            _ => throw new InvalidOperationException("render failed"));
+
+        // Assert: identical text needs no rendering
+        Assert.True(result.IsEquivalent);
+        Assert.Null(result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a renderer that fails is reported as a difference that names the exception type.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_RendererThrows_ReportsDifferenceNamingExceptionType()
+    {
+        // Arrange / Act: two different texts whose rendering fails
+        var result = HtmlEquivalenceChecker.CheckOnDisk(
+            "a\r\n",
+            "a\n",
+            _ => throw new InvalidOperationException("render failed"));
+
+        // Assert: the undecided check is a difference
+        Assert.False(result.IsEquivalent);
+        Assert.Contains("could not be compared", result.Description, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), result.Description, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a null argument is rejected.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_CheckOnDisk_NullArguments_Throw()
+    {
+        // Arrange / Act / Assert: neither text and not the renderer may be null
+        Assert.Throws<ArgumentNullException>(() => HtmlEquivalenceChecker.CheckOnDisk(null!, "a\r\n"));
+        Assert.Throws<ArgumentNullException>(() => HtmlEquivalenceChecker.CheckOnDisk("a\r\n", null!));
+        Assert.Throws<ArgumentNullException>(() => HtmlEquivalenceChecker.CheckOnDisk("a\r\n", "b\r\n", null!));
+    }
+
+    /// <summary>
     ///     Test that a changed no-break space is a difference although it looks like a space.
     /// </summary>
     [Fact]

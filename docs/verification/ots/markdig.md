@@ -132,7 +132,8 @@ with CRLF line endings.
 
 **Expected**: With LF the line breaks become spaces that are stripped and the HTML is `<p><code>bb</code></p>`;
 with CRLF the spaces stay and the HTML is `<p><code> bb </code></p>`. The two differ, which is why LintMark
-renders text with LF line endings only, and a library update that removes the difference is noticed.
+compares the rendering of a rewrite with the line endings it has on disk as well as with normalized line endings, and a
+library update that removes the difference is noticed.
 
 **Requirement coverage**: `LintMark-OTS-Markdig-HtmlRendering`.
 
