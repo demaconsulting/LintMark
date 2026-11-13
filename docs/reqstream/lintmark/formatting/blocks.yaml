@@ -15,28 +15,53 @@ sections:
         sections:
           - title: Blocks Requirements
             requirements:
-              - id: LintMark-Formatting-Blocks-ProposeEdits
+              - id: LintMark-Formatting-Blocks-HeadingFormatterProvided
                 title: >-
-                  The Blocks subsystem shall provide block formatters that propose the changes that bring each
-                  heading, code block, and thematic break of a document into canonical form.
+                  The Blocks subsystem shall provide a block formatter that proposes the changes that bring each
+                  heading of a document into canonical form.
                 justification: |
-                  Headings, code blocks, and thematic breaks have more than one way of being written in
-                  Markdown. The canonical form is what makes the documents of a project consistent.
+                  Headings have more than one way of being written in Markdown. The canonical form is what makes
+                  the documents of a project consistent.
                 children:
                   - LintMark-Formatting-Blocks-HeadingFormatter-AcceptsHeadings
                   - LintMark-Formatting-Blocks-HeadingFormatter-RejectsMissingArguments
                   - LintMark-Formatting-Blocks-HeadingFormatter-RejectsOtherBlocks
                   - LintMark-Formatting-Blocks-HeadingFormatter-RuleIdsImmutable
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+                  - BlocksSubsystem_Format_SetextVariants_AreConvertedOnlyWhereSafe
+
+              - id: LintMark-Formatting-Blocks-CodeBlockFormatterProvided
+                title: >-
+                  The Blocks subsystem shall provide a block formatter that proposes the changes that bring each
+                  code block of a document into canonical form.
+                justification: |
+                  Code blocks have more than one way of being written in Markdown. The canonical form is what
+                  makes the documents of a project consistent.
+                children:
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-AcceptsClosedCodeBlocks
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsMissingArguments
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsOtherBlocks
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-RuleIdsImmutable
+                tests:
+                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+                  - BlocksSubsystem_Format_IndentedCodeVariants_BecomeFencedCode
+
+              - id: LintMark-Formatting-Blocks-ThematicBreakFormatterProvided
+                title: >-
+                  The Blocks subsystem shall provide a block formatter that proposes the changes that bring each
+                  thematic break of a document into canonical form.
+                justification: |
+                  Thematic breaks have more than one way of being written in Markdown. The canonical form is what
+                  makes the documents of a project consistent.
+                children:
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-AcceptsThematicBreaks
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-RejectsMissingArguments
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-RejectsOtherBlocks
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-RuleIdsImmutable
                 tests:
                   - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+                  - BlocksSubsystem_Format_ThematicBreakVariants_KeepTheMeaning
 
               - id: LintMark-Formatting-Blocks-HeadingStyle
                 title: >-
@@ -81,6 +106,7 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-SingleSpaceAfterMarker
                   - LintMark-Formatting-Blocks-HeadingFormatter-MissingSpaceKept
                 tests:
+                  - BlocksSubsystem_Format_BlanksAfterNumberSigns_BecomeOneSpaceAndMissingSpaceIsKept
                   - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
 
               - id: LintMark-Formatting-Blocks-HeadingStartLeft
@@ -93,6 +119,7 @@ sections:
                 children:
                   - LintMark-Formatting-Blocks-HeadingFormatter-IndentationRemoved
                 tests:
+                  - BlocksSubsystem_Format_HeadingIndentation_IsRemovedOnlyOutsideContainers
                   - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
 
               - id: LintMark-Formatting-Blocks-ThematicBreakStyle
@@ -109,8 +136,10 @@ sections:
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-SetextGuard
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-FrontMatterGuard
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-ListMarkerGuard
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-GridBorderGuard
                 tests:
                   - BlocksSubsystem_Format_ThematicBreakVariants_KeepTheMeaning
+                  - BlocksSubsystem_Format_BreakAfterPlusListMarker_StaysAsWritten
                   - BlocksSubsystem_Format_ConfiguredSettings_SelectTheCanonicalForm
 
               - id: LintMark-Formatting-Blocks-CodeFenceStyle
@@ -140,24 +169,48 @@ sections:
                   also indented by its container, so it stays as it is.
                 children:
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedBecomesFenced
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedWideBlankLineKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedNestedKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedFrontMatterGuard
                 tests:
                   - BlocksSubsystem_Format_IndentedCodeVariants_BecomeFencedCode
+                  - BlocksSubsystem_Format_IndentedCodeEndingWithWideWhitespaceLine_KeepsItsContent
 
-              - id: LintMark-Formatting-Blocks-TrailingWhitespaceRemoved
+              - id: LintMark-Formatting-Blocks-HeadingTrailingWhitespaceRemoved
                 title: >-
-                  The Blocks subsystem shall remove the trailing whitespace from the lines of the headings, code
-                  fences, and thematic breaks that it formats.
+                  The Blocks subsystem shall remove the trailing whitespace from the lines of the headings that it
+                  formats, but not behind the final backslash of a line of a setext heading that stays setext.
                 justification: |
-                  Trailing whitespace carries no meaning on these lines. Inside the code that a fence encloses it
-                  is content, so only the lines of the fences are cleaned.
+                  Trailing whitespace carries no meaning on a heading line. Behind a backslash that ends a line of
+                  a setext heading it would turn into a hard break if removed.
                 children:
                   - LintMark-Formatting-Blocks-HeadingFormatter-TrailingWhitespaceRemoved
+                  - LintMark-Formatting-Blocks-HeadingFormatter-SetextBackslashSpacesKept
+                tests:
+                  - BlocksSubsystem_Format_HeadingTrailingWhitespace_IsRemoved
+
+              - id: LintMark-Formatting-Blocks-FenceTrailingWhitespaceRemoved
+                title: >-
+                  The Blocks subsystem shall remove the trailing whitespace from the opening and closing fence
+                  lines of the code blocks that it formats.
+                justification: |
+                  Trailing whitespace carries no meaning on a fence line. Inside the code that a fence encloses it
+                  is content, so only the lines of the fences are cleaned.
+                children:
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLineTrailingWhitespace
+                tests:
+                  - BlocksSubsystem_Format_FenceLineTrailingWhitespace_IsRemovedAndContentKept
+
+              - id: LintMark-Formatting-Blocks-BreakTrailingWhitespaceRemoved
+                title: >-
+                  The Blocks subsystem shall remove the trailing whitespace from the lines of the thematic breaks
+                  that it formats, also when the characters of the break stay as written.
+                justification: |
+                  Trailing whitespace carries no meaning on a break line.
+                children:
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-TrailingWhitespaceRemoved
                 tests:
-                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+                  - BlocksSubsystem_Format_BreakTrailingWhitespace_IsRemoved
 
               - id: LintMark-Formatting-Blocks-TabsExpanded
                 title: >-
@@ -171,6 +224,7 @@ sections:
                   - LintMark-Formatting-Blocks-HeadingFormatter-ProtectedSpansKept
                 tests:
                   - BlocksSubsystem_Format_Tabs_AreExpandedOnlyInPlainText
+                  - BlocksSubsystem_Format_TabAfterNumberSigns_IsHandledSafely
 
               - id: LintMark-Formatting-Blocks-CodeContentKept
                 title: >-
@@ -212,16 +266,20 @@ sections:
               - id: LintMark-Formatting-Blocks-SuppressedBlocksKept
                 title: >-
                   The Blocks subsystem shall leave a block exactly as it is when a suppression comment of the
-                  document disables a rule of its block formatter there.
+                  document disables a rule of its block formatter there, and format the blocks where the rule is
+                  enabled.
                 justification: |
                   An author who switched a rule off for a passage expects the passage to stay as written, and a
-                  rule that is switched on again formats the passages after it.
+                  rule that is switched on again formats the passages after it. A next-line directive keeps its
+                  place directly above the line it covers.
                 children:
                   - LintMark-Formatting-Blocks-HeadingFormatter-SuppressedRuleKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-SuppressedRuleKept
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-SuppressedRuleKept
                 tests:
-                  - BlocksSubsystem_Format_DocumentBreakingEveryRule_ProducesTheCanonicalDocument
+                  - BlocksSubsystem_Format_SuppressedBlocks_AreKeptAndTheOthersAreFormatted
+                  - BlocksSubsystem_Format_SuppressedWithNextLineDirective_KeepsOnlyThatBlock
+                  - BlocksSubsystem_Format_NextLineDirectiveBeforeBlock_KeepsTheDirectiveWithItsLine
 
               - id: LintMark-Formatting-Blocks-EditsAttributedToRules
                 title: >-
@@ -251,26 +309,42 @@ sections:
                   - BlocksSubsystem_Format_CanonicalDocument_ProposesNothing
                   - BlocksSubsystem_Format_FormattedTwice_ChangesNothingTheSecondTime
 
-              - id: LintMark-Formatting-Blocks-LineEndingsAndMarkKept
+              - id: LintMark-Formatting-Blocks-LineEndingsKept
                 title: >-
-                  The Blocks subsystem shall propose the same changes for a document with CRLF line endings and a
-                  byte order mark as for the same document with LF line endings and no mark.
+                  The Blocks subsystem shall propose the same changes for a document with CRLF or mixed line
+                  endings as for the same document with LF line endings.
                 justification: |
-                  The line ending and the byte order mark are not part of the text that the rules judge, so they
-                  must not change what the rules propose.
+                  The line ending is not part of the text that the rules judge, so it must not change what the
+                  rules propose, and the rewritten file keeps the line endings it is given.
                 children:
                   - LintMark-Formatting-Blocks-HeadingFormatter-LineEndingsKept
                   - LintMark-Formatting-Blocks-CodeBlockFormatter-LineEndingsKept
                   - LintMark-Formatting-Blocks-ThematicBreakFormatter-LineEndingsKept
                 tests:
+                  - BlocksSubsystem_Format_DirtyDocumentWithCrlf_ProposesTheSameEdits
                   - BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark
                   - BlocksSubsystem_Format_MixedLineEndings_AreWrittenWithTheMajorityEnding
 
+              - id: LintMark-Formatting-Blocks-ByteOrderMarkKept
+                title: >-
+                  The Blocks subsystem shall propose the same changes for a document with a byte order mark as for
+                  the same document without one.
+                justification: |
+                  The byte order mark is not part of the text that the rules judge, so it must not change what
+                  the rules propose, and the rewritten file keeps its mark.
+                children:
+                  - LintMark-Formatting-Blocks-HeadingFormatter-ByteOrderMarkKept
+                  - LintMark-Formatting-Blocks-CodeBlockFormatter-ByteOrderMarkKept
+                  - LintMark-Formatting-Blocks-ThematicBreakFormatter-ByteOrderMarkKept
+                tests:
+                  - BlocksSubsystem_Format_DirtyDocumentWithByteOrderMark_ProposesTheSameEdits
+                  - BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark
+
               - id: LintMark-Formatting-Blocks-DeterministicResult
                 title: >-
-                  The Blocks subsystem shall propose the same changes for the same document and configuration when
-                  its block formatters are called from several threads at once as when they are called one after
-                  another.
+                  The Blocks subsystem shall propose the same changes for the same parsed document and
+                  configuration when its block formatters are called from several threads at once as when they
+                  are called one after another.
                 justification: |
                   Files are formatted in parallel, and a result that depended on timing could not be trusted.
                 children:

@@ -63,21 +63,32 @@ implemented: `#Title` is a paragraph to the parser, and adding the space would c
   accepts is *claimed* (also when the block is suppressed): only that formatter edits it. A line of code, HTML, math,
   front matter, a grid table, an unreferenced footnote, a multi-line link reference definition, or a block the tool does
   not model is *protected*: nobody edits its content. Remaining lines belong to the passes. It also records which lines
-  lie inside a container, which blocks keep their trailing blank lines (an unclosed fence, an HTML block that only the end
-  of the file closes, a footnote body that is not a paragraph), and the top-level blocks. Every range is measured to the
-  last line with content, not to the parser's span, so a line of spaces and an empty line never change container
-  membership between runs; the exceptions are blocks whose trailing blank lines are content. The parser's span of an
-  unclosed fence (and its container) and of an unreferenced footnote stops early, so the lines up to the next top-level
-  block are claimed and protected.
+  lie inside a container, which blocks keep their trailing blank lines (`KeepsTrailingBlankLines`: an unclosed fence, an
+  unreferenced footnote, a block the tool does not model, and an HTML block of the types 1 to 5 — comment, script, pre or
+  style, processing instruction, declaration, CDATA section — whose own end condition does not occur in the block, so
+  that only the end of its container closes it; an HTML block that holds its end condition is closed and keeps nothing;
+  a footnote body that is not a paragraph is handled by the end-of-file pass), and the top-level blocks. Every range is
+  measured to the last line with content, not to the parser's span, so a line of spaces and an empty line never change
+  container membership between runs; the exceptions are blocks whose trailing blank lines are content, and a top-level
+  indented code block, whose last line is the last line that has content or that holds only whitespace but is wider than
+  the four columns of indentation (the parser keeps what is left of such a line as a line of the code; inside a list item
+  it drops the line, so there the measure stays at the last line with content). The parser's span of an unclosed fence
+  (and its container) and of an unreferenced footnote stops early, so the lines up to the next top-level block are claimed
+  and protected.
 - `InlineMap`: per leaf block, the offsets that are plain text, the spans that must never be edited (code spans, inline
   HTML, math, autolink URLs, link destinations and titles, and the label of a link), and the line breaks (a break that
-  is hard because of spaces is told apart from a backslash break).
+  is hard because of spaces is told apart from a backslash break). `Build` can move every span by a constant, for the
+  one case where the parser's spans are known to be off by a fixed amount (an ATX heading with a tab after the number
+  signs; see *HeadingFormatter Design*).
 - `LeafWhitespace`: the trailing-whitespace and tab edits of the lines of one leaf block. Trailing whitespace goes, except
   that a hard break written with spaces keeps exactly two (a tab before the spaces is text and stays, and a run after a
   backslash is left alone so that a literal backslash does not become a break). Tabs become spaces up to the next tab stop
-  of four columns, only after the first plain text of the line, so indentation and container prefixes never change. A line
-  that looks like a grid table border is never edited, because whether the parser reads it as part of a table can depend
-  on the neighboring lines that the same run may change.
+  of four columns, only after the first plain text of the line (unless the caller says that its stretch starts in the
+  text, as the heading formatter does), so indentation and container prefixes never change. A tab in the whitespace at
+  the end of a line is never expanded, whether or not `trailing-whitespace` is suppressed: that whitespace belongs to the
+  trailing whitespace rule, and a tab turned into spaces could leave two spaces before the line end, which are a hard
+  break. A line that looks like a grid table border is never edited, because whether the parser reads it as part of a
+  table can depend on the neighboring lines that the same run may change.
 - `FrontMatterGuard`: whether a new `---` line could close front matter opened by the first line of the document.
 - `BlankLinePass`, `BlockSpacingPass`, and `TrailerPass`: the three document-level passes described under *Key Methods*.
 
@@ -136,21 +147,30 @@ the look of the lines: `text` followed by `2. item` is one paragraph, a line aft
 and a row after a table is a table row. Only the block kinds whose end the parser reports reliably are separated
 (heading, paragraph, fenced code, indented code, HTML block, thematic break, block quote, list, table, link reference
 definition, front matter, math block), never a footnote, an unreferenced footnote, a grid table, an unclosed fence, or a
-block that the tool does not model. No blank line is inserted inside a container, before a block that is indented by
-more than three
-columns (unless it is indented code, which is judged after its conversion to a fenced block), next to a grid-table-like
-line, or after a block that keeps its trailing blank lines. An indented code block counts as a fenced block for
+block that the tool does not model. No blank line is inserted inside a container, before a block that the parser
+reports after more than three columns or a tab on its first line (for instance a definition that follows other text on
+its line; unless it is indented code, which is judged after its conversion to a fenced block), next to a grid-table-like
+line, after a block that keeps its trailing blank lines, or between a next-line suppression directive and the first line
+of the block it covers (a one-line suppression range that starts at the first line of the later block: the inserted blank
+line would take the place of the covered line, the rule that the author switched off would fire in the next run, and the
+result would not be stable; the guard also holds back a blank line before a block that carries a `disable-line`
+directive on its first line, which only leaves a missing blank line as it was). An indented code block counts as a
+fenced block for
 `fence-blank-lines`, so that the result is stable after the block formatter converts it. One blank line is inserted per
 boundary, as a zero-length edit at the start of the later block's first line, and attributed to the first applicable
 rule that is not suppressed on either block, in the order `heading-blank-lines`, `fence-blank-lines`,
 `list-blank-lines`, `table-blank-lines`; two rules that inserted at the same offset would conflict. Block formatters never
 add a zero-length edit at a line start, so these insertions never collide with theirs.
 
-**TrailerPass**: Everything after the last line with content is the trailer. With `final-newline` on (the default) the
+**TrailerPass**: Everything after the last line with content is the trailer; a whitespace-only line that a block owns (the
+rest of an indented code block) counts as content. With `final-newline` on (the default) the
 trailer becomes a single line feed, which adds a missing one and removes extra blank lines and whitespace-only lines; with
 it off the trailer is removed. A document without content is left alone, a suppression of `final-newline` over the trailer
-is honored, and when the last content belongs to a block that keeps its trailing blank lines (an unclosed fence, an HTML
-block that only the end of the file closes, a footnote body that is not a paragraph) the pass makes no edit at all.
+is honored, and when the last content belongs to a block that keeps its trailing blank lines (an unclosed fence, an
+unreferenced footnote, a block the tool does not model, an HTML block of the types 1 to 5 that no end condition closes)
+the pass makes no edit at all. A closed HTML block (`text`, a blank line, `<!-- c -->` without a final line ending, or
+`<script>` ... `</script>` followed by blank lines) has no trailing content, so its end of file is normalized like
+that of any other block. A footnote body that is not a paragraph is also left alone.
 
 **Edits to diagnostics** (private `ReportEdits`): linting a file is formatting it and listing what would change, so
 every edit whose rule is an always-applied formatting rule of the catalog (kind `Formatting`, not configurable, and not

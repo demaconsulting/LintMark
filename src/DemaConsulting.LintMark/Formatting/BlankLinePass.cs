@@ -94,7 +94,7 @@ internal static class BlankLinePass
             }
 
             // Blank lines after a block that keeps its trailing blank lines (an unclosed fence) are content of that block
-            if (first > 0 && ownership.LeafAt(first - 1) is { } previous && LineOwnership.KeepsTrailingBlankLines(previous, contentFollows: true))
+            if (first > 0 && ownership.LeafAt(first - 1) is { } previous && LineOwnership.KeepsTrailingBlankLines(layout, previous, contentFollows: true))
             {
                 continue;
             }

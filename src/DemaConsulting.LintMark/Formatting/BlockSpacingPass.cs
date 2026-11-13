@@ -43,7 +43,9 @@ namespace DemaConsulting.LintMark.Formatting;
 ///         insert at the same offset would conflict. Only block kinds whose end the parser reports reliably are
 ///         separated (not an unclosed fence, a grid table, a footnote definition or a block that the tool does not model), and
 ///         no blank line is inserted next to a line that looks like a grid table border or before a block that
-///         is indented by more than three columns (such a block only exists because of what precedes it).
+///         is indented by more than three columns (such a block only exists because of what precedes it). Nor is a
+///         blank line inserted between a next-line suppression directive and the first line of the block it
+///         covers: the blank line would take the directive's place and the rule it suppresses would then fire.
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless; safe for concurrent use.
@@ -103,7 +105,9 @@ internal static class BlockSpacingPass
                 continue;
             }
 
-            // A block indented by more than three columns is only a block of its own because of what precedes it
+            // A block that does not start at the beginning of its line, or after more than three columns of indentation or a
+            // tab, is not one that the parser read as a block of its own at the left margin (for instance a definition that
+            // starts after the text of another line): a blank line before its line would not separate it from what precedes it
             if (after.Kind != BlockKind.IndentedCode)
             {
                 var indentation = layout.Text.AsSpan(layout.LineStart(afterFirst), after.Start - layout.LineStart(afterFirst));
@@ -114,7 +118,14 @@ internal static class BlockSpacingPass
             }
 
             // A blank line after a block that keeps its trailing blank lines would become part of that block
-            if (ownership.LeafAt(beforeLast) is { } lastLeaf && LineOwnership.KeepsTrailingBlankLines(lastLeaf, contentFollows: true))
+            if (ownership.LeafAt(beforeLast) is { } lastLeaf && LineOwnership.KeepsTrailingBlankLines(layout, lastLeaf, contentFollows: true))
+            {
+                continue;
+            }
+
+            // A next-line suppression directive written before the second block applies to its first line only as long
+            // as nothing is inserted between the two (the inserted blank line would take its place)
+            if (TargetsNextLine(document, layout, afterFirst))
             {
                 continue;
             }
@@ -136,6 +147,54 @@ internal static class BlockSpacingPass
                 break;
             }
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a suppression covers exactly one line, the line given: the shape of a next-line directive.
+    /// </summary>
+    /// <param name="document">The parsed document that holds the suppressions.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when a suppression range of any rule starts at the start of the line and ends at the start of the next.</returns>
+    /// <remarks>
+    ///     A <c>disable-next-line</c> directive (of the lintmark or the markdownlint family) on the line before covers
+    ///     exactly that range, whichever rules it names. A blank line inserted between the directive and the line would
+    ///     take the directive's place, and the line would then be formatted by the rule that the author suppressed. A
+    ///     <c>disable-line</c> directive on the line itself has the same shape and is treated the same way: the
+    ///     blank line is then not inserted, which only leaves a missing blank line as it was.
+    /// </remarks>
+    private static bool TargetsNextLine(ParsedDocument document, LineLayout layout, int line)
+    {
+        var start = layout.LineStart(line);
+        var end = Math.Min(layout.LineEnd(line) + 1, layout.Text.Length);
+
+        // The ranges are sorted by start, so find the first one that starts at the line start by bisection and scan
+        // the ranges with that start for the end (several ranges can start at the same offset)
+        var ranges = document.Suppressions.Ranges;
+        var low = 0;
+        var high = ranges.Count;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (ranges[middle].Start < start)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        for (var i = low; i < ranges.Count && ranges[i].Start == start; i++)
+        {
+            if (ranges[i].End == end)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

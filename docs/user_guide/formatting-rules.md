@@ -57,7 +57,8 @@ the other yet.
 ### hard-tabs (MD010)
 
 Replaces each tab in the text of a paragraph or heading by spaces up to the next tab stop of four columns. A tab in
-the indentation of a line, in code (also inline code), in a table, in a link destination or title, and in any block that
+the indentation of a line, in code (also inline code), in a table, in a link destination or title, at the end of a line
+(the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block that
 LintMark does not rewrite stays as it is.
 
 - **Setting**: none; the tab stops are four columns wide.
@@ -93,7 +94,8 @@ lines inside code and HTML blocks, and inside a quote or list, are kept (their w
 Ends the file with exactly one line ending. A missing final line ending is added, and extra blank lines (or lines that
 hold only whitespace) at the end are removed. With `final-newline: false` the file ends with its last character instead.
 A file without any content is left alone, and so is the end of a file whose last block keeps its trailing blank lines
-as content (a fence that is never closed, for example).
+as content (a fence that is never closed, or an HTML comment or script block that is never closed, for example). The end
+of a file after an HTML comment or script block that is closed is treated like any other.
 
 - **Setting**: `final-newline`, `true` or `false`. The default is `true`.
 - **Before**: `The last line.` with no line ending, or with three blank lines after it.
@@ -268,7 +270,8 @@ Puts a blank line between a pipe table and the blocks around it. LintMark does n
 Writes every thematic break as three characters of the same kind. A break written as `***`, `___`, `- - -`, or
 `-----` becomes `---` by default. A break is left as it is where the dashes form would change the meaning of the
 document: directly under a line of text (it would underline the text and make a heading), on the first line of a file or
-after a line of dashes that could start or close front matter, and after a list marker of the same character. Trailing
+after a line of dashes that could start or close front matter, after a list marker of the same character, and after a
+plus sign list marker (`+ ---` looks like the border of a grid table). Trailing
 whitespace is removed in every case.
 
 - **Setting**: `thematic-break`: `dashes` (`---`), `asterisks` (`***`), or `underscores` (`___`). The default is

@@ -133,9 +133,18 @@ internal static class BlockFormatterAssertions
     /// <param name="text">The LF-normalized text.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
     /// <returns>The edits in order and the patched text.</returns>
-    public static (System.Collections.Immutable.ImmutableArray<TextEdit> Edits, string Formatted) ApplyFormatter(IBlockFormatter formatter, string text, LintMarkConfig? config = null)
+    public static (System.Collections.Immutable.ImmutableArray<TextEdit> Edits, string Formatted) ApplyFormatter(IBlockFormatter formatter, string text, LintMarkConfig? config = null) =>
+        ApplyFormatter(formatter, Parse(text), config);
+
+    /// <summary>
+    ///     Applies one block formatter to every block it accepts in a parsed document, without the document passes.
+    /// </summary>
+    /// <param name="formatter">The formatter under test.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    /// <returns>The edits in order and the patched text.</returns>
+    public static (System.Collections.Immutable.ImmutableArray<TextEdit> Edits, string Formatted) ApplyFormatter(IBlockFormatter formatter, ParsedDocument document, LintMarkConfig? config = null)
     {
-        var document = Parse(text);
         var edits = new EditSet();
         var context = new FormatContext(document, config ?? LintMarkConfig.Default);
         foreach (var block in document.Blocks.Where(formatter.CanFormat))
@@ -174,17 +183,197 @@ internal static class BlockFormatterAssertions
         Assert.Equal(expected, AssertSafeAndStable(input, config));
 
     /// <summary>
-    ///     Asserts that text is formatted to the expected text when it is stored with CRLF line endings, with a
-    ///     byte order mark, and with mixed line endings, and that the line endings and the mark are kept.
+    ///     Asserts that text is formatted to the expected text when it is stored with CRLF line endings and a
+    ///     byte order mark, with CRLF line endings without one, and with mixed line endings that are mostly CRLF, and
+    ///     that the mark is kept and every line ends the way the majority of the lines did.
     /// </summary>
     /// <param name="input">The LF-normalized input.</param>
     /// <param name="expected">The expected LF-normalized output.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
     public static void AssertFormatsOnDisk(string input, string expected, LintMarkConfig? config = null)
     {
-        // CRLF with a byte order mark; then every other line ending as LF (the majority ending decides what is written back)
-        AssertDiskVariant(input, expected, config, input.Replace("\n", "\r\n", StringComparison.Ordinal), expected.Replace("\n", "\r\n", StringComparison.Ordinal), bom: true);
-        AssertDiskVariant(input, expected, config, input.Replace("\n", "\r\n", StringComparison.Ordinal), expected.Replace("\n", "\r\n", StringComparison.Ordinal), bom: false);
+        var crlfInput = input.Replace("\n", "\r\n", StringComparison.Ordinal);
+        var crlfExpected = expected.Replace("\n", "\r\n", StringComparison.Ordinal);
+        AssertDiskVariant(input, expected, config, crlfInput, crlfExpected, bom: true);
+        AssertDiskVariant(input, expected, config, crlfInput, crlfExpected, bom: false);
+
+        // Mixed endings: every third line ending is a bare line feed (when the text has that many), so CRLF is the majority and is written back
+        AssertDiskVariant(input, expected, config, MixEndings(input), crlfExpected, bom: false);
+    }
+
+    /// <summary>
+    ///     Asserts that a block formatter proposes the same edits for the text with CRLF line endings, and with mixed
+    ///     line endings, as for the LF text.
+    /// </summary>
+    /// <param name="formatter">The formatter under test.</param>
+    /// <param name="input">The LF-normalized input.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    /// <remarks>
+    ///     The parser works on LF-normalized text, so the edits are offsets into that text and must not depend on the
+    ///     terminators of the file; this is checked on the formatter alone, with no document pass to hide a difference.
+    /// </remarks>
+    public static void AssertSameEditsWithCrlf(IBlockFormatter formatter, string input, LintMarkConfig? config = null) =>
+        AssertSameEdits(
+            formatter,
+            input,
+            config,
+            System.Text.Encoding.UTF8.GetBytes(input.Replace("\n", "\r\n", StringComparison.Ordinal)),
+            System.Text.Encoding.UTF8.GetBytes(MixEndings(input)));
+
+    /// <summary>
+    ///     Asserts that a block formatter proposes the same edits for the text with a byte order mark, with LF and with
+    ///     CRLF line endings, as for the LF text without one.
+    /// </summary>
+    /// <param name="formatter">The formatter under test.</param>
+    /// <param name="input">The LF-normalized input.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    public static void AssertSameEditsWithByteOrderMark(IBlockFormatter formatter, string input, LintMarkConfig? config = null)
+    {
+        var preamble = new System.Text.UTF8Encoding(true).GetPreamble();
+        AssertSameEdits(
+            formatter,
+            input,
+            config,
+            [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(input)],
+            [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(input.Replace("\n", "\r\n", StringComparison.Ordinal))]);
+    }
+
+    /// <summary>
+    ///     Asserts that a block formatter proposes the same edits for each stored form of a text as for the LF text.
+    /// </summary>
+    /// <param name="formatter">The formatter under test.</param>
+    /// <param name="input">The LF-normalized input, which the formatter must change.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    /// <param name="variants">The bytes of the same text as it may be stored.</param>
+    private static void AssertSameEdits(IBlockFormatter formatter, string input, LintMarkConfig? config, params byte[][] variants)
+    {
+        var (expectedEdits, _) = ApplyFormatter(formatter, input, config);
+        Assert.NotEmpty(expectedEdits);
+        foreach (var bytes in variants)
+        {
+            var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
+            Assert.Equal(input, document.Source.Text);
+            Assert.Equal(expectedEdits, ApplyFormatter(formatter, document, config).Edits);
+        }
+    }
+
+    /// <summary>
+    ///     Writes every third line ending of a text as a bare line feed and the others as CRLF.
+    /// </summary>
+    /// <param name="input">The LF-normalized text.</param>
+    /// <returns>The text with mixed line endings (CRLF only when it has fewer than three line endings).</returns>
+    public static string MixEndings(string input)
+    {
+        var builder = new System.Text.StringBuilder(input.Length + 8);
+        var count = 0;
+        foreach (var c in input)
+        {
+            if (c == '\n')
+            {
+                builder.Append(count++ % 3 == 2 ? "\n" : "\r\n");
+            }
+            else
+            {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Asserts that one instance of a block formatter gives the same edits when several threads format the same
+    ///     parsed document at the same time.
+    /// </summary>
+    /// <param name="formatter">The formatter under test.</param>
+    /// <param name="input">The LF-normalized input.</param>
+    /// <param name="expected">The expected output.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    /// <remarks>
+    ///     The document is parsed once and shared, with one context; every thread has its own edit set. The threads
+    ///     wait at a barrier so that they start together, and each formats the document many times to keep them
+    ///     overlapping. Every thread's edits must equal those of a single call and must patch the text to the
+    ///     expected result.
+    /// </remarks>
+    public static void AssertConcurrentFormatting(IBlockFormatter formatter, string input, string expected, LintMarkConfig? config = null)
+    {
+        // The single-threaded result is the reference
+        const int threadCount = 8;
+        const int rounds = 50;
+        var document = Parse(input);
+        var context = new FormatContext(document, config ?? LintMarkConfig.Default);
+        var blocks = document.Blocks.Where(formatter.CanFormat).ToList();
+        Assert.NotEmpty(blocks);
+        var reference = FormatBlocks(formatter, context, blocks);
+        Assert.Equal(expected, SourcePatcher.Apply(document.Source, reference));
+
+        // Every thread formats the shared document from the same starting signal
+        var results = new System.Collections.Immutable.ImmutableArray<TextEdit>[threadCount];
+        RunConcurrently(
+            threadCount,
+            index =>
+            {
+                for (var round = 0; round < rounds; round++)
+                {
+                    results[index] = FormatBlocks(formatter, context, blocks);
+                    Assert.Equal(reference, results[index]);
+                }
+            });
+
+        // No thread saw anything different
+        Assert.All(results, result => Assert.Equal(reference, result));
+    }
+
+    /// <summary>
+    ///     Runs a body on several dedicated threads that start together, and rethrows the first failure on the calling thread.
+    /// </summary>
+    /// <param name="threadCount">The number of threads.</param>
+    /// <param name="body">The body, called once per thread with the index of the thread after every thread is ready.</param>
+    /// <remarks>
+    ///     Dedicated threads (not pool threads) are used so that all of them can wait at the barrier at once, which
+    ///     makes the bodies overlap.
+    /// </remarks>
+    public static void RunConcurrently(int threadCount, Action<int> body)
+    {
+        using var gate = new Barrier(threadCount);
+        var failures = new Exception?[threadCount];
+        var threads = Enumerable.Range(0, threadCount).Select(index => new Thread(() =>
+        {
+            try
+            {
+                gate.SignalAndWait();
+                body(index);
+            }
+            catch (Exception exception)
+            {
+                failures[index] = exception;
+            }
+        })).ToList();
+        threads.ForEach(thread => thread.Start());
+        threads.ForEach(thread => thread.Join());
+        var failure = failures.FirstOrDefault(exception => exception is not null);
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+    }
+
+    /// <summary>
+    ///     Formats blocks with a formatter into a new edit set.
+    /// </summary>
+    /// <param name="formatter">The formatter.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="blocks">The blocks to format.</param>
+    /// <returns>The edits in order.</returns>
+    private static System.Collections.Immutable.ImmutableArray<TextEdit> FormatBlocks(IBlockFormatter formatter, FormatContext context, IEnumerable<BlockInfo> blocks)
+    {
+        var edits = new EditSet();
+        foreach (var block in blocks)
+        {
+            formatter.Format(context, block, edits);
+        }
+
+        return edits.ToImmutable();
     }
 
     /// <summary>

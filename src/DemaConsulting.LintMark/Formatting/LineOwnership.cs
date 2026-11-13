@@ -42,7 +42,8 @@ namespace DemaConsulting.LintMark.Formatting;
 ///         that treats such a line differently depending on whether it is empty or holds spaces would not be stable
 ///         (formatting its own output would change it again), so ranges never depend on it. The exceptions are
 ///         blocks whose trailing blank lines are content (an unclosed fence, and HTML blocks that only the end
-///         of the file closes), which keep the parser's span.
+///         of the file closes), which keep the parser's span, and a top-level indented code block, which also
+///         counts a trailing whitespace-only line wider than its indentation (the rest of that line is code).
 ///     </para>
 ///     <para>
 ///         Thread safety: immutable after <see cref="Build"/>; created per document.
@@ -154,7 +155,11 @@ internal sealed class LineOwnership
     /// </summary>
     /// <param name="layout">The line arithmetic of the document. Must not be null.</param>
     /// <param name="block">The block. Must not be null.</param>
-    /// <returns>The zero-based first and last line.</returns>
+    /// <returns>
+    ///     The zero-based first and last line. The last line of a top-level indented code block also counts a
+    ///     trailing whitespace-only line that is wider than the indentation, because what is left of it after the
+    ///     indentation is a line of the code.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     public static (int First, int Last) LinesOf(LineLayout layout, BlockInfo block)
     {
@@ -163,12 +168,55 @@ internal sealed class LineOwnership
 
         var first = layout.LineOf(block.Start);
         var last = Math.Max(first, layout.LineOf(block.EndInclusive));
-        if (block.Kind is not (BlockKind.UnclosedFence or BlockKind.HtmlBlock))
+        if (block.Kind == BlockKind.IndentedCode && block.Parent is null)
+        {
+            last = LastCodeLine(layout, first, last);
+        }
+        else if (block.Kind is not (BlockKind.UnclosedFence or BlockKind.HtmlBlock))
         {
             last = layout.LastContentLine(first, last);
         }
 
         return (first, last);
+    }
+
+    /// <summary>
+    ///     Finds the last line of a top-level indented code block that belongs to its content.
+    /// </summary>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="first">The first line of the block.</param>
+    /// <param name="last">The last line of the parser's span.</param>
+    /// <returns>
+    ///     The last line that has content, or that holds only whitespace but more than the four columns of
+    ///     indentation: the parser keeps what is left after the indentation as a line of the code (an empty rest is
+    ///     dropped at the end of the block), so such a line is code that must not be trimmed.
+    /// </returns>
+    private static int LastCodeLine(LineLayout layout, int first, int last)
+    {
+        var line = last;
+        while (line > first && layout.IsBlank(line) && !HoldsCodeWhitespace(layout, line))
+        {
+            line--;
+        }
+
+        return line;
+    }
+
+    /// <summary>
+    ///     Determines whether a whitespace-only line is wider than the indentation of an indented code block.
+    /// </summary>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="line">The zero-based line, which holds only spaces and tabs.</param>
+    /// <returns><see langword="true"/> when the line is more than four columns wide.</returns>
+    private static bool HoldsCodeWhitespace(LineLayout layout, int line)
+    {
+        var column = 0;
+        for (var position = layout.LineStart(line); position < layout.LineEnd(line); position++)
+        {
+            column = layout.Text[position] == '\t' ? LineLayout.NextTabStop(column) : column + 1;
+        }
+
+        return column > LineLayout.TabWidth;
     }
 
     /// <summary>
@@ -210,19 +258,23 @@ internal sealed class LineOwnership
     /// <summary>
     ///     Determines whether the blank lines that end a block belong to its content.
     /// </summary>
+    /// <param name="layout">The line arithmetic of the document (for the text of the block). Must not be null.</param>
     /// <param name="block">The block. Must not be null.</param>
     /// <param name="contentFollows">
     ///     Whether more content follows the blank lines. A top-level HTML block that the end of the file closes
     ///     cannot have content after it, so one that does is closed and its trailing blank lines are not content.
     /// </param>
     /// <returns>
-    ///     <see langword="true"/> for an unclosed fence, for an HTML block that only the end of its container
-    ///     closes, and for blocks the tool does not model; the blank lines after the last line with content
-    ///     are then possibly part of the block.
+    ///     <see langword="true"/> for an unclosed fence, for an unreferenced footnote and a block the tool does not
+    ///     model, and for an HTML block (a comment, script, style, pre, processing instruction, declaration or CDATA
+    ///     section) that its own end condition does not close: only the end of its container closes it, so the blank
+    ///     lines after the last line with content are possibly part of the block. An HTML block whose end
+    ///     condition is on its last line is closed, and the blank lines after it are not content.
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="block"/> is null.</exception>
-    public static bool KeepsTrailingBlankLines(BlockInfo block, bool contentFollows)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="layout"/> or <paramref name="block"/> is null.</exception>
+    public static bool KeepsTrailingBlankLines(LineLayout layout, BlockInfo block, bool contentFollows)
     {
+        ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(block);
         if (block.Kind is BlockKind.UnclosedFence or BlockKind.UnreferencedFootnote or BlockKind.Other)
         {
@@ -230,8 +282,41 @@ internal sealed class LineOwnership
         }
 
         return block.Kind == BlockKind.HtmlBlock
-            && block.Node is HtmlBlock { Type: not (HtmlBlockType.InterruptingBlock or HtmlBlockType.NonInterruptingBlock) }
-            && !(contentFollows && block.Parent is null);
+            && block.Node is HtmlBlock { Type: not (HtmlBlockType.InterruptingBlock or HtmlBlockType.NonInterruptingBlock) } html
+            && !(contentFollows && block.Parent is null)
+            && !IsClosedByEndCondition(layout.Text, block, html.Type);
+    }
+
+    /// <summary>
+    ///     Determines whether the text of an HTML block of types 1 to 5 contains the end condition of its type.
+    /// </summary>
+    /// <param name="text">The document text.</param>
+    /// <param name="block">The HTML block.</param>
+    /// <param name="type">The type of the block.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the text of the block holds <c>--&gt;</c> (comment), <c>?&gt;</c> (processing
+    ///     instruction), <c>&gt;</c> (declaration), <c>]]&gt;</c> (CDATA) or a closing <c>script</c>, <c>pre</c>,
+    ///     <c>style</c> or <c>textarea</c> tag (compared without regard to case).
+    /// </returns>
+    /// <remarks>
+    ///     A block of these types ends at the first line that holds the end condition, so a block that holds it
+    ///     was closed by it and one that does not was closed by the end of its container (or the file).
+    /// </remarks>
+    private static bool IsClosedByEndCondition(string text, BlockInfo block, HtmlBlockType type)
+    {
+        var length = Math.Min(block.EndInclusive + 1, text.Length) - block.Start;
+        var span = text.AsSpan(block.Start, Math.Max(length, 0));
+        return type switch
+        {
+            HtmlBlockType.Comment => span.Contains("-->", StringComparison.Ordinal),
+            HtmlBlockType.CData => span.Contains("]]>", StringComparison.Ordinal),
+            HtmlBlockType.ProcessingInstruction => span.Contains("?>", StringComparison.Ordinal),
+            HtmlBlockType.DocumentType => span.Contains('>'),
+            _ => span.Contains("</script>", StringComparison.OrdinalIgnoreCase)
+                || span.Contains("</pre>", StringComparison.OrdinalIgnoreCase)
+                || span.Contains("</style>", StringComparison.OrdinalIgnoreCase)
+                || span.Contains("</textarea>", StringComparison.OrdinalIgnoreCase)
+        };
     }
 
     /// <summary>

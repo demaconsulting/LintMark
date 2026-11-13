@@ -22,7 +22,9 @@ sections:
                       - ThematicBreakFormatter_CanFormat_Blocks_AcceptsOnlyThematicBreaks
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-RejectsMissingArguments
-                    title: The ThematicBreakFormatter class shall refuse a missing block, context, or edit set.
+                    title: >-
+                      The ThematicBreakFormatter class shall throw an ArgumentNullException that names the parameter
+                      when an argument is null.
                     justification: |
                       Missing arguments are programming errors that must be reported as such.
                     tests:
@@ -59,6 +61,8 @@ sections:
                       - ThematicBreakFormatter_Format_UnderscoresConfiguration_WritesUnderscores
                       - ThematicBreakFormatter_Format_FirstLineWithAsterisksConfiguration_IsConverted
                       - ThematicBreakFormatter_Format_BreakAfterCompleteBlock_IsConverted
+                      - ThematicBreakFormatter_Format_BreakAfterOrderedListMarker_IsConverted
+                      - ThematicBreakFormatter_Format_BreakAfterTable_IsConverted
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-IndentationKept
                     title: The ThematicBreakFormatter class shall keep the indentation of a thematic break.
@@ -73,10 +77,13 @@ sections:
                       text.
                     justification: |
                       A line of dashes under text is a heading underline, so the conversion would turn the text
-                      into a heading.
+                      into a heading. Every block above the break other than a complete block (heading, code,
+                      break, list, quote, table) counts as text, which keeps the guard independent of anything that
+                      another rule changes in the same run.
                     tests:
                       - ThematicBreakFormatter_Format_BreakUnderText_StaysAsWritten
                       - ThematicBreakFormatter_Format_BreakUnderTextWithTrailingWhitespace_OnlyLosesTheWhitespace
+                      - ThematicBreakFormatter_Format_BreakUnderNonTextBlocksThatCountAsText_StaysAsWritten
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-FrontMatterGuard
                     title: >-
@@ -92,14 +99,27 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-ListMarkerGuard
                     title: >-
-                      The ThematicBreakFormatter class shall leave a break as it is when it follows a list marker
-                      of the character that the conversion would write.
+                      The ThematicBreakFormatter class shall not change the characters of a break that follows a
+                      list marker of the character that the conversion would write.
                     justification: |
                       A list marker followed by a break of its own character, such as a dash and dashes, is
-                      itself a thematic break, so the conversion would change the structure.
+                      itself a thematic break, so the conversion would change the structure. The trailing
+                      whitespace of such a break is still removed (see TrailingWhitespaceRemoved).
                     tests:
                       - ThematicBreakFormatter_Format_BreakAfterDashListMarker_StaysAsWritten
                       - ThematicBreakFormatter_Format_BreakAfterAsteriskListMarker_StaysAsWritten
+                      - ThematicBreakFormatter_Format_FirstLineAndListMarkerWithOtherConfigurations_FollowTheGuards
+
+                  - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-GridBorderGuard
+                    title: >-
+                      The ThematicBreakFormatter class shall not write a break as dashes on a line that starts with
+                      a plus sign.
+                    justification: |
+                      A plus sign, here a list marker, followed by dashes looks like the border of a grid table, and
+                      Pandoc may read the line as part of a table instead of a list item with a break.
+                    tests:
+                      - ThematicBreakFormatter_Format_BreakAfterPlusListMarker_StaysAsWrittenWhenDashesAreWanted
+                      - ThematicBreakFormatter_Format_BreakAfterPlusListMarkerWithOtherCharacter_IsConverted
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-ConvertedInContainer
                     title: >-
@@ -113,18 +133,22 @@ sections:
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-TrailingWhitespaceRemoved
                     title: The ThematicBreakFormatter class shall remove the trailing whitespace of a thematic break.
                     justification: |
-                      Trailing whitespace is invisible and carries no meaning.
+                      Trailing whitespace is invisible and carries no meaning, also on a break whose characters
+                      stay as written because of a guard.
                     tests:
                       - ThematicBreakFormatter_Format_TrailingWhitespace_IsRemoved
+                      - ThematicBreakFormatter_Format_GuardedBreakWithTrailingWhitespace_OnlyLosesTheWhitespace
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-SuppressedRuleKept
                     title: >-
                       The ThematicBreakFormatter class shall propose no change for a thematic break in which a
-                      comment of the document disables the rule of the change.
+                      comment of the document disables the thematic-break rule or the trailing-whitespace rule.
                     justification: |
-                      An author who switched a rule off for a passage expects the passage to stay as written.
+                      An author who switched either rule of the formatter off for a passage expects the break
+                      there to stay as written, trailing whitespace included.
                     tests:
                       - ThematicBreakFormatter_Format_RuleSuppressed_LeavesTheBreak
+                      - ThematicBreakFormatter_Format_BreakAfterEnabledAgain_IsFormatted
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-EditsUnderOwnRule
                     title: >-
@@ -146,17 +170,29 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-LineEndingsKept
                     title: >-
-                      The ThematicBreakFormatter class shall propose the same changes for a document with CRLF line
-                      endings and a byte order mark as for the same document with LF line endings and no mark.
+                      The ThematicBreakFormatter class shall propose the same changes for a document with CRLF or
+                      mixed line endings as for the same document with LF line endings.
                     justification: |
-                      The line ending and the byte order mark are not part of the text of a thematic break.
+                      The line ending is not part of the text of a thematic break.
                     tests:
+                      - ThematicBreakFormatter_Format_CrlfLineEndings_ProposesTheSameEdits
+                      - ThematicBreakFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
+
+                  - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-ByteOrderMarkKept
+                    title: >-
+                      The ThematicBreakFormatter class shall propose the same changes for a document with a byte
+                      order mark as for the same document without one.
+                    justification: |
+                      The byte order mark is not part of the text of a thematic break.
+                    tests:
+                      - ThematicBreakFormatter_Format_ByteOrderMark_ProposesTheSameEdits
                       - ThematicBreakFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
 
                   - id: LintMark-Formatting-Blocks-ThematicBreakFormatter-DeterministicResult
                     title: >-
-                      The ThematicBreakFormatter class shall propose the same changes for the same document when
-                      one instance is called from several threads at once as when it is called one after another.
+                      The ThematicBreakFormatter class shall propose the same changes for the same parsed document
+                      when one instance is called from several threads at once as when it is called one after
+                      another.
                     justification: |
                       Files are formatted in parallel by one shared instance, and a result that depended on timing
                       could not be trusted.

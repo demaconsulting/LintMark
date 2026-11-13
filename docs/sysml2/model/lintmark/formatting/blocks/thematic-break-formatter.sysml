@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def ThematicBreakFormatter {
-        doc /* Proposes the edits that write each thematic break as three characters of the configured style with no trailing whitespace, and leaves a break alone where the conversion could turn text into a heading, start front matter, or create a break of a list marker. */
+        doc /* Proposes the edits that write each thematic break as three characters of the configured style with no trailing whitespace, and leaves a break alone where the conversion could turn text into a heading, start front matter, create a break of a list marker, or make a plus sign list marker look like the border of a grid table. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Blocks/ThematicBreakFormatter.cs");

@@ -35,11 +35,12 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         A fenced code block keeps its place, its indentation and its content; only the fence characters
 ///         change to the configured character (backticks or tildes) and trailing whitespace on the two fence
 ///         lines goes. The new fence is made longer when the content holds a run of the new character that would
-///         close it, and a block whose info string holds a backtick is never converted to backticks (the
-///         info string would no longer be valid), and a braced fence (<c>```{=html}</c>, Pandoc structure) keeps its
+///         close it. A block whose info string holds a backtick is never converted to backticks (the info string
+///         would no longer be valid), and a braced fence (<c>```{=html}</c>, Pandoc structure) keeps its
 ///         character. A top-level indented code block becomes a fenced block with the
-///         content shifted left by the four columns of indentation. An indented block inside a list or quote stays as
-///         it is: its indentation also carries the container.
+///         content shifted left by the four columns of indentation; a whitespace-only line at its end that is
+///         wider than the indentation keeps what is left of it as the last line of the code. An indented block
+///         inside a list or quote stays as it is: its indentation also carries the container.
 ///     </para>
 ///     <para>
 ///         The content of a code block is never changed: every edit lies on a fence or replaces the indentation
@@ -260,7 +261,8 @@ internal sealed class CodeBlockFormatter : IBlockFormatter
     /// <remarks>
     ///     Each content line loses exactly four columns of leading whitespace (a tab counts up to the next tab
     ///     stop); a blank line with fewer columns becomes empty. The blank lines after the last line with content
-    ///     are not part of the block, so they are not part of the replacement. The block is left as written when
+    ///     are not part of the block, so they are not part of the replacement, unless the last one is wider than the
+    ///     indentation: what is left of it is a line of the code and stays in the fence. The block is left as written when
     ///     an unindented line would be a dashes line that could close front matter opened by the first line.
     /// </remarks>
     private static void FormatIndented(ParsedDocument document, LineLayout layout, BlockInfo block, char target, EditSet edits)
@@ -291,6 +293,7 @@ internal sealed class CodeBlockFormatter : IBlockFormatter
         {
             return;
         }
+
         var fence = new string(target, Math.Max(MinimumFenceLength, longest + 1));
         var replacement = new StringBuilder(fence).Append('\n').AppendJoin('\n', lines).Append('\n').Append(fence).ToString();
         var start = layout.LineStart(first);
@@ -323,8 +326,9 @@ internal sealed class CodeBlockFormatter : IBlockFormatter
             return rest.Length == 0;
         }
 
-        // A tab that crosses the fourth column leaves its remaining columns as spaces
-        stripped = new string(' ', column - IndentColumns) + rest;
+        // The loop stops at the first column that is four or more; a tab stop is four columns wide, so a tab never
+        // crosses the fourth column and what is left of the line is exactly its content
+        stripped = rest;
         return true;
     }
 }

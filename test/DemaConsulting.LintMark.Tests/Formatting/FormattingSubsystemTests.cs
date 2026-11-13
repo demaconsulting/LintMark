@@ -566,14 +566,14 @@ public class FormattingSubsystemTests
     }
 
     /// <summary>
-    ///     Test that code, HTML, math and front matter keep their content, and nothing is proposed or reported.
+    ///     Test that code, HTML, math, front matter and grid tables keep their content, and nothing is proposed or reported.
     /// </summary>
     [Fact]
-    public void FormattingSubsystem_Format_CodeHtmlMathAndFrontMatter_KeepTheirContent()
+    public void FormattingSubsystem_Format_LiteralBlocks_KeepTheirContent()
     {
         // Arrange: content with trailing whitespace, tabs and blank lines inside protected blocks
         const string content =
-            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n";
+            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n\n+---+---+\n| a | b |  \n+---+---+\n";
 
         // Act: format and patch with the shipped formatters
         var (result, patched) = FormatShipped(content);
@@ -582,6 +582,41 @@ public class FormattingSubsystemTests
         Assert.Empty(result.Edits);
         Assert.Empty(result.Diagnostics);
         Assert.Equal(content, patched);
+    }
+
+    /// <summary>
+    ///     Test that a line that looks like the border of a grid table is not changed.
+    /// </summary>
+    /// <param name="input">The text.</param>
+    [Theory]
+    [InlineData("- +---+  \n- b\n")]
+    [InlineData("> +---+\t\n> b\n")]
+    public void FormattingSubsystem_Format_GridBorderLookalike_IsNotEdited(string input)
+    {
+        // Act: format and patch with the shipped formatters
+        var (result, patched) = FormatShipped(input);
+
+        // Assert: nothing is edited or reported
+        Assert.Empty(result.Edits);
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal(input, patched);
+    }
+
+    /// <summary>
+    ///     Test that no blank line is inserted next to a line that looks like the border of a grid table.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_GridBorderLookalike_IsNotSeparated()
+    {
+        // Arrange: a lookalike line directly after text
+        const string input = "text\n- +---+\n";
+
+        // Act: format and patch with the shipped formatters
+        var (result, patched) = FormatShipped(input);
+
+        // Assert: no blank line is inserted
+        Assert.Empty(result.Edits);
+        Assert.Equal(input, patched);
     }
 
     /// <summary>

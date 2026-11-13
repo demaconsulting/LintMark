@@ -54,8 +54,14 @@ whitespace), and each unit declines a conversion whose result could be read diff
   character, and a new fence is made longer than any fence-like line in the code;
 - an indented code block inside a container stays indented, and one whose fenced form could create front matter stays as
   written;
-- a thematic break that would become a heading underline, could open or close front matter, or would join a list marker
-  of the same character into a break of its own stays as written.
+- a thematic break that would become a heading underline, could open or close front matter, would join a list marker
+  of the same character into a break of its own, or would look like a grid table border after a plus sign list marker
+  stays as written;
+- an ATX heading with a tab in its text whose inline spans do not fit its line (the parser reports them too small when a
+  tab follows the number signs) is not changed at all, and an indented code block or fence whose lines are not what the
+  parser reported is not changed either;
+- a whitespace-only line at the end of a top-level indented code block that is wider than the indentation is part of the
+  code (what remains of it after the indentation stays in the fence).
 
 Edits of one formatter never overlap, because they cover disjoint parts of a line (the indentation, the number signs,
 the space after them, a closing sequence, and the trailing whitespace of a heading, for example). A formatter never adds
@@ -72,4 +78,5 @@ corpus of the Markdown files of the repository and of generated hostile document
 are collaborators of the tests only; the production formatters do not call them, because the `Engine` subsystem applies
 the same checks to every rewrite.
 
-Thread safety: the units are stateless and immutable. The shared helper types are immutable per document.
+Thread safety: the units are stateless and immutable. The shared helper types are immutable per document, so one parsed
+document may be formatted by several threads at once, each with its own `EditSet`.

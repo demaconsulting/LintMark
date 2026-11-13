@@ -41,8 +41,9 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         a line of text is a setext heading underline, so a break written another way is left as written
 ///         there. A <c>---</c> on the first line of the file could start YAML front matter, so it is not produced
 ///         there either. A break that follows a list marker of the same character (<c>- ***</c>) is left alone,
-///         because the converted line (<c>- ---</c>) would be a thematic break by itself. Trailing whitespace is
-///         still removed in all of these cases.
+///         because the converted line (<c>- ---</c>) would be a thematic break by itself, and so is a break that
+///         follows a plus sign list marker (<c>+ ***</c>) when dashes are wanted, because <c>+ ---</c> looks like the
+///         border of a grid table. Trailing whitespace is still removed in all of these cases.
 ///     </para>
 ///     <para>
 ///         Thread safety: stateless; one instance serves every worker thread.
@@ -142,13 +143,16 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
     /// <param name="target">The text the break would be written as.</param>
     /// <returns>
     ///     <see langword="true"/> when the line has a list marker of the same character before the break (the line
-    ///     would become a break on its own), for the dash form when the line is the first line of the file (it could
+    ///     would become a break on its own), for the dash form when the line starts with a plus sign (it would look
+    ///     like the border of a grid table), for the dash form when the line is the first line of the file (it could
     ///     open front matter), and for the dash form when text may be on the line above (the dashes would underline it).
     /// </returns>
     /// <remarks>
     ///     The decision must not depend on anything that another rule changes in the same run, or formatting the
     ///     result would decide differently. A break that follows a heading, a code block, another break, a list, a
-    ///     quote or a table directly is never guarded: the blank-line rules put a blank line there anyway.
+    ///     quote or a table directly is never guarded: the blank-line rules put a blank line there anyway. Every other
+    ///     block above it (a paragraph, HTML, a link reference definition, front matter, a footnote, math, a grid table)
+    ///     counts as text above, which keeps the break as written: the guard is conservative.
     /// </remarks>
     private static bool IsGuarded(ParsedDocument document, LineLayout layout, BlockInfo block, int line, string target)
     {
@@ -164,6 +168,15 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
             return false;
         }
 
+        // A line that starts with a plus sign (a list marker here) looks like a grid table border once its break is dashes
+        // (+ ---), and Pandoc may then read it as a table; the break stays as written
+        if (layout.LooksLikeGridBorder(line))
+        {
+            return true;
+        }
+
+        // The first line of the document as dashes could open front matter; the check below is for documents that already
+        // start with a dashes line, this one is for a break that would become that line
         if (line == 0 && lineStart == block.Start)
         {
             return true;
@@ -207,8 +220,36 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
     /// </remarks>
     private static BlockInfo? PreviousSibling(ParsedDocument document, BlockInfo block)
     {
+        // The blocks are in source order, so the block is found by position; the blocks nested in an earlier sibling are skipped
         var blocks = document.Blocks;
-        for (var i = blocks.IndexOf(block) - 1; i >= 0; i--)
+        var low = 0;
+        var high = blocks.Length;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (blocks[middle].Start < block.Start)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        var index = low;
+        while (index < blocks.Length && !ReferenceEquals(blocks[index], block))
+        {
+            index++;
+        }
+
+        // A block that is not in the list (a hand-built document) has no sibling to report
+        if (index >= blocks.Length)
+        {
+            return null;
+        }
+
+        for (var i = index - 1; i >= 0; i--)
         {
             if (ReferenceEquals(blocks[i].Parent, block.Parent))
             {

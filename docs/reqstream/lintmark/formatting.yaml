@@ -54,11 +54,15 @@ sections:
               - LintMark-Formatting-DocumentFormatter-FormatterListIsCopied
               - LintMark-Formatting-DocumentFormatter-FormatContextRejectsMissingArguments
               - LintMark-Formatting-DocumentFormatter-FormatContextExposesValues
-              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsInvalidEdits
-              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsInvalidDiagnostics
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsDefaultEditList
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsDefaultEdit
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsDefaultDiagnosticList
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsNullDiagnostic
               - LintMark-Formatting-DocumentFormatter-FormatResultRejectsUndefinedLineEnding
               - LintMark-Formatting-DocumentFormatter-FormatResultExposesValues
-              - LintMark-Formatting-Blocks-ProposeEdits
+              - LintMark-Formatting-Blocks-HeadingFormatterProvided
+              - LintMark-Formatting-Blocks-CodeBlockFormatterProvided
+              - LintMark-Formatting-Blocks-ThematicBreakFormatterProvided
               - LintMark-Formatting-Blocks-DeterministicResult
             tests:
               - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
@@ -72,7 +76,8 @@ sections:
               other character, also one outside the basic plane, belongs to the author.
             children:
               - LintMark-Formatting-SourcePatcher-LeavesUnchangedText
-              - LintMark-Formatting-Blocks-LineEndingsAndMarkKept
+              - LintMark-Formatting-Blocks-LineEndingsKept
+              - LintMark-Formatting-Blocks-ByteOrderMarkKept
             tests:
               - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
               - FormattingSubsystem_Format_OneEdit_UnchangedCharactersKept
@@ -127,6 +132,7 @@ sections:
             children:
               - LintMark-Formatting-DocumentFormatter-VerbatimByDefault
               - LintMark-Formatting-SourcePatcher-NoEditsIdentity
+              - LintMark-Formatting-DocumentFormatter-ClaimedLinesNotEdited
             tests:
               - FormattingSubsystem_Format_NoFormatter_LeavesTextIdentical
 
@@ -140,7 +146,11 @@ sections:
               - LintMark-Formatting-DocumentFormatter-SuppressedByRuleComment
               - LintMark-Formatting-DocumentFormatter-SuppressedByDisableAll
               - LintMark-Formatting-DocumentFormatter-SuppressedByIgnoreComment
-              - LintMark-Formatting-DocumentFormatter-SuppressedRulesKept
+              - LintMark-Formatting-DocumentFormatter-SuppressedRuleKeptByIdentifier
+              - LintMark-Formatting-DocumentFormatter-SuppressedRuleKeptByAlias
+              - LintMark-Formatting-DocumentFormatter-BlankRunsKeptWhereSuppressed
+              - LintMark-Formatting-DocumentFormatter-RunWhitespaceKeptWhereSuppressed
+              - LintMark-Formatting-DocumentFormatter-SpacingNotAfterDirective
               - LintMark-Formatting-Blocks-SuppressedBlocksKept
             tests:
               - FormattingSubsystem_Format_SuppressedBlock_LeftVerbatim
@@ -165,7 +175,8 @@ sections:
               The document cannot be understood reliably, so no change can be shown to be safe, and a
               line ending problem would invite a fix that the tool must not make.
             children:
-              - LintMark-Formatting-DocumentFormatter-FormatUnsafeProducesNothing
+              - LintMark-Formatting-DocumentFormatter-FormatUnsafeNoEdit
+              - LintMark-Formatting-DocumentFormatter-FormatUnsafeNoProblem
             tests:
               - FormattingSubsystem_Format_FormatUnsafeDocument_ProducesNothing
 
@@ -202,7 +213,8 @@ sections:
             children:
               - LintMark-Formatting-DocumentFormatter-LineEndingViolation
               - LintMark-Formatting-DocumentFormatter-LineEndingViolationPosition
-              - LintMark-Formatting-DocumentFormatter-LineEndingViolationMessage
+              - LintMark-Formatting-DocumentFormatter-LineEndingViolationNamesFound
+              - LintMark-Formatting-DocumentFormatter-LineEndingViolationNamesExpected
             tests:
               - FormattingSubsystem_Format_CrlfDocument_PatchedTextKeepsLfAndReportsLineEnding
               - FormattingSubsystem_Format_NoConfiguredLineEnding_UsesMajority
@@ -228,10 +240,17 @@ sections:
               content that belongs to the author.
             children:
               - LintMark-Formatting-DocumentFormatter-TrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-HeadingTrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-TableRowTrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-DefinitionTrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-BreakTrailingWhitespaceRemoved
               - LintMark-Formatting-DocumentFormatter-MarkerLinesTrailingWhitespaceRemoved
               - LintMark-Formatting-DocumentFormatter-WhitespaceOnlyLinesEmptied
               - LintMark-Formatting-DocumentFormatter-ProtectedSpansKept
-              - LintMark-Formatting-Blocks-TrailingWhitespaceRemoved
+              - LintMark-Formatting-DocumentFormatter-LinkTitleKept
+              - LintMark-Formatting-Blocks-HeadingTrailingWhitespaceRemoved
+              - LintMark-Formatting-Blocks-FenceTrailingWhitespaceRemoved
+              - LintMark-Formatting-Blocks-BreakTrailingWhitespaceRemoved
             tests:
               - FormattingSubsystem_Format_TrailingWhitespace_IsRemovedFromTextOnly
 
@@ -258,6 +277,7 @@ sections:
             children:
               - LintMark-Formatting-DocumentFormatter-TabsExpanded
               - LintMark-Formatting-DocumentFormatter-TabsKeptWhereTheyMatter
+              - LintMark-Formatting-DocumentFormatter-TabsKeptAtLineEnd
               - LintMark-Formatting-Blocks-TabsExpanded
             tests:
               - FormattingSubsystem_Format_Tabs_AreExpandedOnlyInPlainText
@@ -282,7 +302,8 @@ sections:
               the end, differently, and projects choose one convention.
             children:
               - LintMark-Formatting-DocumentFormatter-FinalNewlineSingle
-              - LintMark-Formatting-DocumentFormatter-FinalNewlineProtectedTail
+              - LintMark-Formatting-DocumentFormatter-FinalNewlineUnclosedHtmlKept
+              - LintMark-Formatting-DocumentFormatter-FinalNewlineAfterClosedHtml
               - LintMark-Formatting-DocumentFormatter-BlankDocumentUntouched
             tests:
               - FormattingSubsystem_Format_FinalNewlineOn_EndsWithExactlyOneLineEnding
@@ -331,6 +352,7 @@ sections:
               A list that touches the text around it is hard to read and is not recognized by every parser.
             children:
               - LintMark-Formatting-DocumentFormatter-ListSpacing
+              - LintMark-Formatting-DocumentFormatter-SpacingNotForLazyContinuation
             tests:
               - FormattingSubsystem_Format_ListTouchingText_GetsBlankLine
 
@@ -342,6 +364,7 @@ sections:
               A table that touches the text around it is not recognized by every parser.
             children:
               - LintMark-Formatting-DocumentFormatter-TableSpacing
+              - LintMark-Formatting-DocumentFormatter-SpacingNotForTableRows
             tests:
               - FormattingSubsystem_Format_TableTouchingText_GetsBlankLine
 
@@ -428,16 +451,44 @@ sections:
 
           - id: LintMark-Formatting-CodeContentKept
             title: >-
-              The Formatting subsystem shall never change the content of code, HTML, math, or front matter of a
-              document.
+              The Formatting subsystem shall never change the content of code, HTML, math, front matter, or grid
+              tables of a document.
             justification: |
               The whitespace and the blank lines of literal text are part of its content, and changing them
               changes what the document means or how it renders.
             children:
               - LintMark-Formatting-Blocks-CodeContentKept
               - LintMark-Formatting-DocumentFormatter-ProtectedBlocksKept
+              - LintMark-Formatting-DocumentFormatter-FrontMatterKept
+              - LintMark-Formatting-DocumentFormatter-GridTablesKept
+              - LintMark-Formatting-DocumentFormatter-BlankLinesInProtectedBlocksKept
+              - LintMark-Formatting-DocumentFormatter-IndentedCodeWideBlankLineKept
             tests:
-              - FormattingSubsystem_Format_CodeHtmlMathAndFrontMatter_KeepTheirContent
+              - FormattingSubsystem_Format_LiteralBlocks_KeepTheirContent
+
+          - id: LintMark-Formatting-GridBorderLookalikeNotEdited
+            title: >-
+              The Formatting subsystem shall not change a line of a document that looks like the border of a
+              grid table.
+            justification: |
+              Whether Pandoc reads such a line as part of a table can depend on its exact text, so a change to
+              it cannot be shown to keep the meaning of the document.
+            children:
+              - LintMark-Formatting-DocumentFormatter-GridBorderLookalikeNotEdited
+            tests:
+              - FormattingSubsystem_Format_GridBorderLookalike_IsNotEdited
+
+          - id: LintMark-Formatting-GridBorderLookalikeNotSeparated
+            title: >-
+              The Formatting subsystem shall insert no blank line next to a line of a document that looks like
+              the border of a grid table.
+            justification: |
+              Whether Pandoc reads such a line as part of a table can depend on the lines around it, so a blank
+              line next to it cannot be shown to keep the meaning of the document.
+            children:
+              - LintMark-Formatting-DocumentFormatter-GridBorderLookalikeNotSeparated
+            tests:
+              - FormattingSubsystem_Format_GridBorderLookalike_IsNotSeparated
 
           - id: LintMark-Formatting-NestedBlocksKept
             title: >-
@@ -489,6 +540,5 @@ sections:
               is already canonical must not be reported.
             children:
               - LintMark-Formatting-Blocks-CanonicalBlocksUnchanged
-              - LintMark-Formatting-DocumentFormatter-ClaimedLinesNotEdited
             tests:
               - FormattingSubsystem_Format_CanonicalDocumentAndOwnResult_ProposeNothing

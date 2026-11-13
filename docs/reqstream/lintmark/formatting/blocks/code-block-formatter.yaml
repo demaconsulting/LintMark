@@ -26,7 +26,9 @@ sections:
                       - CodeBlockFormatter_CanFormat_UnclosedFenceAndOtherBlocks_ReturnsFalse
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-RejectsMissingArguments
-                    title: The CodeBlockFormatter class shall refuse a missing block, context, or edit set.
+                    title: >-
+                      The CodeBlockFormatter class shall throw an ArgumentNullException that names the parameter
+                      when an argument is null.
                     justification: |
                       Missing arguments are programming errors that must be reported as such.
                     tests:
@@ -62,6 +64,7 @@ sections:
                     tests:
                       - CodeBlockFormatter_Format_TildeFence_BecomesBacktickFence
                       - CodeBlockFormatter_Format_TildeConfiguration_WritesTildeFences
+                      - CodeBlockFormatter_Format_FenceShapes_AreConvertedAndCleaned
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLengthStaysValid
                     title: >-
@@ -115,6 +118,18 @@ sections:
                       - CodeBlockFormatter_Format_IndentedCode_BecomesFencedCode
                       - CodeBlockFormatter_Format_IndentedCodeFollowedByBlankLines_LeavesThemOutside
                       - CodeBlockFormatter_Format_IndentedCodeWithTildeConfiguration_UsesTildes
+                      - CodeBlockFormatter_Format_IndentedCodeWithShortBlankLine_KeepsAnEmptyLine
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedWideBlankLineKept
+                    title: >-
+                      The CodeBlockFormatter class shall keep what is left of a whitespace-only line that ends an
+                      indented code block and is wider than its indentation as the last line of the fenced block.
+                    justification: |
+                      The parser keeps what remains of such a line after the indentation as a line of the code, so
+                      dropping it would change what the block renders.
+                    tests:
+                      - CodeBlockFormatter_Format_IndentedCodeEndingWithWideWhitespaceLine_KeepsTheRestInTheFence
+                      - CodeBlockFormatter_Format_IndentedCodeEndingWithWideWhitespaceLine_ConvertsTheWholeBlock
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-IndentedNestedKept
                     title: >-
@@ -140,12 +155,13 @@ sections:
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-FenceLineTrailingWhitespace
                     title: >-
                       The CodeBlockFormatter class shall remove the trailing whitespace of the opening and closing
-                      fence lines of a code block, and of no other line of it.
+                      fence lines of a code block.
                     justification: |
-                      Trailing whitespace on a fence line has no meaning, while on a line of the code it is
-                      content.
+                      Trailing whitespace on a fence line has no meaning. The whitespace on the lines of the code is
+                      content and stays (see ContentUnchanged).
                     tests:
                       - CodeBlockFormatter_Format_FenceLinesWithTrailingWhitespace_RemovesItOnlyThere
+                      - CodeBlockFormatter_Format_FenceShapes_AreConvertedAndCleaned
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-ContentUnchanged
                     title: The CodeBlockFormatter class shall never change the content of a code block.
@@ -190,17 +206,28 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-LineEndingsKept
                     title: >-
-                      The CodeBlockFormatter class shall propose the same changes for a document with CRLF line
-                      endings and a byte order mark as for the same document with LF line endings and no mark.
+                      The CodeBlockFormatter class shall propose the same changes for a document with CRLF or mixed
+                      line endings as for the same document with LF line endings.
                     justification: |
-                      The line ending and the byte order mark are not part of the text of a code block.
+                      The line ending is not part of the text of a code block.
                     tests:
+                      - CodeBlockFormatter_Format_CrlfLineEndings_ProposesTheSameEdits
+                      - CodeBlockFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
+
+                  - id: LintMark-Formatting-Blocks-CodeBlockFormatter-ByteOrderMarkKept
+                    title: >-
+                      The CodeBlockFormatter class shall propose the same changes for a document with a byte order
+                      mark as for the same document without one.
+                    justification: |
+                      The byte order mark is not part of the text of a code block.
+                    tests:
+                      - CodeBlockFormatter_Format_ByteOrderMark_ProposesTheSameEdits
                       - CodeBlockFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark
 
                   - id: LintMark-Formatting-Blocks-CodeBlockFormatter-DeterministicResult
                     title: >-
-                      The CodeBlockFormatter class shall propose the same changes for the same document when one
-                      instance is called from several threads at once as when it is called one after another.
+                      The CodeBlockFormatter class shall propose the same changes for the same parsed document when
+                      one instance is called from several threads at once as when it is called one after another.
                     justification: |
                       Files are formatted in parallel by one shared instance, and a result that depended on timing
                       could not be trusted.

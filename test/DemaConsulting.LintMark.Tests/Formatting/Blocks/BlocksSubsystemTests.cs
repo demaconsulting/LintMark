@@ -22,6 +22,7 @@ using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -37,14 +38,14 @@ public class BlocksSubsystemTests
     /// </summary>
     private const string DirtyDocument =
         "Title\n=====\nIntro text with trailing space \n- one\n- two\n\n\n\n## Closed ##\n```\ncode\n```\n   ***\n  #   Spaced   \n"
-        + "~~~js\ntilde\n~~~\n    indented code\nSome\ttabbed text";
+        + "~~~js\ntilde\n~~~\n    indented code\nSome\ttabbed text\n| a | b |\n|---|---|\n| 1 | 2 |";
 
     /// <summary>
     ///     The canonical form of <see cref="DirtyDocument"/>.
     /// </summary>
     private const string CleanDocument =
         "# Title\n\nIntro text with trailing space\n\n- one\n- two\n\n## Closed\n\n```\ncode\n```\n\n   ---\n\n# Spaced\n\n"
-        + "```js\ntilde\n```\n\n```\nindented code\n```\n\nSome    tabbed text\n";
+        + "```js\ntilde\n```\n\n```\nindented code\n```\n\nSome    tabbed text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
 
     /// <summary>
     ///     A document that is already canonical and uses every construct the rules look at.
@@ -82,7 +83,8 @@ public class BlocksSubsystemTests
         BlockFormatterAssertions.AssertUnchanged(CanonicalDocument);
 
     /// <summary>
-    ///     Test that every violation of the dirty document is reported, each under the rule it breaks.
+    ///     Test that every violation of the dirty document is reported once per rule and line, at the place of its
+    ///     change and with the description of its rule, and that all fourteen rules of the subsystem are among them.
     /// </summary>
     [Fact]
     public void BlocksSubsystem_Format_DocumentBreakingEveryRule_ReportsEveryRuleOnce()
@@ -90,25 +92,44 @@ public class BlocksSubsystemTests
         // Act: format the dirty document
         var (result, _) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), DirtyDocument);
 
-        // Assert: all fourteen rules are reported
-        var reported = result.Diagnostics.Select(diagnostic => diagnostic.RuleId).Distinct().Order(StringComparer.Ordinal).ToList();
+        // Assert: the rule and the line of each violation (the document has 22 lines, and a rule is reported once per line)
+        var reported = result.Diagnostics.OrderBy(d => d.Line).ThenBy(d => d.RuleId, StringComparer.Ordinal).Select(d => (d.RuleId, d.Line)).ToList();
         Assert.Equal(
             [
-                "code-block-style",
-                "code-fence",
-                "fence-blank-lines",
-                "final-newline",
-                "hard-tabs",
-                "heading-blank-lines",
-                "heading-space",
-                "heading-start-left",
-                "heading-style",
-                "list-blank-lines",
-                "max-blank-lines",
-                "thematic-break",
-                "trailing-whitespace"
+                ("heading-style", 1),
+                ("heading-blank-lines", 3),
+                ("trailing-whitespace", 3),
+                ("list-blank-lines", 4),
+                ("max-blank-lines", 7),
+                ("heading-style", 9),
+                ("heading-blank-lines", 10),
+                ("fence-blank-lines", 13),
+                ("thematic-break", 13),
+                ("heading-blank-lines", 14),
+                ("heading-space", 14),
+                ("heading-start-left", 14),
+                ("trailing-whitespace", 14),
+                ("code-fence", 15),
+                ("heading-blank-lines", 15),
+                ("code-fence", 17),
+                ("code-block-style", 18),
+                ("fence-blank-lines", 18),
+                ("fence-blank-lines", 19),
+                ("hard-tabs", 19),
+                ("table-blank-lines", 20),
+                ("final-newline", 22)
             ],
             reported);
+
+        // Each rule is reported once per line, all fourteen rules appear, and every message is the description of its rule
+        Assert.Equal(reported.Count, reported.Distinct().Count());
+        Assert.Equal(14, reported.Select(item => item.RuleId).Distinct().Count());
+        Assert.All(result.Diagnostics, diagnostic =>
+        {
+            Assert.True(RuleCatalog.TryGet(diagnostic.RuleId, out var rule));
+            Assert.Equal(rule.Description, diagnostic.Message);
+            Assert.Equal("a.md", diagnostic.Path);
+        });
     }
 
     /// <summary>
@@ -117,6 +138,46 @@ public class BlocksSubsystemTests
     [Fact]
     public void BlocksSubsystem_Format_DirtyDocumentWithCrlfAndBom_KeepsLineEndingsAndMark() =>
         BlockFormatterAssertions.AssertFormatsOnDisk(DirtyDocument, CleanDocument);
+
+    /// <summary>
+    ///     Test that the dirty document gets the same edits and the same violations with CRLF or mixed line endings as with LF line endings.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_DirtyDocumentWithCrlf_ProposesTheSameEdits()
+    {
+        // Arrange: the edits and violations for the LF text
+        var formatter = BlockFormatterAssertions.ProductionFormatter();
+        var expected = formatter.Format(BlockFormatterAssertions.Parse(DirtyDocument), LintMarkConfig.Default);
+        var crlf = DirtyDocument.Replace("\n", "\r\n", StringComparison.Ordinal);
+        var mixed = BlockFormatterAssertions.MixEndings(DirtyDocument);
+
+        // Act & Assert: the same edits come out of CRLF and mixed bytes; only the line ending diagnostic is added
+        foreach (var text in new[] { crlf, mixed })
+        {
+            var result = formatter.Format(DocumentParser.Parse(SourceDocument.Create("a.md", Encoding.UTF8.GetBytes(text))), LintMarkConfig.Default);
+            Assert.Equal(expected.Edits, result.Edits);
+            Assert.Equal(expected.Diagnostics.Select(d => (d.RuleId, d.Line)), result.Diagnostics.Where(d => d.RuleId != "line-ending").Select(d => (d.RuleId, d.Line)));
+        }
+    }
+
+    /// <summary>
+    ///     Test that the dirty document gets the same edits and the same violations with a byte order mark as without one.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_DirtyDocumentWithByteOrderMark_ProposesTheSameEdits()
+    {
+        // Arrange: the edits and violations for the text without a mark
+        var formatter = BlockFormatterAssertions.ProductionFormatter();
+        var expected = formatter.Format(BlockFormatterAssertions.Parse(DirtyDocument), LintMarkConfig.Default);
+        byte[] withMark = [.. new UTF8Encoding(true).GetPreamble(), .. Encoding.UTF8.GetBytes(DirtyDocument)];
+
+        // Act: format the bytes with the mark
+        var result = formatter.Format(DocumentParser.Parse(SourceDocument.Create("a.md", withMark)), LintMarkConfig.Default);
+
+        // Assert: the same edits and violations
+        Assert.Equal(expected.Edits, result.Edits);
+        Assert.Equal(expected.Diagnostics.Select(d => (d.RuleId, d.Line)), result.Diagnostics.Select(d => (d.RuleId, d.Line)));
+    }
 
     /// <summary>
     ///     Test that a file with mixed line endings is written with the majority ending.
@@ -337,43 +398,232 @@ public class BlocksSubsystemTests
     /// <summary>
     ///     Test that the configured settings select the character of fences and breaks, the blank line maximum and the final newline together.
     /// </summary>
-    [Fact]
-    public void BlocksSubsystem_Format_ConfiguredSettings_SelectTheCanonicalForm()
+    [Theory]
+    [InlineData(
+        "text\n\n\n\n```\ncode\n```\n\n---\n\n    indented\n\n",
+        "text\n\n\n~~~\ncode\n~~~\n\n***\n\n~~~\nindented\n~~~",
+        "Tilde",
+        "Asterisks",
+        2,
+        false)]
+    [InlineData(
+        "text\n\n\n\n\n```\ncode\n```\n\n***\n\n~~~\ntilde\n~~~\n",
+        "text\n\n\n\n```\ncode\n```\n\n___\n\n```\ntilde\n```\n",
+        "Backtick",
+        "Underscores",
+        3,
+        true)]
+    [InlineData(
+        "text\n\n\n```\ncode\n```\n\n___\n",
+        "text\n\n```\ncode\n```\n\n---\n",
+        "Backtick",
+        "Dashes",
+        1,
+        true)]
+    public void BlocksSubsystem_Format_ConfiguredSettings_SelectTheCanonicalForm(
+        string input,
+        string expected,
+        string fence,
+        string breakStyle,
+        int maxBlankLines,
+        bool finalNewline)
     {
-        // Arrange: tildes, asterisks, two blank lines allowed, no final newline
+        // Arrange: the fence character, the break style, the blank line maximum and the final newline of the configuration
         var config = LintMarkConfig.Default with
         {
-            CodeFence = FenceMarker.Tilde,
-            ThematicBreak = ThematicBreakStyle.Asterisks,
-            MaxBlankLines = 2,
-            FinalNewline = false
+            CodeFence = Enum.Parse<FenceMarker>(fence),
+            ThematicBreak = Enum.Parse<ThematicBreakStyle>(breakStyle),
+            MaxBlankLines = maxBlankLines,
+            FinalNewline = finalNewline
         };
 
         // Act & Assert: the document follows every setting
-        BlockFormatterAssertions.AssertFormats(
-            "text\n\n\n\n```\ncode\n```\n\n---\n\n    indented\n\n",
-            "text\n\n\n~~~\ncode\n~~~\n\n***\n\n~~~\nindented\n~~~",
-            config);
+        BlockFormatterAssertions.AssertFormats(input, expected, config);
     }
 
     /// <summary>
-    ///     Test that formatting the same document on many threads gives the same result.
+    ///     Test that a heading, a code block and a thematic break stay exactly as written inside a region where a rule
+    ///     of their formatter is disabled, by either directive family, and that the blocks after the region are formatted.
+    /// </summary>
+    [Theory]
+    [InlineData("markdownlint-disable MD003 MD046 MD035", "markdownlint-enable MD003 MD046 MD035")]
+    [InlineData("lintmark-disable heading-style code-block-style thematic-break", "lintmark-enable heading-style code-block-style thematic-break")]
+    [InlineData("lintmark-disable", "lintmark-enable")]
+    public void BlocksSubsystem_Format_SuppressedBlocks_AreKeptAndTheOthersAreFormatted(string disable, string enable)
+    {
+        // Arrange: a setext heading, indented code and a break inside the region, and the same three after it
+        var region = $"<!-- {disable} -->\n\nTitle\n=====\n\n    code\n\n***\n\n<!-- {enable} -->\n\n";
+        var input = region + "Other\n=====\n\n    other\n\n***\n";
+
+        // Act: format with the production formatters
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(input);
+        var (result, _) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), input);
+
+        // Assert: the region is unchanged, the rest is canonical, and no violation lies inside the region
+        Assert.Equal(region + "# Other\n\n```\nother\n```\n\n---\n", formatted);
+        Assert.All(result.Diagnostics, diagnostic => Assert.True(diagnostic.Line >= 12, $"{diagnostic.RuleId} at line {diagnostic.Line}"));
+        Assert.NotEmpty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a block with a rule disabled only for the line after a next-line directive stays as written, while the other blocks are formatted.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_SuppressedWithNextLineDirective_KeepsOnlyThatBlock()
+    {
+        // Arrange: a closed heading whose own line is covered by a directive, and another closed heading
+        const string input = "<!-- markdownlint-disable-next-line MD021 -->\n# One #\n\n# Two #\n";
+
+        // Act & Assert: only the second heading loses its closing sequence
+        Assert.Equal("<!-- markdownlint-disable-next-line MD021 -->\n# One #\n\n# Two\n", BlockFormatterAssertions.AssertSafeAndStable(input));
+    }
+
+    /// <summary>
+    ///     Test that the blanks after the number signs of a heading become one space, and that text without a space after
+    ///     the number signs, which is a paragraph, is kept.
+    /// </summary>
+    [Theory]
+    [InlineData("#   Title\n", "# Title\n")]
+    [InlineData("##\tTitle\n", "## Title\n")]
+    [InlineData("text\n\n###    Spaced   out\n", "text\n\n### Spaced   out\n")]
+    [InlineData("#Title\n", "#Title\n")]
+    [InlineData("##Title##\n", "##Title##\n")]
+    [InlineData("#hashtag and text\n", "#hashtag and text\n")]
+    public void BlocksSubsystem_Format_BlanksAfterNumberSigns_BecomeOneSpaceAndMissingSpaceIsKept(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that the indentation of a heading outside a quote or list is removed and that of a heading inside one is kept.
+    /// </summary>
+    [Theory]
+    [InlineData(" # Title\n", "# Title\n")]
+    [InlineData("text\n\n   ## Title\n", "text\n\n## Title\n")]
+    [InlineData("> # Title\n", "> # Title\n")]
+    [InlineData("- # Title\n", "- # Title\n")]
+    [InlineData("-   # Title\n", "-   # Title\n")]
+    public void BlocksSubsystem_Format_HeadingIndentation_IsRemovedOnlyOutsideContainers(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that the trailing whitespace of headings is removed, a backslash before it is kept, and a hard break inside a setext heading stays.
+    /// </summary>
+    [Theory]
+    [InlineData("# Title   \n", "# Title\n")]
+    [InlineData("Title  \n===\n", "# Title\n")]
+    [InlineData("## Title \\ \n", "## Title \\\n")]
+    [InlineData("One  \ntwo   \n===  \n", "One  \ntwo\n===\n")]
+    [InlineData("One\ntwo \\  \n===\n", "One\ntwo \\  \n===\n")]
+    public void BlocksSubsystem_Format_HeadingTrailingWhitespace_IsRemoved(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that the trailing whitespace of the two fence lines is removed and that of the code between them is kept.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_FenceLineTrailingWhitespace_IsRemovedAndContentKept() =>
+        BlockFormatterAssertions.AssertFormats("~~~js   \n  code  \n\ttab\t\n~~~   \n", "```js\n  code  \n\ttab\t\n```\n");
+
+    /// <summary>
+    ///     Test that the trailing whitespace of thematic breaks is removed, also where the characters of the break stay as written.
+    /// </summary>
+    [Theory]
+    [InlineData("text\n\n***   \n", "text\n\n---\n")]
+    [InlineData("text\n***  \n", "text\n***\n")]
+    [InlineData("text\n\n- ***\t\n", "text\n\n- ***\n")]
+    [InlineData("text\n\n+ ***  \n", "text\n\n+ ***\n")]
+    public void BlocksSubsystem_Format_BreakTrailingWhitespace_IsRemoved(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that a break after a plus sign list marker is kept when dashes are wanted, because the dashes would look like a grid table border.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_BreakAfterPlusListMarker_StaysAsWritten() =>
+        BlockFormatterAssertions.AssertFormats("text\n\n+ ***\n", "text\n\n+ ***\n");
+
+    /// <summary>
+    ///     Test that an indented block that ends with a whitespace-only line wider than its indentation keeps the rest of that line in its fence.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_IndentedCodeEndingWithWideWhitespaceLine_KeepsItsContent() =>
+        BlockFormatterAssertions.AssertFormats("x\n\n    code\n      \n", "x\n\n```\ncode\n  \n```\n");
+
+    /// <summary>
+    ///     Test that a next-line suppression directive keeps its place directly above the block it covers, because no blank line is added between them.
+    /// </summary>
+    [Theory]
+    [InlineData("<!-- markdownlint-disable-next-line MD019 -->\n#  Heading  one\n")]
+    [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD009 -->\n- a  \n- b\n")]
+    [InlineData("Intro\n\n<!-- lintmark-disable-next-line trailing-whitespace -->\n- a   \n- b\n")]
+    public void BlocksSubsystem_Format_NextLineDirectiveBeforeBlock_KeepsTheDirectiveWithItsLine(string input) =>
+        Assert.Equal(input, BlockFormatterAssertions.AssertSafeAndStable(input));
+
+    /// <summary>
+    ///     Test that a heading with a tab after its number signs, on a later line of the document, is formatted safely and stably.
+    /// </summary>
+    [Theory]
+    [InlineData("x\n\n#\tTitle\n", "x\n\n# Title\n")]
+    [InlineData("para\n#\tTab\ttitle", "para\n\n# Tab   title\n")]
+    public void BlocksSubsystem_Format_TabAfterNumberSigns_IsHandledSafely(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that blocks whose lines do not have the shape the parser reported (a heading whose inline spans do not
+    ///     fit its line) are left alone as a whole, with the document passes still working around them.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_BlocksWithUnexpectedShape_AreLeftAlone()
+    {
+        // Arrange: a heading with blanks and a tab in its text whose first inline span is moved
+        var document = BlockFormatterAssertions.Parse("x\n\n#   a\tb\n");
+        var heading = (Markdig.Syntax.HeadingBlock)BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading).Node!;
+        var first = heading.Inline!.FirstChild!;
+        first.Span = new Markdig.Syntax.SourceSpan(first.Span.Start + 1, first.Span.End);
+
+        // Act: format with the production formatters
+        var result = BlockFormatterAssertions.ProductionFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: the heading has no edit at all
+        Assert.Empty(result.Edits);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that formatting the same parsed document on many threads that start together, with one shared formatter, gives the same result.
     /// </summary>
     [Fact]
     public void BlocksSubsystem_Format_SameDocumentOnManyThreads_GivesTheSameResult()
     {
-        // Arrange: one shared formatter, as the engine uses it
+        // Arrange: one shared formatter, as the engine uses it, and one parsed document shared by every thread
+        const int threadCount = 8;
         var formatter = BlockFormatterAssertions.ProductionFormatter();
+        var document = BlockFormatterAssertions.Parse(DirtyDocument);
+        var reference = formatter.Format(document, LintMarkConfig.Default);
+        Assert.Equal(CleanDocument, SourcePatcher.Apply(document.Source, reference.Edits));
+        var results = new FormatResult[threadCount];
 
-        // Act: format the dirty document on several threads
-        var results = Enumerable.Range(0, 16).AsParallel().Select(_ => BlockFormatterAssertions.Apply(formatter, DirtyDocument).Formatted).ToList();
+        // Act: every thread formats the document many times after the common start signal
+        BlockFormatterAssertions.RunConcurrently(
+            threadCount,
+            index =>
+            {
+                for (var round = 0; round < 25; round++)
+                {
+                    results[index] = formatter.Format(document, LintMarkConfig.Default);
+                    Assert.Equal(reference.Edits, results[index].Edits);
+                }
+            });
 
-        // Assert: every thread computed the canonical document
-        Assert.All(results, result => Assert.Equal(CleanDocument, result));
+        // Assert: every thread computed the edits and the violations of a single call
+        Assert.All(results, result =>
+        {
+            Assert.Equal(reference.Edits, result.Edits);
+            Assert.Equal(reference.Diagnostics, result.Diagnostics);
+        });
     }
 
     /// <summary>
-    ///     Test that the rewrite of the repository's own style guide samples stays stable when applied in sequence.
+    ///     Test that formatting the result of a rewrite again changes nothing the second time.
     /// </summary>
     [Fact]
     public void BlocksSubsystem_Format_FormattedTwice_ChangesNothingTheSecondTime()

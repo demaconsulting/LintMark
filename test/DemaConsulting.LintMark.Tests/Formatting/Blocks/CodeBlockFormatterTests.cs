@@ -277,6 +277,82 @@ public class CodeBlockFormatterTests
         AssertFormats("    code\n\n\ntext\n", "```\ncode\n```\n\n\ntext\n");
 
     /// <summary>
+    ///     Test that a whitespace-only line with fewer than four columns between two lines of code becomes an empty line of the code.
+    /// </summary>
+    [Theory]
+    [InlineData("    a\n  \n    b\n", "```\na\n\nb\n```\n")]
+    [InlineData("    a\n \n    b\n", "```\na\n\nb\n```\n")]
+    [InlineData("    a\n\t\n    b\n", "```\na\n\nb\n```\n")]
+    public void CodeBlockFormatter_Format_IndentedCodeWithShortBlankLine_KeepsAnEmptyLine(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that a whitespace-only line wider than the indentation at the end of an indented block is code: what is
+    ///     left of it stays as the last line of the fenced block, so that the block renders the same.
+    /// </summary>
+    [Theory]
+    [InlineData("x\n\n    code\n      \n", "x\n\n```\ncode\n  \n```\n")]
+    [InlineData("x\n\n    code\n     \n", "x\n\n```\ncode\n \n```\n")]
+    [InlineData("x\n\n    code\n\t  \n", "x\n\n```\ncode\n  \n```\n")]
+    [InlineData("x\n\n    code\n\t  \n\ny\n", "x\n\n```\ncode\n  \n```\n\ny\n")]
+    [InlineData("x\n\n    code\n      \n\ny\n", "x\n\n```\ncode\n  \n```\n\ny\n")]
+    [InlineData("x\n\n    code\n      \n    \n", "x\n\n```\ncode\n  \n```\n")]
+    [InlineData("x\n\n    code\n      \n\n      \n\ny\n", "x\n\n```\ncode\n  \n\n  \n```\n\ny\n")]
+    [InlineData("x\n\n    code\n    \n", "x\n\n```\ncode\n```\n")]
+    public void CodeBlockFormatter_Format_IndentedCodeEndingWithWideWhitespaceLine_KeepsTheRestInTheFence(string input, string expected)
+    {
+        // Act & Assert: the production formatters give the expected text, which renders the same as the input and is stable
+        BlockFormatterAssertions.AssertFormats(input, expected);
+    }
+
+    /// <summary>
+    ///     Test that the code block formatter alone converts an indented block that ends with a wide whitespace-only line without losing its rest.
+    /// </summary>
+    [Fact]
+    public void CodeBlockFormatter_Format_IndentedCodeEndingWithWideWhitespaceLine_ConvertsTheWholeBlock() =>
+        AssertFormats("x\n\n    code\n      \n", "x\n\n```\ncode\n  \n```\n");
+
+    /// <summary>
+    ///     Test that a block whose lines are not what the parser promised produces no edit: a fenced block whose
+    ///     closing fence line is not a fence, and an indented block with a line that is not indented.
+    /// </summary>
+    [Fact]
+    public void CodeBlockFormatter_Format_ShapeNotAsPromised_ProposesNothing()
+    {
+        // Arrange: a fenced block whose reported end is moved to a content line, and an indented block that reaches an unindented line
+        var fencedDocument = BlockFormatterAssertions.Parse("~~~\ncode\n~~~\n");
+        var fenced = BlockFormatterAssertions.FirstBlock(fencedDocument, BlockKind.FencedCode);
+        var indentedDocument = BlockFormatterAssertions.Parse("    a\nb\n");
+        var indented = BlockFormatterAssertions.FirstBlock(indentedDocument, BlockKind.IndentedCode);
+
+        // Act: format the damaged blocks
+        var fencedEdits = new EditSet();
+        Formatter.Format(new FormatContext(fencedDocument, LintMarkConfig.Default), fenced with { EndInclusive = 7 }, fencedEdits);
+        var oneLineEdits = new EditSet();
+        Formatter.Format(new FormatContext(fencedDocument, LintMarkConfig.Default), fenced with { EndInclusive = 2 }, oneLineEdits);
+        var indentedEdits = new EditSet();
+        Formatter.Format(new FormatContext(indentedDocument, LintMarkConfig.Default), indented with { EndInclusive = 6 }, indentedEdits);
+
+        // Assert: no edit at all
+        Assert.True(fencedEdits.IsEmpty);
+        Assert.True(oneLineEdits.IsEmpty);
+        Assert.True(indentedEdits.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Test that a top-level fence indented by one to three columns, a fence in a quote or list with trailing
+    ///     whitespace, and a closing fence longer than the opening one are converted correctly.
+    /// </summary>
+    [Theory]
+    [InlineData("  ~~~\n  code\n  ~~~\n", "  ```\n  code\n  ```\n")]
+    [InlineData("   ~~~ js\n   code\n   ~~~\n", "   ``` js\n   code\n   ```\n")]
+    [InlineData("> ~~~  \n> code\n> ~~~  \n", "> ```\n> code\n> ```\n")]
+    [InlineData("- ~~~  \n  code\n  ~~~\t\n", "- ```\n  code\n  ```\n")]
+    [InlineData("~~~\n```\nx\n~~~~~\n", "````\n```\nx\n`````\n")]
+    public void CodeBlockFormatter_Format_FenceShapes_AreConvertedAndCleaned(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
     ///     Test that the fence around an indented block is longer than any fence-like line in its content.
     /// </summary>
     [Theory]
@@ -405,25 +481,37 @@ public class CodeBlockFormatterTests
     }
 
     /// <summary>
+    ///     Test that CRLF line endings, and mixed line endings, do not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void CodeBlockFormatter_Format_CrlfLineEndings_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, "~~~  \ncode\n~~~\n\n    indented\n      \n");
+
+    /// <summary>
+    ///     Test that a byte order mark does not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void CodeBlockFormatter_Format_ByteOrderMark_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, "~~~  \ncode\n~~~\n\n    indented\n      \n");
+
+    /// <summary>
     ///     Test that CRLF line endings and a byte order mark survive formatting a code block.
     /// </summary>
     [Fact]
-    public void CodeBlockFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark() =>
+    public void CodeBlockFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark()
+    {
+        // Act & Assert: the written bytes keep the endings and the mark
         BlockFormatterAssertions.AssertFormatsOnDisk("~~~\ncode\n~~~\n\n    indented\n", "```\ncode\n```\n\n```\nindented\n```\n");
+        BlockFormatterAssertions.AssertFormatsOnDisk("    a\n\n    b\n      \n", "```\na\n\nb\n  \n```\n");
+    }
 
     /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads.
+    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
     /// </summary>
     [Fact]
-    public void CodeBlockFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult()
-    {
-        // Arrange: tilde fences and an indented block
-        const string input = "~~~\none\n~~~\n\ntext\n\n    two\n";
-
-        // Act: format on several threads with one shared instance
-        var results = Enumerable.Range(0, 8).AsParallel().Select(_ => BlockFormatterAssertions.ApplyFormatter(Formatter, input).Formatted).ToList();
-
-        // Assert: every thread computed the same text
-        Assert.All(results, result => Assert.Equal("```\none\n```\n\ntext\n\n```\ntwo\n```\n", result));
-    }
+    public void CodeBlockFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
+        BlockFormatterAssertions.AssertConcurrentFormatting(
+            Formatter,
+            "~~~\none\n~~~\n\ntext\n\n    two\n      \n",
+            "```\none\n```\n\ntext\n\n```\ntwo\n  \n```\n");
 }

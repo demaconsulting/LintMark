@@ -120,7 +120,7 @@ package LintMark {
     }
 
     item def BlockSpacingPass {
-        doc /* The document-level pass that puts a blank line between top-level blocks that must be separated: headings, fenced code blocks, lists, and tables (supporting type of the document formatter). */
+        doc /* The document-level pass that puts a blank line between top-level blocks that must be separated: headings, fenced code blocks, lists, and tables, never between a next-line suppression directive and the block it covers (supporting type of the document formatter). */
     }
 
     item def TrailerPass {

@@ -13,11 +13,18 @@ formatters are test doubles, and they come from `TestBlockFormatters.cs`:
   helper builds a `DocumentFormatter` with one that replaces a double space by a single space; other tests use
   two of them with different replacements to prove which one is asked.
 - `OverlappingEditsFormatter` is a deliberately broken formatter that proposes two edits of the same characters.
+- `ThrowingFormatter` is a deliberately broken formatter that throws `InvalidOperationException`.
 
-`DocumentFormatterPassTests.cs` formats documents with and without the real block formatters of the `Blocks`
-subsystem, so that the claim of a block by its formatter can be observed. Each scenario asserts on the patched text,
-and where reporting matters on the rule, line, and column of the problems that the formatter returns. The tests of the
-helper types call them directly with documents from the real parser.
+`DocumentFormatterPassTests.cs` formats documents with the document formatter alone (`new DocumentFormatter()`, so the
+passes see every block as unclaimed) and with the `ReplacingFormatter` double, so that the claim of a block by a
+formatter can be observed. Every pass scenario that checks the patched text goes through `AssertSafeAndStable` of the
+test helper `BlockFormatterAssertions` (a collaborator of the tests, described with the `Blocks` verification), which in
+addition to the text asserts that the result renders to the same HTML, keeps its Pandoc structure, is stable when formatted
+again, and that the edits, the problems, and the thread-independence of the result agree. The doubles of the unit are
+`ReplacingFormatter` and `OverlappingEditsFormatter`, which the contract tests use, and `ThrowingFormatter`, which proves
+that an exception propagates. Each scenario asserts on the patched text, and where reporting matters on the rule, line,
+and column of the problems that the formatter returns. The tests of the helper types call them directly with documents
+from the real parser; a few of them build a block by hand (`with`) to reach branches that the parser cannot produce.
 
 Two parse helpers are used: one parses LF-normalized text, and one parses the bytes of a file so that its original
 line endings are counted. Suppression is driven by real suppression comments in the Markdown text. The test for
@@ -44,18 +51,24 @@ N/A - standard test environment.
   when the endings are equally frequent or the file has no terminator.
 - Exactly one `line-ending` formatting problem at line 1 and column 1 is reported when any line terminator differs
   from the target, with a message that names the endings found and the one expected; nothing is reported otherwise.
-- Trailing whitespace and tabs in text are removed or expanded without changing a hard line break, and whitespace in
-  literal text, code, HTML, math, front matter, and grid tables is never touched.
+- Trailing whitespace and tabs in text are removed or expanded without changing a hard line break, a tab in the whitespace
+  at the end of a line is never expanded, and whitespace in literal text, code, HTML, math, front matter, and grid tables
+  is never touched.
 - Runs of blank lines between blocks are reduced to the configured maximum, and blank lines inside blocks and
   containers are kept.
 - Blank lines are inserted between top-level blocks that need them, once per boundary, and never inside containers, for
-  text that is not another block, or next to a fence that is never closed.
-- The end of the file is exactly one line ending, or none when configured, and is left alone where it is part of a
-  block.
-- A suppressed rule is not applied where the suppression takes effect, and the lines of a block that a block formatter
-  accepts are never edited by the passes.
-- Each edit of an always-applied rule is reported once per rule and line at its place, with the description of the rule;
-  edits of a configurable rule are not reported.
+  text that is not another block, next to a fence that is never closed, or between a next-line suppression directive and
+  the block it covers.
+- The end of the file is exactly one line ending, or none when configured, also after an HTML block that its end
+  condition closes.
+- The end of the file is left alone after a fence that is never closed and after an HTML block that its end condition
+  never closes.
+- A whitespace-only line wider than the indentation at the end of a top-level indented code block is code and is kept,
+  and a narrower one is emptied.
+- A line that looks like the border of a grid table is neither edited nor separated from its neighbors by a blank line.
+- A suppressed rule, named by its identifier or by an alias, is not applied where the suppression takes effect, and the
+  lines of a block that a block formatter accepts are never edited by the passes.
+- Each edit of an always-applied rule is reported once per rule and line at its place, with the description of the rule.
 - Conflicting edits of a formatter make formatting throw `InvalidOperationException`.
 - An exception that a block formatter throws reaches the caller with its type and message unchanged.
 - Null arguments are rejected, a null list means no formatters, and later changes of the caller's list are ignored.
@@ -145,11 +158,17 @@ of the paragraph is formatted. The three spaces become two, and a line that ends
 space at the end of a line, and a tab followed by two spaces at the end of a line is formatted. Each is unchanged,
 because a backslash break takes no spaces, a space after a backslash is text, and a tab before the spaces is text.
 
-**Whitespace in inline literal text is kept**: A paragraph with a line break inside a code span, inside inline HTML,
-inside a link title, and inside inline math is formatted. The whitespace inside each is unchanged.
+**A tab at the end of a line is kept where the trailing whitespace rule is disabled**: A paragraph with a tab at the end
+of a line, followed by a line or at the end of the file, in a region that disables `trailing-whitespace` is formatted.
+The tab stays and no `hard-tabs` problem is reported; expanding it could leave two spaces, which are a hard break.
 
-**Table rows and definitions lose trailing whitespace**: A table and a single-line link reference definition, each with
-trailing spaces, are formatted. The trailing spaces are removed from each.
+**Whitespace in inline literal text is kept**: A paragraph with a line break inside a code span, inside inline HTML, and
+inside inline math is formatted, and so is one with a line break inside a link title. The whitespace inside each is
+unchanged.
+
+**Table rows, definitions, and breaks lose trailing whitespace**: A table, a single-line link reference definition, and
+a thematic break that no block formatter accepts, each with trailing whitespace, are formatted. The trailing whitespace
+is removed from each.
 
 **Marker lines lose trailing whitespace**: A quote line that holds only a marker and spaces is formatted. The spaces are
 removed.
@@ -158,8 +177,23 @@ removed.
 trailing spaces are formatted by a document formatter without block formatters. The spaces are removed.
 
 **Protected blocks keep their whitespace**: Fenced code with a tab and trailing spaces, tilde-fenced code, indented
-code, an HTML block, a math block, front matter, and a grid table with trailing spaces are formatted. Nothing in them
-changes.
+code, an HTML block, and a math block are formatted, and so are front matter and a grid table with trailing spaces.
+Nothing in them changes.
+
+**A wide whitespace-only line that ends indented code is code**: Top-level indented code that ends with a line of six
+spaces, five spaces, or a tab and two spaces, followed by a blank line and text or by nothing, is formatted. The line
+stays.
+
+**A whitespace-only line that is not wider than the indentation after indented code is emptied**: A line of exactly four
+spaces, or one after a wider line that stays, after top-level indented code is formatted. It is a blank line and is
+normalized with the end of the file. The same wide line inside a list item is emptied as well, because the parser drops
+it there.
+
+**A line that looks like a grid table border is not edited**: Lines that start with a plus sign after a list marker or a
+quote marker, with trailing whitespace, are formatted. Nothing changes.
+
+**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
+directly after text, is formatted. No blank line is inserted.
 
 **A tab in text becomes spaces up to the next tab stop**: Paragraphs with a tab after one, two, and four characters,
 with two tabs in a row, and inside a list item and a later line of a paragraph are formatted. Each tab becomes the
@@ -197,9 +231,19 @@ a quote, are formatted. A blank line is inserted at each boundary.
 **A table gets blank lines around it**: A pipe table that touches a paragraph, a heading, or a thematic break is
 formatted. A blank line is inserted at each boundary.
 
-**Text that is not another block is not separated**: A line that looks like an ordered list item after a paragraph, a
-lazy continuation of a list item, a line without pipes after a table, and an indented line after a paragraph are
+**Text that is not another block is not separated**: A line that looks like an ordered list item after a paragraph and
+an indented line after a paragraph, a lazy continuation of a list item, and a line without pipes after a table are
 formatted. No blank line is inserted.
+
+**A block that the parser reports after a prefix on its line is not separated (defensive, no requirement)**: A heading
+followed by a definition that starts after other text on its line, and a list followed by a list marker after a tab, are
+formatted. No blank line is inserted.
+
+**A next-line directive keeps its place above its block**: A `disable-next-line` comment of the `markdownlint` or the
+`lintmark` family stands directly above a heading, a list, a fenced block, a table, or indented code that touches it.
+No blank line is inserted between them, the result renders the same, and it is stable. A comment that is not a next-line
+directive, a region `disable`, or a next-line directive that is followed by a blank line does not hold back the blank
+line.
 
 **Blocks inside containers are not separated**: A fence in a list item, a heading in a quote, a heading in a list item,
 and a list in a quote that touch other text are formatted. No blank line is inserted.
@@ -225,23 +269,39 @@ removed.
 **A document without content is left alone**: An empty document, one with only blank lines, one with only whitespace
 lines, and one with a single tab are formatted. No edit and no problem result.
 
-**The end of the file is left alone where the last block keeps its blank lines**: Documents that end in an unclosed
-fence, with or without blank lines, and in an HTML comment block with blank lines are formatted. Nothing changes.
+**The end of the file is left alone after a fence that is never closed**: Documents that end in an unclosed fence, with
+or without blank lines, are formatted. Nothing changes.
 
-**A suppressed rule leaves its part alone**: Trailing whitespace, tabs, and the end of a document are each covered by a
-comment that disables the rule by its identifier or by its legacy number. The text is left as written and the rule
-is not reported.
+**The end of the file is left alone after an HTML block that its end condition never closes**: Documents that end in an
+HTML comment, script, or CDATA block that its end condition never closes, with or without blank lines, are formatted.
+Nothing changes.
+
+**The end of the file is normalized after an HTML block that its end condition closes**: Documents that end in a closed
+comment without a final line ending or with blank lines after it, in a closed script, pre, or style block, a processing
+instruction, a declaration, or a CDATA section followed by blank lines, and a closed comment followed by blank lines and
+text are formatted. Each ends with exactly one line feed.
+
+**A suppressed rule, named by its identifier, leaves its part alone**: Trailing whitespace, tabs, and the end of a
+document are each covered by a comment that disables the rule by its identifier. The text is left as written, no edit and
+no problem results, and the same content without the comment is changed (a control).
+
+**A suppressed rule, named by an alias, leaves its part alone**: Trailing whitespace, tabs, and the end of a document are
+each covered by a comment that disables the rule by its legacy number. The text is left as written, no edit and no
+problem results, and the same content without the comment is changed (a control).
 
 **A blank-line rule is not applied where a region disables it**: A run of blank lines in a region that disables
-`max-blank-lines` is formatted. The run is unchanged.
+`max-blank-lines` is formatted. The run is unchanged. A run in a region that disables `trailing-whitespace` loses its
+surplus lines and keeps the whitespace of the line that stays.
 
 **Each edit is reported once per rule and line at its place**: A document `a<tab>b<tab>c`, `d` followed by a space, and
 `e` without a final line ending is formatted. Three problems are reported in order of position: `hard-tabs` at line 1,
 column 2 (one problem for the two tabs), `trailing-whitespace` at line 2, column 2, and `final-newline` at line 3,
-column 2. Each is of kind formatting, has the path of the file, and has the description of the rule as its message.
+column 2. Each is of kind formatting, has the path of the file, and has the description of the rule as its message. A
+document that ends in a closed comment without a final line ending is formatted as well: the line ending is added, and one
+`final-newline` problem is reported on the last line.
 
-**An edit of a configurable rule is not reported**: A paragraph is formatted by the replacing test double, whose rule
-is configurable. The text changes and no problem is reported.
+**An edit of a configurable rule is not reported (defensive, no requirement)**: A paragraph is formatted by the replacing
+test double, whose rule is configurable. The text changes and no problem is reported.
 
 **A claimed block is edited by its formatter only**: A paragraph with a double space and trailing spaces, accepted by
 the test double, is formatted. The replacements of the double formatter are applied, and the trailing whitespace is not
@@ -250,11 +310,14 @@ removed by a pass, because the formatter claimed the lines.
 **A claimed block stays claimed where the rule is suppressed**: The same paragraph in a region that disables the
 formatter's rule is formatted. It is unchanged, including its trailing spaces.
 
-**The helper types answer for their inputs**: `LineLayout` is asked for line counts, extents, blank lines, tab stops,
+**The helper types answer for their inputs**: `LineLayout` is asked for line counts, extents (including the line after
+the last, which exists only after a final line feed), blank lines, tab stops,
 and grid-border lookalikes; `InlineMap` for the plain-text, protected, and break offsets of a paragraph with code
-and breaks, of a link, and of no inline content; `LeafWhitespace` for the tabs of a text and for lines that must stay;
+and breaks, of a link, of no inline content, and of a tree built with a shift; `LeafWhitespace` for the tabs of a text
+(also from a stretch that starts in text, where a tab after a code span counts) and for lines that must stay;
 `LineOwnership` for the classes and the last content line of the lines of a mixed document, an indented block that is
-followed by a whitespace line, and an unclosed fence in a list; `FrontMatterGuard` for documents that could and could
+followed by whitespace lines of several widths (also inside a list), an unclosed fence in a list, and for every kind
+of HTML block whether its trailing blank lines are content; `FrontMatterGuard` for documents that could and could
 not open front matter. Each answer is the documented one, and null arguments are rejected.
 
 ##### Boundary conditions
@@ -272,7 +335,8 @@ configuration that has no line ending. The line ending of the result is LF and n
 
 **A document that is unsafe to rewrite is not touched**: A CRLF file with a line that looks like the border of an
 invalid grid table is flagged as unsafe to rewrite. It is formatted with a configuration that asks for LF. The result
-has no edit and no problem, and its line ending is the majority ending of the file, which is CRLF.
+has no edit (one test) and no problem (another test), and its line ending is the majority ending of the file, which is
+CRLF.
 
 **A formatter list of null means no formatters**: A `DocumentFormatter` is created with a null list and formats a
 document that has a double space. The call works and proposes no edit.
@@ -299,7 +363,7 @@ configuration. Each call throws `ArgumentNullException`.
 **A format context without a document or configuration is rejected**: A null document and a null configuration each
 throw `ArgumentNullException`. A valid context keeps both values.
 
-**A format result with invalid parts is rejected**: A default list of edits and a list that holds a default edit each
-throw `ArgumentException`; a default list of findings throws `ArgumentException`, and a null finding throws
-`ArgumentNullException`; a line ending that is not defined throws `ArgumentOutOfRangeException`. A valid result keeps
-its edits, line ending, and findings.
+**A format result with invalid parts is rejected**: A default list of edits, a list that holds a default edit, a default
+list of findings, a null finding, and a line ending that is not defined are each rejected, by a test of its own: the
+first three throw `ArgumentException`, a null finding `ArgumentNullException`, and the line ending
+`ArgumentOutOfRangeException`. A valid result keeps its edits, line ending, and findings.

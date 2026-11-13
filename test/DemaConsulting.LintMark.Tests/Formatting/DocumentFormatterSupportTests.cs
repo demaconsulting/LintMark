@@ -92,6 +92,21 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
+    ///     Test that the line after the last one can be asked for only when the text ends with a line feed.
+    /// </summary>
+    [Fact]
+    public void LineLayout_LineStart_LineAfterTheLast_IsAllowedOnlyAfterAFinalLineFeed()
+    {
+        // Arrange: one text with and one without a final line feed
+        var withFeed = Layout("ab\n");
+        var withoutFeed = Layout("ab");
+
+        // Act & Assert: the line equal to the line count exists after a line feed (an empty line) and not otherwise
+        Assert.Equal(3, withFeed.LineStart(withFeed.LineCount));
+        Assert.Throws<ArgumentOutOfRangeException>(() => withoutFeed.LineStart(withoutFeed.LineCount));
+    }
+
+    /// <summary>
     ///     Test that a missing source is rejected.
     /// </summary>
     [Fact]
@@ -227,6 +242,26 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
+    ///     Test that a stretch that starts in text replaces a tab that follows a code span, which a stretch from the start of a line does not.
+    /// </summary>
+    [Fact]
+    public void LeafWhitespace_CollectTabs_StartsInText_ReplacesTheTabAfterACodeSpan()
+    {
+        // Arrange: a code span, a tab and text
+        const string text = "`a`\tb\n";
+        var layout = Layout(text);
+        var map = MapOfFirstParagraph(text);
+
+        // Act: collect from the start of the line and as a stretch that starts in text
+        var fromLineStart = LeafWhitespace.CollectTabs(layout, map, 0, layout.LineEnd(0), 0);
+        var fromText = LeafWhitespace.CollectTabs(layout, map, 0, layout.LineEnd(0), 0, startsInText: true);
+
+        // Assert: the tab follows no plain text from the line start, and is replaced by one space (column three to four) otherwise
+        Assert.Empty(fromLineStart);
+        Assert.Equal([(3, 1)], fromText);
+    }
+
+    /// <summary>
     ///     Test that missing arguments are rejected by the leaf whitespace helpers.
     /// </summary>
     [Fact]
@@ -292,21 +327,44 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that the lines of a block are measured up to the last line with content, not up to whitespace-only lines the parser may include.
+    ///     Test that the lines of a top-level indented code block also count a trailing whitespace-only line that is wider
+    ///     than the indentation (what is left of it is code) and no other whitespace-only line.
     /// </summary>
-    [Fact]
-    public void LineOwnership_LinesOf_IndentedCodeFollowedByWhitespaceLine_EndsAtTheLastContentLine()
+    [Theory]
+    [InlineData("x\n\n    code\n      \n", 2, 3)]
+    [InlineData("x\n\n    code\n     \n\ny\n", 2, 3)]
+    [InlineData("x\n\n    code\n\t  \n\ny\n", 2, 3)]
+    [InlineData("x\n\n    code\n      \n    \n", 2, 3)]
+    [InlineData("x\n\n    code\n    \n", 2, 2)]
+    [InlineData("x\n\n    code\n\t\n", 2, 2)]
+    [InlineData("x\n\n    code\n  \n    more\n", 2, 4)]
+    public void LineOwnership_LinesOf_IndentedCodeWithWhitespaceLines_CountsTheRestOfAWideLine(string text, int expectedFirst, int expectedLast)
     {
-        // Arrange: indented code followed by a line of four spaces and text
-        var document = BlockFormatterAssertions.Parse("    code\n    \n\ntext\n");
+        // Arrange: the document and its indented code block
+        var document = BlockFormatterAssertions.Parse(text);
         var layout = new LineLayout(document.Source);
         var code = BlockFormatterAssertions.FirstBlock(document, BlockKind.IndentedCode);
 
         // Act: measure the block
-        var (first, last) = LineOwnership.LinesOf(layout, code);
+        var lines = LineOwnership.LinesOf(layout, code);
 
-        // Assert: only the first line
-        Assert.Equal((0, 0), (first, last));
+        // Assert: the block ends at its last line with content or with more than the indentation
+        Assert.Equal((expectedFirst, expectedLast), lines);
+    }
+
+    /// <summary>
+    ///     Test that an indented code block inside a list keeps the measure up to its last line with content.
+    /// </summary>
+    [Fact]
+    public void LineOwnership_LinesOf_IndentedCodeInList_EndsAtTheLastContentLine()
+    {
+        // Arrange: nested indented code followed by a wide whitespace-only line
+        var document = BlockFormatterAssertions.Parse("- a\n\n      code\n          \n");
+        var layout = new LineLayout(document.Source);
+        var code = BlockFormatterAssertions.FirstBlock(document, BlockKind.IndentedCode);
+
+        // Act & Assert: the parser drops that line from nested code, and so does the measure
+        Assert.Equal((2, 2), LineOwnership.LinesOf(layout, code));
     }
 
     /// <summary>
@@ -328,23 +386,83 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that the blocks that keep their trailing blank lines are the unclosed fence, the blocks the tool does not model and an HTML block nothing closes.
+    ///     Test that a block keeps its trailing blank lines only when they can be its content: an unclosed fence, a
+    ///     block the tool does not model, and an HTML block of types 1 to 5 whose end condition is missing; an HTML
+    ///     block that its end condition closes, a block that a blank line ends, and a paragraph do not.
+    /// </summary>
+    [Theory]
+    [InlineData("```\ncode\n", true, true)]
+    [InlineData("```\ncode\n", false, true)]
+    [InlineData("<!-- c -->\n\ntext\n", true, false)]
+    [InlineData("<!-- c -->\n", false, false)]
+    [InlineData("<!-- c\n\n", false, true)]
+    [InlineData("<!-- c\nmore\n", false, true)]
+    [InlineData("<script>\nx\n</script>\n", false, false)]
+    [InlineData("<SCRIPT>\nx\n</SCRIPT>\n", false, false)]
+    [InlineData("<script>\nx\n", false, true)]
+    [InlineData("<pre>\nx\n</pre>\n", false, false)]
+    [InlineData("<pre>\nx\n", false, true)]
+    [InlineData("<style>\nx\n</style>\n", false, false)]
+    [InlineData("<style>\nx\n", false, true)]
+    [InlineData("<?php\n?>\n", false, false)]
+    [InlineData("<?php\nx\n", false, true)]
+    [InlineData("<![CDATA[\nx\n]]>\n", false, false)]
+    [InlineData("<![CDATA[\nx\n", false, true)]
+    [InlineData("<!DOCTYPE html>\n", false, false)]
+    [InlineData("<!DOCTYPE html\nx\n", false, true)]
+    [InlineData("<div>\nx\n</div>\n", false, false)]
+    [InlineData("text\n", false, false)]
+    public void LineOwnership_KeepsTrailingBlankLines_Blocks_AreClassified(string text, bool contentFollows, bool expected)
+    {
+        // Arrange: the first block of the document
+        var document = BlockFormatterAssertions.Parse(text);
+        var layout = new LineLayout(document.Source);
+
+        // Act & Assert: the block keeps its trailing blank lines exactly when they can be its content
+        Assert.Equal(expected, LineOwnership.KeepsTrailingBlankLines(layout, document.Blocks[0], contentFollows));
+    }
+
+    /// <summary>
+    ///     Test that missing arguments are rejected when asking whether a block keeps its trailing blank lines.
     /// </summary>
     [Fact]
-    public void LineOwnership_KeepsTrailingBlankLines_Blocks_AreClassified()
+    public void LineOwnership_KeepsTrailingBlankLines_NullArguments_Throw()
     {
-        // Arrange: an unclosed fence, a closed comment followed by text, and a paragraph
-        var fence = BlockFormatterAssertions.FirstBlock(BlockFormatterAssertions.Parse("```\ncode\n"), BlockKind.UnclosedFence);
-        var comment = BlockFormatterAssertions.FirstBlock(BlockFormatterAssertions.Parse("<!-- c -->\n\ntext\n"), BlockKind.HtmlBlock);
-        var div = BlockFormatterAssertions.FirstBlock(BlockFormatterAssertions.Parse("<div>\nx\n</div>\n"), BlockKind.HtmlBlock);
-        var paragraph = BlockFormatterAssertions.FirstBlock(BlockFormatterAssertions.Parse("text\n"), BlockKind.Paragraph);
+        // Arrange: a document, its layout and block
+        var document = BlockFormatterAssertions.Parse("text\n");
+        var layout = new LineLayout(document.Source);
 
-        // Act & Assert: the fence keeps them, the comment only when nothing follows, the div and the paragraph never
-        Assert.True(LineOwnership.KeepsTrailingBlankLines(fence, contentFollows: true));
-        Assert.False(LineOwnership.KeepsTrailingBlankLines(comment, contentFollows: true));
-        Assert.True(LineOwnership.KeepsTrailingBlankLines(comment, contentFollows: false));
-        Assert.False(LineOwnership.KeepsTrailingBlankLines(div, contentFollows: false));
-        Assert.False(LineOwnership.KeepsTrailingBlankLines(paragraph, contentFollows: false));
+        // Act & Assert: each argument is checked and named
+        Assert.Equal("layout", Assert.Throws<ArgumentNullException>(() => LineOwnership.KeepsTrailingBlankLines(null!, document.Blocks[0], false)).ParamName);
+        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => LineOwnership.KeepsTrailingBlankLines(layout, null!, false)).ParamName);
+    }
+
+    /// <summary>
+    ///     Test that an inline map built with a shift places every span, break and protected stretch that far from where the parser put it.
+    /// </summary>
+    [Fact]
+    public void InlineMap_Build_WithShift_MovesEverySpan()
+    {
+        // Arrange: a paragraph with text, a code span and a hard break, built as the parser gave it and shifted by ten
+        const string text = "ab `cd`  \nef\n";
+        var document = BlockFormatterAssertions.Parse(text);
+        var inline = ((ParagraphBlock)BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph).Node!).Inline;
+
+        // Act: build both maps
+        var plain = InlineMap.Build(inline);
+        var shifted = InlineMap.Build(inline, 10);
+
+        // Assert: every answer about an offset is the answer of the plain map ten characters earlier
+        Assert.All(
+            Enumerable.Range(0, text.Length),
+            offset =>
+            {
+                Assert.Equal(plain.IsText(offset), shifted.IsText(offset + 10));
+                Assert.Equal(plain.IsProtected(offset), shifted.IsProtected(offset + 10));
+                Assert.Equal(plain.IsBreakAt(offset), shifted.IsBreakAt(offset + 10));
+                Assert.Equal(plain.IsSpaceBreakAt(offset), shifted.IsSpaceBreakAt(offset + 10));
+            });
+        Assert.True(shifted.IsSpaceBreakAt(text.IndexOf('\n', StringComparison.Ordinal) + 10));
     }
 
     /// <summary>

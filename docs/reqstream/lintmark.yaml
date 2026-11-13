@@ -1079,6 +1079,8 @@ sections:
           - LintMark-Formatting-ConflictingEdits
           - LintMark-Formatting-OutOfRangeEdits
           - LintMark-Formatting-FormatterFailuresPropagate
+          - LintMark-Formatting-GridBorderLookalikeNotEdited
+          - LintMark-Formatting-GridBorderLookalikeNotSeparated
         tests:
           - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
           - LintMark_FixFlag_CodeSpanLineEndingChange_LeavesFileUntouched

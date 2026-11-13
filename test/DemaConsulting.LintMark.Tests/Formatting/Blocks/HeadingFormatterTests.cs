@@ -23,6 +23,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Linting;
+using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -32,6 +33,12 @@ namespace DemaConsulting.LintMark.Tests;
 /// </summary>
 public class HeadingFormatterTests
 {
+    /// <summary>
+    ///     The text used to compare the edits for the stored forms of a document: every kind of heading violation, a
+    ///     multi-line setext heading, and a tab after the number signs.
+    /// </summary>
+    private const string StoredFormsInput = "Title\n=====\n\n## Sub ##  \n\n#\tTab\ta\n\nOne  \ntwo   \n===  \n";
+
     /// <summary>
     ///     The formatter under test.
     /// </summary>
@@ -75,6 +82,21 @@ public class HeadingFormatterTests
 
         // Act & Assert: no block is accepted
         Assert.All(document.Blocks, block => Assert.False(Formatter.CanFormat(block)));
+    }
+
+    /// <summary>
+    ///     Test that a block of the heading kind whose parser node is not a heading is not accepted.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HeadingFormatter_CanFormat_HeadingKindWithoutHeadingNode_ReturnsFalse(bool withNode)
+    {
+        // Arrange: a block that claims to be a heading but has no heading node (or a paragraph node)
+        var block = new BlockInfo(withNode ? new ParagraphBlock() : null, BlockKind.Heading, 0, 0, 0, null);
+
+        // Act & Assert: the block is not accepted
+        Assert.False(Formatter.CanFormat(block));
     }
 
     /// <summary>
@@ -137,6 +159,121 @@ public class HeadingFormatterTests
             ruleIds);
         Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
         ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
+    }
+
+    /// <summary>
+    ///     Test that a tab right after the number signs of a heading that is not on the first line is replaced by one space,
+    ///     and that the tabs in its text are expanded from where the text lands: the parser reports the inline spans of
+    ///     such a heading too small by a fixed amount, which must neither make the edits overlap nor make the result unstable.
+    /// </summary>
+    [Theory]
+    [InlineData("x\n\n#\tTitle\n", "x\n\n# Title\n")]
+    [InlineData("para\n#\tTab\ttitle\n", "para\n\n# Tab   title\n")]
+    [InlineData("x\n\n#\ta\tb\n", "x\n\n# a b\n")]
+    [InlineData("x\n\n##\t`a\tb`\tc\n", "x\n\n## `a\tb`  c\n")]
+    [InlineData("x\n\n#\tTitle\t#\n", "x\n\n# Title\n")]
+    [InlineData("x\n\n#\t\ta\tb  \n", "x\n\n# a b\n")]
+    [InlineData("x\n\n-\t#\tTitle\tx\n", "x\n\n-\t# Title x\n")]
+    public void HeadingFormatter_Format_TabAfterMarkerNotOnFirstLine_IsSafeAndStable(string input, string expected)
+    {
+        // Act & Assert: the production formatters give the expected text, which renders the same and is stable
+        BlockFormatterAssertions.AssertFormats(input, expected);
+        BlockFormatterAssertions.AssertFormats(expected, expected);
+
+        // The heading formatter alone proposes edits that do not overlap and give the same text for the heading
+        var (edits, _) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
+        Assert.NotEmpty(edits);
+    }
+
+    /// <summary>
+    ///     Test that a heading whose text has a tab and whose inline spans do not fit its line is left alone as a whole.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_SpansThatDoNotFitTheLine_LeaveTheHeadingAlone()
+    {
+        // Arrange: a heading with a tab in its text whose first inline is replaced by one that starts elsewhere
+        var document = BlockFormatterAssertions.Parse("x\n\n# a\tb\n");
+        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading);
+        var heading = (HeadingBlock)block.Node!;
+        var first = heading.Inline!.FirstChild!;
+        first.Span = new SourceSpan(first.Span.Start + 1, first.Span.End);
+        var edits = new EditSet();
+
+        // Act: format the heading with the damaged spans
+        Formatter.Format(new FormatContext(document, LintMarkConfig.Default), block, edits);
+
+        // Assert: no edit at all, not even for the rules whose edits do not depend on the spans
+        Assert.True(edits.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Test that a heading whose spans were damaged but that has no tab in its text is still formatted.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_NoTabAndDamagedSpans_StillFormatsTheHeading()
+    {
+        // Arrange: a heading with extra blanks and no tab whose inline span is damaged
+        var document = BlockFormatterAssertions.Parse("x\n\n#   Title\n");
+        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading);
+        var first = ((HeadingBlock)block.Node!).Inline!.FirstChild!;
+        first.Span = new SourceSpan(0, 0);
+        var edits = new EditSet();
+
+        // Act: format the heading
+        Formatter.Format(new FormatContext(document, LintMarkConfig.Default), block, edits);
+
+        // Assert: the blanks after the marker are still replaced
+        Assert.Equal("x\n\n# Title\n", SourcePatcher.Apply(document.Source, edits.ToImmutable()));
+    }
+
+    /// <summary>
+    ///     Test that a tab in a heading with a closing sequence, and in a heading inside a container, is expanded.
+    /// </summary>
+    [Theory]
+    [InlineData("# a\tb #\n", "# a b\n")]
+    [InlineData("## a\tb \t##  \n", "## a    b\n")]
+    [InlineData("> # a\tb #  \n", "> # a   b\n")]
+    [InlineData("- # a\tb\n", "- # a   b\n")]
+    [InlineData("1. ## Tab\ttitle ##\n", "1. ## Tab   title\n")]
+    public void HeadingFormatter_Format_TabInClosedOrNestedHeading_IsExpanded(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that trailing whitespace after a final backslash of a setext heading text line is kept (removing it
+    ///     would turn the backslash into a hard break).
+    /// </summary>
+    [Theory]
+    [InlineData("Backslash \\  \n===\n")]
+    [InlineData("one\ntwo \\ \n===\n")]
+    public void HeadingFormatter_Format_SetextTextEndingWithBackslashAndSpaces_KeepsTheSpaces(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a multi-line setext heading inside a block quote stays setext and loses only its trailing whitespace.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_MultiLineSetextInQuote_StaysSetext() =>
+        AssertFormats("> Title\n> more   \n> =====  \n", "> Title\n> more\n> =====\n");
+
+    /// <summary>
+    ///     Test that a setext heading is converted when it follows a heading, and its tabs after a non-zero offset are expanded.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_SetextTextWithTabNotOnFirstLine_ConvertsAndExpandsTheTab() =>
+        AssertFormats("x\n\na\tb\n===\n", "x\n\n# a b\n");
+
+    /// <summary>
+    ///     Test that a heading right after a paragraph, with a tab after its number signs, is stable on the second run.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_TabHeadingAfterParagraphWithoutBlankLine_IsStableOnTheSecondRun()
+    {
+        // Act: format twice with the production formatters
+        var once = BlockFormatterAssertions.AssertSafeAndStable("para\n#\tTab\ttitle");
+        var twice = BlockFormatterAssertions.AssertSafeAndStable(once);
+
+        // Assert: the second run changes nothing
+        Assert.Equal(once, twice);
     }
 
     /// <summary>
@@ -410,25 +547,37 @@ public class HeadingFormatterTests
     }
 
     /// <summary>
+    ///     Test that CRLF line endings, and mixed line endings, do not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_CrlfLineEndings_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, StoredFormsInput);
+
+    /// <summary>
+    ///     Test that a byte order mark does not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void HeadingFormatter_Format_ByteOrderMark_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, StoredFormsInput);
+
+    /// <summary>
     ///     Test that CRLF line endings and a byte order mark survive formatting a heading.
     /// </summary>
     [Fact]
-    public void HeadingFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark() =>
+    public void HeadingFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark()
+    {
+        // Act & Assert: the written bytes keep the endings and the mark, for single-line and multi-line setext headings too
         BlockFormatterAssertions.AssertFormatsOnDisk("Title\n=====\n\n## Sub ##  \n", "# Title\n\n## Sub\n");
+        BlockFormatterAssertions.AssertFormatsOnDisk("Line one  \nline two   \n===  \n\n#   Three\n", "Line one  \nline two\n===\n\n# Three\n");
+    }
 
     /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads.
+    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
     /// </summary>
     [Fact]
-    public void HeadingFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult()
-    {
-        // Arrange: a document with every kind of heading violation
-        const string input = "Title\n=====\n\n  ## Two ##  \n\n#   Three\n";
-
-        // Act: format on several threads with one shared instance
-        var results = Enumerable.Range(0, 8).AsParallel().Select(_ => BlockFormatterAssertions.ApplyFormatter(Formatter, input).Formatted).ToList();
-
-        // Assert: every thread computed the same text
-        Assert.All(results, result => Assert.Equal("# Title\n\n## Two\n\n# Three\n", result));
-    }
+    public void HeadingFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
+        BlockFormatterAssertions.AssertConcurrentFormatting(
+            Formatter,
+            "Title\n=====\n\n  ## Two ##  \n\n#   Three\n\n#\tTab\ta\n",
+            "# Title\n\n## Two\n\n# Three\n\n# Tab   a\n");
 }

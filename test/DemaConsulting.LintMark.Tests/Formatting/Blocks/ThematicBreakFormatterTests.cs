@@ -233,6 +233,26 @@ public class ThematicBreakFormatterTests
         AssertFormats("text\n***  \n", "text\n***\n");
 
     /// <summary>
+    ///     Test that a break that is missing from the block list of a hand-built document has no previous sibling, so it
+    ///     is not taken for a break under text and nothing is thrown.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_BreakMissingFromBlockList_HasNoPreviousSibling()
+    {
+        // Arrange: a break directly under text, in a document whose block list lacks the break
+        var parsed = BlockFormatterAssertions.Parse("text\n***\n");
+        var block = BlockFormatterAssertions.FirstBlock(parsed, BlockKind.ThematicBreak);
+        var document = parsed with { Blocks = [.. parsed.Blocks.Where(candidate => !ReferenceEquals(candidate, block))] };
+        var edits = new EditSet();
+
+        // Act: format the break that the list does not hold
+        Formatter.Format(new FormatContext(document, LintMarkConfig.Default), block, edits);
+
+        // Assert: the paragraph is not taken for a sibling above the break, so the break is converted
+        Assert.NotEmpty(edits.ToImmutable());
+    }
+
+    /// <summary>
     ///     Test that a break directly under a heading, a code block, a list or a table is converted, because it cannot underline anything there.
     /// </summary>
     [Theory]
@@ -284,25 +304,131 @@ public class ThematicBreakFormatterTests
         AssertFormats("text\n\n* ---\n", "text\n\n* ---\n", AsteriskConfig);
 
     /// <summary>
-    ///     Test that a break is left as written when a rule of the formatter is suppressed, by identifier or by alias.
+    ///     Test that a break after a plus sign list marker is not written as dashes, because <c>+ ---</c> looks like a
+    ///     grid table border, and is converted when the configuration wants another character.
+    /// </summary>
+    [Theory]
+    [InlineData("+ ***\n")]
+    [InlineData("text\n\n+ ***\n")]
+    [InlineData("text\n\n+ * * *\n")]
+    [InlineData("+ ___\n")]
+    [InlineData("text\n\n+  ___\n")]
+    [InlineData("> + ***\n")]
+    public void ThematicBreakFormatter_Format_BreakAfterPlusListMarker_StaysAsWrittenWhenDashesAreWanted(string input)
+    {
+        // Act & Assert: the production formatters leave the break alone, and the result renders the same and is stable
+        BlockFormatterAssertions.AssertFormats(input, input);
+        AssertFormats(input, input);
+    }
+
+    /// <summary>
+    ///     Test that a break after a plus sign list marker is converted when asterisks or underscores are wanted.
+    /// </summary>
+    [Theory]
+    [InlineData("text\n\n+ * * *\n", "text\n\n+ ***\n", true)]
+    [InlineData("text\n\n+ ***\n", "text\n\n+ ___\n", false)]
+    [InlineData("text\n\n+ - - -\n", "text\n\n+ ___\n", false)]
+    public void ThematicBreakFormatter_Format_BreakAfterPlusListMarkerWithOtherCharacter_IsConverted(string input, string expected, bool asterisks)
+    {
+        // Act & Assert: the break becomes the configured characters, safely and stably
+        var config = asterisks ? AsteriskConfig : UnderscoreConfig;
+        BlockFormatterAssertions.AssertFormats(input, expected, config);
+        AssertFormats(input, expected, config);
+    }
+
+    /// <summary>
+    ///     Test that the trailing whitespace behind a guarded break is still removed.
+    /// </summary>
+    [Theory]
+    [InlineData("text\n\n+ ***   \n", "text\n\n+ ***\n")]
+    [InlineData("text\n\n- ***\t\n", "text\n\n- ***\n")]
+    public void ThematicBreakFormatter_Format_GuardedBreakWithTrailingWhitespace_OnlyLosesTheWhitespace(string input, string expected)
+    {
+        // Act & Assert: the whitespace goes, the break stays
+        BlockFormatterAssertions.AssertFormats(input, expected);
+        AssertFormats(input, expected);
+    }
+
+    /// <summary>
+    ///     Test that a break behind an ordered list marker is converted, because the marker cannot be part of the break.
+    /// </summary>
+    [Theory]
+    [InlineData("text\n\n1. ***\n", "text\n\n1. ---\n")]
+    [InlineData("text\n\n2) * * *\n", "text\n\n2) ---\n")]
+    public void ThematicBreakFormatter_Format_BreakAfterOrderedListMarker_IsConverted(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that a break directly under a pipe table is converted, because a table is a complete block.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_BreakAfterTable_IsConverted() =>
+        AssertFormats("| a |\n|---|\n| 1 |\n***\n", "| a |\n|---|\n| 1 |\n---\n");
+
+    /// <summary>
+    ///     Test that a break on the line under front matter, HTML or a link reference definition counts as under text and
+    ///     is left as written when dashes are wanted (the guard is conservative).
+    /// </summary>
+    [Theory]
+    [InlineData("---\na: b\n---\n***\n")]
+    [InlineData("<div>\nx\n</div>\n***\n")]
+    [InlineData("[a]: /url\n***\n")]
+    public void ThematicBreakFormatter_Format_BreakUnderNonTextBlocksThatCountAsText_StaysAsWritten(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that the first-line break is converted to underscores when the configuration asks for them, and that a
+    ///     break after a list marker of the configured character is left as written for asterisks and converted for underscores.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_FirstLineAndListMarkerWithOtherConfigurations_FollowTheGuards()
+    {
+        // Act & Assert: underscores cannot start front matter and are not a list marker
+        AssertFormats("***\n\ntext\n", "___\n\ntext\n", UnderscoreConfig);
+        AssertFormats("text\n\n- ***\n", "text\n\n- ___\n", UnderscoreConfig);
+
+        // An asterisk list marker keeps a break of asterisks and underscores as written: converted, the line would be a break by itself
+        AssertFormats("text\n\n* ___\n", "text\n\n* ___\n", AsteriskConfig);
+    }
+
+    /// <summary>
+    ///     Test that a break is left as written, with all of its whitespace, when any rule of the formatter is
+    ///     suppressed in it, by identifier or by alias (<c>trailing-whitespace</c> and <c>thematic-break</c> are both rules of the formatter).
     /// </summary>
     [Theory]
     [InlineData("lintmark-disable thematic-break")]
     [InlineData("markdownlint-disable MD035")]
     [InlineData("markdownlint-disable MD009")]
+    [InlineData("lintmark-disable trailing-whitespace")]
     [InlineData("lintmark-disable")]
     public void ThematicBreakFormatter_Format_RuleSuppressed_LeavesTheBreak(string directive)
     {
         // Arrange: a break inside a region that disables the rule
-        var text = $"<!-- {directive} -->\n\ntext\n\n***\n";
+        var text = $"<!-- {directive} -->\n\ntext\n\n***  \n";
 
         // Act: format with the thematic break formatter registered
         var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter([Formatter]), text);
 
-        // Assert: nothing changes and nothing is reported
+        // Assert: nothing changes, not even the whitespace behind the break, and nothing is reported
         Assert.Equal(text, formatted);
         Assert.Empty(result.Edits);
         Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a break outside the region that suppresses a rule is formatted.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_BreakAfterEnabledAgain_IsFormatted()
+    {
+        // Arrange: one break in a disabled region and one after it
+        const string input = "<!-- lintmark-disable thematic-break -->\n\ntext\n\n***\n\n<!-- lintmark-enable thematic-break -->\n\n***\n";
+
+        // Act: format
+        var (_, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter([Formatter]), input);
+
+        // Assert: only the later break changes
+        Assert.Equal("<!-- lintmark-disable thematic-break -->\n\ntext\n\n***\n\n<!-- lintmark-enable thematic-break -->\n\n---\n", formatted);
     }
 
     /// <summary>
@@ -337,25 +463,37 @@ public class ThematicBreakFormatterTests
     }
 
     /// <summary>
+    ///     Test that CRLF line endings, and mixed line endings, do not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_CrlfLineEndings_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, "text\n\n***  \n\nmore\n\n- - -\n");
+
+    /// <summary>
+    ///     Test that a byte order mark does not change the edits that the formatter proposes.
+    /// </summary>
+    [Fact]
+    public void ThematicBreakFormatter_Format_ByteOrderMark_ProposesTheSameEdits() =>
+        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, "text\n\n***  \n\nmore\n\n- - -\n");
+
+    /// <summary>
     ///     Test that CRLF line endings and a byte order mark survive formatting a break.
     /// </summary>
     [Fact]
-    public void ThematicBreakFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark() =>
+    public void ThematicBreakFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark()
+    {
+        // Act & Assert: the written bytes keep the endings and the mark
         BlockFormatterAssertions.AssertFormatsOnDisk("text\n\n***  \n", "text\n\n---\n");
+        BlockFormatterAssertions.AssertFormatsOnDisk("text\n\n***  \n\nmore\n\n- - -\n", "text\n\n---\n\nmore\n\n---\n");
+    }
 
     /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads.
+    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
     /// </summary>
     [Fact]
-    public void ThematicBreakFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult()
-    {
-        // Arrange: a document with several kinds of breaks
-        const string input = "text\n\n***\n\n___\n\n- - -\n";
-
-        // Act: format on several threads with one shared instance
-        var results = Enumerable.Range(0, 8).AsParallel().Select(_ => BlockFormatterAssertions.ApplyFormatter(Formatter, input).Formatted).ToList();
-
-        // Assert: every thread computed the same text
-        Assert.All(results, result => Assert.Equal("text\n\n---\n\n---\n\n---\n", result));
-    }
+    public void ThematicBreakFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
+        BlockFormatterAssertions.AssertConcurrentFormatting(
+            Formatter,
+            "text\n\n***\n\n___\n\n- - -\n\n+ ***\n",
+            "text\n\n---\n\n---\n\n---\n\n+ ***\n");
 }

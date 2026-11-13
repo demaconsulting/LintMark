@@ -83,6 +83,7 @@ internal sealed class InlineMap
     ///     Builds the map of an inline tree.
     /// </summary>
     /// <param name="root">The inline content of a leaf block, or <see langword="null"/> when the block has none.</param>
+    /// <param name="shift">A constant added to every offset the parser reports, for the rare block whose spans are known to be off by a fixed amount (zero for none).</param>
     /// <returns>The map; <see cref="Empty"/> when <paramref name="root"/> is null.</returns>
     /// <remarks>
     ///     Literal text and line breaks are the editable parts. Emphasis and similar containers are walked
@@ -90,7 +91,7 @@ internal sealed class InlineMap
     ///     bracketed text of an inline link as its label, so the whitespace inside link text stays as written.
     ///     Every other inline (code, HTML, math, autolink URLs, footnote references, task markers) is protected as a whole.
     /// </remarks>
-    public static InlineMap Build(ContainerInline? root)
+    public static InlineMap Build(ContainerInline? root, int shift = 0)
     {
         if (root is null)
         {
@@ -100,7 +101,7 @@ internal sealed class InlineMap
         var text = new List<(int, int)>();
         var guarded = new List<(int, int)>();
         var breaks = new Dictionary<int, bool>();
-        Visit(root, text, guarded, breaks);
+        Visit(root, shift, text, guarded, breaks);
         return new InlineMap(Merge(text), Merge(guarded), breaks);
     }
 
@@ -136,38 +137,39 @@ internal sealed class InlineMap
     ///     Walks the children of an inline container and records what each child contributes.
     /// </summary>
     /// <param name="container">The container.</param>
+    /// <param name="shift">The constant added to every offset.</param>
     /// <param name="text">Receives the plain text spans.</param>
     /// <param name="guarded">Receives the protected spans.</param>
     /// <param name="breaks">Receives the line breaks.</param>
-    private static void Visit(ContainerInline container, List<(int, int)> text, List<(int, int)> guarded, Dictionary<int, bool> breaks)
+    private static void Visit(ContainerInline container, int shift, List<(int, int)> text, List<(int, int)> guarded, Dictionary<int, bool> breaks)
     {
         for (var child = container.FirstChild; child is not null; child = child.NextSibling)
         {
             switch (child)
             {
                 case LiteralInline literal:
-                    AddSpan(text, literal.Span.Start, literal.Span.End);
+                    AddSpan(text, literal.Span.Start, literal.Span.End, shift);
                     break;
 
                 case LineBreakInline lineBreak:
-                    breaks[lineBreak.Span.Start] = lineBreak.IsHard && !lineBreak.IsBackslash;
+                    breaks[lineBreak.Span.Start + shift] = lineBreak.IsHard && !lineBreak.IsBackslash;
                     break;
 
                 // A link keeps its text editable; the destination, title and label are part of the rendered result
                 case LinkInline link:
-                    AddSpan(guarded, link.UrlSpan.Start, link.UrlSpan.End);
-                    AddSpan(guarded, link.TitleSpan.Start, link.TitleSpan.End);
-                    AddSpan(guarded, link.LabelSpan.Start, link.LabelSpan.End);
-                    Visit(link, text, guarded, breaks);
+                    AddSpan(guarded, link.UrlSpan.Start, link.UrlSpan.End, shift);
+                    AddSpan(guarded, link.TitleSpan.Start, link.TitleSpan.End, shift);
+                    AddSpan(guarded, link.LabelSpan.Start, link.LabelSpan.End, shift);
+                    Visit(link, shift, text, guarded, breaks);
                     break;
 
                 // Emphasis and other containers only wrap text
                 case ContainerInline nested:
-                    Visit(nested, text, guarded, breaks);
+                    Visit(nested, shift, text, guarded, breaks);
                     break;
 
                 default:
-                    AddSpan(guarded, child.Span.Start, child.Span.End);
+                    AddSpan(guarded, child.Span.Start, child.Span.End, shift);
                     break;
             }
         }
@@ -179,11 +181,12 @@ internal sealed class InlineMap
     /// <param name="spans">The list.</param>
     /// <param name="start">First offset of the span.</param>
     /// <param name="end">Last offset of the span (inclusive).</param>
-    private static void AddSpan(List<(int, int)> spans, int start, int end)
+    /// <param name="shift">The constant added to both offsets of a valid span.</param>
+    private static void AddSpan(List<(int, int)> spans, int start, int end, int shift)
     {
         if (start >= 0 && end >= start)
         {
-            spans.Add((start, end));
+            spans.Add((start + shift, end + shift));
         }
     }
 

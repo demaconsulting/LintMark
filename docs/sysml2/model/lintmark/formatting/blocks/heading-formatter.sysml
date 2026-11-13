@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def HeadingFormatter {
-        doc /* Proposes the edits that write each heading in the canonical form, ATX with exactly one space after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs in the text, and leaves a heading alone where the conversion could change its meaning. */
+        doc /* Proposes the edits that write each heading in the canonical form, ATX with exactly one space after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs in the text, and leaves a heading alone where the conversion could change its meaning or where the parser's inline spans do not fit its line. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Blocks/HeadingFormatter.cs");

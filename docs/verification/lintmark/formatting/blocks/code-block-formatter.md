@@ -8,7 +8,11 @@ the test project (`BlockFormatterAssertions`) applies the formatter alone, witho
 text, and asserts that the result is the expected text, that it renders to the same HTML as the input, that it keeps its
 Pandoc structure, and that the formatter has nothing more to do with the result. Most scenarios are theories with
 several inputs, and the fence character is varied through the configuration. Suppression is driven by real suppression
-comments. The test for concurrent use shares one formatter instance and one document among many threads.
+comments. The test for concurrent use parses one document once and shares it, with one formatter instance, among eight
+threads that start together at a barrier; each thread formats it many times into its own edit set, and every result is
+compared with the result of a single call. Two tests build a damaged block by hand (the reported end of a fenced block
+moved to a content line, and an indented block that reaches an unindented line) to reach the guards for lines that are not
+what the parser reported.
 
 ##### Test Environment
 
@@ -22,14 +26,15 @@ N/A - standard test environment.
 - The fence character follows the configuration, the new fence is long enough that no content line can close it, and a
   fence is not converted when that would change the block (a backtick in the info string for a backtick fence, a braced
   info string).
-- Fences in a quote or list are converted in place.
-- A top-level indented block becomes a fenced block with the same content, and one in a list or quote, or one whose
-  fenced form would create front matter, stays as written.
+- Fences in a quote or list, and a top-level fence indented by one to three columns, are converted in place.
+- A top-level indented block becomes a fenced block with the same content, including what is left of a whitespace-only
+  line wider than the indentation at its end, and one in a list or quote, or one whose fenced form would create front
+  matter, stays as written.
 - Trailing whitespace is removed from the fence lines only, and the content of a fence is never changed.
 - Each edit is attributed to the rule that it enforces, and a canonical block produces no edit.
 - A block in which a rule is suppressed is left as written.
-- CRLF line endings and a byte order mark do not change the edits, and one shared instance gives the same result on many
-  threads.
+- CRLF line endings, mixed line endings, and a byte order mark do not change the edits, and one shared parsed document
+  gives the same result on many threads.
 
 ##### Test Scenarios
 
@@ -52,14 +57,24 @@ backticks, or two backticks, is formatted. The new fence has one more backtick t
 a content line is formatted. Only the fence lines change.
 
 **A fence in a container is converted in place**: Tilde fences in a list item, a quote, an ordered list item with an info
-string, and a list in a quote are formatted. Each is converted and its prefix and indentation stay.
+string, and a list in a quote are formatted, and so are a top-level fence indented by one to three columns, fences in a
+quote or list with trailing whitespace, and a fence whose closing fence is longer than the opening one around content
+that looks like a fence. Each is converted, its prefix and indentation stay, and the fence lines lose trailing
+whitespace.
 
 **An indented block becomes a fenced block**: Indented blocks of one and several lines, with a tab, with a blank line
 inside, with a line of extra indentation, with trailing spaces, and after a heading are formatted. Each becomes a fenced
-block that has the content of the block with four columns of indentation removed.
+block that has the content of the block with four columns of indentation removed. A line of fewer than four columns
+between two lines of code (one or two spaces, a space, a tab) becomes an empty line of the code.
 
 **Blank lines after an indented block stay outside the fence**: An indented block followed by blank lines and a
 paragraph is formatted. The fence ends after the last line of code and the blank lines follow it.
+
+**A wide whitespace-only line that ends an indented block stays in the fence**: An indented block that ends with a line
+of six or five spaces, or of a tab and two spaces, with or without blank lines and text after it, and one with such lines
+before an exactly four columns wide line, is formatted. What is left of the wide line after four columns is the last
+line of the fenced block (an exactly four columns wide line is dropped), and the result renders the same, with the
+production formatters and with the formatter alone.
 
 **An indented block that holds fence lookalikes gets a longer fence**: An indented block whose lines start with three and
 four backticks is formatted. The new fence is longer than any of them.
@@ -89,11 +104,16 @@ blank lines, or a dashes line are formatted. Their content is unchanged.
 
 **A fence that is never closed is not touched**: An unclosed fence is formatted. No edit results.
 
+**A block with an unexpected shape is not touched (defensive, no requirement)**: A fenced block whose reported end is
+moved to a content line, one whose reported end is its opening line, and an indented block that reaches an unindented
+line are formatted. No edit results.
+
 **A suppressed rule leaves the block alone**: A comment that disables `code-fence`, `MD048`, `MD046`, `MD009`, or all rules
 precedes a block that breaks that rule. The block is unchanged.
 
-**CRLF line endings and a byte order mark do not change the edits**: A document parsed from bytes with CRLF line endings
-and a byte order mark gives the same edits as the LF text.
+**CRLF line endings and a byte order mark do not change the edits**: A document parsed from bytes with CRLF line endings,
+one with mixed line endings, and one with a byte order mark give the same edits as the LF text (separate tests for the
+line endings and for the mark), and the formatted bytes keep the endings and the mark.
 
 ###### Error handling
 
@@ -106,5 +126,5 @@ argument, throw `ArgumentNullException`.
 **The rule list is immutable**: The `RuleIds` property lists the three code block rules, and a cast to a mutable type
 cannot change it.
 
-**One shared instance gives one result on many threads**: One formatter and one document are used by many threads. Every
-result equals the result of a single call.
+**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight threads
+that start together; each formats it many times into its own edit set. Every result equals the result of a single call.

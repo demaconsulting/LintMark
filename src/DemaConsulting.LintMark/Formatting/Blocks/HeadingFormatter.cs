@@ -28,7 +28,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 
 /// <summary>
 ///     Writes headings in the canonical form: ATX (<c># Title</c>) with exactly one space after the number signs,
-///     no closing number signs, no indentation, and no trailing whitespace.
+///     no closing number signs, no indentation, no trailing whitespace and no tabs in the text.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -43,7 +43,9 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///     <para>
 ///         Every edit is computed from the source line of the heading, never from the parser's span, because the
 ///         span of an ATX heading ends inconsistently (after trailing spaces, but before closing number signs). A
-///         line that does not have the shape the parser promised produces no edit at all. Text that merely looks
+///         line that does not have the shape the parser promised produces no edit at all. The parser's inline spans
+///         are used only to tell plain text from code, and only after they have been matched to the line (see
+///         the design): a heading with a tab in its text whose spans do not fit is left alone as a whole. Text that merely looks
 ///         like a heading but is a paragraph (<c>#Title</c> without a space) is not a heading to the parser and is
 ///         never touched: adding the space would change how the document renders.
 ///     </para>
@@ -166,41 +168,134 @@ internal sealed class HeadingFormatter : IBlockFormatter
             trimmedEnd--;
         }
 
+        // A closing sequence is a run of number signs after a blank (or the whole content); it is removed with the blanks before it
+        var closingStart = FindClosingSequence(text, contentStart, trimmedEnd);
+        var contentEnd = closingStart >= 0 ? closingStart : trimmedEnd;
+        while (contentEnd > contentStart && LineLayout.IsBlankChar(text[contentEnd - 1]))
+        {
+            contentEnd--;
+        }
+
+        // Tabs in the heading text are found first: a heading whose inline spans cannot be matched to its line is left
+        // as it is, so that no rule of the formatter does half of its work in one run and the rest in the next
+        var markerColumn = indented ? 0 : ColumnOf(text, lineStart, marker);
+        if (!TryCollectTabs(layout, heading, contentStart, contentEnd, markerColumn + heading.Level + CanonicalSpace.Length, out var tabs))
+        {
+            return;
+        }
+
         // Indentation of a top-level heading is removed; a heading in a container keeps its prefix
         if (indented)
         {
             edits.Add(new TextEdit(lineStart, marker - lineStart, string.Empty, RuleCatalog.HeadingStartLeftRuleId));
         }
 
-        // A closing sequence is a run of number signs after a blank (or the whole content); it is removed with the blanks before it
-        var closingStart = FindClosingSequence(text, contentStart, trimmedEnd);
-        if (closingStart >= 0)
-        {
-            var contentEnd = closingStart;
-            while (contentEnd > contentStart && LineLayout.IsBlankChar(text[contentEnd - 1]))
-            {
-                contentEnd--;
-            }
-
-            // An empty heading keeps its marker only, so the blanks after the marker go as well
-            var removeFrom = contentEnd == contentStart ? afterMarker : contentEnd;
-            edits.Add(new TextEdit(removeFrom, trimmedEnd - removeFrom, string.Empty, RuleCatalog.HeadingStyleRuleId));
-            AddTrailing(edits, trimmedEnd, lineEnd);
-            AddSpaceEdit(edits, text, afterMarker, contentStart, contentEnd > contentStart);
-            AddTabs(layout, block, heading, edits);
-            return;
-        }
-
         // Without a closing sequence: empty headings lose every blank after the marker, others get exactly one blank
-        if (contentStart == trimmedEnd)
+        if (closingStart < 0 && contentStart == trimmedEnd)
         {
             AddTrailing(edits, afterMarker, lineEnd);
             return;
         }
 
-        AddSpaceEdit(edits, text, afterMarker, contentStart, true);
+        if (closingStart >= 0)
+        {
+            // An empty heading keeps its marker only, so the blanks after the marker go as well
+            var removeFrom = contentEnd == contentStart ? afterMarker : contentEnd;
+            edits.Add(new TextEdit(removeFrom, trimmedEnd - removeFrom, string.Empty, RuleCatalog.HeadingStyleRuleId));
+        }
+
         AddTrailing(edits, trimmedEnd, lineEnd);
-        AddTabs(layout, block, heading, edits);
+        AddSpaceEdit(edits, text, afterMarker, contentStart, contentEnd > contentStart);
+        foreach (var (offset, spaces) in tabs)
+        {
+            edits.Add(new TextEdit(offset, 1, new string(' ', spaces), RuleCatalog.HardTabsRuleId));
+        }
+    }
+
+    /// <summary>
+    ///     Gets the column of an offset in a line, counting a tab as far as the next tab stop.
+    /// </summary>
+    /// <param name="text">The document text.</param>
+    /// <param name="lineStart">Offset of the start of the line.</param>
+    /// <param name="offset">The offset in the line.</param>
+    /// <returns>The zero-based column.</returns>
+    private static int ColumnOf(string text, int lineStart, int offset)
+    {
+        var column = 0;
+        for (var position = lineStart; position < offset; position++)
+        {
+            column = text[position] == '\t' ? LineLayout.NextTabStop(column) : column + 1;
+        }
+
+        return column;
+    }
+
+    /// <summary>
+    ///     Finds the tabs of the text of a heading that become spaces.
+    /// </summary>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="heading">The parser's heading.</param>
+    /// <param name="contentStart">Offset of the first character of the heading text.</param>
+    /// <param name="contentEnd">Offset after the last character of the heading text (before any closing sequence).</param>
+    /// <param name="startColumn">The column that the heading text starts in once the heading is canonical.</param>
+    /// <param name="tabs">Receives the offset of each tab and the spaces that replace it.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the text has no tab, or has tabs and the parser's inline spans fit the line;
+    ///     <see langword="false"/> when the spans cannot be trusted and the heading must be left alone.
+    /// </returns>
+    private static bool TryCollectTabs(
+        LineLayout layout,
+        HeadingBlock heading,
+        int contentStart,
+        int contentEnd,
+        int startColumn,
+        out ImmutableArray<(int Offset, int Spaces)> tabs)
+    {
+        tabs = [];
+        if (!layout.Text.AsSpan(contentStart, contentEnd - contentStart).Contains('\t'))
+        {
+            return true;
+        }
+
+        if (!TryBuildMap(heading, contentStart, contentEnd, out var map))
+        {
+            return false;
+        }
+
+        tabs = LeafWhitespace.CollectTabs(layout, map, contentStart, contentEnd, startColumn, startsInText: true);
+        return true;
+    }
+
+    /// <summary>
+    ///     Builds the inline map of a heading whose text lies at known offsets of its line.
+    /// </summary>
+    /// <param name="heading">The parser's heading.</param>
+    /// <param name="contentStart">Offset of the first character of the heading text.</param>
+    /// <param name="contentEnd">Offset after the last character of the heading text.</param>
+    /// <param name="map">Receives the map, with the spans moved to where the text really is.</param>
+    /// <returns><see langword="true"/> when the first and the last inline fit the text once the spans are moved.</returns>
+    /// <remarks>
+    ///     When the opening number signs are followed by a tab the parser reports the spans of the inlines of an
+    ///     ATX heading relative to the start of the heading instead of the start of the document (a heading that is
+    ///     not on the first line gets spans that are too small by a constant). The shift is taken from the first
+    ///     inline and confirmed by the end of the last: spans that still do not fit are not trusted.
+    /// </remarks>
+    private static bool TryBuildMap(HeadingBlock heading, int contentStart, int contentEnd, out InlineMap map)
+    {
+        map = InlineMap.Empty;
+        if (heading.Inline is not { FirstChild: { } first, LastChild: { } last } inline)
+        {
+            return false;
+        }
+
+        var shift = contentStart - first.Span.Start;
+        if (first.Span.Start < 0 || last.Span.End + shift != contentEnd - 1)
+        {
+            return false;
+        }
+
+        map = InlineMap.Build(inline, shift);
+        return true;
     }
 
     /// <summary>
@@ -267,24 +362,6 @@ internal sealed class HeadingFormatter : IBlockFormatter
     }
 
     /// <summary>
-    ///     Adds the edits that replace tabs in the heading text by spaces.
-    /// </summary>
-    /// <param name="layout">The line arithmetic of the document.</param>
-    /// <param name="block">The heading block.</param>
-    /// <param name="heading">The parser's heading.</param>
-    /// <param name="edits">Receives the edits.</param>
-    private static void AddTabs(LineLayout layout, BlockInfo block, HeadingBlock heading, EditSet edits)
-    {
-        if (heading.Inline is not { } inline)
-        {
-            return;
-        }
-
-        var line = layout.LineOf(block.Start);
-        LeafWhitespace.AddLineEdits(layout, InlineMap.Build(inline), line, line, block.Start, trailing: false, tabs: true, edits);
-    }
-
-    /// <summary>
     ///     Formats a setext heading.
     /// </summary>
     /// <param name="layout">The line arithmetic of the document.</param>
@@ -343,16 +420,21 @@ internal sealed class HeadingFormatter : IBlockFormatter
 
         var indentation = contentStart - lineStart;
         if (contentEnd == contentStart || indentation > MaxIndentation || text.AsSpan(lineStart, indentation).Contains('\t')
-            || StartsLikeStructure(text, contentStart) || text[contentEnd - 1] is '#' or '\\' || heading.Inline is not { } inline)
+            || StartsLikeStructure(text, contentStart) || text[contentEnd - 1] is '#' or '\\')
         {
             return false;
         }
 
-        // Tabs in the text become spaces in the same edit, counted from the column the text has in the new line
+        // Tabs in the text become spaces in the same edit, counted from the column the text has in the new line; spans that do not fit the line keep the heading setext
         var prefix = new string('#', heading.Level) + CanonicalSpace;
         var builder = new StringBuilder(prefix);
         var position = contentStart;
-        foreach (var (offset, spaces) in LeafWhitespace.CollectTabs(layout, InlineMap.Build(inline), contentStart, contentEnd, prefix.Length))
+        if (!TryCollectTabs(layout, heading, contentStart, contentEnd, prefix.Length, out var tabs))
+        {
+            return false;
+        }
+
+        foreach (var (offset, spaces) in tabs)
         {
             builder.Append(text, position, offset - position).Append(' ', spaces);
             position = offset + 1;
@@ -370,11 +452,11 @@ internal sealed class HeadingFormatter : IBlockFormatter
     /// <param name="start">Offset of the first character of the heading text.</param>
     /// <returns>
     ///     <see langword="true"/> when the text starts with a plus sign (a grid table border), a colon (a fenced
-    ///     div), a backslash (a LaTeX command), a dollar sign (display math) or a braced code fence: written
-    ///     after the number signs it would no longer be that line.
+    ///     div), a backslash (a LaTeX command) or a dollar sign (display math): written after the number signs it
+    ///     would no longer be that line.
     /// </returns>
     private static bool StartsLikeStructure(string text, int start) =>
-        text[start] is '+' or ':' or '\\' or '$' || text.AsSpan(start).StartsWith("```{", StringComparison.Ordinal);
+        text[start] is '+' or ':' or '\\' or '$';
 
     /// <summary>
     ///     Determines whether a line is a setext underline: a run of equals signs or hyphens that ends the line,

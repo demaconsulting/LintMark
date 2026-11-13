@@ -43,17 +43,28 @@ Guards (`IsGuarded`) keep the new form from being read differently:
 
 - *List marker guard*: when the text before the break on the line holds the first character of the target, as in
   `- ***` becoming `- ---`, the line would become a thematic break of its own and the list would be lost.
-- *First line guard*: a dashes break at the start of the first line of the file could open front matter.
+- *Grid border guard*: a line that starts with a plus sign after any quote and list markers (`+ ***`, a plus sign list
+  marker) is left as written when the target is dashes, because `+ ---` looks like the border of a grid table and
+  Pandoc may read the line as part of a table (`LineLayout.LooksLikeGridBorder`). Asterisks and underscores after a plus
+  sign are converted, because `+ ___` is no border.
+- *First line guard*: a dashes break at the start of the first line of the file could open front matter. It is a check
+  of its own because the front matter guard below judges a document whose first line is already dashes, while this one
+  is for a break that would become that line.
 - *Front matter guard*: a dashes break could close front matter that the first line opens (`FrontMatterGuard`).
 - *Setext guard*: a dashes break directly under a line of text underlines it. A break is guarded unless it is the first
   block of its container, follows a blank line, or follows a block that is complete in itself (a heading, code block,
-  break, list, quote, or table). The previous block is taken from the flattened block list, because the parser's tree
-  groups link reference definitions at the root. The set of blocks matches the blocks that the block spacing pass
+  break, list, quote, or table). Every other block above the break (a paragraph, an HTML block, a link reference
+  definition, front matter, a footnote, math, a grid table) counts as text, which is conservative: the break stays as
+  written. The previous block is taken from the flattened block list, found by position (a binary search, then the
+  nearest earlier block with the same parent), because the parser's tree groups link reference definitions at the root.
+  The set of blocks matches the blocks that the block spacing pass
   separates, so that the decision does not depend on blank lines inserted in the same run, which keeps formatting
   idempotent.
 
 The guards other than the list marker guard apply to the dash form only, because asterisks and underscores cannot
-create a heading or front matter.
+create a heading, front matter, or a grid border. When any rule of the formatter is suppressed inside the break
+(`thematic-break` or `trailing-whitespace`, by identifier or alias), `DocumentFormatter` leaves the whole block as
+written, trailing whitespace included.
 
 ##### Error Handling
 

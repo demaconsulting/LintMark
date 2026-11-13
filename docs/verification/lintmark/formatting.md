@@ -66,6 +66,8 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
 - A thematic break and a code fence are written in the style that the configuration names, an indented code block
   becomes a fenced one, and a braced fence keeps its character.
 - Code, HTML, math, front matter, and a fence that is never closed keep their content.
+- A line that looks like the border of a grid table is not changed.
+- No blank line is inserted next to a line that looks like the border of a grid table.
 - Each change is reported as a formatting problem of its rule at the place where the change starts.
 - The canonical document, and the result of formatting a document, produce no edit and no problem.
 
@@ -161,9 +163,16 @@ is as written under the tilde style.
 **An indented code block becomes a fenced one**: An indented code block after a heading is formatted. It becomes a
 fenced code block with the same content, separated from the heading by a blank line.
 
-**Code, HTML, math, and front matter keep their content**: A document with front matter, a fenced code block, an HTML
-block, and a math block, each with trailing whitespace, tabs, and blank lines, is formatted. No edit and no problem
-result.
+**Code, HTML, math, front matter, and grid tables keep their content**: A document with front matter, a fenced code
+block, an HTML block, a math block, and a grid table, each with trailing whitespace, tabs, and blank lines, is formatted.
+No edit and no problem result.
+
+**A line that looks like a grid table border is not changed**: Lines that start with a plus sign after a list marker or
+a quote marker, with trailing whitespace, are formatted with the heading, code block, and thematic break formatters. No
+edit and no problem result.
+
+**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
+directly after text, is formatted with the same formatters. No blank line is inserted.
 
 **Quotes and lists keep their blank lines**: A list item with a fence, a quote with a heading directly followed by text,
 and a list with two blank lines between its items are formatted. No edit results.

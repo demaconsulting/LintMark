@@ -76,23 +76,43 @@ public class DocumentFormatterPassTests
         AssertPasses(input, input);
 
     /// <summary>
-    ///     Test that whitespace inside code spans, inline HTML and link titles is kept.
+    ///     Test that whitespace inside code spans, inline HTML, and math is kept.
     /// </summary>
     [Theory]
     [InlineData("text `a  \nb` end\n")]
     [InlineData("a <span  \nclass=\"x\">b</span>\n")]
-    [InlineData("[a](http://x \"t  \nu\")\n")]
     [InlineData("a $x  \ny$ b\n")]
-    public void DocumentFormatter_Format_ProtectedInlineSpans_KeepTheirWhitespace(string input) =>
+    public void DocumentFormatter_Format_LiteralInlineSpans_KeepTheirWhitespace(string input) =>
         AssertPasses(input, input);
 
     /// <summary>
-    ///     Test that table rows and single-line definitions lose trailing whitespace.
+    ///     Test that whitespace inside a link title is kept.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_LinkTitle_KeepsItsWhitespace() =>
+        AssertPasses("[a](http://x \"t  \nu\")\n", "[a](http://x \"t  \nu\")\n");
+
+    /// <summary>
+    ///     Test that table rows lose trailing whitespace.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_TableRows_LoseTrailingWhitespace() =>
+        AssertPasses("| a | b |  \n|---|---|\n| 1 | 2 |   \n", "| a | b |\n|---|---|\n| 1 | 2 |\n");
+
+    /// <summary>
+    ///     Test that a single-line link reference definition loses trailing whitespace.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_Definitions_LoseTrailingWhitespace() =>
+        AssertPasses("[a]: http://x  \n", "[a]: http://x\n");
+
+    /// <summary>
+    ///     Test that a thematic break that no block formatter accepts loses trailing whitespace.
     /// </summary>
     [Theory]
-    [InlineData("| a | b |  \n|---|---|\n| 1 | 2 |   \n", "| a | b |\n|---|---|\n| 1 | 2 |\n")]
-    [InlineData("[a]: http://x  \n", "[a]: http://x\n")]
-    public void DocumentFormatter_Format_TableRowsAndDefinitions_LoseTrailingWhitespace(string input, string expected) =>
+    [InlineData("text\n\n***  \n", "text\n\n***\n")]
+    [InlineData("text\n\n- - -\t\n", "text\n\n- - -\n")]
+    public void DocumentFormatter_Format_UnclaimedThematicBreak_LosesTrailingWhitespace(string input, string expected) =>
         AssertPasses(input, expected);
 
     /// <summary>
@@ -103,14 +123,14 @@ public class DocumentFormatterPassTests
         AssertPasses("> text\n>   \n> more\n", "> text\n>\n> more\n");
 
     /// <summary>
-    ///     Test that headings that no block formatter claims lose trailing whitespace too.
+    ///     Test that headings that no block formatter claims lose trailing whitespace too, also on a setext underline.
     /// </summary>
     [Fact]
     public void DocumentFormatter_Format_UnclaimedHeading_LosesTrailingWhitespace() =>
         AssertPasses("# Title  \n\nSetext  \n===  \n", "# Title\n\nSetext\n===\n");
 
     /// <summary>
-    ///     Test that code, HTML, math, front matter and grid tables keep their whitespace.
+    ///     Test that code and HTML blocks and display math keep their whitespace.
     /// </summary>
     [Theory]
     [InlineData("```\ncode  \n\ttab\n```\n")]
@@ -118,10 +138,65 @@ public class DocumentFormatterPassTests
     [InlineData("    code  \n")]
     [InlineData("<div>\nx  \n\ty\n</div>\n")]
     [InlineData("$$\nx  \n$$\n")]
-    [InlineData("---\ntitle: x  \n---\n\ntext\n")]
-    [InlineData("+---+---+\n| a | b |  \n+---+---+\n")]
-    public void DocumentFormatter_Format_ProtectedBlocks_KeepTheirWhitespace(string input) =>
+    public void DocumentFormatter_Format_LiteralBlocks_KeepTheirWhitespace(string input) =>
         AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that front matter keeps its whitespace.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_FrontMatter_KeepsItsWhitespace() =>
+        AssertPasses("---\ntitle: x  \n---\n\ntext\n", "---\ntitle: x  \n---\n\ntext\n");
+
+    /// <summary>
+    ///     Test that a grid table keeps its whitespace.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_GridTable_KeepsItsWhitespace() =>
+        AssertPasses("+---+---+\n| a | b |  \n+---+---+\n", "+---+---+\n| a | b |  \n+---+---+\n");
+
+    /// <summary>
+    ///     Test that a whitespace-only line that ends a top-level indented code block and is wider than its indentation is code and stays.
+    /// </summary>
+    [Theory]
+    [InlineData("x\n\n    code\n      \n", "x\n\n    code\n      \n")]
+    [InlineData("    code\n     \n\ny\n", "    code\n     \n\ny\n")]
+    [InlineData("x\n\n    code\n\t  \n\ny\n", "x\n\n    code\n\t  \n\ny\n")]
+    public void DocumentFormatter_Format_WideWhitespaceLineEndingIndentedCode_IsKeptAsCode(string input, string expected) =>
+        AssertPasses(input, expected);
+
+    /// <summary>
+    ///     Test that a whitespace-only line after an indented code block that is not wider than the indentation is a
+    ///     blank line and is emptied.
+    /// </summary>
+    [Theory]
+    [InlineData("x\n\n    code\n      \n    \n", "x\n\n    code\n      \n")]
+    [InlineData("x\n\n    code\n    \n", "x\n\n    code\n")]
+    public void DocumentFormatter_Format_WhitespaceLineNotWiderThanTheIndentation_AfterIndentedCode_IsEmptied(string input, string expected) =>
+        AssertPasses(input, expected);
+
+    /// <summary>
+    ///     Test that a whitespace-only line wider than the indentation, inside a list item, is not code and is emptied as before.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_WideWhitespaceLineAfterNestedCode_IsEmptied() =>
+        AssertPasses("- a\n\n      code\n          \n", "- a\n\n      code\n");
+
+    /// <summary>
+    ///     Test that a line that looks like the border of a grid table is not edited.
+    /// </summary>
+    [Theory]
+    [InlineData("- +---+  \n- b\n")]
+    [InlineData("> +---+\t\n> b\n")]
+    public void DocumentFormatter_Format_GridBorderLookalike_IsNotEdited(string input) =>
+        AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that no blank line is inserted between a line that looks like the border of a grid table and its neighbor.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_GridBorderLookalike_IsNotSeparated() =>
+        AssertPasses("text\n- +---+\n", "text\n- +---+\n");
 
     /// <summary>
     ///     Test that a tab in plain text becomes spaces up to the next tab stop of four columns.
@@ -248,16 +323,37 @@ public class DocumentFormatterPassTests
         AssertPasses(input, expected);
 
     /// <summary>
-    ///     Test that text that only looks like it needs a blank line (a lazy continuation, a number that cannot start
-    ///     a list there, a table row) is not touched.
+    ///     Test that text followed by a line that looks like a list item but cannot start a list there is not separated.
     /// </summary>
     [Theory]
     [InlineData("text\n2. a\n")]
-    [InlineData("- a\ntext\n")]
-    [InlineData("| a | b |\n|---|---|\n| 1 | 2 |\nno pipe here\n")]
     [InlineData("text\n    not code\n")]
-    public void DocumentFormatter_Format_TextThatIsNotAnotherBlock_IsNotSeparated(string input) =>
+    public void DocumentFormatter_Format_TextBeforeListLookalike_IsNotSeparated(string input) =>
         AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that a block that the parser reports after more than three columns or a tab on its first line is not
+    ///     separated from the text before it.
+    /// </summary>
+    [Theory]
+    [InlineData("# H\n[^]:[a]:x\n")]
+    [InlineData("  1.\n\t-\n")]
+    public void DocumentFormatter_Format_BlockStartingAfterPrefixOnItsLine_IsNotSeparated(string input) =>
+        AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that the lazy continuation line of a list item is not separated from the item.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_LazyContinuationOfListItem_IsNotSeparated() =>
+        AssertPasses("- a\ntext\n", "- a\ntext\n");
+
+    /// <summary>
+    ///     Test that a line without pipes after the rows of a table is a row of the table and is not separated.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_RowWithoutPipesAfterTable_IsNotSeparated() =>
+        AssertPasses("| a | b |\n|---|---|\n| 1 | 2 |\nno pipe here\n", "| a | b |\n|---|---|\n| 1 | 2 |\nno pipe here\n");
 
     /// <summary>
     ///     Test that no blank line is inserted next to blocks inside a list item or a quote.
@@ -359,38 +455,162 @@ public class DocumentFormatterPassTests
     }
 
     /// <summary>
-    ///     Test that the end of the file is left alone when the last block keeps its trailing blank lines.
+    ///     Test that the end of the file is left alone after a fence that is never closed, because only the end of
+    ///     the file closes it and the blank lines belong to the code.
     /// </summary>
     [Theory]
     [InlineData("```\ncode\n\n\n")]
     [InlineData("```\ncode")]
-    [InlineData("<!--\nx\n\n\n")]
-    public void DocumentFormatter_Format_EndOfBlockThatKeepsBlankLines_IsLeftAlone(string input) =>
+    public void DocumentFormatter_Format_EndOfUnclosedFence_IsLeftAlone(string input) =>
         AssertPasses(input, input);
 
     /// <summary>
-    ///     Test that a suppressed rule leaves its part of the document alone, by identifier or by alias.
+    ///     Test that the end of the file is left alone after an HTML block that no line with its end condition
+    ///     closes, because the blank lines belong to the block.
+    /// </summary>
+    [Theory]
+    [InlineData("<!--\nx\n\n\n")]
+    [InlineData("<!-- c")]
+    [InlineData("<script>\nx\n\n\n")]
+    [InlineData("text\n\n<![CDATA[\nx\n\n")]
+    public void DocumentFormatter_Format_EndOfUnclosedHtmlBlock_IsLeftAlone(string input) =>
+        AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that the end of the file is normalized after an HTML block of types 1 to 5 that its own end condition
+    ///     closes: a missing final line ending is added and extra blank lines are removed.
+    /// </summary>
+    [Theory]
+    [InlineData("text\n\n<!-- c -->", "text\n\n<!-- c -->\n")]
+    [InlineData("<!-- c -->\n\n\n", "<!-- c -->\n")]
+    [InlineData("<script>\nx\n</script>\n\n\n", "<script>\nx\n</script>\n")]
+    [InlineData("<pre>\nx\n</pre>", "<pre>\nx\n</pre>\n")]
+    [InlineData("<style>\nx\n</style>\n  \n", "<style>\nx\n</style>\n")]
+    [InlineData("<?php\n?>\n\n\n", "<?php\n?>\n")]
+    [InlineData("<![CDATA[\nx\n]]>\n\n", "<![CDATA[\nx\n]]>\n")]
+    [InlineData("<!DOCTYPE html>\n\n\n", "<!DOCTYPE html>\n")]
+    [InlineData("<!-- a -->\n\n\ntext\n", "<!-- a -->\n\ntext\n")]
+    public void DocumentFormatter_Format_EndOfClosedHtmlBlock_GetsExactlyOneLineEnding(string input, string expected) =>
+        AssertPasses(input, expected);
+
+    /// <summary>
+    ///     Test that the closing HTML comment of a document at the end of the file is no reason to leave the file
+    ///     without its final line ending, and that the violation is reported.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_FileEndingWithClosedComment_ReportsTheFinalNewline()
+    {
+        // Arrange: a document that ends with a closed comment and no line ending
+        const string input = "text\n\n<!-- markdownlint-enable -->";
+
+        // Act: format
+        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter(), input);
+
+        // Assert: the line ending is added and reported once, on the last line
+        Assert.Equal(input + "\n", formatted);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(("final-newline", 3), (diagnostic.RuleId, diagnostic.Line));
+    }
+
+    /// <summary>
+    ///     Test that a rule suppressed by its identifier leaves its part of the document alone, while the same
+    ///     content without the directive is changed.
     /// </summary>
     [Theory]
     [InlineData("lintmark-disable final-newline", "text")]
+    [InlineData("lintmark-disable trailing-whitespace", "x   \n  \ny\n")]
+    [InlineData("lintmark-disable hard-tabs", "a\tb\n")]
+    public void DocumentFormatter_Format_RuleSuppressedById_LeavesThatPart(string directive, string content) =>
+        AssertSuppressedRuleLeavesContent(directive, content);
+
+    /// <summary>
+    ///     Test that a rule suppressed by an alias leaves its part of the document alone, while the same content
+    ///     without the directive is changed.
+    /// </summary>
+    [Theory]
     [InlineData("markdownlint-disable MD047", "text")]
-    [InlineData("markdownlint-disable MD009", "text  \nmore")]
-    [InlineData("markdownlint-disable MD010", "a\tb")]
-    [InlineData("lintmark-disable trailing-whitespace", "x  \n  \ny")]
-    public void DocumentFormatter_Format_RuleSuppressed_LeavesThatPart(string directive, string content)
+    [InlineData("markdownlint-disable MD009", "text   \nmore\n")]
+    [InlineData("markdownlint-disable MD010", "a\tb\n")]
+    public void DocumentFormatter_Format_RuleSuppressedByAlias_LeavesThatPart(string directive, string content) =>
+        AssertSuppressedRuleLeavesContent(directive, content);
+
+    /// <summary>
+    ///     Assert that a document with a violation inside a region that disables its rule is left alone, and that
+    ///     the same content without the directive is changed.
+    /// </summary>
+    /// <param name="directive">Suppression directive.</param>
+    /// <param name="content">Content with a violation of the suppressed rule.</param>
+    private static void AssertSuppressedRuleLeavesContent(string directive, string content)
     {
         // Arrange: a document with a violation of the rule inside a region that disables it, and no other violation
         var text = $"<!-- {directive} -->\n\n{content}";
-        var expectedUnchangedLines = content.Split('\n');
+
+        // Act: format it, and the same content without the directive
+        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter(), text);
+        var (_, control) = BlockFormatterAssertions.Apply(new DocumentFormatter(), content);
+
+        // Assert: nothing is fixed or reported, and without the directive the content does change
+        Assert.Equal(text, formatted);
+        Assert.Empty(result.Edits);
+        Assert.Empty(result.Diagnostics);
+        Assert.NotEqual(content, control);
+    }
+
+    /// <summary>
+    ///     Test that a tab at the end of a line is kept when the trailing whitespace rule is suppressed: expanding
+    ///     it could leave two trailing spaces, which are a hard break.
+    /// </summary>
+    [Theory]
+    [InlineData("abc\t\nnext\n")]
+    [InlineData("ab\t\nnext\n")]
+    [InlineData("abc\t")]
+    public void DocumentFormatter_Format_TrailingTabWithTrailingWhitespaceSuppressed_IsKept(string content)
+    {
+        // Arrange: a trailing tab in a region that disables the trailing whitespace rule
+        var text = $"<!-- lintmark-disable trailing-whitespace -->\n\n{content}";
 
         // Act: format
         var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter(), text);
 
-        // Assert: the violation of the disabled rule is not fixed or reported
-        Assert.DoesNotContain(result.Diagnostics, diagnostic => directive.Contains(diagnostic.RuleId, StringComparison.Ordinal));
-        Assert.Contains(expectedUnchangedLines[0], formatted, StringComparison.Ordinal);
-        Assert.StartsWith($"<!-- {directive} -->\n\n", formatted, StringComparison.Ordinal);
+        // Assert: the tab stays and no hard tab is reported (at most the missing final line ending is)
+        Assert.Equal(content.EndsWith('\n') ? text : text + "\n", formatted);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.RuleId == "hard-tabs");
+        BlockFormatterAssertions.AssertSafeAndStable(text, null, new DocumentFormatter());
     }
+
+    /// <summary>
+    ///     Test that no blank line is inserted between a next-line suppression directive and the block it covers, by
+    ///     either directive family, because the blank line would take the directive's place and the suppressed rule would then fire.
+    /// </summary>
+    [Theory]
+    [InlineData("<!-- markdownlint-disable-next-line MD019 -->\n#  Heading  one\n")]
+    [InlineData("<!-- lintmark-disable-next-line heading-space -->\n#  Heading  one\n")]
+    [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD009 -->\n- a  \n- b\n")]
+    [InlineData("Intro\n\n<!-- lintmark-disable-next-line trailing-whitespace -->\n- a   \n- b\n")]
+    [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD031 -->\n```\ncode\n```\n")]
+    [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD013 -->\n| a | b |\n|---|---|\n| 1 | 2 |\n")]
+    [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD013 -->\n    code\n")]
+    public void DocumentFormatter_Format_NextLineDirectiveBeforeBlock_KeepsTheDirectiveWithItsLine(string input)
+    {
+        // Act: format with the production formatters
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(input);
+
+        // Assert: the directive still stands directly above the line it covers
+        var lines = formatted.Split('\n');
+        var directive = Array.FindIndex(lines, line => line.Contains("-disable-next-line", StringComparison.Ordinal));
+        Assert.True(directive >= 0);
+        Assert.False(string.IsNullOrWhiteSpace(lines[directive + 1]), $"A blank line follows the directive:\n{formatted}");
+    }
+
+    /// <summary>
+    ///     Test that a block without any suppression directive before it still gets its blank line, as before.
+    /// </summary>
+    [Theory]
+    [InlineData("<!-- note -->\n# H\n", "<!-- note -->\n\n# H\n")]
+    [InlineData("<!-- markdownlint-disable MD013 -->\n# H\n", "<!-- markdownlint-disable MD013 -->\n\n# H\n")]
+    [InlineData("<!-- markdownlint-disable-next-line MD013 -->\n\n# H\n", "<!-- markdownlint-disable-next-line MD013 -->\n\n# H\n")]
+    public void DocumentFormatter_Format_NoNextLineDirectiveBeforeBlock_GetsTheBlankLine(string input, string expected) =>
+        AssertPasses(input, expected);
 
     /// <summary>
     ///     Test that a blank-line rule is not applied where a region disables it.
@@ -400,6 +620,17 @@ public class DocumentFormatterPassTests
         AssertPasses(
             "<!-- lintmark-disable max-blank-lines -->\n\na\n\n\n\nb\n",
             "<!-- lintmark-disable max-blank-lines -->\n\na\n\n\n\nb\n");
+
+    /// <summary>
+    ///     Test that the whitespace of the blank lines of a run stays where the trailing whitespace rule is disabled, and that the
+    ///     surplus lines still go.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_TrailingWhitespaceSuppressedOverBlankRun_KeepsTheWhitespaceOnly() =>
+        AssertPasses(
+            "<!-- lintmark-disable trailing-whitespace -->\n\na\n  \n\n\nb\n",
+            "<!-- lintmark-disable trailing-whitespace -->\n\na\n  \nb\n",
+            LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that every edit of an always-applied rule is reported once per rule and line, at the place it changes.

@@ -96,7 +96,7 @@ internal sealed class LineLayout
     /// <summary>
     ///     Gets the offset of the first character of a line.
     /// </summary>
-    /// <param name="line">The zero-based line; may equal <see cref="LineCount"/> (the start of the text after the last line feed).</param>
+    /// <param name="line">The zero-based line; may equal <see cref="LineCount"/> only when the text ends with a line feed (the start of the empty text after it).</param>
     /// <returns>The offset.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="line"/> is negative or beyond the lines of the text.</exception>
     public int LineStart(int line)

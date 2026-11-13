@@ -58,9 +58,9 @@ internal static class TrailerPass
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(edits);
 
-        // Find the last line with content; a document without content has no trailer to fix
+        // Find the last line with content (a whitespace-only line that a block owns is content: it is code); a document without content has no trailer to fix
         var lastContent = layout.LineCount - 1;
-        while (lastContent >= 0 && layout.IsBlank(lastContent))
+        while (lastContent >= 0 && layout.IsBlank(lastContent) && ownership.LeafAt(lastContent) is null)
         {
             lastContent--;
         }
@@ -72,7 +72,7 @@ internal static class TrailerPass
 
         // Blank lines that are part of a block's content are never touched, nor are those after a footnote body that is not plain text
         var owner = ownership.LeafAt(lastContent);
-        if (owner is not null && LineOwnership.KeepsTrailingBlankLines(owner, contentFollows: false))
+        if (owner is not null && LineOwnership.KeepsTrailingBlankLines(layout, owner, contentFollows: false))
         {
             return;
         }

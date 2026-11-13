@@ -50,12 +50,16 @@ A fenced block inside a quote or list is converted in place, so its prefix and i
 
 Algorithm for an indented block (`FormatIndented`): only a top-level block is converted; one inside a quote or list
 stays indented because its indentation also carries the container. Each content line loses exactly four columns of
-leading whitespace (a tab counts up to the next tab stop, and a tab that crosses the fourth column leaves its remaining
-columns as spaces), a blank line with fewer columns becomes empty, and the blank lines after the last line with content
-are not part of the block. The replacement is the fence, the unindented lines, and the fence in one edit under the rule
-`code-block-style`. The block is left as written when an unindented line would be `---` or `...` and the document could
-open front matter on its first line (`FrontMatterGuard`), because the fenced form would otherwise close front matter
-that the document never had.
+leading whitespace (a tab counts up to the next tab stop; because tab stops are four columns wide, a tab always ends
+the removed indentation exactly at the fourth column, so what is left of a line is its content), a blank line with
+fewer columns becomes empty, and the blank lines after the last line of the block are not part of it. The last line of
+the block is the last line with content, or a whitespace-only line that is wider than the four columns of indentation:
+the parser keeps what is left of such a line as the last line of the code (`LineOwnership.LinesOf`), so that rest
+stays in the fence and the converted block renders the same. The replacement is the fence, the unindented lines, and the
+fence in one edit under the rule `code-block-style`. The block is left as written when an unindented line would be `---`
+or `...` and the document could open front matter on its first line (`FrontMatterGuard`), because the fenced form would
+otherwise close front matter that the document never had, and when a line of the block has less than four columns of
+indentation and holds content (the lines are not what the parser reported).
 
 ##### Error Handling
 

@@ -20,9 +20,14 @@ These three checks are the ones that the `Engine` subsystem runs before it write
 tests and are verified in the `Safety` subsystem.
 
 `BlocksSubsystemTests` covers the interaction of the three block formatters with the document passes on hand-written
-documents: a document that breaks every rule, its canonical form, nested containers, Pandoc constructs, front matter,
-HTML, hard breaks, tabs, indented code in many forms, tilde fences, thematic breaks, setext headings, spacing, and the
-configured settings. `BlocksCorpusTests` runs the same assertion helper over every Markdown file of the repository as
+documents: a document that breaks every rule (all 14 rules of the subsystem), its canonical form, nested containers,
+Pandoc constructs, front matter, HTML, hard breaks, tabs, indented code in many forms, tilde fences, thematic breaks,
+setext headings, spacing, suppression comments, and the configured settings. The test of concurrent use parses the
+document once and shares it, with one formatter, among eight threads that start together at a barrier. The tests of line
+endings and of the byte order mark compare the edits and violations for the LF text with those for the same text read
+from CRLF, mixed, and BOM bytes, in addition to the bytes that are written back. One test moves an inline span of a parsed
+heading so that it no longer fits its line, to reach the guard that real input only reaches through a parser defect.
+`BlocksCorpusTests` runs the same assertion helper over every Markdown file of the repository as
 LF, CRLF, and mixed-ending text with a byte order mark, over generated nested documents (several thousand container
 chains, with and without trailing whitespace), and over seeded random hostile documents of seven families (with and
 without injected tabs and trailing whitespace). The repository's own files are asserted to need no edit and to give no
@@ -36,17 +41,21 @@ writes nothing.
 #### Acceptance Criteria
 
 - All integration and corpus tests pass with zero failures.
-- A document that breaks every rule is rewritten to the canonical document, each rule is reported once at the place of
-  its change, and the canonical document produces no edit and no problem.
+- A document that breaks every rule is rewritten to the canonical document, each of the 14 rules is reported once per
+  line at the place of its change with the description of its rule, and the canonical document produces no edit and no
+  problem.
 - Every rewrite renders to the same HTML, keeps its Pandoc structure, and is stable when formatted again.
 - Quote and list structure survives every change, code and HTML content is never changed, and a fence that is never
   closed stays as written.
-- A document with CRLF line endings and a byte order mark is rewritten in the same way as the LF text without a mark,
-  and mixed line endings are written with the majority ending.
+- A document with CRLF line endings, mixed line endings, or a byte order mark gets the same edits and violations as the
+  LF text without a mark, and the rewrite keeps the mark and writes the majority ending.
 - Where a conversion could change the meaning of the text (a setext heading that is nested or multi-line, a braced
-  fence, a thematic break under text or at the start of the file), the text stays as written.
+  fence, a thematic break under text, at the start of the file, or after a plus sign list marker), the text stays as
+  written.
+- A block in a region where a rule of its formatter is disabled stays as written, by either directive family, the blocks
+  after the region are formatted, and a next-line directive keeps its place directly above its block.
 - The configured settings select the fence character, the break style, the maximum of blank lines, and the final newline.
-- The same document gives the same result on many threads.
+- The same parsed document gives the same result on many threads that start together.
 - Every Markdown file of the repository, and every generated document, passes the assertions of the helper.
 
 #### Test Scenarios
@@ -60,12 +69,22 @@ canonical document, and it passes every assertion of the helper.
 
 **A canonical document is left alone**: The canonical document is formatted. No edit and no problem result.
 
-**Every rule is reported once**: The document that breaks every rule is formatted. One problem is reported for each of
-the 14 rules, each at the place of its change and with the description of its rule.
+**Every rule is reported once**: The document that breaks every rule is formatted. One problem is reported for each rule
+and line of a change: 22 problems for the 14 rules, each at the line of its change (an insertion at the line it is
+inserted before), with the description of its rule, and none twice.
 
-**The configured settings select the canonical form**: The same documents are formatted with `code-fence: tilde`,
-`thematic-break: asterisks` and `underscores`, `max-blank-lines: 2` and `3`, and `final-newline: false`. Each rule
-writes the configured form.
+**The configured settings select the canonical form**: The same kind of document is formatted with `code-fence: tilde`,
+`thematic-break: asterisks`, `max-blank-lines: 2`, and `final-newline: false`; with `thematic-break: underscores`,
+`max-blank-lines: 3`, and a final newline; and with the defaults and a maximum of one blank line. Each rule writes the
+configured form.
+
+**Headings keep their meaning in the details**: Blanks after the number signs become one space, `#Title` stays, the
+indentation of a heading outside a container goes and inside one stays, trailing whitespace goes but not behind a final
+backslash of a setext line, and a tab after the number signs of a heading on a later line is handled with stable
+results.
+
+**Trailing whitespace goes from the lines of the blocks**: The trailing whitespace of a heading, of the two fence lines
+of a code block (not of the code between them), and of a break, also one whose characters stay as written, is removed.
 
 **Formatting twice changes nothing the second time**: The result of every document above is formatted again. No edit and
 no problem result.
@@ -73,8 +92,18 @@ no problem result.
 ##### Boundary conditions
 
 **Line endings and the byte order mark do not matter**: The document that breaks every rule is formatted from bytes with
-CRLF line endings and a byte order mark. The edits equal those for the LF text, the rewrite keeps the mark, and writing
-it with the target line ending gives CRLF throughout. A file with mixed line endings is written with the majority ending.
+CRLF line endings and a byte order mark, with CRLF only, with mixed endings, and with a mark and LF endings. The edits and
+the violations equal those for the LF text (the line ending problem excepted), the rewrite keeps the mark, and writing it
+with the target line ending gives CRLF throughout. A file with mixed line endings is written with the majority ending.
+
+**Suppressed blocks stay as written**: A setext heading, indented code, and a break inside a region that disables the
+rules of their formatters (by `markdownlint` numbers, by `lintmark` names, or all rules) stay as written, and the same
+three blocks after the comment that enables the rules again are formatted. A next-line directive keeps one closed heading
+as written and the next is formatted, and a next-line directive before a heading, list, fence, table, or indented code
+keeps its place directly above the block.
+
+**A block with an unexpected shape is left alone (defensive, no requirement)**: The inline span of a parsed heading with
+a tab in its text is moved so that it no longer fits the line; the document gets no edit.
 
 **Nested containers keep their structure**: Headings, code, thematic breaks, and lists inside quotes, lists, and each
 other are formatted. The containers, indentation, and prefixes stay, and no blank line is added inside a container.
@@ -125,8 +154,9 @@ lines where that is a violation, and text that only looks like a boundary is not
 
 ##### Robustness
 
-**The same document gives the same result on many threads**: One formatter instance and one document are shared by many
-threads. Every thread gets the result of a single call.
+**One shared document gives the same result on many threads**: One formatter instance and one parsed document are shared
+by eight threads that start together at a barrier; each formats the document many times. Every result equals the result
+of a single call.
 
 **The repository and generated documents pass every assertion**: Every Markdown file of the repository (as LF, CRLF, and
 mixed endings with a byte order mark), the generated nested documents, and the random hostile documents are formatted.
