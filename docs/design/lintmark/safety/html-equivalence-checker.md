@@ -15,31 +15,66 @@ plausible the new text is.
 **Rendering**: Both texts are rendered with `Markdown.ToHtml` and the fixed pipeline of `DocumentParser`, the same
 pipeline that parses documents, so the check judges the document the way the tool reads it.
 
-**Normalization rules**: The HTML is normalized so that only differences that can change the rendered page remain:
+**Normalization rules**: The HTML is normalized so that only differences that can change the rendered page remain.
+The text is cut into tags and the text between them. A tag is a construct that starts with `<` and a letter, `</` and
+a letter, `<!`, or `<?`; any other `<` is text. A comment ends at `-->`, a processing instruction at `?>`, and any
+other tag at the first `>` that is not inside a quoted attribute value (quotes are `"` and `'`), so a value may
+contain `>`. The rules are:
 
-1. The `id` attribute of a heading (`h1` to `h6`), written with double or single quotes directly after the tag name
-   (as the renderer writes it), is dropped. This applies to the plain parts only; a heading `id` inside a verbatim
-   element (rules 4 and 5) is part of its content and is compared exactly. An `id` that follows another attribute is
-   an ordinary attribute and is compared.
-2. Whitespace outside the verbatim elements below is collapsed: every run of HTML whitespace (space, tab, line feed,
-   carriage return, form feed) becomes one space. Only these characters are collapsed, so a changed no-break space is a
-   difference.
-3. A space next to a block-level tag is removed. The block-level tags are `p`, `li`, `ul`, `ol`, `h1` to `h6`,
-   `blockquote`, `table`, `thead`, `tbody`, `tr`, `td`, `th`, `pre`, `hr`, `div`, `section`, `details`, `summary`,
-   `dl`, `dt`, and `dd`, opening or closing, compared ignoring case. A tag ends at the first `>` and may not contain a
-   `<`, so an opening tag that never ends is not searched to the end of the text; it only keeps its surrounding
-   spaces, which is the conservative outcome. Whitespace between inline tags is never touched,
-   otherwise `*a* *b*` becoming `*a**b*` would go unnoticed.
+1. **Tags are copied exactly.** Attribute names, attribute values (including `id`, `href`, `title`, `alt`, `class`, and
+   `style`), quotes, the case of tag names, and the spacing inside a tag are compared as rendered. In particular the
+   `id` of a heading is not dropped: the pipeline never generates heading identifiers (no automatic identifiers, no
+   generic attributes), so an identifier in the HTML was written by the author as raw HTML, and changing it changes
+   where a fragment link leads. A comment is copied exactly, as a tag is.
+2. Whitespace in the text between tags is collapsed: every run of HTML whitespace (space, tab, line feed, carriage
+   return, form feed) becomes one space. Only these characters are collapsed, so a changed no-break space is a
+   difference, and character references (`&amp;`, `&#160;`) are not interpreted or compared by value.
+3. A space between a block-level tag and text is removed (the space that follows a block-level tag and the space that
+   precedes one). The block-level tags are `p`, `li`, `ul`, `ol`, `h1` to `h6`, `blockquote`, `table`, `thead`,
+   `tbody`, `tr`, `td`, `th`, `pre`, `hr`, `div`, `section`, `details`, `summary`, `dl`, `dt`, and `dd`, opening or
+   closing, whose names are recognized ignoring case. A name that only starts like one of these (`param`, `p-x`) is not
+   block-level. Whitespace between inline tags is never touched, otherwise `*a* *b*` becoming `*a**b*` would go
+   unnoticed. The spaces removed are outside the tag, never inside it.
 4. The content of `pre`, `script`, `style`, and `textarea` elements, from the opening tag to the closing tag, is
-   compared exactly.
+   compared exactly. The names are recognized ignoring case.
 5. The content of inline `code` is compared exactly, except that a line feed counts as a space (the CommonMark rule
    for code spans).
-6. Leading and trailing spaces of the whole text are removed.
+6. A tag that never ends (no `>` outside quotes, a quote or comment that is never closed) is not text, so the rest of
+   the part of the text it is in is compared exactly. An opening tag of a verbatim element that never ends makes the
+   rest of the whole text verbatim.
+7. Leading and trailing spaces of the whole text are removed.
 
 Verbatim parts are bracketed by a marker character (`U+0001`) in the normalized text so they cannot merge with their
-surroundings. Element names match ignoring case. The patterns are generated regular expressions for the heading
-identifier, a whitespace run, and the block tag with its surrounding spaces; each has a match timeout of 5000
-milliseconds.
+surroundings. The only regular expression is the whitespace run; it has a match timeout of 5000 milliseconds, and a
+timeout is a failure that refuses the rewrite (see *Error Handling*). Tags are found by a hand-written scanner, not by
+patterns, which keeps the scan linear.
+
+**Justification of each normalization**: Every rule that ignores a difference needs a reason why a reader cannot see
+it; every other part of the HTML is compared. Each item names the rule and whether it was removed, kept, or is not
+applied.
+
+- **Heading `id` dropped — removed.** Only the spike pipeline made identifiers (automatic identifiers with
+  context-dependent suffixes). The production pipeline makes none, so an identifier is the author's, and a change
+  breaks fragment links.
+- **Whitespace collapsed inside tags — removed.** Whitespace in `title`, `alt`, `href`, and `class` values is part of
+  the value; collapsing it hid real changes.
+- **Whitespace in comments collapsed — removed.** Tools read comments (directives, markers); a comment is not text.
+- **Whitespace runs in text collapsed — kept.** HTML shows any run of HTML whitespace as one space, which is what
+  makes rewrapping a paragraph harmless.
+- **Only HTML whitespace collapsed — kept.** A no-break space and other Unicode spaces are visible, so they are
+  compared.
+- **Space next to a block-level tag removed — kept.** A browser shows no space at the edge of a block or between
+  blocks. Only the space outside the tag is removed. The list of blocks is deliberately short; a block that is not
+  listed only keeps its spaces, which is the safe outcome.
+- **Tag names recognized ignoring case — kept.** HTML element names are case-insensitive, so `<PRE>` must be treated
+  as verbatim. Only the recognition ignores case; the tag text itself is compared exactly.
+- **Inline `code` line feed counts as a space — kept.** CommonMark turns a line ending inside a code span into a
+  space, and the renderer keeps the line feed for LF text, so a rewrap of a code span would otherwise be refused.
+  Nothing else in `code` is normalized.
+- **Verbatim `pre`, `script`, `style`, `textarea` — kept exact.** Whitespace in them is shown or executed.
+- **Character references — not normalized.** `&amp;` and `&#38;` are compared as written; the renderer writes one
+  form, so a different form is a change of the source worth refusing.
+- **Leading and trailing spaces of the text — kept.** A browser shows no space at the edge of the page.
 
 **Constants**: `RegexTimeoutMilliseconds` (5000), the marker character, and the number of characters of context shown
 before the first difference (20).
@@ -86,13 +121,17 @@ comparison and the fail-closed handling with it.
 verbatim elements. For each part, the next opening tag of each element kind is found (a tag counts only when the name
 is not the prefix of a longer word) and the earliest wins. The element runs from its opening tag to the first closing
 tag after it, ignoring case. An element without a closing tag runs to the end of the text, as a browser reads it, so
-everything after it is compared exactly. An opening tag that never ends is plain text, and once one such tag is seen
-no later tag of the same kind is searched for. The position of the next opening tag of each element kind is
-remembered and searched for again only after the scan has passed it. These rules keep the scan linear even for input
-made of thousands of unclosed tags or of very many code spans. Plain parts go through the whitespace, heading
-identifier, and block tag patterns (in that order, so the identifier is matched after whitespace has collapsed);
-verbatim parts are kept (with line feeds turned into spaces for inline `code`). Each plain-part pattern is linear
-in the text, also for many unclosed block-level opening tags.
+everything after it is compared exactly; so does an opening tag that never ends (rule 6). The position of the next
+opening tag of each element kind is remembered and searched for again only after the scan has passed it. These rules
+keep the scan linear even for input made of thousands of unclosed tags or of very many code spans. Verbatim parts are
+kept (with line feeds turned into spaces for inline `code`). Plain parts go through `NormalizePlain`.
+
+**NormalizePlain** (private): Scans a plain part from left to right, alternating between the text up to the next tag
+(whitespace runs collapse; the space that follows a block-level tag is dropped) and the tag itself (found by
+`FindTagStart` and `FindTagEnd`, copied exactly; the space that precedes a block-level tag, decided by `IsBlockTag`,
+is dropped). A tag that never ends copies the rest of the part exactly. Every character is looked at a bounded number
+of times, so the scan is linear, also for very many tags with attributes and for very many tags whose quote or
+comment never ends.
 
 #### Error Handling
 

@@ -25,7 +25,12 @@ sections:
               the spaces between words exactly, because they are visible.
             children:
               - LintMark-Safety-HtmlEquivalenceChecker-RendersWithFixedPipeline
-              - LintMark-Safety-HtmlEquivalenceChecker-HeadingIdsIgnored
+              - LintMark-Safety-HtmlEquivalenceChecker-AttributesCompared
+              - LintMark-Safety-HtmlEquivalenceChecker-TagWhitespaceExact
+              - LintMark-Safety-HtmlEquivalenceChecker-CommentExact
+              - LintMark-Safety-HtmlEquivalenceChecker-UnterminatedTagExact
+              - LintMark-Safety-HtmlEquivalenceChecker-BlockTagSpacingEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-RenderedAttributesEquivalent
               - LintMark-Safety-HtmlEquivalenceChecker-IdenticalTextEquivalent
               - LintMark-Safety-HtmlEquivalenceChecker-SoftBreakEquivalent
               - LintMark-Safety-HtmlEquivalenceChecker-BulletMarkerEquivalent

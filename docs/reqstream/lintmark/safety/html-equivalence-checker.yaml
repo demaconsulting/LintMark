@@ -22,17 +22,74 @@ sections:
                 tests:
                   - HtmlEquivalenceChecker_Check_ReferenceCases_ReportExpectedVerdict
 
-              - id: LintMark-Safety-HtmlEquivalenceChecker-HeadingIdsIgnored
+              - id: LintMark-Safety-HtmlEquivalenceChecker-AttributesCompared
                 title: >-
-                  The HtmlEquivalenceChecker class shall ignore the identifier that the renderer makes from a
-                  heading when it compares the rendered HTML.
+                  The HtmlEquivalenceChecker class shall report a difference when the attributes of a rendered tag
+                  differ, including a heading identifier that is changed, added, or removed.
                 justification: |
-                  An identifier that the renderer makes from a heading is not content of the document, and a
-                  rewrite of the heading text must not look unsafe for that reason.
+                  The tool's fixed Markdown dialect makes no identifiers of its own, so the identifier of a
+                  heading and every other attribute (a destination, a title, an alternative text, a class) was
+                  written by the author. A change of one changes where a link to the page leads or what the
+                  reader sees, so no attribute may be ignored.
                 tests:
-                  - HtmlEquivalenceChecker_Check_HeadingIdsOnly_Equivalent
-                  - HtmlEquivalenceChecker_Check_SingleQuotedHeadingIds_Equivalent
-                  - HtmlEquivalenceChecker_Check_HeadingIdAfterOtherAttribute_Different
+                  - HtmlEquivalenceChecker_Check_HeadingIdChanged_Different
+                  - HtmlEquivalenceChecker_Check_RawHtmlHeadingIdChanged_Different
+                  - HtmlEquivalenceChecker_Check_AttributeChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-TagWhitespaceExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the whitespace inside a tag, including the value
+                  of an attribute, character by character.
+                justification: |
+                  Whitespace in the value of a title, an alternative text, an address, or a class is part of the
+                  value. Collapsing whitespace in a tag as well as in text would hide a change of the value.
+                tests:
+                  - HtmlEquivalenceChecker_Check_AttributeValueWhitespaceChanged_Different
+                  - HtmlEquivalenceChecker_Check_RenderedTitleWhitespaceChanged_Different
+                  - HtmlEquivalenceChecker_Check_SpacingInsideTagChanged_Different
+                  - HtmlEquivalenceChecker_Check_GreaterThanInQuotedValue_ValueStillCompared
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-CommentExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the content of an HTML comment character by
+                  character.
+                justification: |
+                  A comment is not shown, but tools read it (directives, markers), so a rewrite must not change
+                  it.
+                tests:
+                  - HtmlEquivalenceChecker_Check_CommentWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-UnterminatedTagExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the text that follows a tag that never ends,
+                  up to the end of the text, character by character.
+                justification: |
+                  Where a tag that never ends stops cannot be told, so nothing after it may be treated as
+                  ordinary text; this is also what keeps the comparison in linear time.
+                tests:
+                  - HtmlEquivalenceChecker_Check_UnterminatedTagWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-BlockTagSpacingEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts that differ only in whitespace runs in
+                  text and in whitespace between a block-level tag and text as equivalent.
+                justification: |
+                  A browser shows a run of whitespace as one space and shows no space at the edge of a block,
+                  so a reader cannot see the difference.
+                tests:
+                  - HtmlEquivalenceChecker_Check_TextAndBlockTagWhitespace_Equivalent
+                  - HtmlEquivalenceChecker_Check_SameHeadingIdOtherLayout_Equivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-RenderedAttributesEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as equivalent when they differ only in
+                  layout that leaves the attributes of every rendered tag as they were, for links with titles,
+                  images, aligned tables, task lists, footnotes, math, and alerts.
+                justification: |
+                  Comparing the attributes of tags exactly must not make a harmless rewrite of ordinary
+                  Markdown look unsafe.
+                tests:
+                  - HtmlEquivalenceChecker_Check_RenderedAttributesHarmlessRewrite_Equivalent
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-IdenticalTextEquivalent
                 title: >-
@@ -152,6 +209,7 @@ sections:
                   - HtmlEquivalenceChecker_Check_GluedWords_Different
                   - HtmlEquivalenceChecker_Check_EmphasisSpacingLost_Different
                   - HtmlEquivalenceChecker_Check_LostInlineTagSpace_Different
+                  - HtmlEquivalenceChecker_Check_InlineTagWhitespaceChanged_Different
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-CodeSpanExact
                 title: >-
@@ -215,13 +273,15 @@ sections:
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-VerbatimHeadingIdsExact
                 title: >-
-                  The HtmlEquivalenceChecker class shall compare a heading identifier that is written inside a
-                  verbatim raw HTML element character by character.
+                  The HtmlEquivalenceChecker class shall compare the content of a verbatim raw HTML element,
+                  including any tag and attribute written inside it (such as a heading identifier), character
+                  by character.
                 justification: |
-                  Only the identifier that the renderer makes from a heading is not content of the document;
-                  the same text inside a preformatted element is content and must stay exact.
+                  The content of a preformatted element, a script, a style sheet, or a text area is content and
+                  must stay exact; a tag written inside it is only text.
                 tests:
                   - HtmlEquivalenceChecker_Check_HeadingIdInsidePreChanged_Different
+                  - HtmlEquivalenceChecker_Check_AttributeInsideVerbatimElementChanged_Different
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-HtmlWhitespaceCollapsed
                 title: >-
@@ -267,13 +327,16 @@ sections:
                 title: >-
                   The HtmlEquivalenceChecker class shall complete its comparison in time that grows linearly with
                   the size of the texts, also for text with a very large number of unclosed tags (verbatim and
-                  block-level) and for text with a very large number of code spans.
+                  block-level), of tags with attributes, of tags whose quote or comment never ends, and for
+                  text with a very large number of code spans.
                 justification: |
                   A hostile or damaged document must not be able to stall a run in the way that a
                   pattern with backtracking could.
                 tests:
                   - HtmlEquivalenceChecker_Check_PathologicalUnclosedTags_CompletesWithinBound
                   - HtmlEquivalenceChecker_Check_ManyVerbatimElements_CompletesWithinBound
+                  - HtmlEquivalenceChecker_Check_ManyTagsWithAttributes_CompletesWithinBound
+                  - HtmlEquivalenceChecker_Check_ManyUnterminatedQuotedTags_CompletesWithinBound
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-FailsClosed
                 title: >-

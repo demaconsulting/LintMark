@@ -23,8 +23,9 @@ unit.
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
 - *Contract*: Takes the original and the rewritten LF-normalized text and returns an `EquivalenceResult`: equivalent
-  when the normalized HTML is identical, otherwise a result that names the first difference with some context (or
-  states that the check could not be completed).
+  when the normalized HTML is identical (the attributes of tags, including heading identifiers, are never normalized),
+  otherwise a result that names the first difference with some context (or states that the check could not be
+  completed).
 - *Constraints*: Throws `ArgumentNullException` for a null text and `ArgumentException` for a text with a carriage
   return. Safe for concurrent use.
 

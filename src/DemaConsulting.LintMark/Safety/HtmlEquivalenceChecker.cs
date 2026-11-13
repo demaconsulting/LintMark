@@ -32,14 +32,16 @@ namespace DemaConsulting.LintMark.Safety;
 /// <remarks>
 ///     <para>
 ///         Both texts are rendered with the tool's fixed pipeline and the HTML is normalized so that
-///         differences which cannot change the rendered page are ignored: whitespace runs collapse to one
-///         space and whitespace next to a block-level tag disappears. Whitespace between inline tags is
-///         never touched (otherwise <c>*a* *b*</c> becoming <c>*a**b*</c> would go unnoticed), the content of
-///         <c>pre</c>, <c>script</c>, <c>style</c> and <c>textarea</c> elements is compared exactly, and the
-///         content of inline <c>code</c> is compared exactly except that a line ending counts as a space (the
-///         CommonMark rule). Heading identifiers are dropped, except inside those verbatim elements. Only
-///         HTML whitespace (space, tab, line feed, carriage return, form feed) is collapsed, so a changed
-///         no-break space is a difference.
+///         differences which cannot change the rendered page are ignored: whitespace runs in the text between
+///         tags collapse to one space and whitespace between a block-level tag and text disappears. Tags are
+///         never normalized: attribute names, values (including identifiers, titles, alternative texts,
+///         addresses and classes) and the spacing inside a tag are compared exactly, as is a comment. Whitespace
+///         between inline tags is never touched (otherwise <c>*a* *b*</c> becoming <c>*a**b*</c> would go
+///         unnoticed), the content of <c>pre</c>, <c>script</c>, <c>style</c> and <c>textarea</c> elements is
+///         compared exactly, and the content of inline <c>code</c> is compared exactly except that a line
+///         ending counts as a space (the CommonMark rule). Only HTML whitespace (space, tab, line feed,
+///         carriage return, form feed) is collapsed, so a changed no-break space is a difference, and
+///         character references are not interpreted.
 ///     </para>
 ///     <para>
 ///         Rendering is normally done on LF-normalized text, because the Markdown parser renders a multi-line
@@ -90,18 +92,18 @@ internal static partial class HtmlEquivalenceChecker
     ];
 
     /// <summary>
-    ///     Matches the identifier of a heading, written with double or single quotes directly after the tag name
-    ///     (as the renderer writes it) once whitespace has been collapsed.
+    ///     The names of the block-level elements (compared ignoring case), next to whose tags a space is not
+    ///     visible.
     /// </summary>
-    /// <returns>The compiled expression.</returns>
-    [GeneratedRegex(
-        @"(<h[1-6]) id=(?:""[^""]*""|'[^']*')",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
-        matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
-    private static partial Regex HeadingIdRegex();
+    private static readonly HashSet<string> BlockTags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "p", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "table", "thead", "tbody", "tr",
+        "td", "th", "pre", "hr", "div", "section", "details", "summary", "dl", "dt", "dd"
+    };
 
     /// <summary>
-    ///     Matches a run of HTML whitespace.
+    ///     Matches a run of HTML whitespace. It is applied to the text between tags only, never to the inside
+    ///     of a tag.
     /// </summary>
     /// <returns>The compiled expression.</returns>
     [GeneratedRegex(
@@ -109,18 +111,6 @@ internal static partial class HtmlEquivalenceChecker
         RegexOptions.CultureInvariant,
         matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
     private static partial Regex WhitespaceRegex();
-
-    /// <summary>
-    ///     Matches a block-level tag together with the whitespace around it. The tag ends at the first
-    ///     <c>&gt;</c> and may not contain a <c>&lt;</c>, so an opening tag that never ends is not searched to the
-    ///     end of the text (which would be quadratic for many such tags); it only keeps its surrounding spaces.
-    /// </summary>
-    /// <returns>The compiled expression.</returns>
-    [GeneratedRegex(
-        @" ?(</?(?:p|li|ul|ol|h[1-6]|blockquote|table|thead|tbody|tr|td|th|pre|hr|div|section|details|summary|dl|dt|dd)\b[^<>]*>) ?",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
-        matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
-    private static partial Regex BlockTagRegex();
 
     /// <summary>
     ///     Checks that two versions of a document render to the same page.
@@ -260,10 +250,10 @@ internal static partial class HtmlEquivalenceChecker
     /// <remarks>
     ///     The text is cut into plain parts and verbatim elements by a single left-to-right scan. An element
     ///     without a closing tag runs to the end of the text (as a browser reads it), so everything after it is
-    ///     compared exactly. An opening tag that never ends is plain text, and once one such tag is seen no
-    ///     later tag of the same kind is searched for. The position of the next opening tag of each kind is
-    ///     remembered and searched for again only after the scan has passed it. These rules keep the scan
-    ///     linear even for input made of thousands of unclosed tags or of very many code spans.
+    ///     compared exactly. An opening tag of a verbatim element that never ends also makes the rest of the
+    ///     text verbatim. The position of the next opening tag of each kind is remembered and searched for
+    ///     again only after the scan has passed it. These rules keep the scan linear even for input made of
+    ///     thousands of unclosed tags or of very many code spans.
     /// </remarks>
     private static string Normalize(string html)
     {
@@ -296,7 +286,10 @@ internal static partial class HtmlEquivalenceChecker
     ///     must be searched for, or <see cref="int.MaxValue"/> when there is none left; updated here.
     /// </param>
     /// <param name="start">Receives the offset of the opening tag.</param>
-    /// <param name="end">Receives the exclusive end offset of the closing tag (the end of the text when there is none).</param>
+    /// <param name="end">
+    ///     Receives the exclusive end offset of the closing tag (the end of the text when there is none, or when
+    ///     the opening tag never ends).
+    /// </param>
     /// <param name="element">Receives the kind of element found.</param>
     /// <returns><see langword="true"/> when an element was found.</returns>
     private static bool TryFindVerbatim(
@@ -307,49 +300,47 @@ internal static partial class HtmlEquivalenceChecker
         out int end,
         out (string Name, string Close, bool LineEndingIsSpace) element)
     {
-        while (true)
+        // Pick the kind whose opening tag comes first
+        var best = -1;
+        var bestStart = int.MaxValue;
+        for (var i = 0; i < VerbatimElements.Length; i++)
         {
-            // Pick the kind whose opening tag comes first
-            var best = -1;
-            var bestStart = int.MaxValue;
-            for (var i = 0; i < VerbatimElements.Length; i++)
+            // A remembered position stays right until the scan has passed it
+            if (nextOpening[i] < from)
             {
-                // A remembered position stays right until the scan has passed it
-                if (nextOpening[i] < from)
-                {
-                    var found = FindOpeningTag(html, VerbatimElements[i].Name, from);
-                    nextOpening[i] = found >= 0 ? found : int.MaxValue;
-                }
-
-                if (nextOpening[i] < bestStart)
-                {
-                    best = i;
-                    bestStart = nextOpening[i];
-                }
+                var found = FindOpeningTag(html, VerbatimElements[i].Name, from);
+                nextOpening[i] = found >= 0 ? found : int.MaxValue;
             }
 
-            if (best < 0)
+            if (nextOpening[i] < bestStart)
             {
-                start = end = 0;
-                element = default;
-                return false;
+                best = i;
+                bestStart = nextOpening[i];
             }
-
-            // The element needs the end of its opening tag; without a closing tag it runs to the end of the
-            // text, as a browser reads it, so that nothing after it can be compared loosely
-            element = VerbatimElements[best];
-            var openEnd = html.IndexOf('>', bestStart + element.Name.Length + 1);
-            if (openEnd >= 0)
-            {
-                var close = html.IndexOf(element.Close, openEnd + 1, StringComparison.OrdinalIgnoreCase);
-                start = bestStart;
-                end = close >= 0 ? close + element.Close.Length : html.Length;
-                return true;
-            }
-
-            // An opening tag that never ends is plain text, and so is every later one of this kind
-            nextOpening[best] = int.MaxValue;
         }
+
+        if (best < 0)
+        {
+            start = end = 0;
+            element = default;
+            return false;
+        }
+
+        // The element needs the end of its opening tag; without a closing tag it runs to the end of the
+        // text, as a browser reads it, so that nothing after it can be compared loosely. An opening tag that
+        // never ends is handled the same way: the rest of the text is compared exactly
+        element = VerbatimElements[best];
+        start = bestStart;
+        var openEnd = FindTagEnd(html, bestStart);
+        if (openEnd < 0)
+        {
+            end = html.Length;
+            return true;
+        }
+
+        var close = html.IndexOf(element.Close, openEnd + 1, StringComparison.OrdinalIgnoreCase);
+        end = close >= 0 ? close + element.Close.Length : html.Length;
+        return true;
     }
 
     /// <summary>
@@ -383,14 +374,168 @@ internal static partial class HtmlEquivalenceChecker
     /// </summary>
     /// <param name="plain">The plain part.</param>
     /// <returns>
-    ///     The part with whitespace collapsed, heading identifiers dropped, and spaces removed next to
-    ///     block-level tags.
+    ///     The part with whitespace collapsed in the text between tags and removed next to block-level tags;
+    ///     tags are copied exactly.
     /// </returns>
+    /// <remarks>
+    ///     A single left-to-right scan alternates between text and tags. A tag that never ends (no closing
+    ///     <c>&gt;</c> outside quoted values) cannot be told from the text after it, so the rest of the part is
+    ///     copied exactly; this keeps the scan linear and errs towards reporting a difference.
+    /// </remarks>
     private static string NormalizePlain(ReadOnlySpan<char> plain)
     {
-        // Heading identifiers are dropped here only, so that one inside a verbatim element stays exact
-        var collapsed = WhitespaceRegex().Replace(plain.ToString(), " ");
-        var withoutIds = HeadingIdRegex().Replace(collapsed, "$1");
-        return BlockTagRegex().Replace(withoutIds, "$1");
+        var builder = new StringBuilder(plain.Length);
+        var afterBlockTag = false;
+        var position = 0;
+        while (position < plain.Length)
+        {
+            // Text up to the next tag: whitespace runs collapse, and a space that follows a block-level tag goes
+            var tagStart = FindTagStart(plain, position);
+            var textEnd = tagStart >= 0 ? tagStart : plain.Length;
+            if (textEnd > position)
+            {
+                var text = WhitespaceRegex().Replace(plain[position..textEnd].ToString(), " ");
+                builder.Append(afterBlockTag && text.StartsWith(' ') ? text.AsSpan(1) : text.AsSpan());
+            }
+
+            if (tagStart < 0)
+            {
+                break;
+            }
+
+            // The tag itself is copied exactly; a space that precedes a block-level tag goes
+            var tagEnd = FindTagEnd(plain, tagStart);
+            if (tagEnd < 0)
+            {
+                builder.Append(plain[tagStart..]);
+                break;
+            }
+
+            afterBlockTag = IsBlockTag(plain, tagStart);
+            if (afterBlockTag && builder.Length > 0 && builder[^1] == ' ')
+            {
+                builder.Length--;
+            }
+
+            builder.Append(plain[tagStart..(tagEnd + 1)]);
+            position = tagEnd + 1;
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Finds the next place where a tag, comment, declaration or processing instruction starts.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="from">The offset to search from.</param>
+    /// <returns>The offset of the <c>&lt;</c>, or -1.</returns>
+    private static int FindTagStart(ReadOnlySpan<char> text, int from)
+    {
+        var index = from;
+        while (index < text.Length)
+        {
+            // A less-than sign is a tag start only before a name, a slash and a name, a bang, or a question mark
+            var found = text[index..].IndexOf('<');
+            if (found < 0)
+            {
+                return -1;
+            }
+
+            index += found;
+            if (index + 1 < text.Length)
+            {
+                var next = text[index + 1];
+                if (char.IsAsciiLetter(next) || next is '!' or '?' ||
+                    (next == '/' && index + 2 < text.Length && char.IsAsciiLetter(text[index + 2])))
+                {
+                    return index;
+                }
+            }
+
+            index++;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Finds the end of the tag, comment, declaration or processing instruction that starts at an offset.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The offset of the <c>&lt;</c>.</param>
+    /// <returns>The offset of the last character of the construct, or -1 when it never ends.</returns>
+    /// <remarks>
+    ///     A comment ends at <c>--&gt;</c> and a processing instruction at <c>?&gt;</c>. Any other construct ends at
+    ///     the first <c>&gt;</c> that is not inside a quoted value, so a quoted attribute value may contain
+    ///     <c>&gt;</c>. A quote that is never closed makes the construct never end.
+    /// </remarks>
+    private static int FindTagEnd(ReadOnlySpan<char> text, int start)
+    {
+        // A comment and a processing instruction have their own terminators
+        var rest = text[start..];
+        if (rest.StartsWith("<!--", StringComparison.Ordinal))
+        {
+            var close = rest[4..].IndexOf("-->", StringComparison.Ordinal);
+            return close < 0 ? -1 : start + 4 + close + 2;
+        }
+
+        if (rest.StartsWith("<?", StringComparison.Ordinal))
+        {
+            var close = rest[2..].IndexOf("?>", StringComparison.Ordinal);
+            return close < 0 ? -1 : start + 2 + close + 1;
+        }
+
+        // Otherwise the first greater-than sign outside quotes ends it
+        var index = start + 1;
+        while (index < text.Length)
+        {
+            var c = text[index];
+            if (c == '>')
+            {
+                return index;
+            }
+
+            if (c is '"' or '\'')
+            {
+                var close = text[(index + 1)..].IndexOf(c);
+                if (close < 0)
+                {
+                    return -1;
+                }
+
+                index += close + 2;
+            }
+            else
+            {
+                index++;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Determines whether the tag that starts at an offset is an opening or closing tag of a block-level element.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The offset of the <c>&lt;</c>.</param>
+    /// <returns><see langword="true"/> when the element is block-level.</returns>
+    private static bool IsBlockTag(ReadOnlySpan<char> text, int start)
+    {
+        // The name runs from after the optional slash to the first character that cannot be part of a name
+        var index = start + 1;
+        if (index < text.Length && text[index] == '/')
+        {
+            index++;
+        }
+
+        var nameStart = index;
+        while (index < text.Length && (char.IsAsciiLetterOrDigit(text[index]) || text[index] is '-' or '_' or ':' or '.'))
+        {
+            index++;
+        }
+
+        return index > nameStart && BlockTags.Contains(text[nameStart..index].ToString());
     }
 }

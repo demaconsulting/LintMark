@@ -274,16 +274,287 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
-    ///     Test that different heading identifiers alone are not a difference.
+    ///     Test that a changed, added, or removed heading identifier is a difference, whatever the quotes around it.
+    /// </summary>
+    /// <param name="before">The HTML before.</param>
+    /// <param name="after">The HTML after.</param>
+    [Theory]
+    [InlineData("<h2 id=\"a\">x</h2>", "<h2 id=\"b\">x</h2>")]
+    [InlineData("<h2 id='a'>x</h2>", "<h2 id='b'>x</h2>")]
+    [InlineData("<h2 id='a'>x</h2>", "<h2 id=\"b\">x</h2>")]
+    [InlineData("<h2 class=\"c\" id=\"a\">x</h2>", "<h2 class=\"c\" id=\"b\">x</h2>")]
+    [InlineData("<H2 id=\"a\">x</H2>", "<H2 id=\"b\">x</H2>")]
+    [InlineData("<h2>x</h2>", "<h2 id=\"a\">x</h2>")]
+    [InlineData("<h2 id=\"a\">x</h2>", "<h2>x</h2>")]
+    public void HtmlEquivalenceChecker_Check_HeadingIdChanged_Different(string before, string after)
+    {
+        // Arrange / Act: HTML given directly, with different heading identifiers, or one on one side only
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+
+        // Assert: an identifier changes where a link to the heading leads
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a changed heading identifier in raw HTML is a difference with the real renderer.
     /// </summary>
     [Fact]
-    public void HtmlEquivalenceChecker_Check_HeadingIdsOnly_Equivalent()
+    public void HtmlEquivalenceChecker_Check_RawHtmlHeadingIdChanged_Different()
     {
-        // Arrange / Act: raw HTML headings that differ in their identifier
+        // Arrange / Act: raw HTML headings in a document, rendered with the fixed pipeline
         var result = HtmlEquivalenceChecker.Check("<h2 id=\"a\">x</h2>\n", "<h2 id=\"b\">x</h2>\n");
 
-        // Assert: identifiers are dropped
+        // Assert: the fixed pipeline never makes identifiers, so the identifier is the author's and is compared
+        Assert.False(result.IsEquivalent);
+        Assert.NotNull(result.Description);
+    }
+
+    /// <summary>
+    ///     Test that an identical heading identifier is equivalent although the layout around it differs.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_SameHeadingIdOtherLayout_Equivalent()
+    {
+        // Arrange / Act: the same identifier, with different whitespace around the heading
+        var result = HtmlEquivalenceChecker.Check("<h2 id=\"a\">x</h2>\n", "\n<h2 id=\"a\">  x  </h2>\n\n");
+
+        // Assert: only the identifier matters, not the layout
         Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a changed, added, or removed attribute is a difference.
+    /// </summary>
+    /// <param name="before">The HTML before.</param>
+    /// <param name="after">The HTML after.</param>
+    [Theory]
+    [InlineData("<a href=\"x\">t</a>", "<a href=\"y\">t</a>")]
+    [InlineData("<a title=\"x\">t</a>", "<a title=\"y\">t</a>")]
+    [InlineData("<img src=\"i.png\" alt=\"x\" />", "<img src=\"i.png\" alt=\"y\" />")]
+    [InlineData("<span class=\"x\">t</span>", "<span class=\"y\">t</span>")]
+    [InlineData("<a href='x'>t</a>", "<a href=\"x\">t</a>")]
+    [InlineData("<a href=\"x\">t</a>", "<a href=x>t</a>")]
+    [InlineData("<a href=\"x\">t</a>", "<a href=\"x\" title=\"t\">t</a>")]
+    [InlineData("<a href=\"x\" title=\"t\">t</a>", "<a href=\"x\">t</a>")]
+    [InlineData("<img src=\"i.png\" />", "<img src=\"i.png\" alt=\"\" />")]
+    [InlineData("<span class=\"x\">t</span>", "<span>t</span>")]
+    [InlineData("<input disabled=\"disabled\" />", "<input />")]
+    public void HtmlEquivalenceChecker_Check_AttributeChanged_Different(string before, string after)
+    {
+        // Arrange / Act: HTML given directly, with a changed attribute value or quote style, or an attribute on one side only
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+
+        // Assert: tags are compared exactly, and the difference is described
+        Assert.False(result.IsEquivalent);
+        Assert.NotNull(result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a whitespace change inside an attribute value is a difference.
+    /// </summary>
+    /// <param name="attribute">The attribute whose value changes.</param>
+    [Theory]
+    [InlineData("title")]
+    [InlineData("alt")]
+    [InlineData("href")]
+    [InlineData("class")]
+    [InlineData("id")]
+    public void HtmlEquivalenceChecker_Check_AttributeValueWhitespaceChanged_Different(string attribute)
+    {
+        // Arrange / Act: HTML given directly, with two spaces in a value and the same with one; also a tab and a line feed
+        var spaces = HtmlEquivalenceChecker.Check($"<a {attribute}=\"a  b\">t</a>", $"<a {attribute}=\"a b\">t</a>", text => text);
+        var tab = HtmlEquivalenceChecker.Check($"<a {attribute}=\"a\tb\">t</a>", $"<a {attribute}=\"a b\">t</a>", text => text);
+        var lineFeed = HtmlEquivalenceChecker.Check($"<a {attribute}=\"a\nb\">t</a>", $"<a {attribute}=\"a b\">t</a>", text => text);
+
+        // Assert: whitespace in a value is part of the value
+        Assert.False(spaces.IsEquivalent);
+        Assert.False(tab.IsEquivalent);
+        Assert.False(lineFeed.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a whitespace change inside an attribute value is a difference with the real renderer.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_RenderedTitleWhitespaceChanged_Different()
+    {
+        // Arrange / Act: a Markdown link title and an image alternative text with two spaces, and the same with one
+        var title = HtmlEquivalenceChecker.Check("[a](http://x \"t  u\")\n", "[a](http://x \"t u\")\n");
+        var alt = HtmlEquivalenceChecker.Check("![a  b](i.png)\n", "![a b](i.png)\n");
+
+        // Assert: the rendered attribute values differ, and nothing hides it
+        Assert.False(title.IsEquivalent);
+        Assert.False(alt.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a change of the whitespace inside a tag, between its attributes, is a difference.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_SpacingInsideTagChanged_Different()
+    {
+        // Arrange / Act: HTML given directly, with different spacing between the attributes of a tag
+        var result = HtmlEquivalenceChecker.Check("<a href=\"x\"  title=\"t\">t</a>", "<a href=\"x\" title=\"t\">t</a>", text => text);
+
+        // Assert: the inside of a tag is copied exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a quoted attribute value that contains a greater-than sign does not end the tag early.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_GreaterThanInQuotedValue_ValueStillCompared()
+    {
+        // Arrange / Act: HTML given directly, with whitespace after a greater-than sign inside a value
+        var result = HtmlEquivalenceChecker.Check("<a title=\"a>  b\">t</a>", "<a title=\"a> b\">t</a>", text => text);
+
+        // Assert: the value is still inside the tag, so the whitespace in it is compared
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that the content of a comment is compared exactly.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_CommentWhitespaceChanged_Different()
+    {
+        // Arrange / Act: HTML given directly, with two spaces in a comment and the same with one
+        var result = HtmlEquivalenceChecker.Check("<p>a</p><!-- x  y -->", "<p>a</p><!-- x y -->", text => text);
+
+        // Assert: a comment is copied exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a tag that never ends is compared exactly, together with all text after it.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_UnterminatedTagWhitespaceChanged_Different()
+    {
+        // Arrange / Act: HTML given directly, with a tag whose quote is never closed and whitespace after it
+        var result = HtmlEquivalenceChecker.Check("<p>a</p><a title=\"x  y", "<p>a</p><a title=\"x y", text => text);
+
+        // Assert: the rest of the text is compared exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that whitespace runs in text and next to block-level tags do not change the page.
+    /// </summary>
+    /// <param name="before">The HTML before.</param>
+    /// <param name="after">The HTML after.</param>
+    [Theory]
+    [InlineData("<p>a  b</p>", "<p>a b</p>")]
+    [InlineData("<p>a\n\nb</p>", "<p>a b</p>")]
+    [InlineData("<p>a</p>\n<p>b</p>", "<p>a</p><p>b</p>")]
+    [InlineData("<p>a</p>   <p>b</p>", "<p>a</p><p>b</p>")]
+    [InlineData("<p> a </p>", "<p>a</p>")]
+    [InlineData("<ul>\n<li>a</li>\n</ul>", "<ul><li>a</li></ul>")]
+    [InlineData("<DIV>\n a\n</DIV>", "<DIV>a</DIV>")]
+    [InlineData("<p>a <b>b</b> c</p>", "<p>a  <b>b</b>\n c</p>")]
+    public void HtmlEquivalenceChecker_Check_TextAndBlockTagWhitespace_Equivalent(string before, string after)
+    {
+        // Arrange / Act: HTML given directly, with different whitespace in text and around block tags
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+
+        // Assert: browsers do not show the difference
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that whitespace next to an inline tag, or a tag that only looks like a block tag, is still compared.
+    /// </summary>
+    /// <param name="before">The HTML before.</param>
+    /// <param name="after">The HTML after.</param>
+    [Theory]
+    [InlineData("<p>a <b>b</b></p>", "<p>a<b>b</b></p>")]
+    [InlineData("<p>a</p><span> </span>", "<p>a</p><span></span>")]
+    [InlineData("<p>a <param>b</p>", "<p>a<param>b</p>")]
+    [InlineData("<p>a <p-x>b</p>", "<p>a<p-x>b</p>")]
+    public void HtmlEquivalenceChecker_Check_InlineTagWhitespaceChanged_Different(string before, string after)
+    {
+        // Arrange / Act: HTML given directly, with a space removed next to an inline tag
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+
+        // Assert: only block-level tag names count as blocks, so the lost space is reported with its offset
+        Assert.False(result.IsEquivalent);
+        Assert.Contains("differs at offset", result.Description);
+    }
+
+    /// <summary>
+    ///     Test that harmless rewrites of Markdown that renders attributes stay equivalent.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_RenderedAttributesHarmlessRewrite_Equivalent()
+    {
+        // Arrange: a document with a titled link, an image, an aligned table, a task list, a footnote, math and an alert
+        const string before =
+            "[a link](http://x \"the title\") and ![an image](i.png \"t\")\n\n" +
+            "|a|b|\n|:-|-:|\n|1|2|\n\n" +
+            "- [x] done\n- [ ] todo\n\n" +
+            "Note[^1] and $x + y$ here.\n\n[^1]: The note.\n\n" +
+            "> [!NOTE]\n> An alert.\n";
+        const string after =
+            "[a link](http://x   \"the title\")  and  ![an image](i.png   \"t\")\n\n\n" +
+            "| a  | b |\n| :-- | --: |\n| 1  | 2 |\n\n" +
+            "* [x] done\n* [ ] todo\n\n" +
+            "Note[^1]\nand $x + y$ here.\n\n[^1]: The   note.\n\n" +
+            "> [!NOTE]\n>   An alert.\n";
+
+        // Act: compare
+        var result = HtmlEquivalenceChecker.Check(before, after);
+
+        // Assert: the rendered tags are identical, so only layout differs
+        Assert.True(result.IsEquivalent, result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a bounded run time is kept for input made of very many tags with attributes.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_ManyTagsWithAttributes_CompletesWithinBound()
+    {
+        // Arrange: two hundred thousand tags with quoted attributes, and the same with a word appended
+        var tags = string.Concat(Enumerable.Range(0, 200000).Select(i => $"<a href=\"x{i}\" title='t > {i}'>a  b</a> "));
+        var before = tags + "\n";
+        var after = tags + "z\n";
+
+        // Act: compare and measure
+        var stopwatch = Stopwatch.StartNew();
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+        stopwatch.Stop();
+
+        // Assert: the check finished in time and found the difference
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a bounded run time is kept for input made of very many tags whose quote or comment never ends.
+    /// </summary>
+    /// <param name="tag">The text that is repeated.</param>
+    /// <param name="count">How many times the text is repeated.</param>
+    [Theory]
+    [InlineData("<a \"", 200000)]
+    [InlineData("<a title='", 200000)]
+    [InlineData("<!--", 200000)]
+    [InlineData("<?x", 200000)]
+    [InlineData("<pre title=\"", 100000)]
+    public void HtmlEquivalenceChecker_Check_ManyUnterminatedQuotedTags_CompletesWithinBound(string tag, int count)
+    {
+        // Arrange: very many tags that never end, and the same with one more character
+        var before = string.Concat(Enumerable.Repeat(tag, count)) + "\n";
+        var after = before + "z\n";
+
+        // Act: compare and measure
+        var stopwatch = Stopwatch.StartNew();
+        var result = HtmlEquivalenceChecker.Check(before, after, text => text);
+        stopwatch.Stop();
+
+        // Assert: the check finished in time and found the difference
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
+        Assert.False(result.IsEquivalent);
     }
 
     /// <summary>
@@ -660,47 +931,37 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
-    ///     Test that single-quoted heading identifiers are not a difference.
+    ///     Test that a heading identifier inside a verbatim element is compared exactly, also when it is added or removed.
     /// </summary>
-    [Fact]
-    public void HtmlEquivalenceChecker_Check_SingleQuotedHeadingIds_Equivalent()
-    {
-        // Arrange / Act: HTML given directly, with a single-quoted and a double-quoted identifier
-        var result = HtmlEquivalenceChecker.Check("<h2 id='a'>x</h2>", "<h2 id=\"b\">x</h2>", text => text);
-
-        // Assert: identifiers are dropped whatever the quotes
-        Assert.True(result.IsEquivalent);
-    }
-
-    /// <summary>
-    ///     Test that an identifier that does not directly follow the tag name is compared like any attribute.
-    /// </summary>
-    [Fact]
-    public void HtmlEquivalenceChecker_Check_HeadingIdAfterOtherAttribute_Different()
-    {
-        // Arrange / Act: HTML given directly, with the identifier after another attribute
-        var result = HtmlEquivalenceChecker.Check(
-            "<h2 class=\"c\" id=\"a\">x</h2>",
-            "<h2 class=\"c\" id=\"b\">x</h2>",
-            text => text);
-
-        // Assert: only the identifier that the renderer writes is dropped
-        Assert.False(result.IsEquivalent);
-    }
-
-    /// <summary>
-    ///     Test that a heading identifier inside a verbatim element is compared exactly.
-    /// </summary>
-    [Fact]
-    public void HtmlEquivalenceChecker_Check_HeadingIdInsidePreChanged_Different()
+    /// <param name="before">The HTML before.</param>
+    /// <param name="after">The HTML after.</param>
+    [Theory]
+    [InlineData("<pre><h2 id=\"a\">x</h2></pre>\n", "<pre><h2 id=\"b\">x</h2></pre>\n")]
+    [InlineData("<pre><h2 id=\"a\">x</h2></pre>\n", "<pre><h2>x</h2></pre>\n")]
+    [InlineData("<pre><h2>x</h2></pre>\n", "<pre><h2 id=\"a\">x</h2></pre>\n")]
+    [InlineData("<pre><h2 id='a'>x</h2></pre>\n", "<pre><h2 id=\"a\">x</h2></pre>\n")]
+    public void HtmlEquivalenceChecker_Check_HeadingIdInsidePreChanged_Different(string before, string after)
     {
         // Arrange / Act: a pre element that contains heading markup with different identifiers
-        var result = HtmlEquivalenceChecker.Check(
-            "<pre><h2 id=\"a\">x</h2></pre>\n",
-            "<pre><h2 id=\"b\">x</h2></pre>\n");
+        var result = HtmlEquivalenceChecker.Check(before, after);
 
         // Assert: verbatim content is compared exactly, so the identifier is a difference
         Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a tag with attributes inside a verbatim element is compared exactly.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_AttributeInsideVerbatimElementChanged_Different()
+    {
+        // Arrange / Act: script, style and textarea elements whose content differs only in an attribute value
+        var script = HtmlEquivalenceChecker.Check("<script>x = '<a title=\"a  b\">'</script>\n", "<script>x = '<a title=\"a b\">'</script>\n");
+        var textarea = HtmlEquivalenceChecker.Check("<textarea><h2 id=\"a\"></textarea>\n", "<textarea><h2 id=\"b\"></textarea>\n");
+
+        // Assert: verbatim content is compared exactly
+        Assert.False(script.IsEquivalent);
+        Assert.False(textarea.IsEquivalent);
     }
 
     /// <summary>
