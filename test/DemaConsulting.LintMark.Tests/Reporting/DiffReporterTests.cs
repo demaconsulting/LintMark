@@ -355,6 +355,42 @@ public class DiffReporterTests
     }
 
     /// <summary>
+    ///     Test that a diff with a line-ending note and a text change still applies cleanly.
+    /// </summary>
+    [Fact]
+    public void DiffReporter_Report_EndingAndTextChange_AppliesCleanly()
+    {
+        // Arrange: a CRLF file whose text also changes
+        var diff = new FileDiff("doc.md", "a\nb\nc\n", "a\nX\nc\n", new LineEndingInfo(0, 3), LineEnding.Lf);
+
+        // Act: format it and apply it to the LF-normalized text
+        var lines = DiffReporter.Format(diff, "doc.md");
+        var patched = PatchApplier.Apply("a\nb\nc\n", lines);
+
+        // Assert: the note is ignored by the patch application and the text is the new text
+        Assert.Contains("\\ Line endings change from CRLF to LF", lines);
+        Assert.Equal("a\nX\nc\n", patched);
+    }
+
+    /// <summary>
+    ///     Test that a diff of a line-ending change alone applies as no change to the text.
+    /// </summary>
+    [Fact]
+    public void DiffReporter_Report_EndingChangeOnly_AppliesAsNoChange()
+    {
+        // Arrange: equal LF-normalized texts with a CRLF to LF conversion
+        var diff = new FileDiff("doc.md", "a\nb\n", "a\nb\n", new LineEndingInfo(0, 2), LineEnding.Lf);
+
+        // Act: format it and apply it
+        var lines = DiffReporter.Format(diff, "doc.md");
+        var patched = PatchApplier.Apply("a\nb\n", lines);
+
+        // Assert: the note is ignored and the text is unchanged
+        Assert.Contains("\\ Line endings change from CRLF to LF", lines);
+        Assert.Equal("a\nb\n", patched);
+    }
+
+    /// <summary>
     ///     Test that a new text without a final newline gets the marker after its last line.
     /// </summary>
     [Fact]
@@ -473,8 +509,27 @@ public class DiffReporterTests
 
         // Assert: one hunk that replaces everything, found quickly, and the patch gives the new text
         Assert.Equal("@@ -1,3000 +1,3000 @@", Assert.Single(lines, static l => l.StartsWith("@@", StringComparison.Ordinal)));
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"Formatting took {stopwatch.Elapsed}.");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"Formatting took {stopwatch.Elapsed}.");
         Assert.Equal(after, patched);
+    }
+
+    /// <summary>
+    ///     Test that a non-silent context writes the diff to the console and to the log.
+    /// </summary>
+    [Fact]
+    public void DiffReporter_Report_NonSilentContext_WritesConsoleAndLog()
+    {
+        // Arrange: one changed file and a context that is not silent, with a log
+        using var directory = new TemporaryDirectory();
+        var diff = Diff("a\n", "b\n", directory.PathOf("a.md"));
+
+        // Act: report it
+        var (console, log) = Run(directory, [diff], silent: false);
+
+        // Assert: the same full diff reaches the console and the log
+        string[] expected = ["--- a/a.md", "+++ b/a.md", "@@ -1 +1 @@", "-a", "+b"];
+        Assert.Equal(expected, console);
+        Assert.Equal(expected, log);
     }
 
     /// <summary>

@@ -415,6 +415,7 @@ reviews:
       - "src/**/Formatting/FormatContext.cs"
       - "src/**/Formatting/FormatResult.cs"
       - "test/**/Formatting/DocumentFormatterTests.cs"
+      - "test/**/Formatting/TestBlockFormatters.cs"
 
   # LintMark - Linting
   - id: LintMark-Linting

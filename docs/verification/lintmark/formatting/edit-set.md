@@ -17,7 +17,7 @@ N/A - standard test environment.
 
 - All unit tests pass with zero failures.
 - An edit that shares a character with an edit in the set, and a second insertion at one offset, throws
-  `InvalidOperationException` and leaves the set unchanged.
+  `InvalidOperationException` and leaves the set unchanged; the message names both rules and both ranges.
 - Edits that only touch, including an insertion at the end of a replacement, are accepted.
 - A default edit throws `ArgumentException`.
 - The snapshot is in ascending order of start offset and then length, with an insertion before a replacement at the
@@ -77,25 +77,26 @@ end is exactly `int.MaxValue`.
 ##### Error handling
 
 **An overlapping edit is rejected**: A set holds an edit of characters 0 to 5. An edit of characters 3 to 8 throws
-`InvalidOperationException`, and the set still holds one edit.
+`InvalidOperationException` whose message names both rules and both ranges (`Edit of rule 'paragraph-wrap' at 3..8
+conflicts with edit of rule 'paragraph-wrap' at 0..5.`), and the set still holds one edit.
 
 **An edit inside another edit is rejected**: A set holds an edit of characters 0 to 10. An edit of characters 2 to 5
-throws `InvalidOperationException`.
+throws `InvalidOperationException`, and the set still holds one edit.
 
 **An edit that contains an existing edit is rejected**: A set holds an edit of characters 4 to 6. An edit of
-characters 0 to 10 throws `InvalidOperationException`.
+characters 0 to 10 throws `InvalidOperationException`, and the set still holds one edit.
 
 **Two insertions at one offset are rejected**: A set holds an insertion at offset 5. A second insertion at offset 5
-throws `InvalidOperationException`, because their order would be arbitrary.
+throws `InvalidOperationException`, because their order would be arbitrary, and the set still holds one edit.
 
 **An insertion strictly inside a replacement is rejected**: A set holds a replacement of characters 5 to 8. An
-insertion at offset 6 throws `InvalidOperationException`.
+insertion at offset 6 throws `InvalidOperationException`, and the set still holds one edit.
 
 **A replacement around an existing insertion is rejected**: A set holds an insertion at offset 6. A replacement of
-characters 5 to 8 throws `InvalidOperationException`.
+characters 5 to 8 throws `InvalidOperationException`, and the set still holds one edit.
 
 **Two edits of the same range are rejected**: A set holds an edit of characters 5 to 8. Another edit of the same
-characters throws `InvalidOperationException`.
+characters throws `InvalidOperationException`, and the set still holds only the first edit.
 
 **A default edit is rejected**: A default edit (no replacement and no rule) is added to an empty set. The call throws
 `ArgumentException`, and the set is still empty.

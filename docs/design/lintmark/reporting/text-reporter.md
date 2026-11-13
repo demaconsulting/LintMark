@@ -42,11 +42,16 @@ line.
 
 It calls `Path.GetRelativePath` and replaces the platform's directory separator with `/`. `DiffReporter` calls it too.
 
+Two edge cases come from `Path.GetRelativePath` and are not handled specially. On Windows a path on a different drive
+than the base directory has no relative form, so it is shown as its absolute path with `/` separators. An empty base
+directory is refused with `ArgumentException` (a null one with `ArgumentNullException`, as for `Report`).
+
 #### Error Handling
 
 `ArgumentNullException` for a null argument and for a null element, raised before any line is written, so a bad call
-never produces partial output. The reporter catches nothing else: an I/O failure of the log writer propagates from the
-`Context` as it does for any other output.
+never produces partial output. An empty base directory makes `Path.GetRelativePath` throw `ArgumentException` when
+there is at least one diagnostic, which is also before any line is written. The reporter catches nothing else: an I/O
+failure of the log writer propagates from the `Context` as it does for any other output.
 
 #### Dependencies
 

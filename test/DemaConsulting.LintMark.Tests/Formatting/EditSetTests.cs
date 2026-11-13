@@ -79,8 +79,11 @@ public class EditSetTests
         var set = new EditSet();
         set.Add(Edit(0, 5));
 
-        // Act / Assert: an edit of characters 3..8 overlaps and is rejected
-        Assert.Throws<InvalidOperationException>(() => set.Add(Edit(3, 5)));
+        // Act / Assert: an edit of characters 3..8 overlaps and is rejected, and the message names the rules and ranges
+        var exception = Assert.Throws<InvalidOperationException>(() => set.Add(Edit(3, 5)));
+        Assert.Equal(
+            "Edit of rule 'paragraph-wrap' at 3..8 conflicts with edit of rule 'paragraph-wrap' at 0..5.",
+            exception.Message);
         Assert.Equal(1, set.Count);
     }
 
@@ -96,6 +99,7 @@ public class EditSetTests
 
         // Act / Assert: an edit of characters 2..5 lies inside it and is rejected
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(2, 3)));
+        Assert.Equal(1, set.Count);
     }
 
     /// <summary>
@@ -110,6 +114,7 @@ public class EditSetTests
 
         // Act / Assert: an edit of characters 0..10 contains it and is rejected
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(0, 10)));
+        Assert.Equal(1, set.Count);
     }
 
     /// <summary>
@@ -122,7 +127,7 @@ public class EditSetTests
         var set = new EditSet();
         set.Add(Edit(0, 3));
 
-        // Act: add edits that start where the first ends and that end where the first starts
+        // Act: add an edit that starts where the first ends and two edits that touch each other
         set.Add(Edit(3, 3));
         set.Add(Edit(10, 2));
         set.Add(Edit(12, 2));
@@ -143,6 +148,7 @@ public class EditSetTests
 
         // Act / Assert: a second insertion at offset 5 is rejected
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(5, 0, "b")));
+        Assert.Equal(1, set.Count);
     }
 
     /// <summary>
@@ -197,6 +203,7 @@ public class EditSetTests
 
         // Act / Assert: an insertion at offset 6 is inside the replaced range
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(6, 0)));
+        Assert.Equal(1, set.Count);
     }
 
     /// <summary>
@@ -211,6 +218,7 @@ public class EditSetTests
 
         // Act / Assert: a replacement of characters 5..8 would swallow the insertion
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(5, 3)));
+        Assert.Equal(1, set.Count);
     }
 
     /// <summary>
@@ -225,6 +233,8 @@ public class EditSetTests
 
         // Act / Assert: another edit of the same characters is rejected
         Assert.Throws<InvalidOperationException>(() => set.Add(Edit(5, 3, "b")));
+        Assert.Equal(1, set.Count);
+        Assert.Equal("a", Assert.Single(set.ToImmutable()).Replacement);
     }
 
     /// <summary>

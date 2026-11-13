@@ -52,7 +52,7 @@ a file without permissions, such as when the tests run as a privileged user.
 - Exit code 0 is returned for all valid invocations.
 - Exit code non-zero is returned for all invalid argument combinations.
 - Results files are created at the specified paths when `--results` is used with `--validate`.
-- Silent mode (`--silent`) produces empty combined output.
+- Silent mode (`--silent`) produces empty or whitespace-only combined output.
 - Files named by path, directory, or glob are read, parsed, and linted; each problem found, such as a file that
   cannot be read or decoded, a mixed line ending, or an invalid grid table, is reported as
   `path:line:col: rule-id message` with exit code 1, and files without a problem produce no output.
@@ -63,7 +63,8 @@ a file without permissions, such as when the tests run as a privileged user.
   lines give; keeps the byte order mark and all other text; leaves a compliant file unwritten; leaves no temporary
   file behind; and a second run finds nothing to repair.
 - A file with an invalid grid table, with an invalid configuration, or with editor settings that cannot be read is
-  never rewritten, and the reason is reported.
+  never rewritten; the reason is reported, except that an invalid grid table is reported only while the
+  `grid-table-invalid` rule is not switched off, and the file is not rewritten in either case.
 - `--fix` combined with `--check` or `--diff` is rejected with exit code 1.
 - `--validate` combined with paths, `--check`, `--fix`, or `--diff` is rejected with exit code 1 and without running
   validation.

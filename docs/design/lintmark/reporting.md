@@ -22,9 +22,11 @@ file-system access and holds no state. The subsystem contains two units: `TextRe
 - *Contract*: Takes the diagnostics in any order, a base directory, and a `Context`; removes repeated diagnostics and
   writes each remaining one as `path:line:col: rule-id message` with `Context.WriteError`, ordered by display path,
   line, column, rule identifier, and message. The display path is relative to the base directory with `/` separators
-  (a path outside it keeps its `../` parts).
-- *Constraints*: Throws `ArgumentNullException` for a null argument or a null element. Writes nothing, and leaves the
-  exit code unchanged, when there are no diagnostics; every line written makes the exit code 1.
+  (a path outside it keeps its `../` parts). The engine passes the current directory as the base directory, so the
+  subsystem requirement speaks of paths relative to the current directory.
+- *Constraints*: Throws `ArgumentNullException` for a null argument or a null element, and `ArgumentException` for an
+  empty base directory when there is a diagnostic. Writes nothing, and leaves the exit code unchanged, when there are
+  no diagnostics; every line written makes the exit code 1.
 
 **DiffReporter.Report**: Writes unified diffs.
 

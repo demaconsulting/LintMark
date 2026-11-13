@@ -26,27 +26,35 @@ sections:
                   - TextWidth_Of_WideLatinForms_CountsTwoColumnsEach
                   - TextWidth_Of_IdeographicSpace_ReturnsTwo
                   - TextWidth_Of_HangulLetterBoundaries_MeasuresEachRangeEdge
+                  - TextWidth_Of_WideRangeEdges_CountsEdgesWideAndNeighborsNotWide
 
               - id: LintMark-Utilities-TextWidth-NarrowCharacters
                 title: >-
                   The TextWidth class shall count ASCII characters, half-width forms, and characters of ambiguous
-                  width as one column each, and an empty text as zero columns.
+                  width as one column each.
                 justification: |
                   Most text is narrow. Counting ambiguous characters as one column gives the same answer
                   on every terminal, whichever font or language it is set to.
                 tests:
-                  - TextWidth_Of_EmptyString_ReturnsZero
                   - TextWidth_Of_AsciiText_ReturnsLength
                   - TextWidth_Of_NarrowKatakana_CountsOneColumn
+                  - TextWidth_Of_HalfWidthFormEdges_CountsOneColumn
                   - TextWidth_Of_AmbiguousWidthCharacters_CountsOneColumn
-                  - TextWidth_Of_MixedText_AddsEachClusterWidth
+
+              - id: LintMark-Utilities-TextWidth-EmptyText
+                title: >-
+                  The TextWidth class shall count an empty text as zero columns.
+                justification: |
+                  An empty line takes no space, and a measurement that gave it a width would make a line
+                  limit reject nothing.
+                tests:
+                  - TextWidth_Of_EmptyString_ReturnsZero
 
               - id: LintMark-Utilities-TextWidth-Emoji
                 title: >-
                   The TextWidth class shall count an emoji as two columns, including an emoji outside the basic
                   plane, a sequence of an emoji with a skin tone modifier or joined with others, a flag, a key cap,
-                  and a symbol with an emoji presentation selector, and shall count a symbol with a text
-                  presentation selector as it counts the symbol alone.
+                  and a symbol with an emoji presentation selector.
                 justification: |
                   Emoji are drawn two columns wide, and a family or a flag is one picture however many
                   characters it is written with. Counting its characters would overestimate the width.
@@ -58,6 +66,15 @@ sections:
                   - TextWidth_Of_FlagOfTwoRegionalIndicators_ReturnsTwo
                   - TextWidth_Of_KeyCapSequence_ReturnsTwo
                   - TextWidth_Of_EmojiPresentationSequence_ReturnsTwoWhileSymbolAloneIsOne
+
+              - id: LintMark-Utilities-TextWidth-TextPresentation
+                title: >-
+                  The TextWidth class shall count a symbol with a text presentation selector as it counts the
+                  symbol alone.
+                justification: |
+                  The selector asks for the plain form of a symbol, which a terminal draws as wide as the
+                  symbol without it.
+                tests:
                   - TextWidth_Of_TextPresentationSequence_StaysNarrow
 
               - id: LintMark-Utilities-TextWidth-ZeroWidthCharacters
@@ -69,6 +86,7 @@ sections:
                   than it is.
                 tests:
                   - TextWidth_Of_LoneCombiningMark_ReturnsZero
+                  - TextWidth_Of_CombiningMarkInsideWideRange_ReturnsZeroAlone
                   - TextWidth_Of_ZeroWidthCharacters_ReturnsZero
                   - TextWidth_Of_ZeroWidthNoBreakSpace_ReturnsZero
                   - TextWidth_Of_ZeroWidthSpaceBetweenLetters_CountsLettersOnly
@@ -90,15 +108,24 @@ sections:
                   - TextWidth_Of_BaseWithCombiningMark_ReturnsOne
                   - TextWidth_Of_WideCharacterWithCombiningMark_ReturnsTwo
                   - TextWidth_Of_HangulConjoiningLettersSequence_ReturnsTwoAsOneCluster
+                  - TextWidth_Of_HangulExtendedBLetterBoundaries_MeasuresEachRangeEdge
+                  - TextWidth_Of_HangulExtendedBLettersAfterLeadingConsonant_ReturnsTwo
+                  - TextWidth_Of_MixedText_AddsEachClusterWidth
 
-              - id: LintMark-Utilities-TextWidth-InvalidText
+              - id: LintMark-Utilities-TextWidth-LoneSurrogate
                 title: >-
-                  The TextWidth class shall count a lone surrogate as one column and refuse a missing text.
+                  The TextWidth class shall count a lone surrogate as one column.
                 justification: |
-                  A file may contain damaged text, and measuring it must not fail. A missing text is a
-                  programming error that must be reported as such.
+                  A file may contain damaged text, and measuring it must not fail.
                 tests:
                   - TextWidth_Of_LoneSurrogate_ReturnsOne
+
+              - id: LintMark-Utilities-TextWidth-RejectsNullText
+                title: >-
+                  The TextWidth class shall refuse a missing text.
+                justification: |
+                  A missing text is a programming error that must be reported as such.
+                tests:
                   - TextWidth_Of_NullText_Throws
 
               - id: LintMark-Utilities-TextWidth-CultureIndependent
@@ -113,10 +140,18 @@ sections:
 
               - id: LintMark-Utilities-TextWidth-LinearTime
                 title: >-
-                  The TextWidth class shall measure a text in time that grows linearly with its length, with the
-                  same result on every measurement of the same text.
+                  The TextWidth class shall measure a text in time that grows linearly with its length.
                 justification: |
                   Every line of every document is measured, and a very long line must not be able to stall
                   a run.
+                tests:
+                  - TextWidth_Of_VeryLongString_MeasuresQuicklyAndDeterministically
+
+              - id: LintMark-Utilities-TextWidth-Deterministic
+                title: >-
+                  The TextWidth class shall give the same width on every measurement of the same text.
+                justification: |
+                  A line limit must give the same verdict each time the same line is measured, however long
+                  the line is.
                 tests:
                   - TextWidth_Of_VeryLongString_MeasuresQuicklyAndDeterministically

@@ -9,10 +9,12 @@ code fences with braces, attribute groups, and citations, and assert on the verd
 Pairs that damage the structure (joined lines, moved lines, changed borders, reordered fences, a lost, added, or
 duplicated attribute group or citation) must be refused. Pairs that only change indentation, block quote prefixes, or
 trailing blanks, or that contain no structure at all, must pass. The concurrency test calls `Check` from up to sixteen
-threads and compares every result with the single-threaded result. The failure test calls the overload of `Check`
-that takes the function that collects the line tokens, and passes one that throws, to show that a comparison that
-cannot be completed is reported as a difference; this overload is a seam for tests. No test double is used otherwise,
-because the behavior under test is a pure function of the two texts.
+threads and compares every result with the single-threaded result. The failure tests call the overloads of `Check`
+that take the function that collects the line tokens and the function that counts the matches of a pattern, and pass
+one that throws, to show that a comparison that cannot be completed is reported as a difference on both paths; these
+overloads are seams for tests. No test double is used otherwise, because the behavior under test is a pure function of
+the two texts. The recognized forms of attribute groups and citations are the ones listed in the design; the tests
+cover those forms, and the unrecognized forms are left to the HTML check.
 
 #### Test Environment
 
@@ -24,16 +26,18 @@ N/A - standard test environment. The tests use only in-memory text.
 - Joined fence lines, a fence line moved into a paragraph, a joined page break command, a joined display math
   delimiter, a changed grid table border, reordered fences, and a joined code fence with braces are different.
 - A lost, added, or duplicated attribute group or citation is different, and the description names the text with
-  the counts before and after.
-- Changes of indentation, of block quote prefixes, and of trailing blanks on a structural line are equivalent, as
-  are a list that is re-indented around a fence, text without any structure, unchanged structure inside code, and
-  identical text.
+  the counts before and after. This holds for `{#id}`, `{.class key=value}`, `[@key]`, and `[-@key, p. 3]`.
+- Changes of indentation, of block quote prefixes (also nested ones), and of trailing blanks on a structural line are
+  equivalent, as are a list that is re-indented around a fence, text without any structure, unchanged structure
+  inside code, and identical text.
+- A line that starts with a plus sign without being a grid table border, and a line that starts with a backslash
+  not followed by a letter, are not structural lines.
 - The description names the position and both versions of the first structural line that differs, with `(none)` for
   a line that is missing on one side.
 - Concurrent calls give the same results as sequential calls.
-- A carriage return in either text throws `ArgumentException`, and a null text or a null collection function throws
-  `ArgumentNullException`.
-- A collection function that throws gives a difference that names the exception type.
+- A carriage return in either text throws `ArgumentException`, and a null text, a null collection function, or a
+  null counting function throws `ArgumentNullException`.
+- A collection function or a counting function that throws gives a difference that names the exception type.
 
 #### Test Scenarios
 
@@ -97,6 +101,22 @@ gives `Attribute group "{#sec}" occurs 1 time(s) before and 0 after`.
 **A lost citation is a difference**: A sentence with a citation compared with the sentence without it gives
 `Citation "[@key]" occurs 1 time(s) before and 0 after`.
 
+**A lost citation with a locator is a difference**: A sentence with `[-@key, p. 3]` compared with the sentence
+without it gives `Citation "[-@key, p. 3]" occurs 1 time(s) before and 0 after`.
+
+**A lost attribute group with a class and a key-value pair is a difference**: A heading with `{.class key=value}`
+compared with the same heading without it gives
+`Attribute group "{.class key=value}" occurs 1 time(s) before and 0 after`.
+
+**A plus line that is not a grid border is not structural**: Two list items that start with a plus sign compared
+with the same words in one line are equivalent.
+
+**A backslash not followed by a letter is not structural**: Lines that start with an escaped character, a double
+backslash, and a lone backslash compared with the same text in one line are equivalent.
+
+**Nested block quote prefixes do not change a token**: A div inside two nested block quotes, with and without a
+blank between the markers, compared with the same div without the quote markers is equivalent.
+
 **The description names the first differing structural line**: Two texts whose second fence line differs give
 `Pandoc structural line 2 differs: before ":::b" after ":::c"`.
 
@@ -115,3 +135,9 @@ function that throws `InvalidOperationException`; the verdict is not equivalent,
 structure could not be compared and names the exception type.
 
 **A missing token collection is rejected**: A null collection function throws `ArgumentNullException`.
+
+**An occurrence count that throws is reported as a difference**: Two different texts without structural lines are
+compared with a counting function that throws `TimeoutException`; the verdict is not equivalent, and the description
+says that the structure could not be compared and names the exception type.
+
+**A missing counting function is rejected**: A null counting function throws `ArgumentNullException`.

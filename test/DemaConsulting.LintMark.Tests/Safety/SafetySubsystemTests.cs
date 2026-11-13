@@ -141,6 +141,27 @@ public class SafetySubsystemTests
     }
 
     /// <summary>
+    ///     Test that a formatting step that fails is treated as a change by the idempotency check.
+    /// </summary>
+    [Fact]
+    public void SafetySubsystem_Idempotency_FailingFormattingStep_Detected()
+    {
+        // Arrange: a formatting step that throws, and one that returns no text
+        Func<string, string> throwing = _ => throw new InvalidOperationException("boom");
+        Func<string, string> noText = _ => null!;
+
+        // Act: check that another pass changes nothing
+        var thrown = IdempotencyChecker.Check("alpha\n", throwing);
+        var missing = IdempotencyChecker.Check("alpha\n", noText);
+
+        // Assert: neither step gives evidence of stability, so both checks refuse and say why
+        Assert.False(thrown.IsEquivalent);
+        Assert.NotNull(thrown.Description);
+        Assert.False(missing.IsEquivalent);
+        Assert.NotNull(missing.Description);
+    }
+
+    /// <summary>
     ///     Test that a correct formatter passes every check.
     /// </summary>
     [Fact]

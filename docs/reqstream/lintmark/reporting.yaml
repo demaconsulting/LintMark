@@ -12,45 +12,116 @@ sections:
     sections:
       - title: Reporting Requirements
         requirements:
-          - id: LintMark-Reporting-TextFormat
+          - id: LintMark-Reporting-TextLineFormat
             title: >-
-              The Reporting subsystem shall write each diagnostic once, on its own line, as
-              `path:line:col: rule-id message` through the error output, with the path relative to the current
-              directory using forward slashes, and nothing when there are no diagnostics.
+              The Reporting subsystem shall write each diagnostic on its own line as
+              `path:line:col: rule-id message` through the error output.
             justification: |
-              A single, regular line format can be read by people, editors, and build systems alike, and
-              relative paths with one separator style make output the same on every platform. A problem that
-              was found twice is still one problem.
+              A single, regular line format can be read by people, editors, and build systems alike.
             children:
               - LintMark-Reporting-TextReporter-LineFormat
-              - LintMark-Reporting-TextReporter-DisplayPath
-              - LintMark-Reporting-TextReporter-Order
-              - LintMark-Reporting-TextReporter-Distinct
-              - LintMark-Reporting-TextReporter-NoOutputWithoutDiagnostics
               - LintMark-Reporting-TextReporter-ErrorChannel
-              - LintMark-Reporting-TextReporter-RejectsInvalidArguments
+              - LintMark-Reporting-TextReporter-RejectsMissingList
+              - LintMark-Reporting-TextReporter-RejectsMissingElement
+              - LintMark-Reporting-TextReporter-RejectsMissingBaseDirectory
+              - LintMark-Reporting-TextReporter-RejectsMissingContext
             tests:
               - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+
+          - id: LintMark-Reporting-TextRelativePath
+            title: >-
+              The Reporting subsystem shall show the path of each diagnostic relative to the current
+              directory.
+            justification: |
+              The user must be able to open the named file from where the tool was run.
+            children:
+              - LintMark-Reporting-TextReporter-DisplayPathRelative
+            tests:
+              - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+
+          - id: LintMark-Reporting-TextForwardSlashes
+            title: >-
+              The Reporting subsystem shall separate the parts of the path of a diagnostic with forward
+              slashes.
+            justification: |
+              One separator style makes the output the same on every platform.
+            children:
+              - LintMark-Reporting-TextReporter-DisplayPathForwardSlashes
+            tests:
+              - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+
+          - id: LintMark-Reporting-TextOutsidePath
+            title: >-
+              The Reporting subsystem shall show the path of a diagnostic for a file outside the current
+              directory with parent-directory parts.
+            justification: |
+              A file outside the directory of the run must still be reachable from where the tool was run.
+            children:
+              - LintMark-Reporting-TextReporter-DisplayPathOutsideBase
+            tests:
+              - ReportingSubsystem_TextFormat_FileOutsideBaseDirectory_WritesParentRelativePath
+
+          - id: LintMark-Reporting-TextDiagnosticOnce
+            title: The Reporting subsystem shall write a diagnostic that it is given more than once a single time.
+            justification: |
+              A problem that was found twice is still one problem.
+            children:
+              - LintMark-Reporting-TextReporter-Distinct
+            tests:
+              - ReportingSubsystem_TextFormat_DuplicateDiagnostic_WrittenOnce
+
+          - id: LintMark-Reporting-TextSilentWhenEmpty
+            title: The Reporting subsystem shall write no diagnostic line when there are no diagnostics.
+            justification: |
+              Silence on success keeps the output of large runs readable and makes any output a sign that
+              something needs attention.
+            children:
+              - LintMark-Reporting-TextReporter-NoOutputWithoutDiagnostics
+            tests:
+              - ReportingSubsystem_TextFormat_NoDiagnostics_WritesNothing
 
           - id: LintMark-Reporting-UnifiedDiff
             title: >-
               The Reporting subsystem shall write the difference between the text of a file and its proposed
-              rewrite as a unified diff through the standard output, naming a change of line endings that
-              the text alone does not show.
+              rewrite as a unified diff through the standard output.
             justification: |
-              Reviewers and patch tools understand unified diffs. A change of line endings leaves the text
-              identical, so without a note the diff of a rewrite would look empty.
+              Reviewers and patch tools understand unified diffs.
             children:
-              - LintMark-Reporting-DiffReporter-UnifiedFormat
-              - LintMark-Reporting-DiffReporter-ContextLines
+              - LintMark-Reporting-DiffReporter-FileHeaderLines
+              - LintMark-Reporting-DiffReporter-HunkHeaderForm
+              - LintMark-Reporting-DiffReporter-HunkCountOmitted
+              - LintMark-Reporting-DiffReporter-HunkZeroCount
+              - LintMark-Reporting-DiffReporter-BackslashContent
+              - LintMark-Reporting-DiffReporter-ContextLineCount
+              - LintMark-Reporting-DiffReporter-ContextMergeNearby
+              - LintMark-Reporting-DiffReporter-ContextSeparateHunks
               - LintMark-Reporting-DiffReporter-NoChangeNoOutput
-              - LintMark-Reporting-DiffReporter-LineEndingNote
               - LintMark-Reporting-DiffReporter-NoNewlineMarker
               - LintMark-Reporting-DiffReporter-AppliesCleanly
               - LintMark-Reporting-DiffReporter-StdoutChannel
-              - LintMark-Reporting-DiffReporter-RejectsInvalidArguments
+              - LintMark-Reporting-DiffReporter-SilentSuppressesConsole
+              - LintMark-Reporting-DiffReporter-SilentKeepsLog
+              - LintMark-Reporting-DiffReporter-RejectsMissingList
+              - LintMark-Reporting-DiffReporter-RejectsMissingBaseDirectory
+              - LintMark-Reporting-DiffReporter-RejectsMissingContext
+              - LintMark-Reporting-DiffReporter-RejectsDefaultElement
+              - LintMark-Reporting-DiffReporter-FileDiffRejectsMissingPath
+              - LintMark-Reporting-DiffReporter-FileDiffRejectsMissingText
+              - LintMark-Reporting-DiffReporter-FileDiffRejectsUndefinedLineEnding
             tests:
               - ReportingSubsystem_UnifiedDiff_Changes_ApplyCleanly
+
+          - id: LintMark-Reporting-LineEndingNote
+            title: >-
+              The Reporting subsystem shall name a change of line endings in the diff of a file whose text
+              does not otherwise change.
+            justification: |
+              A change of line endings leaves the text identical, so without a note the diff of a rewrite
+              would look empty.
+            children:
+              - LintMark-Reporting-DiffReporter-LineEndingNote
+            tests:
+              - ReportingSubsystem_UnifiedDiff_LineEndingChangeOnly_WritesNote
 
           - id: LintMark-Reporting-DeterministicOutput
             title: >-
@@ -65,13 +136,32 @@ sections:
             tests:
               - ReportingSubsystem_DeterministicOutput_ShuffledInput_IdenticalOutput
 
-          - id: LintMark-Reporting-ExitStatus
-            title: >-
-              The Reporting subsystem shall make the exit status non-zero when it reports a diagnostic, also
-              when the console output is silenced, and leave it unchanged when it only writes a diff.
+          - id: LintMark-Reporting-ExitStatusOnDiagnostic
+            title: The Reporting subsystem shall make the exit status non-zero when it reports a diagnostic.
             justification: |
-              Scripts and pipelines act on the exit status alone. A diff is a preview, not a problem.
+              Scripts and pipelines act on the exit status alone.
             children:
               - LintMark-Reporting-TextReporter-ExitStatus
+            tests:
+              - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+              - ReportingSubsystem_TextFormat_DuplicateDiagnostic_WrittenOnce
+
+          - id: LintMark-Reporting-ExitStatusWhenSilent
+            title: >-
+              The Reporting subsystem shall make the exit status non-zero when it reports a diagnostic while
+              the console output is silenced.
+            justification: |
+              A silent run that found a problem must still fail, because scripts that silence the console
+              still act on the exit status.
+            children:
+              - LintMark-Reporting-TextReporter-ExitStatusWhenSilent
+            tests:
+              - ReportingSubsystem_TextFormat_Diagnostics_SortedAndRelative
+              - ReportingSubsystem_TextFormat_DuplicateDiagnostic_WrittenOnce
+
+          - id: LintMark-Reporting-ExitStatusDiffOnly
+            title: The Reporting subsystem shall leave the exit status unchanged when it only writes a diff.
+            justification: |
+              A diff is a preview, not a problem.
             tests:
               - ReportingSubsystem_ExitStatus_DiffOnly_StaysZero

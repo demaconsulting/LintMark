@@ -32,8 +32,10 @@ setup, the only thing the subsystem decides is the line ending.
   the ordered, conflict-free edits to the LF-normalized text, the line ending to write, and the formatting
   violations found (the `line-ending` diagnostic). Pure: nothing is written and the document is not changed.
 - *Constraints*: Throws `ArgumentNullException` for a null argument and `InvalidOperationException` when two
-  formatters propose conflicting edits. A format-unsafe document yields no edit and no diagnostic. Safe for
-  concurrent use when the registered formatters are.
+  formatters propose conflicting edits; any other exception of a block formatter propagates unchanged. A format-unsafe
+  document yields no edit and no diagnostic, and its returned line ending is `source.MajorityLineEnding` (not the
+  configured one), so that rewriting leaves the file byte for byte as it was. Safe for concurrent use when the
+  registered formatters are.
 
 **SourcePatcher.Apply**: Applies edits to a document's text.
 
@@ -83,10 +85,13 @@ it converts the proposed text back to bytes. The line-ending rule is always appl
 
 Safety of the whole subsystem rests on three properties: nothing is applied here, so the caller can still verify the
 result; a document the parser could only read by dropping grid tables is never formatted; and a block with a
-suppressed rule is left verbatim. Real block formatters arrive in later phases. Because `DocumentFormatter` only
-honors suppression comments and does not consult the `rules` setting of the configuration, a formatter must check
-`FormatContext.Config.Rules` for its own rules itself (or the formatter is extended when the first real formatter
-needs it).
+suppressed rule is left verbatim. Real block formatters arrive in later phases.
+
+Constraint on block formatters: `DocumentFormatter` honors suppression comments but never applies the `rules` setting
+of the configuration (the list of enabled and disabled rules). Every real block formatter must therefore check
+`FormatContext.Config.Rules` for its own rules and propose no edit for a rule that the configuration disables. This
+subsystem has no requirement for that check, because no real formatter exists yet; the requirement belongs to the
+formatter that introduces the first rule.
 
 Thread safety: `DocumentFormatter` holds an immutable list of formatters and keeps all state of a call in local
 variables, so one instance serves every worker. `EditSet` is a per-file builder used by one thread; its snapshots,

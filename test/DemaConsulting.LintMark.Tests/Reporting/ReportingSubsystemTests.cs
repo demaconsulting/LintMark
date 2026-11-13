@@ -114,6 +114,27 @@ public class ReportingSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a diagnostic for a file outside the base directory is written with parent-directory parts.
+    /// </summary>
+    [Fact]
+    public void ReportingSubsystem_TextFormat_FileOutsideBaseDirectory_WritesParentRelativePath()
+    {
+        // Arrange: a diagnostic for a file next to the base directory
+        using var directory = new TemporaryDirectory();
+        var diagnostic = Make(directory, "other/b.md", 1, "rule-a");
+        var log = directory.PathOf("report.log");
+
+        // Act: report it relative to a sibling directory
+        using (var context = Context.Create(["--silent", "--log", log]))
+        {
+            TextReporter.Report([diagnostic], directory.PathOf("work"), context);
+        }
+
+        // Assert: the path starts with ../ and uses forward slashes
+        Assert.Equal(["../other/b.md:1:1: rule-a Problem"], File.ReadAllLines(log));
+    }
+
+    /// <summary>
     ///     Test that the diff of a multi-hunk change applies cleanly to the old text.
     /// </summary>
     [Fact]
@@ -130,6 +151,65 @@ public class ReportingSubsystemTests
         // Assert: three separate hunks, and the patch reproduces the new text exactly
         Assert.Equal(3, log.Count(static l => l.StartsWith("@@", StringComparison.Ordinal)));
         Assert.Equal(After, patched);
+    }
+
+    /// <summary>
+    ///     Test that a diagnostic that is reported twice is written once.
+    /// </summary>
+    [Fact]
+    public void ReportingSubsystem_TextFormat_DuplicateDiagnostic_WrittenOnce()
+    {
+        // Arrange: the same finding twice as equal instances, and another finding
+        using var directory = new TemporaryDirectory();
+        var diagnostics = new[]
+        {
+            Make(directory, "a.md", 3, "rule-a"),
+            Make(directory, "a.md", 3, "rule-a"),
+            Make(directory, "b.md", 1, "rule-b")
+        };
+
+        // Act: report them
+        var (log, exitCode) = Run(directory, diagnostics, []);
+
+        // Assert: the repeated finding is one line, and the run fails
+        Assert.Equal(["a.md:3:1: rule-a Problem", "b.md:1:1: rule-b Problem"], log);
+        Assert.Equal(1, exitCode);
+    }
+
+    /// <summary>
+    ///     Test that nothing is written and the exit code stays zero when there is nothing to report.
+    /// </summary>
+    [Fact]
+    public void ReportingSubsystem_TextFormat_NoDiagnostics_WritesNothing()
+    {
+        // Arrange: no diagnostics and no diffs
+        using var directory = new TemporaryDirectory();
+
+        // Act: report them
+        var (log, exitCode) = Run(directory, [], []);
+
+        // Assert: an empty log and a zero exit code
+        Assert.Empty(log);
+        Assert.Equal(0, exitCode);
+    }
+
+    /// <summary>
+    ///     Test that the diff of a change of line endings alone names the change and applies as no change.
+    /// </summary>
+    [Fact]
+    public void ReportingSubsystem_UnifiedDiff_LineEndingChangeOnly_WritesNote()
+    {
+        // Arrange: a file whose text is equal after normalization but whose line endings change
+        using var directory = new TemporaryDirectory();
+        var diff = new FileDiff(directory.PathOf("a.md"), "x\n", "x\n", new LineEndingInfo(0, 1), LineEnding.Lf);
+
+        // Act: report it and apply the logged lines
+        var (log, _) = Run(directory, [], [diff]);
+        var patched = PatchApplier.Apply("x\n", log);
+
+        // Assert: headers and the note without hunks, and the text is unchanged by the patch
+        Assert.Equal(["--- a/a.md", "+++ b/a.md", "\\ Line endings change from CRLF to LF"], log);
+        Assert.Equal("x\n", patched);
     }
 
     /// <summary>

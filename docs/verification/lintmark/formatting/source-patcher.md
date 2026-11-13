@@ -23,9 +23,11 @@ N/A - standard test environment.
 - Positions count UTF-16 code units, so text with a surrogate pair is patched correctly.
 - The result equals that of a naive reference implementation for many random edit lists.
 - An empty edit list returns the same string instance as the source text.
-- An edit that reaches beyond the end of the text, and an insertion beyond the end, throws `ArgumentException`.
-- A list that is not in ascending order, overlapping edits, and two insertions at one offset throw
-  `ArgumentException`.
+- An edit that reaches beyond the end of the text, and an insertion beyond the end, throws `ArgumentException`, also
+  when it is not the first edit.
+- A list that is not in ascending order, overlapping edits, an insertion inside a replaced range, a replacement followed
+  by an insertion at its start offset, and two insertions at one offset throw `ArgumentException`.
+- An insertion followed by a replacement at the same start offset is applied, the inserted text first.
 - A null document throws `ArgumentNullException`, and a default list or a default edit throws `ArgumentException`.
 
 #### Test Scenarios
@@ -51,6 +53,10 @@ one by one from the end of the text.
 
 ##### Boundary conditions
 
+**An insertion before a replacement at the same offset is applied**: The text `abcdefgh` is patched with an
+insertion of `1` at offset 2 followed by a replacement of characters 2 to 5 by `2`, in an array built by hand. The
+result is `ab12fgh`.
+
 **An empty list returns the same text**: A document is patched with an empty edit list. The result is the same string
 instance as the text of the document, with no copy.
 
@@ -67,6 +73,17 @@ instance as the text of the document, with no copy.
 
 **Overlapping edits are rejected**: Two edits of characters 0 to 5 and 3 to 5 are given in a list. The call throws
 `ArgumentException`.
+
+**An insertion inside a replaced range is rejected**: Edits of characters 0 to 5 and an insertion at offset 2 are
+given. The call throws `ArgumentException`.
+
+**A replacement followed by an insertion at its start is rejected**: A replacement of characters 2 to 5 followed by
+an insertion at offset 2 is given. The call throws `ArgumentException`, because an insertion must come before a
+replacement that starts at the same offset.
+
+**An edit beyond the text that is not the first is rejected**: A valid edit of the first character is followed by an
+edit of characters 2 to 12 in the text `abc`. The call throws `ArgumentException`, which shows that every edit is
+checked.
 
 **Two insertions at one offset are rejected**: Two insertions at offset 2 are given. The call throws
 `ArgumentException`, because their order would be arbitrary.

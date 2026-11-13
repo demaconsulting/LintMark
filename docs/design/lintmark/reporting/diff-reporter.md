@@ -17,7 +17,7 @@ after rewriting, the counts of the line terminators in the file as it is on disk
 be written with. Both texts are LF-normalized, so a change of line endings alone leaves them equal; the original
 counts and the target let the reporter say so. Immutable; a default instance is rejected.
 
-`DiffReporter` is a static class with no state and three constants:
+`DiffReporter` is a static class with no state, two constants, and one private enumeration:
 
 - `ContextLines` (3): the number of unchanged lines shown around each change.
 - `MaxEditDistance` (2000): the largest edit distance the Myers search tries before it gives up.
@@ -37,8 +37,10 @@ counts and the target let the reporter say so. Immutable; a default instance is 
 - The two header lines use the display path (relative to the base directory with `/` separators).
 - The note line `\ Line endings change from X to Y` follows the headers when writing the file would change a line
   ending; `X` is `CRLF`, `LF`, or `mixed (n CRLF, m LF)` and `Y` is the target. It uses the comment-line convention of
-  the no-newline marker, so a person sees why a file with no visible text change is rewritten. It is shown when the
-  target is LF and the file has a CRLF terminator, or the target is CRLF and the file has an LF terminator.
+  the no-newline marker, so a person sees why a file with no visible text change is rewritten. Patch tools ignore
+  text between the file headers and the first hunk, so the note does not change what applying the diff produces. It is
+  shown when the target is LF and the file has a CRLF terminator, or the target is CRLF and the file has an LF
+  terminator.
 - Hunks start with `@@ -start,count +start,count @@` and show three lines of context on each side. A count of one is
   written without the comma, and an empty range is written with a count of zero and the number of the line before it,
   as GNU diff does. Changes that are six or fewer unchanged lines apart share one hunk.

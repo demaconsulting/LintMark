@@ -31,12 +31,13 @@ namespace DemaConsulting.LintMark.Tests;
 public class TextReporterTests
 {
     /// <summary>
-    ///     What a report produced: the exit code, the lines in the log and the text on the error console.
+    ///     What a report produced: the exit code, the lines in the log and the text on both consoles.
     /// </summary>
     /// <param name="ExitCode">The exit code of the context after reporting.</param>
     /// <param name="Log">The lines of the log file.</param>
     /// <param name="ErrorConsole">Everything written to the error console.</param>
-    private sealed record Outcome(int ExitCode, string[] Log, string ErrorConsole);
+    /// <param name="OutputConsole">Everything written to the standard output console.</param>
+    private sealed record Outcome(int ExitCode, string[] Log, string ErrorConsole, string OutputConsole);
 
     /// <summary>
     ///     Creates a diagnostic with a path inside a temporary directory.
@@ -62,10 +63,13 @@ public class TextReporterTests
     private static Outcome Run(TemporaryDirectory directory, IEnumerable<Diagnostic> diagnostics, bool silent, string? baseDirectory = null)
     {
         var originalError = Console.Error;
+        var originalOut = Console.Out;
         try
         {
             using var errorWriter = new StringWriter();
+            using var outWriter = new StringWriter();
             Console.SetError(errorWriter);
+            Console.SetOut(outWriter);
             var log = directory.PathOf("report.log");
             var arguments = silent ? new[] { "--silent", "--log", log } : new[] { "--log", log };
             int exitCode;
@@ -75,11 +79,12 @@ public class TextReporterTests
                 exitCode = context.ExitCode;
             }
 
-            return new Outcome(exitCode, File.Exists(log) ? File.ReadAllLines(log) : [], errorWriter.ToString());
+            return new Outcome(exitCode, File.Exists(log) ? File.ReadAllLines(log) : [], errorWriter.ToString(), outWriter.ToString());
         }
         finally
         {
             Console.SetError(originalError);
+            Console.SetOut(originalOut);
         }
     }
 
@@ -164,6 +169,23 @@ public class TextReporterTests
 
         // Assert: a single line
         Assert.Single(outcome.Log);
+    }
+
+    /// <summary>
+    ///     Test that columns are ordered numerically, so column 3 comes before column 10.
+    /// </summary>
+    [Fact]
+    public void TextReporter_Report_MultiDigitColumns_OrderedNumerically()
+    {
+        // Arrange: two findings on one line whose columns differ in the number of digits
+        using var directory = new TemporaryDirectory();
+        var diagnostics = new[] { Make(directory, "a.md", 1, 10), Make(directory, "a.md", 1, 3) };
+
+        // Act: report them
+        var outcome = Run(directory, diagnostics, silent: true);
+
+        // Assert: column 3 before column 10 (a text order would put 10 first)
+        Assert.Equal(["a.md:1:3: rule-a Message", "a.md:1:10: rule-a Message"], outcome.Log);
     }
 
     /// <summary>
@@ -254,6 +276,9 @@ public class TextReporterTests
         Assert.Equal(["a.md:1:1: rule-a Message", "b.md:1:1: rule-a Message"], outcome.Log);
         Assert.Contains("a.md:1:1: rule-a Message", outcome.ErrorConsole, StringComparison.Ordinal);
         Assert.Contains("b.md:1:1: rule-a Message", outcome.ErrorConsole, StringComparison.Ordinal);
+
+        // Assert: nothing reached standard output
+        Assert.Empty(outcome.OutputConsole);
     }
 
     /// <summary>

@@ -85,7 +85,7 @@ public class EquivalenceResultTests
     }
 
     /// <summary>
-    ///     Test that the length limit of a description is exclusive of the limit itself.
+    ///     Test that a description is cut only when it is longer than the limit.
     /// </summary>
     /// <param name="length">The length of the description.</param>
     /// <param name="expectedLength">The expected length of the stored description.</param>
@@ -104,16 +104,33 @@ public class EquivalenceResultTests
     }
 
     /// <summary>
+    ///     Test that cutting a long description does not split a surrogate pair.
+    /// </summary>
+    [Fact]
+    public void EquivalenceResult_Different_CutInsideSurrogatePair_KeepsPairWhole()
+    {
+        // Arrange: a description whose 240-character limit falls between the two halves of an emoji
+        var description = new string('x', 239) + "\U0001F600" + "tail";
+
+        // Act: create the result
+        var result = EquivalenceResult.Different(description);
+
+        // Assert: the emoji is dropped as a whole and no lone surrogate remains
+        Assert.Equal(new string('x', 239) + "...", result.Description);
+    }
+
+    /// <summary>
     ///     Test that every kind of line break is replaced by a space.
     /// </summary>
     [Fact]
     public void EquivalenceResult_Different_LineBreaks_ReplacedBySpaces()
     {
-        // Arrange / Act: a description with CRLF, LF, CR and a Unicode line separator
-        var result = EquivalenceResult.Different("a\r\nb\nc\rd\u2028e");
+        // Arrange / Act: a description with CRLF, LF, CR, form feed, next line, and the Unicode line and
+        // paragraph separators
+        var result = EquivalenceResult.Different("a\r\nb\nc\rd\u000Ce\u0085f\u2028g\u2029h");
 
         // Assert: each line break became one space
-        Assert.Equal("a b c d e", result.Description);
+        Assert.Equal("a b c d e f g h", result.Description);
     }
 
     /// <summary>
@@ -130,6 +147,19 @@ public class EquivalenceResultTests
     }
 
     /// <summary>
+    ///     Test that an excerpt shows the Unicode line and paragraph separators as question marks.
+    /// </summary>
+    [Fact]
+    public void EquivalenceResult_Excerpt_LineAndParagraphSeparators_AreEscaped()
+    {
+        // Arrange / Act: a text with a line separator and a paragraph separator
+        var excerpt = EquivalenceResult.Excerpt("a\u2028b\u2029c", 0);
+
+        // Assert: both are written as question marks so the excerpt stays on one line
+        Assert.Equal("a?b?c", excerpt);
+    }
+
+    /// <summary>
     ///     Test that an excerpt is cut after the excerpt length.
     /// </summary>
     [Fact]
@@ -143,6 +173,41 @@ public class EquivalenceResultTests
 
         // Assert: it has the excerpt length
         Assert.Equal(EquivalenceResult.ExcerptLength, excerpt.Length);
+    }
+
+    /// <summary>
+    ///     Test that the escapes of an excerpt may double its length but no more.
+    /// </summary>
+    [Fact]
+    public void EquivalenceResult_Excerpt_ManyLineFeeds_AtMostTwiceExcerptLength()
+    {
+        // Arrange: a text of line feeds, each of which is shown as a two-character escape
+        var text = new string('\n', EquivalenceResult.ExcerptLength + 40);
+
+        // Act: take the excerpt from the start
+        var excerpt = EquivalenceResult.Excerpt(text, 0);
+
+        // Assert: sixty characters of the text are shown as one hundred and twenty characters
+        Assert.Equal(2 * EquivalenceResult.ExcerptLength, excerpt.Length);
+    }
+
+    /// <summary>
+    ///     Test that an excerpt does not split a surrogate pair at either end.
+    /// </summary>
+    [Fact]
+    public void EquivalenceResult_Excerpt_SurrogatePairAtEnds_KeepsPairWhole()
+    {
+        // Arrange: an emoji that straddles the end of the window, and one that straddles the start offset
+        var atEnd = new string('a', EquivalenceResult.ExcerptLength - 1) + "\U0001F600" + "tail";
+        var atStart = "a\U0001F600b";
+
+        // Act: take the excerpts
+        var endExcerpt = EquivalenceResult.Excerpt(atEnd, 0);
+        var startExcerpt = EquivalenceResult.Excerpt(atStart, 2);
+
+        // Assert: the first drops the emoji as a whole, the second starts with the whole emoji
+        Assert.Equal(new string('a', EquivalenceResult.ExcerptLength - 1), endExcerpt);
+        Assert.Equal("\U0001F600b", startExcerpt);
     }
 
     /// <summary>

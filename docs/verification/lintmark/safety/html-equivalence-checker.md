@@ -10,12 +10,15 @@ reference cases, each with the text before, the text after, and the expected ver
 every failed verdict must have a description and every passing verdict none. The remaining tests each pin down one
 rule of the normalization: a layout change that must pass, a meaning change that must be found, code and raw HTML
 that must be compared exactly, the description of the first difference, the run time for hostile input, concurrent
-use, and the rejection of invalid arguments. The run-time tests build text of twenty thousand unclosed tags and of
-fifty thousand closed code spans or preformatted elements and measure the elapsed time with a stopwatch against a
+use, and the rejection of invalid arguments. The run-time tests build text of twenty thousand unclosed `pre` or `code`
+tags, of two hundred thousand unclosed `p`, `div`, or `h1` tags, and of fifty thousand closed code spans or
+preformatted elements and measure the elapsed time with a stopwatch against a
 generous bound, so they detect a loss of linear behavior without depending on the speed of the machine. The failure
 tests call the overload of `Check` that takes the function that renders a text, and pass a renderer that throws, to
 show that a comparison that cannot be completed is reported as a difference; this overload is a seam for tests, and
-production code uses the real renderer. The concurrency test calls `Check` from up to sixteen threads and compares
+production code uses the real renderer. The same overload, with a renderer that returns its input, lets the tests
+give HTML directly where the real renderer would not produce it (tabs, form feeds, and heading identifiers in
+single quotes or after another attribute). The concurrency test calls `Check` from up to sixteen threads and compares
 every result with the single-threaded result.
 
 #### Test Environment
@@ -28,14 +31,18 @@ test machine, because its bound is ten seconds for input that is checked in a sm
 - All unit tests pass with zero failures.
 - Every reference case gets its expected verdict.
 - Texts that differ only in line breaks inside a paragraph, bullet character, table spacing, heading syntax, heading
-  identifier, or trailing whitespace are equivalent, and identical texts are equivalent without rendering.
+  identifier (in double or single quotes), tabs or form feeds against spaces, or trailing whitespace are equivalent,
+  and identical texts are equivalent without rendering.
 - Texts that differ in a hard break, a list or heading created by a line break, a link destination, emphasis, glued
-  words, a no-break space, or a lost space between inline elements are different.
-- Whitespace changes in code spans, fenced code, and the content of `pre` elements are different, also when the
-  element is written in capital letters or is never closed.
+  words, a no-break space, a heading identifier that does not directly follow the tag name, or a lost space between
+  inline elements are different.
+- Whitespace changes in code spans, fenced code, and the content of `pre`, `script`, `style`, and `textarea`
+  elements are different, also when the element is written in capital letters or is never closed, and so is a changed
+  heading identifier inside a `pre` element.
 - A failed verdict describes the offset and the text around it for both renderings, on one line of bounded length.
-- Input with twenty thousand unclosed tags, and input with fifty thousand code spans or preformatted elements, is
-  checked within the time bound and its difference is found.
+- Input with twenty thousand unclosed `pre` or `code` tags, input with two hundred thousand unclosed `p`, `div`, or
+  `h1` tags, and input with fifty thousand code spans or preformatted elements, is checked within the time bound and
+  its difference is found.
 - A renderer that throws gives a difference that names the exception type, and identical texts are still equivalent.
 - Concurrent calls give the same results as sequential calls.
 - A carriage return in either text throws `ArgumentException`, and a null text or a null renderer throws
@@ -66,10 +73,12 @@ mark gives the same page.
 followed by several blank lines, are each compared with the plain paragraph; both are equivalent.
 
 **Heading identifiers alone are not a difference**: Two raw HTML headings that differ only in their `id` attribute
-are equivalent.
+are equivalent, also when one identifier is written in single quotes.
 
-**Identical text is equivalent without rendering**: The same text twice, including text that is only a lone `pre`
-tag, is equivalent with no description.
+**Tabs and form feeds collapse like spaces**: HTML given directly with a tab, a form feed, or a mixed run of
+whitespace between two words is equivalent to the same HTML with one space.
+
+**Identical text is equivalent without rendering**: Covered under error handling, with a renderer that always throws.
 
 **Concurrent calls give the same result**: One equivalent and one different pair are checked sequentially, then 64
 times from up to sixteen threads; every concurrent result equals the sequential one.
@@ -107,14 +116,17 @@ each a difference.
 
 **Preformatted raw HTML is compared exactly**: Two spaces collapsed to one inside a raw `pre` element are a
 difference, also when the element name is written in capital letters, and also when the opening tag is never closed
-and the element runs to the end of the text.
+and the element runs to the end of the text. The same holds for the content of raw `script`, `style`, and `textarea`
+elements, for the content of an inline `code` tag that is never closed, and for a heading identifier inside a `pre`
+element. A heading identifier that does not directly follow the tag name (after another attribute) is compared like
+any other attribute.
 
 **The description of a difference is one bounded line**: Two texts of two thousand lines that differ from the first
 word on give a description without line break or carriage return and with at most 243 characters.
 
 **Very many unclosed tags are checked in linear time**: Twenty thousand repeated opening `pre` tags, and the same for
-`code` tags, are each compared with the same text with one more character at the end; the check finishes within ten
-seconds and reports the difference.
+`code` tags, and two hundred thousand repeated opening `p`, `div`, or `h1` tags, are each compared with the same text
+with one more character at the end; the check finishes within ten seconds and reports the difference.
 
 **Many code spans and preformatted elements are checked in linear time**: Fifty thousand closed `code` elements, and
 the same for `pre` elements, are each compared with the same text with one more word at the end; the check finishes
@@ -126,8 +138,8 @@ within ten seconds and reports the difference.
 `InvalidOperationException`; the verdict is not equivalent, and the description says that the output could not be
 compared and names the exception type.
 
-**Identical text never uses the renderer**: Two identical texts are compared with a renderer that always throws; the
-verdict is equivalent.
+**Identical text never uses the renderer**: Two identical texts, and two identical texts that are only a lone `pre`
+tag, are compared with a renderer that always throws; the verdict is equivalent with no description.
 
 **A missing renderer is rejected**: A null renderer throws `ArgumentNullException`.
 

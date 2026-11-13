@@ -19,8 +19,9 @@ Invariants of a `TextEdit` created with its constructor: `Start` and `Length` ar
 overflow, the replacement is not null, and the rule identifier is neither null nor empty. A default instance (no
 replacement, no rule) is not valid; `EditSet` and `SourcePatcher` reject it.
 
-**EditSet**: A sealed class with one field, a `List<TextEdit>` that is always ordered by start offset and then by
-length and never holds conflicting edits. Properties: `Count` and `IsEmpty`.
+**EditSet**: A sealed class with two members of state: a `List<TextEdit>` that is always ordered by start offset and
+then by length and never holds conflicting edits, and a static comparer, `PositionOrder`, that defines that order
+(start offset first, then length). Properties: `Count` and `IsEmpty`.
 
 **Conflict rule**: Two edits conflict when
 
@@ -39,7 +40,8 @@ either two insertions at one offset or two replacements that share characters.
 - *Preconditions*: the edit was created with its constructor.
 - *Postconditions*: the edit is in the set at its ordered position, and the set is still conflict-free.
 
-Algorithm: binary search for the insertion point with the order (start, then length); compare the edit with its
+Algorithm: binary search for the insertion point with the `PositionOrder` comparer (start, then length); compare the
+edit with its
 neighbor before the point and its neighbor after it; insert. Only the two neighbors need to be compared, because the
 set never holds conflicting edits, so an edit that conflicts with any member also conflicts with the member just before
 or just after its position. An insertion sorts before a replacement that starts at the same offset because its

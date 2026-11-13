@@ -14,23 +14,46 @@ sections:
             requirements:
               - id: LintMark-Linting-RuleCatalog-ResolveNames
                 title: >-
-                  The RuleCatalog class shall identify each registered rule by its name or by its legacy rule
-                  number in any letter case, independent of the culture of the machine.
+                  The RuleCatalog class shall identify each registered rule by its name.
                 justification: |
-                  Rules have a descriptive name and, for users coming from other tools, a legacy number.
-                  Letter case differs between users, and a Turkish-language machine must not change which
-                  rule a name means.
+                  Rules have a descriptive name that users write in a configuration, and a name that is not
+                  registered must be told apart from one that is.
                 tests:
                   - RuleCatalog_TryResolve_KebabId_ReturnsCanonical
-                  - RuleCatalog_TryResolve_EveryAlias_ReturnsItsRule
-                  - RuleCatalog_TryResolve_AnyLetterCase_ReturnsCanonical
-                  - RuleCatalog_TryResolve_TurkishCulture_StillMatches
                   - RuleCatalog_TryResolve_UnknownName_ReturnsFalse
-                  - RuleCatalog_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults
-                  - RuleCatalog_Aliases_AllAliases_UniqueAndMapToConfigurableRules
-                  - RuleCatalog_Aliases_LinkReversed_ResolvesMd011
                   - RuleCatalog_TryGet_RegisteredId_ReturnsEntry
                   - RuleCatalog_TryGet_UnknownId_ReturnsFalse
+
+              - id: LintMark-Linting-RuleCatalog-ResolveLegacyNumbers
+                title: >-
+                  The RuleCatalog class shall identify each registered rule that has one by its legacy rule
+                  number.
+                justification: |
+                  Users who come from other tools write the rule numbers they know, and each number must mean
+                  the same rule as its name.
+                tests:
+                  - RuleCatalog_TryResolve_EveryAlias_ReturnsItsRule
+                  - RuleCatalog_Aliases_AllAliases_UniqueAndMapToConfigurableRules
+                  - RuleCatalog_Aliases_LinkReversed_ResolvesMd011
+
+              - id: LintMark-Linting-RuleCatalog-ResolveAnyLetterCase
+                title: >-
+                  The RuleCatalog class shall match a rule name or legacy rule number in any letter case.
+                justification: |
+                  Users write a rule in the letter case they are used to, and that must not decide whether
+                  the rule is found.
+                tests:
+                  - RuleCatalog_TryResolve_AnyLetterCase_ReturnsCanonical
+
+              - id: LintMark-Linting-RuleCatalog-ResolveCultureIndependent
+                title: >-
+                  The RuleCatalog class shall resolve a name to the same rule whatever the culture of the
+                  machine.
+                justification: |
+                  A Turkish-language machine changes the rules of letter case, and it must not change which
+                  rule a name means.
+                tests:
+                  - RuleCatalog_TryResolve_TurkishCulture_StillMatches
 
               - id: LintMark-Linting-RuleCatalog-ResolveConfigurableOnly
                 title: >-
@@ -70,16 +93,49 @@ sections:
 
               - id: LintMark-Linting-RuleCatalog-RegisteredIds
                 title: >-
-                  The RuleCatalog class shall register, with a description, every identifier that the tool reports
-                  for a finding, in a form that a diagnostic accepts, each exactly once and in a fixed order.
+                  The RuleCatalog class shall register every identifier that the tool reports for a finding.
                 justification: |
-                  A reported identifier that is not registered could not be looked up, and a duplicate or an
-                  unstable order would make documentation and reports differ between runs.
+                  A reported identifier that is not registered could not be looked up, switched off where that
+                  is allowed, or documented.
+                tests:
+                  - RuleCatalog_Rules_NonConfigurableEntries_ListTheAlwaysOnAndFailureIds
+
+              - id: LintMark-Linting-RuleCatalog-RuleDescriptions
+                title: >-
+                  The RuleCatalog class shall give every registered rule a description.
+                justification: |
+                  The documentation of the rules is made from the registry, so a rule without a description
+                  would be listed without an explanation.
                 tests:
                   - RuleCatalog_Rules_EveryEntry_HasDescriptionAndUniqueId
-                  - RuleCatalog_Rules_AllEntries_SortedOrdinalById
-                  - RuleCatalog_Rules_NonConfigurableEntries_ListTheAlwaysOnAndFailureIds
+
+              - id: LintMark-Linting-RuleCatalog-RuleIdDiagnosticForm
+                title: >-
+                  The RuleCatalog class shall register every rule identifier in a form that a diagnostic
+                  accepts.
+                justification: |
+                  A diagnostic refuses a malformed rule identifier, so a registered identifier that it
+                  refused could not be reported.
+                tests:
                   - RuleCatalog_Rules_EveryRuleId_IsValidDiagnosticRuleId
+
+              - id: LintMark-Linting-RuleCatalog-RuleIdsUnique
+                title: >-
+                  The RuleCatalog class shall register each rule identifier and legacy rule number only once.
+                justification: |
+                  A name that stood for two rules would make the configuration and the report ambiguous.
+                tests:
+                  - RuleCatalog_Rules_EveryEntry_HasDescriptionAndUniqueId
+
+              - id: LintMark-Linting-RuleCatalog-RegisteredIdsFixedOrder
+                title: >-
+                  The RuleCatalog class shall list the registered rules in the same alphabetical order of their
+                  identifiers on every run.
+                justification: |
+                  An unstable order would make the documentation and the reports differ between runs.
+                tests:
+                  - RuleCatalog_Rules_AllEntries_SortedOrdinalById
+                  - RuleCatalog_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults
 
               - id: LintMark-Linting-RuleCatalog-RuleKinds
                 title: >-
@@ -100,7 +156,9 @@ sections:
                   - RuleCatalog_Rules_CastToMutableTypes_CannotBeModified
 
               - id: LintMark-Linting-RuleCatalog-NullArguments
-                title: The RuleCatalog class shall reject a null name when asked to resolve or look up a rule.
+                title: >-
+                  The RuleCatalog class shall reject a null name when asked to resolve a rule, to look up a
+                  rule, or to check for a dropped alias.
                 justification: |
                   A null name is a programming error that must be reported as such instead of being taken
                   for an unknown rule.
@@ -108,3 +166,4 @@ sections:
                   - RuleCatalog_TryResolve_Null_Throws
                   - RuleCatalog_TryResolveConfigurable_Null_Throws
                   - RuleCatalog_TryGet_Null_Throws
+                  - RuleCatalog_IsDroppedAlias_Null_Throws

@@ -192,6 +192,65 @@ public class SourcePatcherTests
     }
 
     /// <summary>
+    ///     Test that an insertion strictly inside a replaced range is rejected.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_InsertionInsideReplacement_Throws()
+    {
+        // Arrange: a replacement of characters 0..5 and an insertion at offset 2, inside it
+        var source = Source("abcdefgh");
+        ImmutableArray<TextEdit> edits = [Edit(0, 5, "x"), Edit(2, 0, "y")];
+
+        // Act / Assert: the insertion conflicts with the replacement
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
+    }
+
+    /// <summary>
+    ///     Test that a replacement followed by an insertion at its start offset is rejected.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_ReplacementThenInsertionAtSameStart_Throws()
+    {
+        // Arrange: a replacement of characters 2..5 followed by an insertion at offset 2
+        var source = Source("abcdefgh");
+        ImmutableArray<TextEdit> edits = [Edit(2, 3, "x"), Edit(2, 0, "y")];
+
+        // Act / Assert: the order is the wrong way round, an insertion must come first
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
+    }
+
+    /// <summary>
+    ///     Test that an insertion followed by a replacement at the same start offset is applied.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_InsertionThenReplacementAtSameStart_Applies()
+    {
+        // Arrange: an insertion at offset 2 followed by a replacement of characters 2..5, built by hand
+        var source = Source("abcdefgh");
+        ImmutableArray<TextEdit> edits = [Edit(2, 0, "1"), Edit(2, 3, "2")];
+
+        // Act: patch
+        var result = SourcePatcher.Apply(source, edits);
+
+        // Assert: the inserted text comes first and the replacement follows it
+        Assert.Equal("ab12fgh", result);
+    }
+
+    /// <summary>
+    ///     Test that an out-of-range edit that is not the first edit is rejected.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_SecondEditBeyondText_Throws()
+    {
+        // Arrange: a valid first edit and a second edit of characters 2..12 in a text of three characters
+        var source = Source("abc");
+        ImmutableArray<TextEdit> edits = [Edit(0, 1, "x"), Edit(2, 10, "y")];
+
+        // Act / Assert: every edit is checked, not only the first
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
+    }
+
+    /// <summary>
     ///     Test that an uninitialized array is rejected.
     /// </summary>
     [Fact]

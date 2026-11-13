@@ -170,6 +170,44 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
+    ///     Test that a suppression comment inside a block, not around it, leaves the whole block verbatim.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_SuppressionInsideBlock_LeavesBlockVerbatim()
+    {
+        // Arrange: a paragraph with a disable comment and an enable comment in the middle of it, and one paragraph after it
+        const string text =
+            "first  part <!-- markdownlint-disable paragraph-wrap --> second  part <!-- markdownlint-enable paragraph-wrap --> third  part\n\nlater  text\n";
+        var document = Parse(text);
+
+        // Act: format
+        var result = DoubleSpaceFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: the paragraph with the comments keeps all its double spaces, and the later paragraph is formatted
+        Assert.Equal(
+            "first  part <!-- markdownlint-disable paragraph-wrap --> second  part <!-- markdownlint-enable paragraph-wrap --> third  part\n\nlater text\n",
+            Patch(document, result));
+    }
+
+    /// <summary>
+    ///     Test that a disable-next-line comment leaves the block on the next line verbatim.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_DisableNextLine_LeavesBlockVerbatim()
+    {
+        // Arrange: a disable-next-line comment for the rule of the formatter directly before the first paragraph
+        var document = Parse("<!-- markdownlint-disable-next-line paragraph-wrap -->\nignored  text\n\nformatted  text\n");
+
+        // Act: format
+        var result = DoubleSpaceFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: the paragraph on the next line is verbatim, the following one is formatted
+        Assert.Equal(
+            "<!-- markdownlint-disable-next-line paragraph-wrap -->\nignored  text\n\nformatted text\n",
+            Patch(document, result));
+    }
+
+    /// <summary>
     ///     Test that suppressing one block does not stop the formatting of the other blocks.
     /// </summary>
     [Fact]
@@ -368,6 +406,58 @@ public class DocumentFormatterTests
 
         // Assert: LF is the target
         Assert.Equal(LineEnding.Lf, result.LineEnding);
+    }
+
+    /// <summary>
+    ///     Test that an equal number of CRLF and LF terminators without a configured line ending targets LF.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_TieNoConfig_TargetsLf()
+    {
+        // Arrange: one CRLF and one LF terminator, and a configuration without a line ending
+        var document = ParseFile("a\r\nb\n");
+
+        // Act: format
+        var result = new DocumentFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: LF is the target and the CRLF terminator is the violation
+        Assert.Equal(LineEnding.Lf, result.LineEnding);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("Mixed line endings (1 CRLF, 1 LF); expected LF", diagnostic.Message);
+    }
+
+    /// <summary>
+    ///     Test that a file without terminators and without a configured line ending targets LF.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_NoTerminatorsNoConfig_TargetsLf()
+    {
+        // Arrange: a one-line file without terminator, and a configuration without a line ending
+        var document = ParseFile("abc");
+
+        // Act: format
+        var result = new DocumentFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: LF is the target and nothing is reported
+        Assert.Equal(LineEnding.Lf, result.LineEnding);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that an exception of a block formatter propagates unchanged.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_ThrowingFormatter_ExceptionPropagatesUnchanged()
+    {
+        // Arrange: a formatter that throws when it is asked to format a paragraph
+        var document = Parse("abc\n");
+        var formatter = new DocumentFormatter([new ThrowingFormatter()]);
+
+        // Act: format
+        var exception = Assert.Throws<InvalidOperationException>(() => formatter.Format(document, LintMarkConfig.Default));
+
+        // Assert: the exception of the formatter is not caught, wrapped, or replaced
+        Assert.Equal("The formatter failed on purpose", exception.Message);
     }
 
     /// <summary>

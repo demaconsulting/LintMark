@@ -61,6 +61,94 @@ public class LintingSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a diagnostic of a registered rule carries the rule identifier, path, position, and message it was made from.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_Diagnostics_RegisteredRule_CarriesAllParts()
+    {
+        // Arrange: the registered identifier and kind of a rule
+        Assert.True(RuleCatalog.TryGet("link-empty", out var rule));
+
+        // Act: create a diagnostic from the registered rule
+        var diagnostic = new Diagnostic(rule.Id, rule.Kind, "docs/a.md", 4, 9, "A link has no destination.");
+
+        // Assert: every part is carried
+        Assert.Equal("link-empty", diagnostic.RuleId);
+        Assert.Equal("docs/a.md", diagnostic.Path);
+        Assert.Equal(4, diagnostic.Line);
+        Assert.Equal(9, diagnostic.Column);
+        Assert.Equal("A link has no destination.", diagnostic.Message);
+    }
+
+    /// <summary>
+    ///     Test that a diagnostic cannot be created from parts that a report line cannot carry.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_Diagnostics_InvalidParts_AreRefused()
+    {
+        // Arrange: a registered rule to build valid parts from
+        Assert.True(RuleCatalog.TryGet("line-length", out var rule));
+
+        // Act & Assert: a malformed identifier, a position of zero, and a message on two lines are refused
+        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic("Line Length", rule.Kind, "a.md", 1, 1, "A line is too long."));
+        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 0, 1, "A line is too long."));
+        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 0, "A line is too long."));
+        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is\ntoo long."));
+    }
+
+    /// <summary>
+    ///     Test that two diagnostics made from the same parts are the same problem and collapse into one.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_Diagnostics_SameParts_AreTheSameProblem()
+    {
+        // Arrange: a registered rule
+        Assert.True(RuleCatalog.TryGet("line-length", out var rule));
+
+        // Act: create the same problem twice and one that differs in the column
+        var first = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is too long.");
+        var second = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is too long.");
+        var other = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 2, "A line is too long.");
+
+        // Assert: the equal problems collapse in a set and the different one stays
+        Assert.Equal(first, second);
+        Assert.NotEqual(first, other);
+        Assert.Equal(2, new HashSet<Diagnostic> { first, second, other }.Count);
+    }
+
+    /// <summary>
+    ///     Test that the registry records which rules are formatting rules that rewriting repairs and which only report.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_RuleRegistry_FormattingAndLintOnlyRules_AreRegistered()
+    {
+        // Act: look up a formatting rule and a rule that only reports
+        Assert.True(RuleCatalog.TryGet("line-length", out var formatting));
+        Assert.True(RuleCatalog.TryGet("link-empty", out var lintOnly));
+
+        // Assert: the registered kinds differ as documented
+        Assert.Equal(DiagnosticKind.Formatting, formatting.Kind);
+        Assert.Equal(DiagnosticKind.LintOnly, lintOnly.Kind);
+    }
+
+    /// <summary>
+    ///     Test that a rule that a configuration does not mention keeps the enabled state that the registry gives it.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_RuleRegistry_NotConfiguredRule_KeepsRegisteredState()
+    {
+        // Act: parse a configuration that switches one rule off
+        var result = Parse("rules:\n  MD013: false\n");
+
+        // Assert: every other rule has the state that the registry registered
+        Assert.Empty(result.Errors);
+        Assert.All(
+            RuleCatalog.Defaults.Where(pair => pair.Key != "line-length"),
+            pair => Assert.Equal(pair.Value, result.Config!.Rules[pair.Key]));
+        Assert.False(result.Config!.Rules["line-length"]);
+    }
+
+    /// <summary>
     ///     Test that every rule identifier the tool emits is registered in the catalog.
     /// </summary>
     [Fact]

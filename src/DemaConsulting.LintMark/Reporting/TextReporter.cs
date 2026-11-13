@@ -49,12 +49,14 @@ internal static class TextReporter
     ///     Writes diagnostics to the error channel of a context.
     /// </summary>
     /// <param name="diagnostics">The diagnostics to report, in any order. Must not be null or contain null.</param>
-    /// <param name="baseDirectory">The directory that paths are shown relative to. Must not be null.</param>
+    /// <param name="baseDirectory">The directory that paths are shown relative to. Must not be null or empty.</param>
     /// <param name="context">The context that receives the lines. Must not be null.</param>
     /// <remarks>
-    ///     Nothing is written (and the exit code is not changed) when there are no diagnostics.
+    ///     Nothing is written (and the exit code is not changed) when there are no diagnostics. On Windows, a
+    ///     path on a different drive than the base directory is shown as an absolute path.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="diagnostics"/>, is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="baseDirectory"/> is empty and there is a diagnostic.</exception>
     public static void Report(IEnumerable<Diagnostic> diagnostics, string baseDirectory, Context context)
     {
         // Validate input; the elements are checked before anything is written
@@ -88,8 +90,9 @@ internal static class TextReporter
     ///     Converts a path to the form used in reports: relative to the base directory with forward slashes.
     /// </summary>
     /// <param name="path">The path as processed (normally a full path).</param>
-    /// <param name="baseDirectory">The directory to relativize against.</param>
-    /// <returns>The display path.</returns>
+    /// <param name="baseDirectory">The directory to relativize against. Must not be empty.</param>
+    /// <returns>The display path; on Windows, the absolute path when it is on a different drive.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="baseDirectory"/> is empty.</exception>
     internal static string GetDisplayPath(string path, string baseDirectory)
     {
         var relative = Path.GetRelativePath(baseDirectory, path);

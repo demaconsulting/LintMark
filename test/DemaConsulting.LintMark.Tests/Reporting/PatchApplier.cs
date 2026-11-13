@@ -31,7 +31,9 @@ namespace DemaConsulting.LintMark.Tests;
 ///     The applier is strict: it verifies that every context and removed line matches the original, that the
 ///     line counts of each hunk header agree with the hunk body, and that the new-side start of each hunk
 ///     is where the output stands. Any disagreement is an <see cref="InvalidOperationException"/>, so a
-///     diff with a wrong header or a wrong body cannot pass for a correct one.
+///     diff with a wrong header or a wrong body cannot pass for a correct one. A line that starts with a backslash
+///     is accepted only as the no-newline marker directly after a hunk body line, or as the line-ending note
+///     directly after the <c>+++</c> header; anywhere else it is an error.
 /// </remarks>
 internal static class PatchApplier
 {
@@ -39,6 +41,11 @@ internal static class PatchApplier
     ///     The marker that says the previous line has no line terminator.
     /// </summary>
     private const string NoNewlineMarker = "\\ No newline at end of file";
+
+    /// <summary>
+    ///     The start of the comment-style note that says the line endings of the file change.
+    /// </summary>
+    private const string EndingNotePrefix = "\\ Line endings change from ";
 
     /// <summary>
     ///     Applies a diff to a text.
@@ -61,7 +68,7 @@ internal static class PatchApplier
             {
                 index = ApplyHunk(session, diffLines, index);
             }
-            else if (IsHeaderOrNote(line))
+            else if (IsHeader(line) || IsEndingNote(line, index > 0 ? diffLines[index - 1] : null))
             {
                 index++;
             }
@@ -96,14 +103,25 @@ internal static class PatchApplier
     }
 
     /// <summary>
-    ///     Determines whether a line outside a hunk is a file header or a comment-style note.
+    ///     Determines whether a line outside a hunk is a file header.
     /// </summary>
     /// <param name="line">The diff line.</param>
-    /// <returns><see langword="true"/> for <c>---</c>, <c>+++</c> and <c>\</c> lines.</returns>
-    private static bool IsHeaderOrNote(string line) =>
+    /// <returns><see langword="true"/> for <c>---</c> and <c>+++</c> lines.</returns>
+    private static bool IsHeader(string line) =>
         line.StartsWith("--- ", StringComparison.Ordinal)
-        || line.StartsWith("+++ ", StringComparison.Ordinal)
-        || line.StartsWith('\\');
+        || line.StartsWith("+++ ", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Determines whether a line outside a hunk is the line-ending note, which is only valid directly after
+    ///     the <c>+++</c> header.
+    /// </summary>
+    /// <param name="line">The diff line.</param>
+    /// <param name="previous">The line before it, or <see langword="null"/> when it is the first line.</param>
+    /// <returns><see langword="true"/> for a note line that follows the <c>+++</c> header.</returns>
+    private static bool IsEndingNote(string line, string? previous) =>
+        line.StartsWith(EndingNotePrefix, StringComparison.Ordinal)
+        && previous is not null
+        && previous.StartsWith("+++ ", StringComparison.Ordinal);
 
     /// <summary>
     ///     Applies one hunk.
@@ -218,8 +236,18 @@ internal static class PatchApplier
     private static (int Start, int Count) ParseRange(string range)
     {
         var parts = range.Split(',');
-        var start = int.Parse(parts[0], CultureInfo.InvariantCulture);
-        var count = parts.Length > 1 ? int.Parse(parts[1], CultureInfo.InvariantCulture) : 1;
+        if (parts.Length > 2
+            || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var start))
+        {
+            throw new InvalidOperationException($"Not a range in a hunk header: '{range}'");
+        }
+
+        var count = 1;
+        if (parts.Length == 2 && !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out count))
+        {
+            throw new InvalidOperationException($"Not a range in a hunk header: '{range}'");
+        }
+
         return (start, count);
     }
 

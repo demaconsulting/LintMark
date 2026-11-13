@@ -40,7 +40,9 @@ patcher does not trust its input.
 #### Error Handling
 
 `ArgumentNullException` for a null source. `ArgumentException` (parameter `edits`) for the uninitialized default
-array and for any edit that `FindProblem` rejects, with a message that names the offending range. The exceptions
+array and for any edit that `FindProblem` rejects, with a message that names the offending range (the position of the
+edit and, for an order or conflict problem, the range of the edit before it). A default edit has no range, so its
+message only says that the edit was not created with its constructor. The exceptions
 propagate to `LintMarkEngine`, which reports them as a `file-format-error` for that file; no partial text is ever
 returned, because the result is built completely before it is returned.
 

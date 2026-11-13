@@ -373,7 +373,9 @@ sections:
               - LintMark-Engine-AtomicFileWriter-KeepsPermissions
               - LintMark-Engine-AtomicFileWriter-WritesThroughSymlink
               - LintMark-Engine-AtomicFileWriter-RefusesChangedFile
-              - LintMark-Engine-AtomicFileWriter-ReportsFailure
+              - LintMark-Engine-AtomicFileWriter-ReportsReadOnlyFile
+              - LintMark-Engine-AtomicFileWriter-ReportsMissingFile
+              - LintMark-Engine-AtomicFileWriter-ReportsMissingDirectory
               - LintMark-Engine-AtomicFileWriter-KeepsExactBytes
               - LintMark-Engine-AtomicFileWriter-RejectsBlankPath
             tests:

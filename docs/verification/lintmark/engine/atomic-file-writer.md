@@ -15,10 +15,9 @@ file differ from the original on purpose (a file that changed after it was read)
 Two scenarios depend on the platform and are skipped, with a stated reason, where they cannot run. Writing through a
 symbolic link is skipped on Windows, because creating links there needs privileges that a test run may not have.
 Keeping the permission bits of an executable file is skipped on Windows, because Unix file modes do not exist
-there; on Windows the replacement operation keeps the attributes of the replaced file instead, which the
-scenario about a read-only file and the successful replacement exercise indirectly. A skipped test is reported by the
-test framework as skipped and not as passed, so a run on Windows does not claim coverage of the Unix-only scenarios;
-they run on the Linux and macOS builds.
+there; attributes on Windows are left to the replacement operation of the platform and are not verified. A skipped
+test is reported by the test framework as skipped and not as passed, so a run on Windows does not claim coverage of
+the Unix-only scenarios; they run on the Linux and macOS builds.
 
 #### Test Environment
 

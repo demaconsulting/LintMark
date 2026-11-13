@@ -15,8 +15,8 @@ sections:
               - id: LintMark-Safety-StructuralTokenChecker-SentinelSequence
                 title: >-
                   The StructuralTokenChecker class shall treat two texts as different when the sequence of their
-                  fence lines, page break commands, display math delimiters, grid table border lines, and fences
-                  with attributes is not the same.
+                  fenced div lines, raw LaTeX command lines, display math delimiter lines, grid table border lines,
+                  and code fence lines with braces is not the same.
                 justification: |
                   These lines have a meaning for the tools that build the document. Joining two of them,
                   moving one into a paragraph, or reordering them changes the built document even when the
@@ -30,36 +30,89 @@ sections:
                   - StructuralTokenChecker_Check_ReorderedFences_Different
                   - StructuralTokenChecker_Check_BracedCodeFenceJoined_Different
 
-              - id: LintMark-Safety-StructuralTokenChecker-AttributesAndCitations
+              - id: LintMark-Safety-StructuralTokenChecker-AttributeGroupsPreserved
                 title: >-
                   The StructuralTokenChecker class shall treat two texts as different when the attribute groups
-                  or the citations that they contain are not the same, counting repeated ones.
+                  that start with a number sign or a period are not the same in both texts, counting repeated
+                  ones.
                 justification: |
-                  An attribute group or a citation that is lost, added, or duplicated by a rewrite changes
-                  how the built document looks or what it cites, which the HTML rendering of a plain
-                  Markdown dialect does not show.
+                  An attribute group that is lost, added, or duplicated by a rewrite changes how the built
+                  document looks, which the HTML rendering of a plain Markdown dialect does not show. Other
+                  attribute forms are not recognized; the HTML check is the backstop for them.
                 tests:
                   - StructuralTokenChecker_Check_AttributeGroupLost_Different
                   - StructuralTokenChecker_Check_AttributeGroupAdded_Different
+                  - StructuralTokenChecker_Check_AttributeGroupWithClassAndKeyValueLost_Different
+
+              - id: LintMark-Safety-StructuralTokenChecker-CitationsPreserved
+                title: >-
+                  The StructuralTokenChecker class shall treat two texts as different when the bracketed
+                  citations that start with an at sign or a minus sign and an at sign are not the same in both
+                  texts, counting repeated ones.
+                justification: |
+                  A citation that is lost, added, or duplicated by a rewrite changes what the built document
+                  cites, which the HTML rendering of a plain Markdown dialect does not show. Narrative
+                  citations are not recognized; the HTML check is the backstop for them.
+                tests:
                   - StructuralTokenChecker_Check_CitationDuplicated_Different
                   - StructuralTokenChecker_Check_CitationLost_Different
+                  - StructuralTokenChecker_Check_CitationWithLocatorLost_Different
 
-              - id: LintMark-Safety-StructuralTokenChecker-LayoutInsensitive
+              - id: LintMark-Safety-StructuralTokenChecker-IndentationIgnored
                 title: >-
                   The StructuralTokenChecker class shall treat two texts as equivalent when they differ only in
-                  indentation, block quote prefixes, or trailing blanks of the lines that carry the structure, and
-                  when they contain none of it.
+                  the indentation of the lines that carry the structure.
                 justification: |
-                  A rewrite re-indents lists and quotes, and the check must not refuse it for that.
-                  Refusing safe rewrites would make the fix option unusable.
+                  A rewrite re-indents lists, and the check must not refuse it for that. Refusing safe rewrites
+                  would make the fix option unusable.
                 tests:
                   - StructuralTokenChecker_Check_IndentationOnlyChange_Equivalent
                   - StructuralTokenChecker_Check_ListIndentChangedWithFenceInside_Equivalent
+
+              - id: LintMark-Safety-StructuralTokenChecker-BlockQuotePrefixIgnored
+                title: >-
+                  The StructuralTokenChecker class shall treat two texts as equivalent when they differ only in
+                  the block quote prefixes of the lines that carry the structure.
+                justification: |
+                  A rewrite re-wraps quotes, and the check must not refuse it for that. Refusing safe rewrites
+                  would make the fix option unusable.
+                tests:
+                  - StructuralTokenChecker_Check_BlockQuotePrefixChange_Equivalent
+                  - StructuralTokenChecker_Check_NestedBlockQuotePrefixChange_Equivalent
+
+              - id: LintMark-Safety-StructuralTokenChecker-TrailingBlanksIgnored
+                title: >-
+                  The StructuralTokenChecker class shall treat two texts as equivalent when they differ only in
+                  the trailing blanks of the lines that carry the structure.
+                justification: |
+                  A rewrite removes trailing blanks, and the check must not refuse it for that. Refusing safe
+                  rewrites would make the fix option unusable.
+                tests:
+                  - StructuralTokenChecker_Check_TrailingBlanksOnTokenLine_Equivalent
+
+              - id: LintMark-Safety-StructuralTokenChecker-SameStructureEquivalent
+                title: >-
+                  The StructuralTokenChecker class shall treat two texts that contain the same structure as
+                  equivalent, whatever else differs between them, including texts that contain none.
+                justification: |
+                  The check is only about the structure that HTML does not show. A rewrite that reflows
+                  ordinary text must pass it, or the fix option would be unusable.
+                tests:
                   - StructuralTokenChecker_Check_NoSentinels_Equivalent
                   - StructuralTokenChecker_Check_SentinelsInsideCodeUnchanged_Equivalent
-                  - StructuralTokenChecker_Check_BlockQuotePrefixChange_Equivalent
-                  - StructuralTokenChecker_Check_TrailingBlanksOnTokenLine_Equivalent
                   - StructuralTokenChecker_Check_IdenticalText_Equivalent
+
+              - id: LintMark-Safety-StructuralTokenChecker-LookAlikeLinesIgnored
+                title: >-
+                  The StructuralTokenChecker class shall not treat a line as structural when it only resembles a
+                  structural line.
+                justification: |
+                  A line that starts with a plus sign without being a grid table border, or with a backslash
+                  not followed by a letter, is ordinary text. Treating such lines as structure would make the
+                  check refuse safe reflows.
+                tests:
+                  - StructuralTokenChecker_Check_PlusLineThatIsNotGridBorder_NotStructural
+                  - StructuralTokenChecker_Check_BackslashNotFollowedByLetter_NotStructural
 
               - id: LintMark-Safety-StructuralTokenChecker-ReportsFirstDifference
                 title: >-
@@ -81,17 +134,21 @@ sections:
                 tests:
                   - StructuralTokenChecker_Check_ParallelCalls_SameResult
 
-              - id: LintMark-Safety-StructuralTokenChecker-RejectsInvalidInput
-                title: >-
-                  The StructuralTokenChecker class shall refuse a missing text and a text that contains a carriage
-                  return.
+              - id: LintMark-Safety-StructuralTokenChecker-RejectsMissingText
+                title: The StructuralTokenChecker class shall refuse a missing text.
+                justification: |
+                  A missing text is a programming error that must be reported as such. Comparing it would give
+                  a verdict about a document that does not exist.
+                tests:
+                  - StructuralTokenChecker_Check_NullArguments_Throw
+
+              - id: LintMark-Safety-StructuralTokenChecker-RejectsCarriageReturn
+                title: The StructuralTokenChecker class shall refuse a text that contains a carriage return.
                 justification: |
                   Only text with normalized line endings is compared. Comparing anything else would give a
                   verdict about a different document.
                 tests:
                   - StructuralTokenChecker_Check_CarriageReturn_Throws
-                  - StructuralTokenChecker_Check_NullArguments_Throw
-                  - StructuralTokenChecker_Check_NullTokenCollection_Throws
 
               - id: LintMark-Safety-StructuralTokenChecker-FailsClosed
                 title: >-
@@ -102,3 +159,4 @@ sections:
                   the rewrite must be refused instead of allowed.
                 tests:
                   - StructuralTokenChecker_Check_TokenCollectionThrows_ReportsDifferenceNamingExceptionType
+                  - StructuralTokenChecker_Check_OccurrenceCountThrows_ReportsDifferenceNamingExceptionType

@@ -226,9 +226,15 @@ sections:
           - LintMark-Engine-FailureReport
           - LintMark-Document-InvalidContent
           - LintMark-Document-Positions
-          - LintMark-Reporting-TextFormat
-          - LintMark-Linting-Diagnostics
-          - LintMark-Linting-RuleRegistry
+          - LintMark-Reporting-TextLineFormat
+          - LintMark-Reporting-TextRelativePath
+          - LintMark-Reporting-TextForwardSlashes
+          - LintMark-Reporting-TextOutsidePath
+          - LintMark-Reporting-TextDiagnosticOnce
+          - LintMark-Linting-DiagnosticContent
+          - LintMark-Linting-DiagnosticValidity
+          - LintMark-Linting-DiagnosticEquality
+          - LintMark-Linting-RuleIdentifiers
         tests:
           - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
@@ -243,6 +249,7 @@ sections:
           something needs attention.
         children:
           - LintMark-Engine-SilentOnSuccess
+          - LintMark-Reporting-TextSilentWhenEmpty
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
@@ -257,7 +264,9 @@ sections:
           distinguish a clean run from a run with problems.
         children:
           - LintMark-Engine-FailureExitStatus
-          - LintMark-Reporting-ExitStatus
+          - LintMark-Reporting-ExitStatusOnDiagnostic
+          - LintMark-Reporting-ExitStatusWhenSilent
+          - LintMark-Reporting-ExitStatusDiffOnly
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
@@ -420,7 +429,9 @@ sections:
           - LintMark-Configuration-Settings
           - LintMark-Configuration-EquivalentLayouts
           - LintMark-Configuration-RuleRegistryUse
-          - LintMark-Linting-RuleRegistry
+          - LintMark-Linting-RuleIdentifiers
+          - LintMark-Linting-RuleLegacyNumbers
+          - LintMark-Linting-RuleDefaults
         tests:
           - LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess
 
@@ -630,7 +641,8 @@ sections:
           fail the run.
         children:
           - LintMark-Engine-FixReportsRemaining
-          - LintMark-Linting-Diagnostics
+          - LintMark-Linting-DiagnosticFixable
+          - LintMark-Linting-RuleKinds
         tests:
           - LintMark_FixFlag_CrlfFile_RewritesToLf
           - LintMark_FixFlag_Twice_SecondRunReportsNothing
@@ -660,6 +672,8 @@ sections:
         children:
           - LintMark-Formatting-VerbatimByDefault
           - LintMark-Formatting-SuppressedBlocksVerbatim
+          - LintMark-Formatting-SuppressionInsideBlockVerbatim
+          - LintMark-Formatting-UnchangedTextKept
         tests:
           - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
           - LintMark_FixFlag_BomFile_KeepsBomAndText
@@ -687,6 +701,7 @@ sections:
           - LintMark-Cli-Diff
           - LintMark-Engine-Diff
           - LintMark-Reporting-UnifiedDiff
+          - LintMark-Reporting-LineEndingNote
         tests:
           - LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing
           - LintMark_DiffFlag_CleanFile_PrintsNothing
@@ -716,7 +731,8 @@ sections:
         children:
           - LintMark-Engine-LineEndingStyle
           - LintMark-Configuration-EditorConfigLineEnding
-          - LintMark-Formatting-LineEndingTarget
+          - LintMark-Formatting-LineEndingConfigured
+          - LintMark-Formatting-LineEndingMajority
         tests:
           - LintMark_LineEnding_ConfigWins_FixWritesCrlf
           - LintMark_LineEnding_EditorConfigUsed_FixWritesCrlf
@@ -732,7 +748,8 @@ sections:
           The fix option repairs them, and a check must show them.
         children:
           - LintMark-Formatting-LineEndingViolation
-          - LintMark-Reporting-TextFormat
+          - LintMark-Formatting-LineEndingNoViolation
+          - LintMark-Reporting-TextLineFormat
         tests:
           - LintMark_LineEnding_MixedFile_ReportsAndFixes
 
@@ -767,8 +784,12 @@ sections:
           - LintMark-Safety-HtmlEquivalence
           - LintMark-Safety-StructureEquivalence
           - LintMark-Safety-Idempotency
+          - LintMark-Safety-IdempotencyFailsClosed
           - LintMark-Safety-ReportsDifference
+          - LintMark-Safety-PassedCheckHasNoDescription
           - LintMark-Formatting-ConflictingEdits
+          - LintMark-Formatting-OutOfRangeEdits
+          - LintMark-Formatting-FormatterFailuresPropagate
         tests:
           - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
           - LintMark_FixFlag_InvalidConfig_LeavesFileUntouched

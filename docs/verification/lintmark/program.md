@@ -70,4 +70,4 @@ N/A - the program has no numeric or size limits; its argument boundaries are ver
 code 1 without throwing.
 
 **Undecodable file is reported through the context**: A context for an undecodable file makes the exit code 1
-and writes `file-encoding-error` to the error stream; the former "not yet implemented" text no longer appears.
+and writes `file-encoding-error` to the error stream.

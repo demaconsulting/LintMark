@@ -177,7 +177,7 @@ public class DiagnosticTests
     [Theory]
     [InlineData("1rule")]
     [InlineData("-rule")]
-    public void Diagnostic_Constructor_RuleIdStartingWithDigit_Throws(string ruleId)
+    public void Diagnostic_Constructor_RuleIdStartingWithNonLetter_Throws(string ruleId)
     {
         // Act & Assert: the first character must be a lowercase letter
         var exception = Assert.Throws<ArgumentException>(() => Create(ruleId: ruleId));
@@ -218,10 +218,11 @@ public class DiagnosticTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Diagnostic_Constructor_LineZero_Throws(int line)
+    public void Diagnostic_Constructor_LineBelowOne_Throws(int line)
     {
-        // Act & Assert: positions are 1-based
-        Assert.Throws<ArgumentOutOfRangeException>(() => Create(line: line));
+        // Act & Assert: positions are 1-based and the parameter is named
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => Create(line: line));
+        Assert.Equal("line", exception.ParamName);
     }
 
     /// <summary>
@@ -230,10 +231,11 @@ public class DiagnosticTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Diagnostic_Constructor_ColumnZero_Throws(int column)
+    public void Diagnostic_Constructor_ColumnBelowOne_Throws(int column)
     {
-        // Act & Assert: positions are 1-based
-        Assert.Throws<ArgumentOutOfRangeException>(() => Create(column: column));
+        // Act & Assert: positions are 1-based and the parameter is named
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => Create(column: column));
+        Assert.Equal("column", exception.ParamName);
     }
 
     /// <summary>

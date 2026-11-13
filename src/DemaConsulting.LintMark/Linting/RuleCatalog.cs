@@ -40,8 +40,8 @@ namespace DemaConsulting.LintMark.Linting;
 ///         legacy entry is accepted and ignored) but never resolve to a rule.
 ///     </para>
 ///     <para>
-///         Names are compared with an ordinal comparison that ignores case, independent of the current culture, so the result never
-///         depends on the machine's locale.
+///         Names are compared with an ordinal comparison that ignores case, independent of the current culture, so
+///         the result never depends on the machine's locale.
 ///     </para>
 ///     <para>
 ///         Thread safety: all data is immutable and initialized once; every member is safe for concurrent use.

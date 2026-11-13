@@ -13,12 +13,14 @@ show on which stream the diff arrives.
 A diff is judged by whether it works as a patch, not by comparing its text with a fixed copy. The `PatchApplier`
 helper in the tests applies the unified diff lines that were written to the log to the original text, and fails when a
 context line or a removed line does not match the original, when the line counts of a hunk header disagree with the
-hunk body, or when the new-side start does not match the position in the output. The patched text must equal the
-rewritten text exactly. The test document has thirty numbered lines that are changed near the start, deleted and
-inserted in the middle, and shortened at the end without a final newline, so that it needs three separate hunks and
-a missing-newline marker. No mocking framework is used; the reporters have no dependency other than the `Context`,
-which is real. Because the tests change the console streams, they run sequentially with the other tests that use
-process-wide state.
+hunk body, when the new-side start does not match the position in the output, when a number of a hunk header is not
+valid, or when a line that starts with a backslash is anywhere but directly after a hunk body line (the no-newline
+marker) or directly after the `+++` header (the line-ending note); each is reported as an `InvalidOperationException`.
+The patched text must equal the rewritten text exactly. The test document has thirty numbered lines that are changed
+near the start, deleted and inserted in the middle, and shortened at the end without a final newline, so that it
+needs three separate hunks and a missing-newline marker. No mocking framework is used; the reporters have no
+dependency other than the `Context`, which is real. Because the tests change the console streams, they run
+sequentially with the other tests that use process-wide state.
 
 ### Test Environment
 
@@ -30,9 +32,11 @@ touch process-wide state.
 
 - All integration tests pass with zero failures.
 - Diagnostics given out of order are written one per line as `path:line:col: rule-id message`, with paths relative to
-  the base directory, ordered by path, line, column, and rule identifier, and the exit code is 1.
+  the base directory, ordered by path, line, column, and rule identifier, and the exit code is 1; a repeated
+  diagnostic is written once, and nothing is written when there is nothing to report.
 - The diff of a change at the start, in the middle, and at the end of a file is written as separate hunks, and
   applying the written lines to the original text gives the rewritten text exactly.
+- A change of line endings alone is named by a note line in the diff, which does not disturb applying the diff.
 - The same diagnostics and diffs given in reverse order produce identical output and the same exit code.
 - A diff is written to standard output, nothing is written to standard error, and writing only a diff leaves the exit
   code at 0.
@@ -57,6 +61,16 @@ line by line and the two exit codes are equal.
 **A diff alone goes to standard output and does not fail the run**: One changed file is reported to a context that is
 not silent, with the console streams captured. The diff, with its `--- a/a.md` header and its `+y` line, is on
 standard output, nothing is on standard error, and the exit code is 0.
+
+**A repeated diagnostic is written once**: Two equal diagnostics and a third one are reported. The log holds two
+lines, one for the repeated finding and one for the other, and the exit code is 1.
+
+**Nothing to report writes nothing**: No diagnostics and no diffs are reported. The log is empty and the exit code
+is 0.
+
+**A change of line endings alone is named in the diff**: A file whose text is equal after normalization but whose
+line endings change from CRLF to LF is reported as a diff. The log holds the two headers and the line
+`\ Line endings change from CRLF to LF` and no hunk, and applying the logged lines to the text leaves it unchanged.
 
 #### Boundary conditions
 

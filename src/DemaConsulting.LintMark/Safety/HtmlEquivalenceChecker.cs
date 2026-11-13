@@ -37,8 +37,9 @@ namespace DemaConsulting.LintMark.Safety;
 ///         never touched (otherwise <c>*a* *b*</c> becoming <c>*a**b*</c> would go unnoticed), the content of
 ///         <c>pre</c>, <c>script</c>, <c>style</c> and <c>textarea</c> elements is compared exactly, and the
 ///         content of inline <c>code</c> is compared exactly except that a line ending counts as a space (the
-///         CommonMark rule). Heading identifiers are dropped. Only HTML whitespace (space, tab, line feed,
-///         carriage return, form feed) is collapsed, so a changed no-break space is a difference.
+///         CommonMark rule). Heading identifiers are dropped, except inside those verbatim elements. Only
+///         HTML whitespace (space, tab, line feed, carriage return, form feed) is collapsed, so a changed
+///         no-break space is a difference.
 ///     </para>
 ///     <para>
 ///         Rendering is done on LF-normalized text only, because the Markdown parser renders a multi-line code
@@ -87,11 +88,12 @@ internal static partial class HtmlEquivalenceChecker
     ];
 
     /// <summary>
-    ///     Matches the identifier of a heading.
+    ///     Matches the identifier of a heading, written with double or single quotes directly after the tag name
+    ///     (as the renderer writes it) once whitespace has been collapsed.
     /// </summary>
     /// <returns>The compiled expression.</returns>
     [GeneratedRegex(
-        @"(<h[1-6]) id=""[^""]*""",
+        @"(<h[1-6]) id=(?:""[^""]*""|'[^']*')",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
         matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
     private static partial Regex HeadingIdRegex();
@@ -107,11 +109,13 @@ internal static partial class HtmlEquivalenceChecker
     private static partial Regex WhitespaceRegex();
 
     /// <summary>
-    ///     Matches a block-level tag together with the whitespace around it.
+    ///     Matches a block-level tag together with the whitespace around it. The tag ends at the first
+    ///     <c>&gt;</c> and may not contain a <c>&lt;</c>, so an opening tag that never ends is not searched to the
+    ///     end of the text (which would be quadratic for many such tags); it only keeps its surrounding spaces.
     /// </summary>
     /// <returns>The compiled expression.</returns>
     [GeneratedRegex(
-        @" ?(</?(?:p|li|ul|ol|h[1-6]|blockquote|table|thead|tbody|tr|td|th|pre|hr|div|section|details|summary|dl|dt|dd)\b[^>]*>) ?",
+        @" ?(</?(?:p|li|ul|ol|h[1-6]|blockquote|table|thead|tbody|tr|td|th|pre|hr|div|section|details|summary|dl|dt|dd)\b[^<>]*>) ?",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
         matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
     private static partial Regex BlockTagRegex();
@@ -205,8 +209,6 @@ internal static partial class HtmlEquivalenceChecker
     /// </remarks>
     private static string Normalize(string html)
     {
-        html = HeadingIdRegex().Replace(html, "$1");
-
         var builder = new StringBuilder(html.Length);
         var nextOpening = new int[VerbatimElements.Length];
         Array.Fill(nextOpening, UnknownPosition);
@@ -322,7 +324,15 @@ internal static partial class HtmlEquivalenceChecker
     ///     Normalizes HTML outside whitespace-sensitive elements.
     /// </summary>
     /// <param name="plain">The plain part.</param>
-    /// <returns>The part with whitespace collapsed and removed next to block-level tags.</returns>
-    private static string NormalizePlain(ReadOnlySpan<char> plain) =>
-        BlockTagRegex().Replace(WhitespaceRegex().Replace(plain.ToString(), " "), "$1");
+    /// <returns>
+    ///     The part with whitespace collapsed, heading identifiers dropped, and spaces removed next to
+    ///     block-level tags.
+    /// </returns>
+    private static string NormalizePlain(ReadOnlySpan<char> plain)
+    {
+        // Heading identifiers are dropped here only, so that one inside a verbatim element stays exact
+        var collapsed = WhitespaceRegex().Replace(plain.ToString(), " ");
+        var withoutIds = HeadingIdRegex().Replace(collapsed, "$1");
+        return BlockTagRegex().Replace(withoutIds, "$1");
+    }
 }

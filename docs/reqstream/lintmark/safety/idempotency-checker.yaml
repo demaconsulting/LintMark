@@ -11,16 +11,24 @@ sections:
         sections:
           - title: IdempotencyChecker Requirements
             requirements:
-              - id: LintMark-Safety-IdempotencyChecker-DetectsUnstableFormatting
+              - id: LintMark-Safety-IdempotencyChecker-AcceptsStableFormatting
                 title: >-
                   The IdempotencyChecker class shall treat a text as stable when the formatting step returns it
-                  unchanged, and as unstable when the formatting step changes it, whether the change flips back
-                  and forth or grows.
+                  unchanged.
+                justification: |
+                  A rewrite that formatting leaves alone is a fixed point, and a safe rewrite must not be
+                  refused for being stable.
+                tests:
+                  - IdempotencyChecker_Check_StableFormatter_Idempotent
+
+              - id: LintMark-Safety-IdempotencyChecker-DetectsUnstableFormatting
+                title: >-
+                  The IdempotencyChecker class shall treat a text as unstable when the formatting step changes
+                  it, whether the change flips back and forth or grows.
                 justification: |
                   A rewrite that is not stable would modify the file again on every run, and could never pass
                   a check.
                 tests:
-                  - IdempotencyChecker_Check_StableFormatter_Idempotent
                   - IdempotencyChecker_Check_FlipFlopFormatter_NotIdempotent
                   - IdempotencyChecker_Check_GrowingFormatter_NotIdempotent
                   - IdempotencyChecker_Check_EmptyTextGrows_ReportsLineOne

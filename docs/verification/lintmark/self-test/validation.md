@@ -23,32 +23,34 @@ N/A - standard test environment.
 
 #### Test Scenarios
 
-**Validation_Run_NullContext_ThrowsArgumentNullException**: `Validation.Run` is called with a
-null context argument; an `ArgumentNullException` is thrown, confirming the null guard at the
-unit boundary. This scenario is tested by
-`Validation_Run_NullContext_ThrowsArgumentNullException`.
+##### Normal operation
 
-**Validation_Run_WithSilentContext_PrintsSummary**: `Validation.Run` is called with a silent
-context (output captured separately); the summary contains "Total Tests:", "Passed:", and
-"Failed:", confirming the summary is always produced. This scenario is tested by
-`Validation_Run_WithSilentContext_PrintsSummary`.
+**Summary is printed for a silent context**: `Validation.Run` is called with a silent context
+(output captured separately); the summary contains "Total Tests:", "Passed:", and "Failed:",
+confirming the summary is always produced.
 
-**Validation_Run_WithSilentContext_ExitCodeIsZero**: `Validation.Run` is called with a silent
-context; `context.ExitCode` is 0 after the run, confirming all sub-tests pass in the standard
-environment. This scenario is tested by `Validation_Run_WithSilentContext_ExitCodeIsZero`.
+**Exit code is zero when all sub-tests pass**: `Validation.Run` is called with a silent context;
+`context.ExitCode` is 0 after the run, confirming all sub-tests pass in the standard environment.
 
-**Validation_Run_WithTrxResultsFile_WritesTrxFile**: `Validation.Run` is called with a context
-whose `ResultsFile` points to a temporary `.trx` path; a file is created at the specified path
-and it contains a `<TestRun` XML element. This scenario is tested by
-`Validation_Run_WithTrxResultsFile_WritesTrxFile`.
+**TRX results file is written**: `Validation.Run` is called with a context whose `ResultsFile`
+points to a temporary `.trx` path; a file is created at the specified path and it contains a
+`<TestRun` XML element.
 
-**Validation_Run_WithXmlResultsFile_WritesXmlFile**: `Validation.Run` is called with a context
-whose `ResultsFile` points to a temporary `.xml` path; a file is created at the specified path
-and it contains a `<testsuites` XML element. This scenario is tested by
-`Validation_Run_WithXmlResultsFile_WritesXmlFile`.
+**JUnit XML results file is written**: `Validation.Run` is called with a context whose
+`ResultsFile` points to a temporary `.xml` path; a file is created at the specified path and it
+contains a `<testsuites` XML element.
 
-**Validation_Run_WithUnsupportedResultsFormat_DoesNotWriteFile**: `Validation.Run` is called
-with a context whose `ResultsFile` has a `.json` extension (unsupported); no file is created,
-no exception is thrown, and an error message indicating the unsupported format is written to
-the context. This scenario is tested by
-`Validation_Run_WithUnsupportedResultsFormat_DoesNotWriteFile`.
+##### Boundary conditions
+
+N/A - the unit has no numeric or size limits; its null-argument boundary is covered under error
+handling.
+
+##### Error handling
+
+**Null context is rejected**: `Validation.Run` is called with a null context argument; an
+`ArgumentNullException` is thrown, confirming the null guard at the unit boundary.
+
+**Unsupported results format is reported and no file is written**: `Validation.Run` is called
+with a context whose `ResultsFile` has a `.json` extension (unsupported); no file is created, no
+exception is thrown, and an error message indicating the unsupported format is written to the
+context.

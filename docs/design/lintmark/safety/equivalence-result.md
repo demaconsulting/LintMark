@@ -11,10 +11,12 @@ refusal the same whichever check refused.
 
 #### Data Model
 
-`EquivalenceResult` is an immutable record struct `(bool IsEquivalent, string? Description)`. The result is equivalent
-only when the check positively established it. `Description` is null for an equivalent result and is a single line of
-at most 240 characters plus an ellipsis for a different one. `EquivalenceResult.Equivalent` is the shared passing
-instance. A default instance is not equivalent and has no description; it is never produced by the checks.
+`EquivalenceResult` is an immutable record struct with the properties `IsEquivalent` and `Description`. Its only
+constructor is private; instances are obtained through `Equivalent` and `Different`, so `Description` is null exactly
+when the result is equivalent. The result is equivalent only when the check positively established it. `Description`
+is a single line of at most 240 characters plus an ellipsis for a different result. `EquivalenceResult.Equivalent` is
+the shared passing instance. A default instance is not equivalent and has no description; it is never produced by the
+checks.
 
 #### Key Methods
 
@@ -27,16 +29,21 @@ instance. A default instance is not equivalent and has no description; it is nev
 - *Parameters*: `string description`.
 - *Returns*: a result that is not equivalent.
 - *Preconditions*: `description` is not null.
-- *Postconditions*: the stored description has every line break (carriage return, line feed, and the Unicode line and
-  paragraph separators) replaced by a space; a description longer than 240 characters is cut to 240 characters and
-  ends with an ellipsis, so it is at most 243 characters in all; a shorter description is kept as it is.
+- *Postconditions*: the stored description has every line break (carriage return, line feed, form feed, next line
+  U+0085, line separator U+2028, and paragraph separator U+2029) replaced by a space; a description longer than 240
+  characters is cut to 240 characters and ends with an ellipsis, so it is at most 243 characters in all; a shorter
+  description is kept as it is. A cut never splits a surrogate pair: when the limit falls between the two halves of
+  a pair, the whole pair is dropped.
 
 **Excerpt**: Quotes a text for a description.
 
 - *Parameters*: `string text`; `int start`.
 - *Returns*: the text from the start offset on, on one line.
-- *Postconditions*: the start is clamped into the text; at most 60 characters are returned; line feed, carriage
-  return, and tab are shown as backslash escapes and any other control character as a question mark.
+- *Postconditions*: the start is clamped into the text; at most 60 characters of the text are shown, so that after
+  escaping the result is at most 120 characters; line feed, carriage return, and tab are shown as two-character
+  backslash escapes, and any other control character and the line and paragraph separators U+2028 and U+2029 as a
+  question mark. A surrogate pair is never split: a pair that straddles the end of the window is dropped, and a start
+  offset inside a pair moves back to the beginning of the pair.
 
 **FirstDifference**: Finds where two texts first differ.
 

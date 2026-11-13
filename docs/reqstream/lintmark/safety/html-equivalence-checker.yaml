@@ -14,71 +14,229 @@ sections:
               - id: LintMark-Safety-HtmlEquivalenceChecker-RendersWithFixedPipeline
                 title: >-
                   The HtmlEquivalenceChecker class shall compare the HTML that the tool's fixed Markdown dialect
-                  renders for the two texts, ignoring heading identifiers, and shall render nothing when the two
-                  texts are identical.
+                  renders for the two texts.
                 justification: |
-                  Only the dialect that the rest of the tool uses shows how the author's document is read. An
-                  identifier that the renderer makes from a heading is not content of the document.
+                  Only the dialect that the rest of the tool uses shows how the author's document is read.
                 children:
                   - LintMark-OTS-Markdig-HtmlRendering
                 tests:
                   - HtmlEquivalenceChecker_Check_ReferenceCases_ReportExpectedVerdict
-                  - HtmlEquivalenceChecker_Check_HeadingIdsOnly_Equivalent
-                  - HtmlEquivalenceChecker_Check_IdenticalText_EquivalentWithoutRendering
 
-              - id: LintMark-Safety-HtmlEquivalenceChecker-EquivalentLayouts
+              - id: LintMark-Safety-HtmlEquivalenceChecker-HeadingIdsIgnored
                 title: >-
-                  The HtmlEquivalenceChecker class shall treat two texts as equivalent when they differ only in
-                  how the source is laid out: a line break inside a paragraph against a space, the character of a
-                  bullet, the spacing of a table, a setext heading against an ATX heading, and trailing
-                  whitespace.
+                  The HtmlEquivalenceChecker class shall ignore the identifier that the renderer makes from a
+                  heading when it compares the rendered HTML.
                 justification: |
-                  Reflowing text is what a formatter is for. Layout that a reader of the rendered document
-                  cannot see must not make a safe rewrite look unsafe.
+                  An identifier that the renderer makes from a heading is not content of the document, and a
+                  rewrite of the heading text must not look unsafe for that reason.
+                tests:
+                  - HtmlEquivalenceChecker_Check_HeadingIdsOnly_Equivalent
+                  - HtmlEquivalenceChecker_Check_SingleQuotedHeadingIds_Equivalent
+                  - HtmlEquivalenceChecker_Check_HeadingIdAfterOtherAttribute_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-IdenticalTextEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two identical texts as equivalent without
+                  rendering them.
+                justification: |
+                  Identical texts render to the same page whatever the renderer does, so a rewrite that changes
+                  nothing must never be refused because of a renderer failure.
+                tests:
+                  - HtmlEquivalenceChecker_Check_IdenticalTextRendererThrows_StillEquivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-SoftBreakEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat a line break inside a paragraph and a space as
+                  equivalent.
+                justification: |
+                  Rewrapping a paragraph is what a formatter is for. A reader of the rendered document cannot
+                  see where the source line ended.
                 tests:
                   - HtmlEquivalenceChecker_Check_SoftBreakVersusSpace_Equivalent
-                  - HtmlEquivalenceChecker_Check_BulletMarkerAndTableSpacing_Equivalent
-                  - HtmlEquivalenceChecker_Check_SetextToAtx_Equivalent
-                  - HtmlEquivalenceChecker_Check_TrailingWhitespaceOnly_Equivalent
-                  - HtmlEquivalenceChecker_Check_ReferenceCases_ReportExpectedVerdict
 
-              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsSemanticChanges
+              - id: LintMark-Safety-HtmlEquivalenceChecker-BulletMarkerEquivalent
                 title: >-
-                  The HtmlEquivalenceChecker class shall treat two texts as different when the rendered document
-                  differs in meaning: a hard break that is lost, a line break that creates a list or a heading, a
-                  changed link destination, emphasis that is lost, and words that are glued together.
+                  The HtmlEquivalenceChecker class shall treat two bullet lists that differ only in the character
+                  of the bullet as equivalent.
                 justification: |
-                  These are the changes by which a reflow damages a document without any visible sign in the
-                  source. Missing one of them would let the tool write the damage.
+                  The character of a bullet is a matter of layout that a reader of the rendered document cannot
+                  see.
+                tests:
+                  - HtmlEquivalenceChecker_Check_BulletMarkerChanged_Equivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-TableSpacingEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two tables that differ only in the spacing of
+                  their cells and rulers as equivalent.
+                justification: |
+                  Aligning the columns of a table is a matter of layout that a reader of the rendered document
+                  cannot see.
+                tests:
+                  - HtmlEquivalenceChecker_Check_TableSpacingChanged_Equivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-SetextAtxEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat a setext heading and an ATX heading of the same
+                  level and text as equivalent.
+                justification: |
+                  The syntax of a heading is a matter of layout that a reader of the rendered document cannot
+                  see.
+                tests:
+                  - HtmlEquivalenceChecker_Check_SetextToAtx_Equivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-TrailingWhitespaceEquivalent
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts that differ only in trailing whitespace
+                  as equivalent.
+                justification: |
+                  Trailing blanks and blank lines at the end of a line or of the text are a matter of layout
+                  that a reader of the rendered document cannot see.
+                tests:
+                  - HtmlEquivalenceChecker_Check_TrailingWhitespaceOnly_Equivalent
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsLostHardBreak
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as different when a hard break is lost.
+                justification: |
+                  A hard break is a visible line break. Dropping the two trailing spaces that make it damages
+                  the document without any visible sign in the source.
                 tests:
                   - HtmlEquivalenceChecker_Check_HardBreakDropped_Different
-                  - HtmlEquivalenceChecker_Check_BreakCreatesList_Different
-                  - HtmlEquivalenceChecker_Check_BreakCreatesHeading_Different
-                  - HtmlEquivalenceChecker_Check_LinkUrlChanged_Different
-                  - HtmlEquivalenceChecker_Check_EmphasisSpacingLost_Different
-                  - HtmlEquivalenceChecker_Check_GluedWords_Different
-                  - HtmlEquivalenceChecker_Check_LostInlineTagSpace_Different
-                  - HtmlEquivalenceChecker_Check_ReferenceCases_ReportExpectedVerdict
 
-              - id: LintMark-Safety-HtmlEquivalenceChecker-CodeIsExact
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingList
                 title: >-
-                  The HtmlEquivalenceChecker class shall compare code, including code spans, fenced code, and the
-                  content of preformatted raw HTML elements, character by character.
+                  The HtmlEquivalenceChecker class shall treat two texts as different when a line break makes
+                  the text after it a list item.
                 justification: |
-                  Whitespace in code is part of its meaning, and a formatter must never touch it. The
-                  element names of raw HTML are written in any letter case, and an element that is
-                  never closed still runs to the end of the text.
+                  Wrapping a paragraph in front of a list marker turns prose into a list. Missing this would let
+                  the tool write the damage.
+                tests:
+                  - HtmlEquivalenceChecker_Check_BreakCreatesList_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingHeading
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as different when a line break makes
+                  the text after it a heading.
+                justification: |
+                  Wrapping a paragraph in front of a heading marker turns prose into a heading. Missing this
+                  would let the tool write the damage.
+                tests:
+                  - HtmlEquivalenceChecker_Check_BreakCreatesHeading_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsChangedLinkDestination
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as different when the destination of a
+                  link is changed.
+                justification: |
+                  The destination of a link is part of the rendered document, and a rewrite that changes it
+                  sends the reader somewhere else.
+                tests:
+                  - HtmlEquivalenceChecker_Check_LinkUrlChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsLostEmphasis
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as different when emphasis is lost.
+                justification: |
+                  Emphasis is visible to a reader, and a rewrite that drops it changes how the document reads.
+                tests:
+                  - HtmlEquivalenceChecker_Check_EmphasisLost_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DetectsGluedWords
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat two texts as different when words, also words in
+                  neighboring inline elements, are glued together.
+                justification: |
+                  A rewrite that joins two words changes what the document says, also when the words are in
+                  separate emphasized or inline HTML elements.
+                tests:
+                  - HtmlEquivalenceChecker_Check_GluedWords_Different
+                  - HtmlEquivalenceChecker_Check_EmphasisSpacingLost_Different
+                  - HtmlEquivalenceChecker_Check_LostInlineTagSpace_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-CodeSpanExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the content of a code span character by
+                  character.
+                justification: |
+                  Whitespace in code is part of its meaning, and a formatter must never touch it.
                 tests:
                   - HtmlEquivalenceChecker_Check_CodeSpanDoubleSpaceCollapsed_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-FencedCodeExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the content of fenced code character by
+                  character.
+                justification: |
+                  Whitespace in code is part of its meaning, and a formatter must never touch it.
+                tests:
                   - HtmlEquivalenceChecker_Check_FencedCodeChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-PreformattedHtmlExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the content of a preformatted raw HTML element
+                  character by character.
+                justification: |
+                  Whitespace in a preformatted element is part of what it shows, and a formatter must never
+                  touch it.
+                tests:
                   - HtmlEquivalenceChecker_Check_RawHtmlPreWhitespaceChanged_Different
-                  - HtmlEquivalenceChecker_Check_UnclosedPreWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-ElementNameCaseInsensitive
+                title: >-
+                  The HtmlEquivalenceChecker class shall recognize the name of a verbatim raw HTML element in
+                  any letter case.
+                justification: |
+                  The element names of raw HTML are written in any letter case, and an element that is written
+                  in upper case must stay exact as well.
+                tests:
                   - HtmlEquivalenceChecker_Check_UppercasePreWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-UnclosedElementExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the text that follows the opening tag of a
+                  verbatim raw HTML element that is never closed, up to the end of the text, character by
+                  character.
+                justification: |
+                  An element that is never closed still runs to the end of the text, so the whitespace in it
+                  is as visible as it is in a closed element.
+                tests:
+                  - HtmlEquivalenceChecker_Check_UnclosedPreWhitespaceChanged_Different
+                  - HtmlEquivalenceChecker_Check_UnclosedCodeWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-ScriptStyleTextareaExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare the content of script, style, and textarea raw
+                  HTML elements character by character.
+                justification: |
+                  Whitespace in a script, a style sheet, or a text area is part of what it says or shows, and
+                  a formatter must never touch it.
+                tests:
+                  - HtmlEquivalenceChecker_Check_ScriptStyleTextareaWhitespaceChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-VerbatimHeadingIdsExact
+                title: >-
+                  The HtmlEquivalenceChecker class shall compare a heading identifier that is written inside a
+                  verbatim raw HTML element character by character.
+                justification: |
+                  Only the identifier that the renderer makes from a heading is not content of the document;
+                  the same text inside a preformatted element is content and must stay exact.
+                tests:
+                  - HtmlEquivalenceChecker_Check_HeadingIdInsidePreChanged_Different
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-HtmlWhitespaceCollapsed
+                title: >-
+                  The HtmlEquivalenceChecker class shall treat a tab, a line feed, and a form feed outside
+                  verbatim elements as the same whitespace as a space.
+                justification: |
+                  HTML itself collapses every run of these characters to one space, so a change between them
+                  cannot be seen by a reader.
+                tests:
+                  - HtmlEquivalenceChecker_Check_TabAndFormFeedCollapsed_Equivalent
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-InlineWhitespaceSignificant
                 title: >-
-                  The HtmlEquivalenceChecker class shall treat a changed no-break space as a difference while
-                  collapsing only the whitespace that HTML itself collapses.
+                  The HtmlEquivalenceChecker class shall treat a no-break space that is replaced by another
+                  character as a difference.
                 justification: |
                   A no-break space is visible to a reader and to a browser, while ordinary whitespace runs
                   are not. Collapsing more than HTML does would hide real changes.
@@ -88,19 +246,28 @@ sections:
               - id: LintMark-Safety-HtmlEquivalenceChecker-ReportsFirstDifference
                 title: >-
                   The HtmlEquivalenceChecker class shall describe the first difference that it finds with the
-                  text around it, in one line of bounded length.
+                  text around it.
                 justification: |
                   The author must be able to find what the tool objected to without comparing two
                   documents by hand.
                 tests:
                   - HtmlEquivalenceChecker_Check_FirstDifference_DescribedWithContext
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-DescriptionIsOneBoundedLine
+                title: >-
+                  The HtmlEquivalenceChecker class shall describe a difference in one line of bounded length,
+                  however long the texts are.
+                justification: |
+                  A refusal is reported in a format with one line per finding, and a description that spanned
+                  several lines or grew with the texts would break it.
+                tests:
                   - HtmlEquivalenceChecker_Check_Difference_DescriptionIsSingleLineAndBounded
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-LinearTime
                 title: >-
                   The HtmlEquivalenceChecker class shall complete its comparison in time that grows linearly with
-                  the size of the texts, also for text with a very large number of unclosed tags and for text
-                  with a very large number of code spans.
+                  the size of the texts, also for text with a very large number of unclosed tags (verbatim and
+                  block-level) and for text with a very large number of code spans.
                 justification: |
                   A hostile or damaged document must not be able to stall a run in the way that a
                   pattern with backtracking could.
@@ -117,7 +284,6 @@ sections:
                   the rewrite must be refused instead of allowed.
                 tests:
                   - HtmlEquivalenceChecker_Check_RendererThrows_ReportsDifferenceNamingExceptionType
-                  - HtmlEquivalenceChecker_Check_IdenticalTextRendererThrows_StillEquivalent
 
               - id: LintMark-Safety-HtmlEquivalenceChecker-ThreadSafe
                 title: >-
@@ -128,10 +294,16 @@ sections:
                 tests:
                   - HtmlEquivalenceChecker_Check_ParallelCalls_SameResult
 
-              - id: LintMark-Safety-HtmlEquivalenceChecker-RejectsInvalidInput
-                title: >-
-                  The HtmlEquivalenceChecker class shall refuse a missing text and a text that contains a carriage
-                  return.
+              - id: LintMark-Safety-HtmlEquivalenceChecker-RejectsMissingText
+                title: The HtmlEquivalenceChecker class shall refuse a missing text.
+                justification: |
+                  A missing text is a programming error that must be reported as such. Comparing it would give
+                  a verdict about a document that does not exist.
+                tests:
+                  - HtmlEquivalenceChecker_Check_NullArguments_Throw
+
+              - id: LintMark-Safety-HtmlEquivalenceChecker-RejectsCarriageReturn
+                title: The HtmlEquivalenceChecker class shall refuse a text that contains a carriage return.
                 justification: |
                   Only text with normalized line endings is compared, because a carriage return changes how
                   some constructs render. Comparing anything else would give a verdict about a different
@@ -139,5 +311,3 @@ sections:
                 tests:
                   - HtmlEquivalenceChecker_Check_CarriageReturnInBefore_Throws
                   - HtmlEquivalenceChecker_Check_CarriageReturnInAfter_Throws
-                  - HtmlEquivalenceChecker_Check_NullArguments_Throw
-                  - HtmlEquivalenceChecker_Check_NullRenderer_Throws

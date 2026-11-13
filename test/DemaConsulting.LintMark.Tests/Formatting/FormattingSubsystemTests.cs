@@ -90,6 +90,25 @@ public class FormattingSubsystemTests
     }
 
     /// <summary>
+    ///     Test that every character that no edit covers is kept, including a character outside the basic plane
+    ///     and the text of a block that no formatter accepts.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_OneEdit_UnchangedCharactersKept()
+    {
+        // Arrange: a paragraph with a surrogate pair, a fenced code block with a double space, and one paragraph to change
+        var document = Parse("😀 smile\n\n```\ncode  x\n```\n\nfix  this\n");
+        var formatter = new DocumentFormatter([new ReplacingFormatter("  ", " ")]);
+
+        // Act: format and patch
+        var (result, patched) = FormatAndPatch(formatter, document);
+
+        // Assert: only the double space of the last paragraph is edited, and every other character is as it was
+        Assert.Single(result.Edits);
+        Assert.Equal("😀 smile\n\n```\ncode  x\n```\n\nfix this\n", patched);
+    }
+
+    /// <summary>
     ///     Test that formatters that propose conflicting edits are refused.
     /// </summary>
     [Fact]
@@ -140,6 +159,96 @@ public class FormattingSubsystemTests
         Assert.Equal(
             "<!-- markdownlint-disable paragraph-wrap -->\n\nkeep  this\n\n<!-- markdownlint-enable paragraph-wrap -->\n\nfix this\n",
             patched);
+    }
+
+    /// <summary>
+    ///     Test that a suppression comment inside a block leaves the whole block verbatim while the others are formatted.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_SuppressionInsideBlock_LeftVerbatim()
+    {
+        // Arrange: a paragraph with a disable comment and an enable comment in its middle, and one paragraph after it
+        var document = Parse("keep  <!-- markdownlint-disable paragraph-wrap --> this  <!-- markdownlint-enable paragraph-wrap --> text\n\nfix  this\n");
+        var formatter = new DocumentFormatter([new ReplacingFormatter("  ", " ")]);
+
+        // Act: format and patch
+        var (_, patched) = FormatAndPatch(formatter, document);
+
+        // Assert: the paragraph with the comments is unchanged, and only the other paragraph changed
+        Assert.Equal(
+            "keep  <!-- markdownlint-disable paragraph-wrap --> this  <!-- markdownlint-enable paragraph-wrap --> text\n\nfix this\n",
+            patched);
+    }
+
+    /// <summary>
+    ///     Test that an edit outside the text is refused when the edits are applied.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_OutOfRangeEdit_PatchingThrows()
+    {
+        // Arrange: a formatter that proposes an edit beyond the end of the text; the edit set itself accepts it
+        var document = Parse("abcdef\n");
+        var formatter = new DocumentFormatter([new OutOfRangeEditFormatter()]);
+        var result = formatter.Format(document, LintMarkConfig.Default);
+
+        // Act / Assert: the patcher refuses to apply the edit
+        Assert.Single(result.Edits);
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(document.Source, result.Edits));
+    }
+
+    /// <summary>
+    ///     Test that an exception of a block formatter reaches the caller of the subsystem.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_ThrowingFormatter_ExceptionReachesCaller()
+    {
+        // Arrange: a formatter that fails on a paragraph
+        var document = Parse("abc\n");
+        var formatter = new DocumentFormatter([new ThrowingFormatter()]);
+
+        // Act / Assert: the failure is neither hidden nor replaced
+        var exception = Assert.Throws<InvalidOperationException>(() => formatter.Format(document, LintMarkConfig.Default));
+        Assert.Equal("The formatter failed on purpose", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that without a configured line ending the majority ending of the file is written.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_NoConfiguredLineEnding_UsesMajority()
+    {
+        // Arrange: a file with two CRLF and one LF terminator, and a configuration without a line ending
+        var bytes = Encoding.UTF8.GetBytes("a\r\nb\r\nc\n");
+        var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
+
+        // Act: format, patch and convert to the bytes that would be written
+        var result = new DocumentFormatter().Format(document, LintMarkConfig.Default);
+        var patched = SourcePatcher.Apply(document.Source, result.Edits);
+        var written = document.Source.ToBytes(patched, result.LineEnding);
+
+        // Assert: CRLF is the target, so the one LF terminator is reported and the bytes use CRLF
+        Assert.Equal(LineEnding.CrLf, result.LineEnding);
+        Assert.Equal("line-ending", Assert.Single(result.Diagnostics).RuleId);
+        Assert.Equal("a\r\nb\r\nc\r\n", Encoding.UTF8.GetString(written));
+    }
+
+    /// <summary>
+    ///     Test that a file whose line endings all agree with the configuration has no line ending problem.
+    /// </summary>
+    [Fact]
+    public void FormattingSubsystem_Format_UniformDocument_ReportsNoLineEndingProblem()
+    {
+        // Arrange: a CRLF file and a configuration that asks for CRLF
+        var bytes = Encoding.UTF8.GetBytes("a\r\n\r\nb\r\n");
+        var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
+        var config = LintMarkConfig.Default with { EndOfLine = LineEnding.CrLf };
+
+        // Act: format
+        var result = new DocumentFormatter().Format(document, config);
+
+        // Assert: nothing is reported and the line ending is the configured one
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal(LineEnding.CrLf, result.LineEnding);
     }
 
     /// <summary>

@@ -34,13 +34,17 @@ namespace DemaConsulting.LintMark.Safety;
 ///         therefore compares, before and after, the <em>sequences</em> of lines that start with <c>:::</c>, a
 ///         backslash and a letter, or a code fence with braces, that are exactly <c>$$</c>, or that are grid
 ///         table border lines (after removing leading block quote markers, indentation and trailing blanks),
-///         and the <em>occurrence counts</em> of attribute groups (<c>{#id .class}</c>) and citations
-///         (<c>[@key]</c>). Any difference is a failure.
+///         and the <em>occurrence counts</em> of attribute groups that start with <c>#</c> or <c>.</c>
+///         (<c>{#id .class}</c>) and of bracketed citations (<c>[@key]</c>, <c>[-@key, p. 3]</c>). Any
+///         difference is a failure.
 ///     </para>
 ///     <para>
 ///         The check is a backstop, not a substitute: formatters are expected to leave paragraphs that contain
 ///         Pandoc structure alone. It is deliberately strict, so it can refuse a harmless rewrite but never
-///         accept a harmful one that changes these tokens. A check that cannot be completed (a pattern times
+///         accept a harmful one that changes these tokens. It does not recognize other attribute forms (such
+///         as <c>{width=50%}</c> or <c>{-}</c>) or narrative citations (<c>@key</c>), and it does not see
+///         a line that moves into or out of a block quote or an indented code block; changes of those kinds
+///         are left to the HTML check. A check that cannot be completed (a pattern times
 ///         out) reports a difference. Only LF-normalized text is accepted.
 ///     </para>
 ///     <para>
@@ -115,10 +119,38 @@ internal static partial class StructuralTokenChecker
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a text contains a carriage return.</exception>
-    internal static EquivalenceResult Check(string beforeLf, string afterLf, Func<string, List<string>> collectLineTokens)
+    internal static EquivalenceResult Check(string beforeLf, string afterLf, Func<string, List<string>> collectLineTokens) =>
+        Check(beforeLf, afterLf, collectLineTokens, Count);
+
+    /// <summary>
+    ///     Checks that two versions of a document have the same Pandoc structural tokens, using the given collector
+    ///     of line tokens and the given counter of pattern matches.
+    /// </summary>
+    /// <param name="beforeLf">The original LF-normalized text. Must not be null or contain a carriage return.</param>
+    /// <param name="afterLf">The rewritten LF-normalized text. Must not be null or contain a carriage return.</param>
+    /// <param name="collectLineTokens">The function that collects the line tokens of a text. Must not be null.</param>
+    /// <param name="countMatches">
+    ///     The function that counts, by matched text, the matches of a pattern in a text. Must not be null.
+    /// </param>
+    /// <returns>
+    ///     An equivalent result when the token sequences and occurrence counts are equal; otherwise a result that names
+    ///     the first token that differs, or states that the check could not be completed.
+    /// </returns>
+    /// <remarks>
+    ///     This overload is a seam for tests, so that a failing occurrence count can be simulated; the other
+    ///     overloads use the real count.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a text contains a carriage return.</exception>
+    internal static EquivalenceResult Check(
+        string beforeLf,
+        string afterLf,
+        Func<string, List<string>> collectLineTokens,
+        Func<Regex, string, Dictionary<string, int>> countMatches)
     {
         // Validate input: only LF-normalized text is compared
         ArgumentNullException.ThrowIfNull(collectLineTokens);
+        ArgumentNullException.ThrowIfNull(countMatches);
         ArgumentNullException.ThrowIfNull(beforeLf);
         ArgumentNullException.ThrowIfNull(afterLf);
         if (beforeLf.Contains('\r'))
@@ -141,8 +173,8 @@ internal static partial class StructuralTokenChecker
         {
             // The line tokens are compared as sequences, the attribute groups and citations as occurrence counts
             return CompareSequences(collectLineTokens(beforeLf), collectLineTokens(afterLf))
-                ?? CompareOccurrences("Attribute group", AttributeGroupRegex(), beforeLf, afterLf)
-                ?? CompareOccurrences("Citation", CitationRegex(), beforeLf, afterLf)
+                ?? CompareOccurrences("Attribute group", AttributeGroupRegex(), beforeLf, afterLf, countMatches)
+                ?? CompareOccurrences("Citation", CitationRegex(), beforeLf, afterLf, countMatches)
                 ?? EquivalenceResult.Equivalent;
         }
 
@@ -232,11 +264,17 @@ internal static partial class StructuralTokenChecker
     /// <param name="pattern">The pattern that finds the construct.</param>
     /// <param name="before">The text before.</param>
     /// <param name="after">The text after.</param>
+    /// <param name="countMatches">The function that counts the matches of a pattern by matched text.</param>
     /// <returns><see langword="null"/> when equal; otherwise the result naming the first construct whose count differs.</returns>
-    private static EquivalenceResult? CompareOccurrences(string what, Regex pattern, string before, string after)
+    private static EquivalenceResult? CompareOccurrences(
+        string what,
+        Regex pattern,
+        string before,
+        string after,
+        Func<Regex, string, Dictionary<string, int>> countMatches)
     {
-        var beforeCounts = Count(pattern, before);
-        var afterCounts = Count(pattern, after);
+        var beforeCounts = countMatches(pattern, before);
+        var afterCounts = countMatches(pattern, after);
 
         // Visit every construct in ordinal order so that the reported difference is deterministic
         foreach (var key in beforeCounts.Keys.Union(afterCounts.Keys).Order(StringComparer.Ordinal))

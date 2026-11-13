@@ -11,15 +11,18 @@ file and the captured console show which channel received the diff.
 
 Whether a diff is correct is established by applying it, not only by comparing it with a fixed copy: the `PatchApplier`
 helper applies the unified diff lines to the original text and throws when a context line or removed line does not
-match, when the counts of a hunk header disagree with its body, or when a hunk starts at the wrong place. Two tests
+match, when the counts of a hunk header disagree with its body, or when a hunk starts at the wrong place. Several tests
 use it. The first generates 200 pairs of texts with a small seeded random number generator, so the same
 texts are produced on every platform; the lines come from an alphabet that holds repeated lines, empty lines, and
 lines that look like diff syntax (including the `\ No newline at end of file` marker and a hunk header), and the
 final newline is dropped in one case in four. For every pair, the patched text must equal the rewritten text and the
 diff must be empty exactly when the texts are equal. The second test compares 3000 lines with 3000 completely
 different lines, which is more edits than the search limit of the algorithm allows, and shows that the fallback is
-fast and still applies cleanly. No test double is needed, because the reporter only depends on the `Context` and on
-text. The tests that replace the console are run sequentially with the other tests that touch process-wide state.
+fast (within 10 seconds, which is far above the expected time so that slow build agents do not fail it) and still
+applies cleanly. Two more tests apply a diff that has the line-ending note, with and without a text change, to show
+that the note does not disturb the application. No test double is needed, because the reporter only depends on the
+`Context` and on text. The tests that replace the console are run sequentially with the other tests that touch
+process-wide state.
 
 #### Test Environment
 
@@ -42,8 +45,10 @@ the platform.
   is not mistaken for one.
 - The diffs of several files are written in order of path whatever the order of the input.
 - The patch helper turns the diff of every generated pair, and of two very different large texts, into the
-  rewritten text exactly, and the large case finishes within the time bound.
-- With `--silent`, nothing reaches the console and the log receives the full diff.
+  rewritten text exactly, and the large case finishes within the time bound. A diff with a line-ending note, with or
+  without a text change, applies like the same diff without the note.
+- With `--silent`, nothing reaches the console and the log receives the full diff; without it, the console and the log
+  both receive the full diff.
 - A null list, base directory, or context throws `ArgumentNullException`, and a default `FileDiff` throws
   `ArgumentException`.
 - A `FileDiff` without a path, without a text, or with an undefined line ending is rejected, and a valid one keeps its
@@ -93,6 +98,13 @@ with the old-file headers in the order `a.md`, `m/b.md`, `z.md`.
 **A silent context keeps the diff in the log**: One changed file is reported to a silent context; nothing reaches the
 console, and the log holds the complete diff, `--- a/a.md`, `+++ b/a.md`, `@@ -1 +1 @@`, `-a`, and `+b`.
 
+**A context that is not silent writes the diff to the console and the log**: The same changed file is reported to a
+context that is not silent; the console and the log both hold the complete diff.
+
+**A diff with a line-ending note applies cleanly**: A CRLF file whose text also changes is formatted and applied with
+the patch helper; the note is ignored and the result is the new text. A diff of a line-ending change alone applies as
+no change to the text.
+
 **Random edits give a diff that applies cleanly**: 200 generated pairs, with empty texts, repeated lines, a dropped
 final newline, and lines that look like diff syntax, are formatted and applied with the patch helper; every patched
 text equals the rewritten text, and every diff is empty exactly when the texts are equal.
@@ -118,7 +130,7 @@ line-ending note.
 target, shows the text change and no note.
 
 **Very different large texts still apply cleanly**: 3000 lines compared with 3000 completely different lines give a
-single hunk `@@ -1,3000 +1,3000 @@`, are formatted within the time bound, and the patch helper reproduces the new text.
+single hunk `@@ -1,3000 +1,3000 @@`, are formatted within 10 seconds, and the patch helper reproduces the new text.
 
 **Content that looks like a marker is not a marker**: A line equal to the missing-newline marker inside the context
 of a change is written as a context line behind a space, and the patch reproduces the new text.

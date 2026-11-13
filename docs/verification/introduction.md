@@ -5,11 +5,12 @@ tool from DEMA Consulting for markdown linting and formatting.
 
 ## Purpose
 
-The purpose of this document is to describe how each requirement for the LintMark is
+The purpose of this document is to describe how the requirements for the LintMark are
 verified. For every software item — system, subsystem, and unit — this document names the
 verification approach, identifies the test scenarios (including boundary conditions and error
-paths), describes what is mocked or stubbed, and maps each requirement to at least one named
-test scenario. The document does not restate design; it explains how the design is proven correct.
+paths), and describes what is mocked or stubbed. Traceability from each requirement to its tests
+is provided by the ReqStream trace matrix, not by these documents. The document does not restate
+design; it explains how the design is proven correct.
 
 ## Scope
 

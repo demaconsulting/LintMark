@@ -59,7 +59,7 @@ configurable. A configuration that names one of them is rejected as an unknown r
 | --- | --- | --- |
 | `line-ending` | formatting | A line ending differs from the line ending chosen for the file (always applied) |
 | `safety-html-mismatch` | lint only | A rewrite would change how the document renders |
-| `safety-structure-mismatch` | lint only | A rewrite would change Pandoc structure, or would be read differently |
+| `safety-structure-mismatch` | lint only | A rewrite would change Pandoc structure |
 | `safety-not-idempotent` | lint only | Formatting the rewritten text would change it again |
 | `file-read-error` | lint only | A file cannot be read |
 | `file-encoding-error` | lint only | A file is not valid UTF-8 or has an unsupported byte order mark |
@@ -68,6 +68,8 @@ configurable. A configuration that names one of them is rejected as an unknown r
 | `file-format-error` | lint only | Formatting a file failed |
 | `file-write-error` | lint only | A rewritten file could not be written |
 | `config-error` | lint only | A configuration source has a problem |
+
+The description of each of the three safety identifiers in the registry ends with "so the file is not rewritten".
 
 The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, `HtmlMismatchRuleId`,
 `StructureMismatchRuleId`, `NotIdempotentRuleId`, `GridTableInvalidRuleId`, `FileReadErrorRuleId`,
@@ -88,8 +90,7 @@ The identifiers that other units emit are exposed as constants (`LineEndingRuleI
 
 **Invariants**: identifiers are unique and every table is built once from one list, so the views cannot disagree.
 Names are compared with an ordinal comparison that ignores case, independent of the current culture, so the result
-never depends on the machine's
-locale. Every collection is immutable, so a caller cannot change it even by casting.
+never depends on the machine's locale. Every collection is immutable, so a caller cannot change it even by casting.
 
 #### Key Methods
 

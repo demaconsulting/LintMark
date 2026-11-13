@@ -5,17 +5,17 @@
 `TextReporter` is verified with unit tests in `TextReporterTests.cs`. The real `Context` is used as the receiver, with
 real `Diagnostic` values whose paths lie inside a temporary directory (the `TemporaryDirectory` test helper). The run
 helper creates the `Context` with the `--log` option, and with `--silent` when the test needs a quiet console. It
-replaces the console error stream with a string writer, calls `Report`, and returns three things: the exit code of the
-context, the lines of the log file, and the text that reached the error console. This makes every observable effect of
-the unit visible without a double for the `Context`. The tests give the reporter diagnostics in controlled orders
-(unsorted, reversed, rotated, with repeated members, and with ties on every member in turn), and compare the lines
-with the exact expected text. The internal `GetDisplayPath` function is called directly with a base directory inside
-the temporary directory. The tests change the console stream and are therefore run sequentially with the other tests
-that touch process-wide state.
+replaces the console error and output streams with string writers, calls `Report`, and returns four things: the exit
+code of the context, the lines of the log file, and the text that reached the error console and the standard output
+console. This makes every observable effect of the unit visible without a double for the `Context`. The tests give
+the reporter diagnostics in controlled orders (unsorted, reversed, rotated, with repeated members, and with ties on
+every member in turn), and compare the lines with the exact expected text. The internal `GetDisplayPath` function is
+called directly with a base directory inside the temporary directory. The tests change the console streams and are
+therefore run sequentially with the other tests that touch process-wide state.
 
 #### Test Environment
 
-Temporary directories are created and removed by each test. The tests restore the console error stream before they
+Temporary directories are created and removed by each test. The tests restore the console streams before they
 finish. Paths are built from the temporary directory with forward slashes, and the expected lines use forward slashes
 whatever the platform separator is.
 
@@ -25,11 +25,11 @@ whatever the platform separator is.
 - Each distinct diagnostic is written once on its own line as `path:line:col: rule-id message`.
 - The path is relative to the base directory with forward slashes, also for nested folders and for a file outside the
   base directory, where it starts with `../`.
-- Lines are ordered by path (ordinal), then line (numeric), column, rule identifier (ordinal), and message
+- Lines are ordered by path (ordinal), then line (numeric), column (numeric), rule identifier (ordinal), and message
   (ordinal), and the output is the same for every order of the input.
 - Nothing is written, and the exit code stays 0, when there are no diagnostics.
-- The lines reach the log file and the error console, and with `--silent` only the log file, while the exit code is 1
-  for any diagnostic of any kind.
+- The lines reach the log file and the error console, never standard output, and with `--silent` only the log file,
+  while the exit code is 1 for any diagnostic of any kind.
 - A null list, a null element, a null base directory, and a null context throw `ArgumentNullException`, and a null
   element is refused before any line is written.
 
@@ -59,6 +59,8 @@ are written in alphabetical order of the rule identifier.
 **Findings that differ only in message are ordered by message**: Three messages that differ in letter and case, at
 the same position and rule, are written in ordinal order, so capital letters come first.
 
+**Columns are ordered numerically**: Two findings on one line, at columns 10 and 3, are written with column 3 first.
+
 **The order of the input does not change the output**: A set of diagnostics that includes an equal pair is reported in
 the given order, in reverse order, and in a rotated order; the three logs are identical.
 
@@ -66,7 +68,7 @@ the given order, in reverse order, and in a rotated order; the three logs are id
 as one line.
 
 **The lines reach the log and the error console**: Two diagnostics are reported to a context that is not silent; the
-log holds both lines in order, and the error console shows both.
+log holds both lines in order, the error console shows both, and nothing is written to standard output.
 
 **Any kind of diagnostic makes the exit code one**: A formatting diagnostic and a lint-only diagnostic are each
 reported; in both cases the exit code is 1.

@@ -105,7 +105,7 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that half-width Katakana stays narrow while full-width forms are wide.
+    ///     Test that half-width Katakana stays narrow.
     /// </summary>
     [Fact]
     public void TextWidth_Of_NarrowKatakana_CountsOneColumn()
@@ -115,6 +115,112 @@ public class TextWidthTests
 
         // Assert: one column
         Assert.Equal(1, width);
+    }
+
+    /// <summary>
+    ///     Test that the edges of the half-width forms block, which lies between the wide full-width forms, are narrow.
+    /// </summary>
+    [Theory]
+    [InlineData(0xFF61)]
+    [InlineData(0xFF9F)]
+    [InlineData(0xFFDC)]
+    [InlineData(0xFFE8)]
+    [InlineData(0xFFEE)]
+    public void TextWidth_Of_HalfWidthFormEdges_CountsOneColumn(int codePoint)
+    {
+        // Act: measure the half-width character
+        var text = char.ConvertFromUtf32(codePoint);
+        var width = TextWidth.Of(text);
+
+        // Assert: one column, also when a letter follows
+        Assert.Equal(1, width);
+        Assert.Equal(2, TextWidth.Of(text + "a"));
+    }
+
+    /// <summary>
+    ///     The inclusive code point ranges that the test expects to be two columns wide: the East Asian Wide and
+    ///     full-width ranges of Unicode 18.0.0 (merged where adjacent) and the regional indicators. The code points
+    ///     just before and after each range are expected not to be wide. A range edge that is a combining mark
+    ///     (U+3099 and U+16FE4) is moved inward, because a combining mark has no width of its own.
+    /// </summary>
+    private static readonly (int First, int Last)[] ExpectedWideRanges =
+    [
+        (0x1100, 0x115F), (0x231A, 0x231B), (0x2329, 0x232A), (0x23E9, 0x23EC), (0x23F0, 0x23F0), (0x23F3, 0x23F3),
+        (0x25FD, 0x25FE), (0x2614, 0x2615), (0x2630, 0x2637), (0x2648, 0x2653), (0x267F, 0x267F), (0x268A, 0x268F),
+        (0x2693, 0x2693), (0x26A1, 0x26A1), (0x26AA, 0x26AB), (0x26BD, 0x26BE), (0x26C4, 0x26C5), (0x26CE, 0x26CE),
+        (0x26D4, 0x26D4), (0x26EA, 0x26EA), (0x26F2, 0x26F3), (0x26F5, 0x26F5), (0x26FA, 0x26FA), (0x26FD, 0x26FD),
+        (0x2705, 0x2705), (0x270A, 0x270B), (0x2728, 0x2728), (0x274C, 0x274C), (0x274E, 0x274E), (0x2753, 0x2755),
+        (0x2757, 0x2757), (0x2795, 0x2797), (0x27B0, 0x27B0), (0x27BF, 0x27BF), (0x2B1B, 0x2B1C), (0x2B50, 0x2B50),
+        (0x2B55, 0x2B55), (0x2E80, 0x2E99), (0x2E9B, 0x2EF3), (0x2F00, 0x2FD5), (0x2FF0, 0x303E), (0x3041, 0x3096),
+        (0x309B, 0x30FF), (0x3105, 0x312F), (0x3131, 0x318E), (0x3190, 0x31E5), (0x31EF, 0x321E), (0x3220, 0x3247),
+        (0x3250, 0xA48C), (0xA490, 0xA4C6), (0xA960, 0xA97C), (0xAC00, 0xD7A3), (0xF900, 0xFAFF), (0xFE10, 0xFE19),
+        (0xFE30, 0xFE52), (0xFE54, 0xFE66), (0xFE68, 0xFE6B), (0xFF01, 0xFF60), (0xFFE0, 0xFFE6),
+        (0x16FE0, 0x16FE3), (0x16FF0, 0x16FF6), (0x17000, 0x18CDA), (0x18CFF, 0x18D20), (0x18D80, 0x18DF2),
+        (0x18E00, 0x19191), (0x191A0, 0x191D2), (0x1AFF0, 0x1AFF3), (0x1AFF5, 0x1AFFB), (0x1AFFD, 0x1AFFE),
+        (0x1B000, 0x1B128), (0x1B132, 0x1B132), (0x1B150, 0x1B152), (0x1B155, 0x1B155), (0x1B164, 0x1B168),
+        (0x1B170, 0x1B2FB), (0x1D300, 0x1D356), (0x1D360, 0x1D376), (0x1F004, 0x1F004), (0x1F0CF, 0x1F0CF),
+        (0x1F18E, 0x1F18E), (0x1F191, 0x1F19A), (0x1F1AE, 0x1F1AE), (0x1F1E6, 0x1F202), (0x1F210, 0x1F23B),
+        (0x1F240, 0x1F248), (0x1F250, 0x1F251), (0x1F260, 0x1F265), (0x1F300, 0x1F320), (0x1F32D, 0x1F335),
+        (0x1F337, 0x1F37C), (0x1F37E, 0x1F393), (0x1F3A0, 0x1F3CA), (0x1F3CF, 0x1F3D3), (0x1F3E0, 0x1F3F0),
+        (0x1F3F4, 0x1F3F4), (0x1F3F8, 0x1F43E), (0x1F440, 0x1F440), (0x1F442, 0x1F4FC), (0x1F4FF, 0x1F53D),
+        (0x1F54B, 0x1F54E), (0x1F550, 0x1F567), (0x1F57A, 0x1F57A), (0x1F595, 0x1F596), (0x1F5A4, 0x1F5A4),
+        (0x1F5FB, 0x1F64F), (0x1F680, 0x1F6C5), (0x1F6CC, 0x1F6CC), (0x1F6D0, 0x1F6D2), (0x1F6D5, 0x1F6D9),
+        (0x1F6DC, 0x1F6DF), (0x1F6EB, 0x1F6EC), (0x1F6F4, 0x1F6FC), (0x1F7DA, 0x1F7DA), (0x1F7E0, 0x1F7EB),
+        (0x1F7F0, 0x1F7F0), (0x1F90C, 0x1F93A), (0x1F93C, 0x1F945), (0x1F947, 0x1F9FF), (0x1FA70, 0x1FA7C),
+        (0x1FA80, 0x1FAC6), (0x1FAC8, 0x1FAC8), (0x1FACC, 0x1FADD), (0x1FADF, 0x1FAEB), (0x1FAEF, 0x1FAFA),
+        (0x20000, 0x2FFFD), (0x30000, 0x3FFFD)
+    ];
+
+    /// <summary>
+    ///     Supplies the first and last code point of each range that is two columns wide.
+    /// </summary>
+    /// <returns>The rows of first and last code point.</returns>
+    public static TheoryData<int, int> WideRangeEdges()
+    {
+        var data = new TheoryData<int, int>();
+        foreach (var (first, last) in ExpectedWideRanges)
+        {
+            data.Add(first, last);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Test that the first and last code point of every wide range are two columns wide and that the code points
+    ///     just outside the range are not, which covers the edges of the binary search over the range table.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(WideRangeEdges))]
+    public void TextWidth_Of_WideRangeEdges_CountsEdgesWideAndNeighborsNotWide(int first, int last)
+    {
+        // Act: measure the edges of the range and the code points just outside it
+        var firstWidth = TextWidth.Of(char.ConvertFromUtf32(first));
+        var lastWidth = TextWidth.Of(char.ConvertFromUtf32(last));
+        var beforeWidth = TextWidth.Of(char.ConvertFromUtf32(first - 1));
+        var afterWidth = TextWidth.Of(char.ConvertFromUtf32(last + 1));
+
+        // Assert: both edges are wide and both neighbors are not
+        Assert.Equal(2, firstWidth);
+        Assert.Equal(2, lastWidth);
+        Assert.NotEqual(2, beforeWidth);
+        Assert.NotEqual(2, afterWidth);
+    }
+
+    /// <summary>
+    ///     Test that a combining kana voiced mark, which lies inside a wide range, has no width on its own and does
+    ///     not widen the kana it follows.
+    /// </summary>
+    [Fact]
+    public void TextWidth_Of_CombiningMarkInsideWideRange_ReturnsZeroAlone()
+    {
+        // Act: measure the combining voiced sound mark alone and after a Hiragana letter
+        var alone = TextWidth.Of("\u3099");
+        var combined = TextWidth.Of("\u304B\u3099");
+
+        // Assert: no width of its own, and the letter keeps two columns
+        Assert.Equal(0, alone);
+        Assert.Equal(2, combined);
     }
 
     /// <summary>
@@ -176,6 +282,42 @@ public class TextWidthTests
         // Assert: the width of its range, also when a letter follows
         Assert.Equal(expected, width);
         Assert.Equal(expected + 1, TextWidth.Of(text + "a"));
+    }
+
+    /// <summary>
+    ///     Test that the conjoining Hangul vowels and final consonants of the extended block of conjoining Hangul
+    ///     letters take no width of their own, as those of the first block, and extend the leading consonant before them.
+    /// </summary>
+    [Theory]
+    [InlineData("\uD7A3", 2)]
+    [InlineData("\uD7A4", 1)]
+    [InlineData("\uD7AF", 1)]
+    [InlineData("\uD7B0", 0)]
+    [InlineData("\uD7C6", 0)]
+    [InlineData("\uD7FB", 0)]
+    [InlineData("\uD7FF", 0)]
+    public void TextWidth_Of_HangulExtendedBLetterBoundaries_MeasuresEachRangeEdge(string text, int expected)
+    {
+        // Act: measure a character at the edge of a range, alone and followed by a letter
+        var width = TextWidth.Of(text);
+        var widthWithLetter = TextWidth.Of(text + "a");
+
+        // Assert: the width of its range, also when a letter follows
+        Assert.Equal(expected, width);
+        Assert.Equal(expected + 1, widthWithLetter);
+    }
+
+    /// <summary>
+    ///     Test that a leading consonant followed by an extended vowel and final consonant is one wide character.
+    /// </summary>
+    [Fact]
+    public void TextWidth_Of_HangulExtendedBLettersAfterLeadingConsonant_ReturnsTwo()
+    {
+        // Act: measure a leading consonant, an extended vowel and an extended final consonant
+        var width = TextWidth.Of("\u1100\uD7B0\uD7CB");
+
+        // Assert: one syllable of two columns
+        Assert.Equal(2, width);
     }
 
     /// <summary>
@@ -503,14 +645,19 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that a very long text is measured quickly and gives the same result every time.
+    ///     Test that a very long text is measured in a time that a linear algorithm meets and a quadratic one does
+    ///     not, and gives the same result every time.
     /// </summary>
     [Fact]
     public void TextWidth_Of_VeryLongString_MeasuresQuicklyAndDeterministically()
     {
-        // Arrange: 100000 narrow characters and 100000 wide characters
-        var narrow = new string('a', 100000);
-        var wide = new string('漢', 50000);
+        // Arrange: 1000000 narrow characters and 500000 wide characters; a linear measurement takes milliseconds,
+        // while a quadratic one would need minutes
+        var narrow = new string('a', 1000000);
+        var wide = new string('漢', 500000);
+
+        // Warm up so that the time below does not include the loading and compilation of the measuring code
+        Assert.Equal(1, TextWidth.Of("a"));
         var stopwatch = Stopwatch.StartNew();
 
         // Act: measure both twice
@@ -520,12 +667,12 @@ public class TextWidthTests
         var wideSecond = TextWidth.Of(wide);
         stopwatch.Stop();
 
-        // Assert: the expected width every time, within a generous time limit
-        Assert.Equal(100000, narrowFirst);
+        // Assert: the expected width every time, within a limit that is generous for a slow machine
+        Assert.Equal(1000000, narrowFirst);
         Assert.Equal(narrowFirst, narrowSecond);
-        Assert.Equal(100000, wideFirst);
+        Assert.Equal(1000000, wideFirst);
         Assert.Equal(wideFirst, wideSecond);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"Measuring took {stopwatch.Elapsed}");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"Measuring took {stopwatch.Elapsed}");
     }
 
     /// <summary>

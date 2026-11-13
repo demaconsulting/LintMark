@@ -99,15 +99,28 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
-    ///     Test that another bullet marker and table cell spacing are equivalent.
+    ///     Test that another bullet marker is equivalent.
     /// </summary>
     [Fact]
-    public void HtmlEquivalenceChecker_Check_BulletMarkerAndTableSpacing_Equivalent()
+    public void HtmlEquivalenceChecker_Check_BulletMarkerChanged_Equivalent()
     {
-        // Arrange / Act: a list with another marker and a table with padded cells
+        // Arrange / Act: a list with an asterisk marker and the same list with a hyphen marker
+        var result = HtmlEquivalenceChecker.Check("* a\n* b\n", "- a\n- b\n");
+
+        // Assert: same page
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that table cell spacing is equivalent.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_TableSpacingChanged_Equivalent()
+    {
+        // Arrange / Act: a table without padding and the same table with padded cells
         var result = HtmlEquivalenceChecker.Check(
-            "* a\n\n|a|b|\n|-|-|\n|1|2|\n",
-            "- a\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n");
+            "|a|b|\n|-|-|\n|1|2|\n",
+            "| a | b |\n| --- | --- |\n| 1 | 2 |\n");
 
         // Assert: same page
         Assert.True(result.IsEquivalent);
@@ -222,6 +235,19 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
+    ///     Test that losing the emphasis of a word is a difference.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_EmphasisLost_Different()
+    {
+        // Arrange / Act: an emphasized word and the same word without emphasis
+        var result = HtmlEquivalenceChecker.Check("*a*\n", "a\n");
+
+        // Assert: the emphasis is part of the page
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
     ///     Test that gluing two words together is a difference.
     /// </summary>
     [Fact]
@@ -261,16 +287,20 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
-    ///     Test that a bounded run time is kept for input made of thousands of unclosed verbatim tags.
+    ///     Test that a bounded run time is kept for input made of very many unclosed tags.
     /// </summary>
     /// <param name="tag">The opening tag that is repeated without closing tag.</param>
+    /// <param name="count">How many times the tag is repeated.</param>
     [Theory]
-    [InlineData("<pre>")]
-    [InlineData("<code>")]
-    public void HtmlEquivalenceChecker_Check_PathologicalUnclosedTags_CompletesWithinBound(string tag)
+    [InlineData("<pre>", 20000)]
+    [InlineData("<code>", 20000)]
+    [InlineData("<p ", 200000)]
+    [InlineData("<div ", 200000)]
+    [InlineData("<h1 ", 200000)]
+    public void HtmlEquivalenceChecker_Check_PathologicalUnclosedTags_CompletesWithinBound(string tag, int count)
     {
-        // Arrange: twenty thousand unclosed tags, and the same with one more character
-        var before = string.Concat(Enumerable.Repeat(tag, 20000)) + "\n";
+        // Arrange: very many unclosed tags, and the same with one more character
+        var before = string.Concat(Enumerable.Repeat(tag, count)) + "\n";
         var after = before + "z\n";
 
         // Act: compare and measure
@@ -293,7 +323,7 @@ public class HtmlEquivalenceCheckerTests
     [InlineData("<pre>", "</pre>")]
     public void HtmlEquivalenceChecker_Check_ManyVerbatimElements_CompletesWithinBound(string open, string close)
     {
-        // Arrange: fifty thousand closed elements, and the same with the last one changed
+        // Arrange: fifty thousand closed elements, and the same with a word appended
         var spans = string.Concat(Enumerable.Range(0, 50000).Select(i => $"{open}a{i}{close} "));
         var before = spans + "\n";
         var after = spans + "z\n";
@@ -333,14 +363,22 @@ public class HtmlEquivalenceCheckerTests
     [Fact]
     public void HtmlEquivalenceChecker_Check_IdenticalTextRendererThrows_StillEquivalent()
     {
-        // Arrange / Act: the same text twice with a renderer that must never run
+        // Arrange / Act: the same text twice, including text that is only a lone tag, with a renderer that
+        // must never run
         var result = HtmlEquivalenceChecker.Check(
             "a\n",
             "a\n",
             _ => throw new InvalidOperationException("render failed"));
+        var loneTag = HtmlEquivalenceChecker.Check(
+            "<pre>\n",
+            "<pre>\n",
+            _ => throw new InvalidOperationException("render failed"));
 
         // Assert: identical text needs no rendering
         Assert.True(result.IsEquivalent);
+        Assert.Null(result.Description);
+        Assert.True(loneTag.IsEquivalent);
+        Assert.Null(loneTag.Description);
     }
 
     /// <summary>
@@ -427,20 +465,6 @@ public class HtmlEquivalenceCheckerTests
     }
 
     /// <summary>
-    ///     Test that identical text is equivalent.
-    /// </summary>
-    [Fact]
-    public void HtmlEquivalenceChecker_Check_IdenticalText_EquivalentWithoutRendering()
-    {
-        // Arrange / Act: the same text twice, including text that is only a lone tag
-        var result = HtmlEquivalenceChecker.Check("<pre>\n", "<pre>\n");
-
-        // Assert: equivalent without description
-        Assert.True(result.IsEquivalent);
-        Assert.Null(result.Description);
-    }
-
-    /// <summary>
     ///     Test that a changed no-break space is a difference although it looks like a space.
     /// </summary>
     [Fact]
@@ -489,6 +513,98 @@ public class HtmlEquivalenceCheckerTests
         var result = HtmlEquivalenceChecker.Check("<PRE>a  b</PRE>\n", "<PRE>a b</PRE>\n");
 
         // Assert: the content is compared exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a whitespace change inside a raw HTML script, style, or textarea element is a difference.
+    /// </summary>
+    /// <param name="open">The opening tag of the element.</param>
+    /// <param name="close">The closing tag of the element.</param>
+    [Theory]
+    [InlineData("<script>", "</script>")]
+    [InlineData("<style>", "</style>")]
+    [InlineData("<textarea>", "</textarea>")]
+    public void HtmlEquivalenceChecker_Check_ScriptStyleTextareaWhitespaceChanged_Different(string open, string close)
+    {
+        // Arrange / Act: an element with two spaces in its content and the same with one
+        var result = HtmlEquivalenceChecker.Check($"{open}a  b{close}\n", $"{open}a b{close}\n");
+
+        // Assert: the content of the element is compared exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a whitespace change after an inline code tag that is never closed is a difference.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_UnclosedCodeWhitespaceChanged_Different()
+    {
+        // Arrange / Act: an unclosed code element whose content has two spaces, and the same with one
+        var result = HtmlEquivalenceChecker.Check("a <code>b  c\n", "a <code>b c\n");
+
+        // Assert: an unclosed element runs to the end of the text and is compared exactly
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that tabs and form feeds collapse like spaces outside verbatim elements.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_TabAndFormFeedCollapsed_Equivalent()
+    {
+        // Arrange / Act: HTML given directly, with a tab, a form feed, and a mixed run against one space
+        var tab = HtmlEquivalenceChecker.Check("<p>a\tb</p>", "<p>a b</p>", text => text);
+        var formFeed = HtmlEquivalenceChecker.Check("<p>a\fb</p>", "<p>a b</p>", text => text);
+        var mixed = HtmlEquivalenceChecker.Check("<p>a \t\f b</p>", "<p>a b</p>", text => text);
+
+        // Assert: all HTML whitespace collapses to one space
+        Assert.True(tab.IsEquivalent);
+        Assert.True(formFeed.IsEquivalent);
+        Assert.True(mixed.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that single-quoted heading identifiers are not a difference.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_SingleQuotedHeadingIds_Equivalent()
+    {
+        // Arrange / Act: HTML given directly, with a single-quoted and a double-quoted identifier
+        var result = HtmlEquivalenceChecker.Check("<h2 id='a'>x</h2>", "<h2 id=\"b\">x</h2>", text => text);
+
+        // Assert: identifiers are dropped whatever the quotes
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that an identifier that does not directly follow the tag name is compared like any attribute.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_HeadingIdAfterOtherAttribute_Different()
+    {
+        // Arrange / Act: HTML given directly, with the identifier after another attribute
+        var result = HtmlEquivalenceChecker.Check(
+            "<h2 class=\"c\" id=\"a\">x</h2>",
+            "<h2 class=\"c\" id=\"b\">x</h2>",
+            text => text);
+
+        // Assert: only the identifier that the renderer writes is dropped
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a heading identifier inside a verbatim element is compared exactly.
+    /// </summary>
+    [Fact]
+    public void HtmlEquivalenceChecker_Check_HeadingIdInsidePreChanged_Different()
+    {
+        // Arrange / Act: a pre element that contains heading markup with different identifiers
+        var result = HtmlEquivalenceChecker.Check(
+            "<pre><h2 id=\"a\">x</h2></pre>\n",
+            "<pre><h2 id=\"b\">x</h2></pre>\n");
+
+        // Assert: verbatim content is compared exactly, so the identifier is a difference
         Assert.False(result.IsEquivalent);
     }
 

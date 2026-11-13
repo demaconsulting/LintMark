@@ -25,16 +25,15 @@ worker thread. Real block formatters arrive in later phases. Because `DocumentFo
 setting of the configuration, a formatter must check `FormatContext.Config.Rules` for its own rules itself.
 
 **FormatContext**: A sealed record with the constructor `(ParsedDocument document, LintMarkConfig config)`, which
-rejects a null argument: the document the block belongs
-to (never format-unsafe) and the effective configuration of the file. Immutable and shared by every formatter of one
-document. Later phases add the data that wrapping and table formatting need.
+rejects a null argument. `Document` is the document the block belongs to (never format-unsafe) and `Config` is the
+effective configuration of the file. Immutable and shared by every formatter of one document. Later phases add the
+data that wrapping and table formatting need.
 
 **FormatResult**: A sealed record with the constructor `(ImmutableArray<TextEdit> edits, LineEnding lineEnding,
 ImmutableArray<Diagnostic> diagnostics)`, which rejects a default array, a default edit, a null diagnostic, and a
-line ending that is not defined: the ordered, conflict-free edits to the LF-normalized text; the line ending the file
-is written with;
-and the formatting violations found (the findings that applying the result removes). Immutable, including its
-collections.
+line ending that is not defined. It holds the ordered, conflict-free edits to the LF-normalized text, the line ending
+the file is written with, and the formatting violations found (the findings that applying the result removes).
+Immutable, including its collections.
 
 **DocumentFormatter**: A sealed class with one field, `_formatters`, an immutable array of the registered
 `IBlockFormatter` instances in priority order, copied from the constructor argument. The constant `LineEndingRuleId`
@@ -57,8 +56,7 @@ ending of the file, so that rewriting leaves the file byte for byte as it was.
 
 - *Parameters*: `IReadOnlyList<IBlockFormatter>? formatters` (default `null`, meaning none).
 - *Postconditions*: the list is copied into an immutable array, so a caller cannot change it afterwards.
-
-A null element is rejected up front with `ArgumentNullException`.
+- *Errors*: a null element of the list is rejected up front with `ArgumentNullException`.
 
 **Format**: Formats a document.
 
@@ -96,6 +94,8 @@ diagnostic for that file and leaves the file untouched. An edit outside the text
 `SourcePatcher`. The constructors of `FormatContext` and `FormatResult` reject incomplete values (a null document or
 configuration; a default array, a default edit, a null diagnostic, or an undefined line ending), so such a value can
 never reach a block formatter or the engine.
+
+#### Dependencies
 
 - **ParsedDocument**, **BlockInfo**, **SourceDocument**, **LineEnding**, and **SuppressionMap** (`Document` subsystem)
   — the blocks, the majority line ending, the terminator counts, and the suppression queries.

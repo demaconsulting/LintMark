@@ -35,8 +35,10 @@ namespace DemaConsulting.LintMark.Engine;
 ///         The writer refuses to replace a file whose bytes are no longer the ones the caller read: the
 ///         rewrite was computed from those bytes, so applying it to different content would destroy someone
 ///         else's change. A read-only file is refused. When the path is a symbolic link the file it points to
-///         is replaced and the link stays. On Unix the permission bits of the target are copied to the new file
-///         (on Windows the replacement operation keeps the attributes of the replaced file).
+///         is replaced and the link stays. On Unix the temporary file is created readable and writable by its
+///         owner only, and the permission bits of the target are then copied to it before it replaces the target.
+///         Attributes on Windows are left to the replacement operation of the platform and are not a guarantee of
+///         this unit.
 ///     </para>
 ///     <para>
 ///         The check and the replacement are two steps, so a change made by another program in the instant
@@ -115,13 +117,26 @@ internal static class AtomicFileWriter
         var temporary = Path.Combine(directory, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}{TemporarySuffix}");
         try
         {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            // Create the file readable and writable by its owner only, so the content is never exposed to others
+            // while the target's own permissions are not yet applied (the option is ignored on Windows)
+            var options = new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None
+            };
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            }
+
+            using (var stream = new FileStream(temporary, options))
             {
                 stream.Write(content);
                 stream.Flush(flushToDisk: true);
             }
 
-            // The new file takes over the permissions of the old one (Windows keeps the attributes when replacing)
+            // The new file takes over the permissions of the old one (Unix only)
             if (!OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(temporary, File.GetUnixFileMode(target));

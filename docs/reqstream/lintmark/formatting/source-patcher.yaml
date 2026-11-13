@@ -14,16 +14,36 @@ sections:
               - id: LintMark-Formatting-SourcePatcher-AppliesEdits
                 title: >-
                   The SourcePatcher class shall apply every change of an ordered list to the text, replacing,
-                  deleting, or inserting at the positions given, including at the end of the text, with positions
-                  counted in UTF-16 code units, and leave every other character as it was.
+                  deleting, or inserting at the positions given.
                 justification: |
-                  The rewritten text is the document with the changes and nothing else. Documents contain
-                  characters outside the basic plane, so the unit of position must be the one that the rest
-                  of the tool uses.
+                  The rewritten text is the document with the changes that the rules proposed.
                 tests:
                   - SourcePatcher_Apply_ReplaceDeleteInsert_ProducesExpectedText
+                  - SourcePatcher_Apply_InsertionThenReplacementAtSameStart_Applies
+                  - SourcePatcher_Apply_ManyEdits_MatchesReferenceImplementation
+
+              - id: LintMark-Formatting-SourcePatcher-AppliesEditAtEnd
+                title: The SourcePatcher class shall apply a change that lies at the very end of the text.
+                justification: |
+                  A rule that appends to a document proposes an insertion at the end of the text, which is
+                  the largest valid position and must not be mistaken for a position outside the text.
+                tests:
                   - SourcePatcher_Apply_EditAtEndOfText_Applies
+
+              - id: LintMark-Formatting-SourcePatcher-UsesUtf16Positions
+                title: The SourcePatcher class shall count the positions of changes in UTF-16 code units.
+                justification: |
+                  Documents contain characters outside the basic plane, so the unit of position must be the
+                  one that the rest of the tool uses.
+                tests:
                   - SourcePatcher_Apply_UnicodeText_PatchesByUtf16Offsets
+
+              - id: LintMark-Formatting-SourcePatcher-LeavesUnchangedText
+                title: The SourcePatcher class shall leave every character that no change covers as it was.
+                justification: |
+                  The rewritten text is the document with the changes and nothing else.
+                tests:
+                  - SourcePatcher_Apply_ReplaceDeleteInsert_ProducesExpectedText
                   - SourcePatcher_Apply_ManyEdits_MatchesReferenceImplementation
 
               - id: LintMark-Formatting-SourcePatcher-NoEditsIdentity
@@ -44,27 +64,57 @@ sections:
                 tests:
                   - SourcePatcher_Apply_EditBeyondText_Throws
                   - SourcePatcher_Apply_InsertionBeyondEnd_Throws
+                  - SourcePatcher_Apply_SecondEditBeyondText_Throws
 
               - id: LintMark-Formatting-SourcePatcher-RejectsUnorderedEdits
                 title: >-
-                  The SourcePatcher class shall refuse a list of changes that is not in ascending order or whose
-                  changes overlap.
+                  The SourcePatcher class shall refuse a list of changes that is not in ascending order of
+                  position.
                 justification: |
-                  Applying such a list would produce text that depends on the order of application and could
-                  damage the document.
+                  The patcher applies the changes in the order given, so a list in another order would produce
+                  text that depends on that order and could damage the document.
                 tests:
                   - SourcePatcher_Apply_UnorderedArray_Throws
+                  - SourcePatcher_Apply_ReplacementThenInsertionAtSameStart_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsOverlappingEdits
+                title: The SourcePatcher class shall refuse a list of changes in which two changes overlap.
+                justification: |
+                  Two changes to the same characters have no single correct result, and applying them would
+                  damage the document.
+                tests:
                   - SourcePatcher_Apply_OverlappingEdits_Throws
+                  - SourcePatcher_Apply_InsertionInsideReplacement_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsTwoInsertionsAtOnePosition
+                title: >-
+                  The SourcePatcher class shall refuse a list of changes that holds two insertions at one
+                  position.
+                justification: |
+                  Two insertions at one position have no defined order, so the text would depend on an
+                  arbitrary choice.
+                tests:
                   - SourcePatcher_Apply_TwoInsertionsSameOffset_Throws
 
-              - id: LintMark-Formatting-SourcePatcher-RejectsInvalidArguments
-                title: >-
-                  The SourcePatcher class shall refuse a missing document, a list of changes that was never
-                  initialized, and a change that was never initialized.
+              - id: LintMark-Formatting-SourcePatcher-RejectsMissingDocument
+                title: The SourcePatcher class shall refuse a missing document.
                 justification: |
-                  These are programming errors that must be reported as such, not treated as an empty list
-                  of changes.
+                  A missing document is a programming error that must be reported as such.
+                tests:
+                  - SourcePatcher_Apply_NullSource_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsUninitializedList
+                title: The SourcePatcher class shall refuse a list of changes that was never initialized.
+                justification: |
+                  A list that was never initialized is a programming error that must be reported as such, not
+                  treated as an empty list of changes.
                 tests:
                   - SourcePatcher_Apply_DefaultArray_Throws
+
+              - id: LintMark-Formatting-SourcePatcher-RejectsUninitializedEdit
+                title: The SourcePatcher class shall refuse a change that was never initialized.
+                justification: |
+                  A change that was never initialized has no replacement and no rule, so it is a programming
+                  error that must be reported as such.
+                tests:
                   - SourcePatcher_Apply_DefaultEdit_Throws
-                  - SourcePatcher_Apply_NullSource_Throws

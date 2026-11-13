@@ -374,6 +374,107 @@ public class StructuralTokenCheckerTests
     }
 
     /// <summary>
+    ///     Test that a lost citation with a suppressed author and a locator is a difference.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_CitationWithLocatorLost_Different()
+    {
+        // Arrange / Act: a citation with a minus sign and a locator, and the same sentence without it
+        var result = StructuralTokenChecker.Check("See [-@key, p. 3].\n", "See.\n");
+
+        // Assert: the whole citation is named with its counts
+        Assert.False(result.IsEquivalent);
+        Assert.Equal("Citation \"[-@key, p. 3]\" occurs 1 time(s) before and 0 after", result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a lost attribute group with a class and a key-value pair is a difference.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_AttributeGroupWithClassAndKeyValueLost_Different()
+    {
+        // Arrange / Act: a heading with a class and a key-value pair, and the same heading without them
+        var result = StructuralTokenChecker.Check("# Title {.class key=value}\n", "# Title\n");
+
+        // Assert: the whole group is named with its counts
+        Assert.False(result.IsEquivalent);
+        Assert.Equal(
+            "Attribute group \"{.class key=value}\" occurs 1 time(s) before and 0 after",
+            result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a line that starts with a plus sign but is not a grid border is not a structural line.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_PlusLineThatIsNotGridBorder_NotStructural()
+    {
+        // Arrange / Act: plus-sign list items and the same text reflowed into one line
+        var result = StructuralTokenChecker.Check("+ one\n+ two\n", "+ one two\n");
+
+        // Assert: neither line is a grid table border, so there is nothing structural to compare
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a backslash that is not followed by a letter does not start a structural line.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_BackslashNotFollowedByLetter_NotStructural()
+    {
+        // Arrange / Act: lines that start with an escaped character, a double backslash, and a lone backslash,
+        // and the same text reflowed into one line
+        var result = StructuralTokenChecker.Check("\\*\n\\\\\n\\\nend\n", "\\* \\\\ \\ end\n");
+
+        // Assert: none of the lines is a raw LaTeX command, so there is nothing structural to compare
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that nested block quote markers do not change a token.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_NestedBlockQuotePrefixChange_Equivalent()
+    {
+        // Arrange / Act: a div inside two nested block quotes, with and without spaces between the markers,
+        // and the same div without the quote markers
+        var result = StructuralTokenChecker.Check("> > :::note\n> > text\n>> :::\n", ":::note\ntext\n:::\n");
+
+        // Assert: every leading quote marker is stripped before the tokens are compared
+        Assert.True(result.IsEquivalent);
+    }
+
+    /// <summary>
+    ///     Test that a failing occurrence count is reported as a difference that names the exception type.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_OccurrenceCountThrows_ReportsDifferenceNamingExceptionType()
+    {
+        // Arrange / Act: two different texts without structural lines whose occurrence count fails
+        var result = StructuralTokenChecker.Check(
+            "a\n",
+            "b\n",
+            _ => [],
+            (_, _) => throw new TimeoutException("count failed"));
+
+        // Assert: the undecided check is a difference
+        Assert.False(result.IsEquivalent);
+        Assert.NotNull(result.Description);
+        Assert.Contains("could not be compared", result.Description, StringComparison.Ordinal);
+        Assert.Contains(nameof(TimeoutException), result.Description, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a missing occurrence counter is rejected.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_NullOccurrenceCounter_Throws()
+    {
+        // Arrange / Act / Assert: the counter function may not be null
+        Assert.Throws<ArgumentNullException>(() => StructuralTokenChecker.Check("a\n", "b\n", _ => [], null!));
+    }
+
+    /// <summary>
     ///     Test that identical text is equivalent.
     /// </summary>
     [Fact]

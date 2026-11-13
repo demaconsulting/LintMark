@@ -28,8 +28,9 @@ is a test seam that simulates a crash or a concurrent change at the critical mom
   applying it to different content would destroy someone else's change.
 - A read-only file is refused.
 - A symbolic link is followed: the file it points to is replaced and the link stays.
-- On Unix the permission bits of the target are copied to the new file; on Windows the replacement operation keeps the
-  attributes of the replaced file.
+- On Unix the temporary file is created readable and writable by its owner only, so the new content is never exposed
+  to other users while it is written, and the permission bits of the target are then copied to it; permissions and
+  attributes on Windows are left to the replacement operation of the platform and are not a guarantee of this unit.
 
 **Known limit**: the check of the original bytes and the replacement are two steps, so a change made by another
 program in the instant between them is not detected. Closing that window would need file locking that portable code
@@ -43,15 +44,17 @@ cannot rely on. Two calls for the same file are not coordinated; the engine writ
   overload adds `Action? beforeReplace`.
 - *Returns*: `void`.
 - *Preconditions*: `path` is not null or blank and the file exists.
-- *Postconditions*: on return the file holds exactly `content`, with the attributes (Windows) or permission bits
-  (Unix) of the old file; on any exception the file is as it was and no temporary file remains.
+- *Postconditions*: on return the file holds exactly `content`, with the permission bits (Unix) of the old file; on any
+  exception the file is as it was and no temporary file remains.
 
 Algorithm: (1) validate the path; (2) resolve the final target of a symbolic link, or the full path when it is not a
 link; (3) refuse a missing file (`FileNotFoundException`), a read-only file (`UnauthorizedAccessException`), and a file
 whose current bytes are not `expectedOriginal` (`IOException`: the file changed after it was read); (4) write the
-complete content to the temporary file with exclusive access and flush it to disk; (5) on Unix copy the permission
-bits of the target to the temporary file; (6) call the hook, if any; (7) replace the target with the temporary file
-with `File.Replace` (no backup); (8) in a `finally` block, delete the temporary file if it still exists.
+complete content to the temporary file with exclusive access, created through `FileStreamOptions` with
+`UnixCreateMode` set to owner read and write only (ignored on Windows), and flush it to disk; (5) on Unix copy the
+permission bits of the target to the temporary file; (6) call the hook, if any; (7) replace the target with the
+temporary file with `File.Replace` (no backup); (8) in a `finally` block, delete the temporary file if it still
+exists.
 
 **ResolveTarget** (private): Returns the full path of the final target of a link, or the full path of the path itself.
 

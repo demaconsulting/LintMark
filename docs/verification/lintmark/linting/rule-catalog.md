@@ -111,8 +111,8 @@ removed number `MD033` are looked up. Each returns false and no entry.
 
 ##### Error handling
 
-**A null name is rejected by the resolving methods**: `TryResolve` and `IsDroppedAlias` are called with null, and
-each throws `ArgumentNullException`. The configurable lookup does the same and names the parameter `name`.
+**A null name is rejected by the resolving methods**: `TryResolve`, `TryResolveConfigurable`, and `IsDroppedAlias` are
+called with null. Each throws `ArgumentNullException` and names the parameter `name`.
 
 **A null identifier is rejected by the lookup**: `TryGet` is called with null. It throws `ArgumentNullException` and
 names the parameter `id`.

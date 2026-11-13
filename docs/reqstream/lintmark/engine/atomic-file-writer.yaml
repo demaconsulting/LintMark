@@ -67,16 +67,34 @@ sections:
                   - AtomicFileWriter_Write_FileChangedSinceRead_ThrowsAndLeavesFile
                   - AtomicFileWriter_Write_OriginalBytesEqualButDifferentLength_Throws
 
-              - id: LintMark-Engine-AtomicFileWriter-ReportsFailure
+              - id: LintMark-Engine-AtomicFileWriter-ReportsReadOnlyFile
                 title: >-
-                  The AtomicFileWriter class shall report a file that cannot be replaced, because it is read-only,
-                  missing, or in a missing directory, as an error and leave the file as it is.
+                  The AtomicFileWriter class shall report a read-only file as an error and leave the file as it
+                  is.
                 justification: |
                   A failure must reach the caller, which reports it to the user, instead of passing for a
                   success.
                 tests:
                   - AtomicFileWriter_Write_ReadOnlyFile_ThrowsAndLeavesFile
+
+              - id: LintMark-Engine-AtomicFileWriter-ReportsMissingFile
+                title: >-
+                  The AtomicFileWriter class shall report a file that does not exist as an error and not
+                  create it.
+                justification: |
+                  A file that was removed after the tool read it must not be brought back by the write, and
+                  the failure must reach the caller instead of passing for a success.
+                tests:
                   - AtomicFileWriter_Write_MissingFile_Throws
+
+              - id: LintMark-Engine-AtomicFileWriter-ReportsMissingDirectory
+                title: >-
+                  The AtomicFileWriter class shall report a file in a directory that does not exist as an
+                  error.
+                justification: |
+                  A failure must reach the caller, which reports it to the user, instead of passing for a
+                  success.
+                tests:
                   - AtomicFileWriter_Write_MissingDirectory_Throws
 
               - id: LintMark-Engine-AtomicFileWriter-RejectsBlankPath

@@ -25,8 +25,8 @@ configuration, and writes no output. The subsystem contains two units: `Diagnost
   single-line message. Two diagnostics with the same members are equal, which the reporter uses to report a finding
   once. `Fixable` is derived from the kind.
 - *Constraints*: The constructor validates every argument, so an invalid diagnostic cannot be created: the rule
-  identifier must be kebab-case, the path and message must not be blank, the message must be a single line, and line
-  and column must be at least one.
+  identifier must be kebab-case, the path and message must not be blank, the message must be a single line, line
+  and column must be at least one, and the kind must be a defined `DiagnosticKind`.
 
 **RuleCatalog.TryResolve and RuleCatalog.TryResolveConfigurable**: Resolve a name to the canonical rule identifier.
 

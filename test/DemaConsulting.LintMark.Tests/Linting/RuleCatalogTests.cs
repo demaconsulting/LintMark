@@ -167,14 +167,25 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that a null name is rejected.
+    ///     Test that a null name is rejected by the resolving method.
     /// </summary>
     [Fact]
     public void RuleCatalog_TryResolve_Null_Throws()
     {
-        // Act & Assert: null is rejected by both lookups
-        Assert.Throws<ArgumentNullException>(() => RuleCatalog.TryResolve(null!, out _));
-        Assert.Throws<ArgumentNullException>(() => RuleCatalog.IsDroppedAlias(null!));
+        // Act & Assert: null is rejected and the parameter is named
+        var exception = Assert.Throws<ArgumentNullException>(() => RuleCatalog.TryResolve(null!, out _));
+        Assert.Equal("name", exception.ParamName);
+    }
+
+    /// <summary>
+    ///     Test that a null name is rejected by the dropped-alias check.
+    /// </summary>
+    [Fact]
+    public void RuleCatalog_IsDroppedAlias_Null_Throws()
+    {
+        // Act & Assert: null is rejected and the parameter is named
+        var exception = Assert.Throws<ArgumentNullException>(() => RuleCatalog.IsDroppedAlias(null!));
+        Assert.Equal("name", exception.ParamName);
     }
 
     /// <summary>

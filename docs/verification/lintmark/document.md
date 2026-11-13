@@ -4,7 +4,7 @@
 
 The `Document` subsystem is verified by integration tests in `DocumentSubsystemTests.cs` that exercise
 `SourceDocument`, `DocumentParser`, `SuppressionMap`, and `ReferenceIndex` together on real and generated
-Markdown. No mocking is used. Four kinds of evidence are produced:
+markdown. No mocking is used. Five kinds of evidence are produced:
 
 - **Repository corpus tiling**: every Markdown file in the repository is loaded and parsed in three variants
   built in memory (LF, CRLF, and mixed line endings), and the block list is checked for structural

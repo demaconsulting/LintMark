@@ -21,7 +21,8 @@ N/A - standard test environment.
 - A rule identifier that is empty, has a capital letter, starts with a digit or hyphen, ends with a hyphen, has a
   double hyphen, or has an underscore, space, or non-ASCII letter throws `ArgumentException`.
 - A blank path or message, and a message that holds any kind of line break, throws `ArgumentException`.
-- A line or column below one, and a kind that is not defined, throws `ArgumentOutOfRangeException`.
+- A line or column below one, and a kind that is not defined, throws `ArgumentOutOfRangeException` that names the
+  parameter.
 - `Fixable` is true exactly for the formatting kind.
 - Diagnostics with equal values are equal and have equal hash codes, and a difference in any single value makes
   them unequal.
@@ -79,7 +80,8 @@ digit, or hyphen (`line_length`, `line length`, and a name with a letter that ha
 throws `ArgumentException` for the parameter `path`.
 
 **A line or column below one is rejected**: The constructor is called with line 0 and line -1, and then with column 0
-and column -1. Each call throws `ArgumentOutOfRangeException`, because positions start at one.
+and column -1. Each call throws `ArgumentOutOfRangeException` for the parameter `line` or `column` in turn, because
+positions start at one.
 
 **A blank message is rejected**: The constructor is called with an empty message and with a message of white space.
 Each call throws `ArgumentException` for the parameter `message`.

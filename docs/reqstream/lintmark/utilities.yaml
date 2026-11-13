@@ -25,12 +25,16 @@ sections:
             children:
               - LintMark-Utilities-TextWidth-WideCharacters
               - LintMark-Utilities-TextWidth-NarrowCharacters
+              - LintMark-Utilities-TextWidth-EmptyText
               - LintMark-Utilities-TextWidth-Emoji
+              - LintMark-Utilities-TextWidth-TextPresentation
               - LintMark-Utilities-TextWidth-ZeroWidthCharacters
               - LintMark-Utilities-TextWidth-GraphemeClusters
-              - LintMark-Utilities-TextWidth-InvalidText
+              - LintMark-Utilities-TextWidth-LoneSurrogate
+              - LintMark-Utilities-TextWidth-RejectsNullText
               - LintMark-Utilities-TextWidth-CultureIndependent
               - LintMark-Utilities-TextWidth-LinearTime
+              - LintMark-Utilities-TextWidth-Deterministic
             tests:
               - UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns
           - id: LintMark-Utilities-SafePaths

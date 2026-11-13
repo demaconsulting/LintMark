@@ -27,15 +27,17 @@ N/A - standard test environment.
 - Without block formatters, or for a block that no formatter accepts, no edit is proposed.
 - The edits of an accepting formatter are collected and ordered, and only the first accepting formatter is used for a
   block.
-- A block is left verbatim when its formatter's rule is disabled by a region, when all rules are disabled, or when a
-  prettier-ignore comment precedes it; other blocks are still formatted, and the suppression of another rule has no
-  effect.
+- A block is left verbatim when its formatter's rule is disabled by a region, when all rules are disabled, when a
+  prettier-ignore comment precedes it, when a disable-next-line comment precedes it, or when a suppression comment lies
+  inside the block; other blocks are still formatted, and the suppression of another rule has no effect.
 - A document that is unsafe to rewrite yields no edit and no problem, even when its line endings differ from the
   configuration, and its line ending is the majority ending of the file.
-- The configured line ending wins; without one the majority ending of the file is the target.
+- The configured line ending wins; without one the majority ending of the file is the target, and LF is the target
+  when the endings are equally frequent or the file has no terminator.
 - Exactly one `line-ending` formatting problem at line 1 and column 1 is reported when any line terminator differs
   from the target, with a message that names the endings found and the one expected; nothing is reported otherwise.
 - Conflicting edits of a formatter make formatting throw `InvalidOperationException`.
+- An exception that a block formatter throws reaches the caller with its type and message unchanged.
 - Null arguments are rejected, a null list means no formatters, and later changes of the caller's list are ignored.
 - A format context without a document or configuration, and a format result with a default list, a default edit, a
   null finding, or an undefined line ending, are rejected; valid ones keep their values.
@@ -65,6 +67,15 @@ and one after the region, are formatted. Only the paragraph after the region is 
 
 **A prettier-ignore comment leaves the next block verbatim**: A prettier-ignore comment precedes the first of two
 paragraphs. The first keeps its double space and the second is formatted.
+
+**A suppression comment inside a block leaves the whole block verbatim**: A paragraph with three double spaces holds
+an inline comment that disables `paragraph-wrap` after its first part and an inline comment that enables it again
+before its last part. A paragraph follows it. The first paragraph keeps all its double spaces, and the later
+paragraph is formatted.
+
+**A disable-next-line comment leaves the block on the next line verbatim**: A comment that disables `paragraph-wrap`
+for the next line directly precedes the first of two paragraphs. The first keeps its double space and the second is
+formatted.
 
 **Suppressing one block does not stop other blocks**: A prettier-ignore comment lies between two paragraphs, and a
 paragraph comes before and after it. The result holds exactly two edits, for the first and the last paragraph, and the
@@ -107,6 +118,13 @@ holds three edits, and every parallel result has the same edits, the same proble
 formatted once with a configuration that asks for LF and once with one that asks for CRLF. Neither result has a
 problem.
 
+**Equally frequent line endings target LF**: A file with one CRLF terminator and one LF terminator is formatted with a
+configuration that has no line ending. The line ending of the result is LF, and one problem reads `Mixed line endings
+(1 CRLF, 1 LF); expected LF`.
+
+**A file without terminators and without a configured line ending targets LF**: The file `abc` is formatted with a
+configuration that has no line ending. The line ending of the result is LF and no problem is reported.
+
 **A document that is unsafe to rewrite is not touched**: A CRLF file with a line that looks like the border of an
 invalid grid table is flagged as unsafe to rewrite. It is formatted with a configuration that asks for LF. The result
 has no edit and no problem, and its line ending is the majority ending of the file, which is CRLF.
@@ -121,6 +139,10 @@ The call throws `InvalidOperationException`, so the defect is not resolved silen
 
 **A null element in the formatter list is rejected**: A `DocumentFormatter` is created with a list that holds a null
 element. The constructor throws `ArgumentNullException`.
+
+**An exception of a block formatter reaches the caller unchanged**: A `DocumentFormatter` with a formatter that
+throws `InvalidOperationException` (message `The formatter failed on purpose`) formats a one-paragraph document. The
+call throws that same exception type with that same message, so nothing is caught or wrapped.
 
 **Later changes of the caller's list are ignored**: A formatter is built from a list with one `ReplacingFormatter`
 that writes a single space. The caller then clears the list and adds a formatter that writes an underscore. The

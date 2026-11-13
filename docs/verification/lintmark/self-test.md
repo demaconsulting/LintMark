@@ -23,29 +23,31 @@ N/A - standard test environment.
 
 ### Test Scenarios
 
-**SelfTestSubsystem_ValidationWorkflow_NoResultFiles_CompletesSuccessfully**:
-`Validation.Run` is called with a context that does not specify any results file; validation
-completes without error, exit code is 0, and the validate flag is set. This scenario is tested
-by `SelfTestSubsystem_ValidationWorkflow_NoResultFiles_CompletesSuccessfully`.
+#### Normal operation
 
-**SelfTestSubsystem_ValidationWorkflow_WithTrxFile_GeneratesResults**: `Validation.Run` is
-called with a context whose `ResultsFile` points to a temporary `.trx` path; a TRX file
-containing the `<TestRun` XML element is created and exit code is 0. This scenario is tested
-by `SelfTestSubsystem_ValidationWorkflow_WithTrxFile_GeneratesResults`.
+**Validation without a results file completes successfully**: `Validation.Run` is called with a
+context that does not specify any results file; validation completes without error, the exit code
+is 0, and the validate flag is set.
 
-**SelfTestSubsystem_ValidationWorkflow_WithJUnitFile_GeneratesResults**: `Validation.Run` is
-called with a context whose `ResultsFile` points to a temporary `.xml` path; a JUnit XML file
-containing the `<testsuites` XML element is created and exit code is 0. This scenario is tested
-by `SelfTestSubsystem_ValidationWorkflow_WithJUnitFile_GeneratesResults`.
+**Validation with a TRX results file writes the TRX file**: `Validation.Run` is called with a
+context whose `ResultsFile` points to a temporary `.trx` path; a TRX file containing the
+`<TestRun` XML element is created and the exit code is 0.
 
-**SelfTestSubsystem_ValidationWorkflow_WithBothResultFiles_GeneratesBothResults**: Two separate
-`Validation.Run` calls are made, one targeting a `.trx` path and one targeting a `.xml` path;
-both files are created with the correct root XML elements and exit code is 0 for each run. This
-scenario is tested by
-`SelfTestSubsystem_ValidationWorkflow_WithBothResultFiles_GeneratesBothResults`.
+**Validation with a JUnit results file writes the JUnit file**: `Validation.Run` is called with a
+context whose `ResultsFile` points to a temporary `.xml` path; a JUnit XML file containing the
+`<testsuites` XML element is created and the exit code is 0.
 
-**SelfTestSubsystem_ValidationWorkflow_WithUnsupportedExtension_EmitsErrorAndNoFile**:
-`Validation.Run` is called with a context whose `ResultsFile` has a `.bad` extension; no file
-is created at the specified path, `context.ExitCode` is 1, and an error message identifying the
-unsupported format is written via `context.WriteError`. This scenario is tested by
-`SelfTestSubsystem_ValidationWorkflow_WithUnsupportedExtension_EmitsErrorAndNoFile`.
+**Validation runs for both result formats in turn**: Two separate `Validation.Run` calls are made,
+one targeting a `.trx` path and one targeting a `.xml` path; both files are created with the
+correct root XML elements and the exit code is 0 for each run.
+
+#### Boundary conditions
+
+N/A - the subsystem has no numeric or size limits; the supported result formats are covered above.
+
+#### Error handling
+
+**Unsupported results file extension is reported and no file is written**: `Validation.Run` is
+called with a context whose `ResultsFile` has a `.bad` extension; no file is created at the
+specified path, `context.ExitCode` is 1, and an error message identifying the unsupported format
+is written via `context.WriteError`.

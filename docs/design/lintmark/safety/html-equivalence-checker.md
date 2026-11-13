@@ -17,13 +17,18 @@ pipeline that parses documents, so the check judges the document the way the too
 
 **Normalization rules**: The HTML is normalized so that only differences that can change the rendered page remain:
 
-1. The `id` attribute of a heading (`h1` to `h6`) is dropped.
+1. The `id` attribute of a heading (`h1` to `h6`), written with double or single quotes directly after the tag name
+   (as the renderer writes it), is dropped. This applies to the plain parts only; a heading `id` inside a verbatim
+   element (rules 4 and 5) is part of its content and is compared exactly. An `id` that follows another attribute is
+   an ordinary attribute and is compared.
 2. Whitespace outside the verbatim elements below is collapsed: every run of HTML whitespace (space, tab, line feed,
    carriage return, form feed) becomes one space. Only these characters are collapsed, so a changed no-break space is a
    difference.
 3. A space next to a block-level tag is removed. The block-level tags are `p`, `li`, `ul`, `ol`, `h1` to `h6`,
    `blockquote`, `table`, `thead`, `tbody`, `tr`, `td`, `th`, `pre`, `hr`, `div`, `section`, `details`, `summary`,
-   `dl`, `dt`, and `dd`, opening or closing, compared ignoring case. Whitespace between inline tags is never touched,
+   `dl`, `dt`, and `dd`, opening or closing, compared ignoring case. A tag ends at the first `>` and may not contain a
+   `<`, so an opening tag that never ends is not searched to the end of the text; it only keeps its surrounding
+   spaces, which is the conservative outcome. Whitespace between inline tags is never touched,
    otherwise `*a* *b*` becoming `*a**b*` would go unnoticed.
 4. The content of `pre`, `script`, `style`, and `textarea` elements, from the opening tag to the closing tag, is
    compared exactly.
@@ -68,8 +73,10 @@ tag after it, ignoring case. An element without a closing tag runs to the end of
 everything after it is compared exactly. An opening tag that never ends is plain text, and once one such tag is seen
 no later tag of the same kind is searched for. The position of the next opening tag of each element kind is
 remembered and searched for again only after the scan has passed it. These rules keep the scan linear even for input
-made of thousands of unclosed tags or of very many code spans. Plain parts go through the whitespace and block tag
-patterns; verbatim parts are kept (with line feeds turned into spaces for inline `code`).
+made of thousands of unclosed tags or of very many code spans. Plain parts go through the whitespace, heading
+identifier, and block tag patterns (in that order, so the identifier is matched after whitespace has collapsed);
+verbatim parts are kept (with line feeds turned into spaces for inline `code`). Each plain-part pattern is linear
+in the text, also for many unclosed block-level opening tags.
 
 #### Error Handling
 

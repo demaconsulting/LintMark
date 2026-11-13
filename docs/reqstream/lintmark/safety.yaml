@@ -24,14 +24,33 @@ sections:
               only changes how the source is laid out has not. The decision must treat code, raw HTML, and
               the spaces between words exactly, because they are visible.
             children:
-              - LintMark-Safety-HtmlEquivalenceChecker-EquivalentLayouts
-              - LintMark-Safety-HtmlEquivalenceChecker-DetectsSemanticChanges
-              - LintMark-Safety-HtmlEquivalenceChecker-CodeIsExact
-              - LintMark-Safety-HtmlEquivalenceChecker-InlineWhitespaceSignificant
               - LintMark-Safety-HtmlEquivalenceChecker-RendersWithFixedPipeline
+              - LintMark-Safety-HtmlEquivalenceChecker-HeadingIdsIgnored
+              - LintMark-Safety-HtmlEquivalenceChecker-IdenticalTextEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-SoftBreakEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-BulletMarkerEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-TableSpacingEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-SetextAtxEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-TrailingWhitespaceEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsLostHardBreak
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingList
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingHeading
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsChangedLinkDestination
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsLostEmphasis
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsGluedWords
+              - LintMark-Safety-HtmlEquivalenceChecker-CodeSpanExact
+              - LintMark-Safety-HtmlEquivalenceChecker-FencedCodeExact
+              - LintMark-Safety-HtmlEquivalenceChecker-PreformattedHtmlExact
+              - LintMark-Safety-HtmlEquivalenceChecker-ElementNameCaseInsensitive
+              - LintMark-Safety-HtmlEquivalenceChecker-UnclosedElementExact
+              - LintMark-Safety-HtmlEquivalenceChecker-ScriptStyleTextareaExact
+              - LintMark-Safety-HtmlEquivalenceChecker-VerbatimHeadingIdsExact
+              - LintMark-Safety-HtmlEquivalenceChecker-HtmlWhitespaceCollapsed
+              - LintMark-Safety-HtmlEquivalenceChecker-InlineWhitespaceSignificant
               - LintMark-Safety-HtmlEquivalenceChecker-LinearTime
               - LintMark-Safety-HtmlEquivalenceChecker-ThreadSafe
-              - LintMark-Safety-HtmlEquivalenceChecker-RejectsInvalidInput
+              - LintMark-Safety-HtmlEquivalenceChecker-RejectsMissingText
+              - LintMark-Safety-HtmlEquivalenceChecker-RejectsCarriageReturn
               - LintMark-Safety-HtmlEquivalenceChecker-FailsClosed
             tests:
               - SafetySubsystem_HtmlEquivalence_BenignReflow_Equivalent
@@ -48,10 +67,16 @@ sections:
               the built document.
             children:
               - LintMark-Safety-StructuralTokenChecker-SentinelSequence
-              - LintMark-Safety-StructuralTokenChecker-AttributesAndCitations
-              - LintMark-Safety-StructuralTokenChecker-LayoutInsensitive
+              - LintMark-Safety-StructuralTokenChecker-AttributeGroupsPreserved
+              - LintMark-Safety-StructuralTokenChecker-CitationsPreserved
+              - LintMark-Safety-StructuralTokenChecker-IndentationIgnored
+              - LintMark-Safety-StructuralTokenChecker-BlockQuotePrefixIgnored
+              - LintMark-Safety-StructuralTokenChecker-TrailingBlanksIgnored
+              - LintMark-Safety-StructuralTokenChecker-SameStructureEquivalent
+              - LintMark-Safety-StructuralTokenChecker-LookAlikeLinesIgnored
               - LintMark-Safety-StructuralTokenChecker-ThreadSafe
-              - LintMark-Safety-StructuralTokenChecker-RejectsInvalidInput
+              - LintMark-Safety-StructuralTokenChecker-RejectsMissingText
+              - LintMark-Safety-StructuralTokenChecker-RejectsCarriageReturn
               - LintMark-Safety-StructuralTokenChecker-FailsClosed
             tests:
               - SafetySubsystem_StructureEquivalence_JoinedFence_Detected
@@ -59,36 +84,58 @@ sections:
 
           - id: LintMark-Safety-Idempotency
             title: >-
-              The Safety subsystem shall decide whether formatting a rewritten text again leaves it unchanged,
-              and shall treat a formatting step that fails as a change.
+              The Safety subsystem shall decide whether formatting a rewritten text again leaves it unchanged.
             justification: |
               A rewrite that changes again each time it is applied would keep modifying the file and could
-              never pass a check. A step that cannot be completed gives no evidence of stability.
+              never pass a check.
             children:
+              - LintMark-Safety-IdempotencyChecker-AcceptsStableFormatting
               - LintMark-Safety-IdempotencyChecker-DetectsUnstableFormatting
-              - LintMark-Safety-IdempotencyChecker-FailsClosed
               - LintMark-Safety-IdempotencyChecker-RejectsInvalidArguments
             tests:
               - SafetySubsystem_Idempotency_FlipFlopFormatter_Detected
               - SafetySubsystem_Idempotency_GrowingFormatter_Detected
               - SafetySubsystem_AllChecks_CorrectFormatter_AllPass
 
+          - id: LintMark-Safety-IdempotencyFailsClosed
+            title: The Safety subsystem shall treat a formatting step that fails as a change.
+            justification: |
+              A step that cannot be completed gives no evidence of stability, so the rewrite must not be
+              allowed.
+            children:
+              - LintMark-Safety-IdempotencyChecker-FailsClosed
+            tests:
+              - SafetySubsystem_Idempotency_FailingFormattingStep_Detected
+
           - id: LintMark-Safety-ReportsDifference
             title: >-
               The Safety subsystem shall describe the first difference that a check found in one line of bounded
-              length, and describe no difference when the check found none.
+              length.
             justification: |
               A refusal is reported to the author, who must be able to find the cause. A description that
               spanned several lines or grew without bound would break the report format.
             children:
               - LintMark-Safety-HtmlEquivalenceChecker-ReportsFirstDifference
+              - LintMark-Safety-HtmlEquivalenceChecker-DescriptionIsOneBoundedLine
               - LintMark-Safety-StructuralTokenChecker-ReportsFirstDifference
               - LintMark-Safety-IdempotencyChecker-ReportsFirstDifference
-              - LintMark-Safety-EquivalenceResult-PassedHasNoDescription
-              - LintMark-Safety-EquivalenceResult-DescriptionIsOneBoundedLine
+              - LintMark-Safety-EquivalenceResult-ShortDescriptionKept
+              - LintMark-Safety-EquivalenceResult-DescriptionLineBreaksReplaced
+              - LintMark-Safety-EquivalenceResult-DescriptionCutWhenTooLong
               - LintMark-Safety-EquivalenceResult-RejectsMissingDescription
-              - LintMark-Safety-EquivalenceResult-ExcerptIsOneBoundedLine
+              - LintMark-Safety-EquivalenceResult-ExcerptControlCharactersVisible
+              - LintMark-Safety-EquivalenceResult-ExcerptIsBounded
+              - LintMark-Safety-EquivalenceResult-ExcerptStartsAtPosition
               - LintMark-Safety-EquivalenceResult-LocatesFirstDifference
             tests:
               - SafetySubsystem_ReportsDifference_FailedChecks_DescribeFirstDifferenceInOneBoundedLine
+
+          - id: LintMark-Safety-PassedCheckHasNoDescription
+            title: The Safety subsystem shall describe no difference when a check found none.
+            justification: |
+              A passed check has nothing to report, and a description on a passed check would be read as a
+              finding.
+            children:
+              - LintMark-Safety-EquivalenceResult-PassedHasNoDescription
+            tests:
               - SafetySubsystem_ReportsDifference_PassedChecks_HaveNoDescription

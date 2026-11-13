@@ -20,33 +20,70 @@ sections:
                   problems rewriting removes.
                 tests:
                   - Diagnostic_Constructor_AllArguments_ExposesValues
-                  - Diagnostic_Constructor_ValidRuleId_Accepted
-                  - Diagnostic_Constructor_LineAndColumnOne_Accepted
 
-              - id: LintMark-Linting-Diagnostic-Validation
+              - id: LintMark-Linting-Diagnostic-NullArguments
                 title: >-
-                  The Diagnostic record shall refuse a missing path or message, a rule identifier that is not
-                  written in lower-case words joined by single hyphens, a blank path or message, a message that
-                  spans several lines, a line or column below one, and a kind that is not defined.
+                  The Diagnostic record shall refuse a missing rule identifier, path, or message.
                 justification: |
-                  A report line is read by editors and scripts. A rule identifier with spaces or capitals, a
-                  message with a line break, or a position of zero would break that reading, so such a value
-                  must never exist.
+                  A missing value is a programming error that must be reported as such, and a diagnostic
+                  without one of these parts could not be turned into a report line.
                 tests:
                   - Diagnostic_Constructor_NullRuleId_Throws
                   - Diagnostic_Constructor_NullPath_Throws
                   - Diagnostic_Constructor_NullMessage_Throws
+
+              - id: LintMark-Linting-Diagnostic-RuleIdShape
+                title: >-
+                  The Diagnostic record shall refuse a rule identifier that is not written in lower-case words
+                  joined by single hyphens.
+                justification: |
+                  A report line is read by editors and scripts. A rule identifier with spaces or capitals
+                  would break that reading, so such a value must never exist.
+                tests:
+                  - Diagnostic_Constructor_ValidRuleId_Accepted
                   - Diagnostic_Constructor_UppercaseRuleId_Throws
                   - Diagnostic_Constructor_RuleIdWithTrailingHyphen_Throws
                   - Diagnostic_Constructor_RuleIdWithDoubleHyphen_Throws
                   - Diagnostic_Constructor_EmptyRuleId_Throws
-                  - Diagnostic_Constructor_RuleIdStartingWithDigit_Throws
+                  - Diagnostic_Constructor_RuleIdStartingWithNonLetter_Throws
                   - Diagnostic_Constructor_RuleIdWithInvalidCharacter_Throws
+
+              - id: LintMark-Linting-Diagnostic-BlankPathOrMessage
+                title: >-
+                  The Diagnostic record shall refuse a blank path or message.
+                justification: |
+                  A report line without a path or a message tells the reader nothing about the problem.
+                tests:
                   - Diagnostic_Constructor_BlankPath_Throws
-                  - Diagnostic_Constructor_LineZero_Throws
-                  - Diagnostic_Constructor_ColumnZero_Throws
                   - Diagnostic_Constructor_BlankMessage_Throws
+
+              - id: LintMark-Linting-Diagnostic-SingleLineMessage
+                title: >-
+                  The Diagnostic record shall refuse a message that spans several lines.
+                justification: |
+                  A message with a line break would split one report line into several, and editors and
+                  scripts read one problem per line.
+                tests:
                   - Diagnostic_Constructor_MultilineMessage_Throws
+
+              - id: LintMark-Linting-Diagnostic-PositionAtLeastOne
+                title: >-
+                  The Diagnostic record shall refuse a line or column below one.
+                justification: |
+                  Positions in a report are counted from one, so a position of zero would point to nothing
+                  in the file.
+                tests:
+                  - Diagnostic_Constructor_LineAndColumnOne_Accepted
+                  - Diagnostic_Constructor_LineBelowOne_Throws
+                  - Diagnostic_Constructor_ColumnBelowOne_Throws
+
+              - id: LintMark-Linting-Diagnostic-DefinedKind
+                title: >-
+                  The Diagnostic record shall refuse a kind that is not defined.
+                justification: |
+                  The kind decides whether rewriting removes the problem, so an undefined kind would leave
+                  that decision open.
+                tests:
                   - Diagnostic_Constructor_UndefinedKind_Throws
 
               - id: LintMark-Linting-Diagnostic-FixableMatchesKind
