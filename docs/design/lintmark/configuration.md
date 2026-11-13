@@ -11,8 +11,9 @@ decide which files are processed; the `Engine` subsystem asks it for the answer 
 contains three units: `LintMarkConfig`, `ConfigLoader`, and `EditorConfigResolver`.
 
 - `LintMarkConfig` is the complete, validated, deeply immutable set of settings for one file. Its supporting
-  types (`LinkRefactorOptions`, `RuleIdentifiers`, and twelve setting enumerations) are described in
-  *LintMarkConfig Design*.
+  types (`LinkRefactorOptions` and twelve setting enumerations) are described in
+  *LintMarkConfig Design*. The rule identifiers, aliases, and defaults that the `rules` setting uses are not defined
+  here: they come from `RuleCatalog` of the `Linting` subsystem.
 - `ConfigLoader` finds the configuration file that applies to a Markdown file, reads it once, and either
   returns a valid `LintMarkConfig` or a complete list of positioned problems. Its supporting types
   (`ConfigParser`, `ConfigLoadResult`, `ConfigError`) are described in *ConfigLoader Design*.
@@ -21,8 +22,8 @@ contains three units: `LintMarkConfig`, `ConfigLoader`, and `EditorConfigResolve
 
 The subsystem owns the file-system access needed for configuration (probing for `.lintmark.yaml` and `.git`
 entries and reading the configuration file; the editor settings files are read by the editorconfig library
-on its behalf) and the wording of every configuration problem message. It never writes a file and never
-writes output; problems are returned as values.
+on its behalf) and the wording of every configuration problem message. It only reads files: it never writes a file
+and never writes output; problems are returned as values.
 
 ### Interfaces
 
@@ -84,11 +85,15 @@ writes output; problems are returned as values.
   configuration cannot be created, not even through a `with` expression.
 
 The subsystem consumes the `Document` subsystem (the `LineEnding` type is the type of the line-ending
-setting), the YamlDotNet library (YAML syntax), and the EditorConfig library (editor settings files). It is
-consumed by the `Engine` subsystem. In terms of the architecture model:
+setting), the `Linting` subsystem (`RuleCatalog`: the rule identifiers, aliases, and defaults), the YamlDotNet library
+(YAML syntax), and the EditorConfig library (editor settings files). It is consumed by the `Engine` subsystem and the
+`Formatting` subsystem (`LintMarkConfig`). The dependency on the `Linting` subsystem is the accepted subsystem-level
+cycle described in *Linting Design*: the `Linting` subsystem will consume `LintMarkConfig` when lint rules are added,
+while the unit level stays acyclic. In terms of the architecture model:
 
 - `ConfigLoader` depends on `LintMarkConfig`, `LinkRefactorOptions`, the setting enumerations, `LineEnding`
-  from the `Document` subsystem, and YamlDotNet.
+  from the `Document` subsystem, `RuleCatalog` from the `Linting` subsystem, and YamlDotNet.
+- `LintMarkConfig` depends on `RuleCatalog`.
 - `EditorConfigResolver` depends on EditorConfig and `LineEnding`.
 - `LintMarkEngine` from the `Engine` subsystem depends on `ConfigLoader`, `EditorConfigResolver`,
   `LintMarkConfig`, `ConfigError`, `ConfigLoadResult`, and `EditorConfigResult`.
@@ -105,13 +110,13 @@ The flow for one Markdown file is:
    file's directory and walks upward (see *ConfigLoader Design* for the exact algorithm). The nearest
    `.lintmark.yaml` wins; files are never merged. The file is read and validated once per run, and the result is
    shared by every Markdown file that resolves to it.
-2. If the load returned problems, the file has no configuration. The problems are attached to the file's result
-   and the editor settings are not consulted.
+2. If the load returned problems, the file has no configuration. The problems are attached to the file's result,
+   the editor settings are not consulted, and the file is not formatted.
 3. If the load returned a configuration whose `EndOfLine` is set, that value is final.
 4. Otherwise, unless `--no-config` was given, the engine asks the `EditorConfigResolver` for the line ending of
    that file. A specified `lf` or `crlf` becomes the `EndOfLine` of the file's effective configuration (a
    `with` copy of the shared configuration, so nothing shared is changed). "Not specified" leaves `EndOfLine`
-   unset, which means the file's own majority line ending decides later.
+   unset, which means the file's own majority line ending decides later, in `DocumentFormatter`.
 
 The resulting precedence is: the `end-of-line` setting of the configuration file, then `end_of_line` from the
 editor settings, then unspecified. `--no-config` makes the engine use a defaults-only loader and no resolver, so
@@ -136,20 +141,20 @@ design documents); `.editorconfig` discovery and section matching are delegated 
 (see *EditorConfig Integration Design* in the OTS design documents). Both libraries have quirks that the units
 compensate for; the compensation is described in the unit designs.
 
-**Scope of the requirements in this phase**: The line ending that the editor settings or the configuration give is
-stored on each file's effective configuration, but nothing consumes it before the formatter exists, so it cannot be
-observed from outside the tool. The requirement therefore states only what is observable now: editor settings that
-cannot be used never produce an error. Two groups of behavior are verified by tests that have no requirement in
-this phase:
+**Use of the settings**: The line ending that the editor settings or the configuration give is stored on each file's
+effective configuration and consumed by `DocumentFormatter`, which writes the file with it (see *DocumentFormatter
+Design*). The `ignore` setting is applied by the engine (see *LintMarkEngine Design*). Two consequences of a
+configuration problem follow from this:
 
-- The report of settings that cannot be read, a message that the engine places at the start of the Markdown file.
-- The determination of the line ending: the nearest file, sections, the root file, patterns, letter case, and the
-  `end-of-line` setting taking precedence.
+- A file with an invalid configuration is still read and parsed, so its own failures are reported, but it is never
+  formatted or rewritten, because its settings are unknown.
+- Editor settings that cannot be read are reported as a `config-error` at the start of the Markdown file, and the file
+  is not formatted either, because the line ending it should get is not known. Editor settings that merely say
+  nothing useful about the line ending (a `cr` or `unset` value, an unknown word, a missing setting, no applicable
+  section, malformed lines) are never an error.
 
-The formatting phase adds the system requirement that the tool uses the line ending given by the editor settings
-when the configuration gives none, and re-adds a requirement for the report of unreadable settings together with an
-observable system-level behavior. It adds the subsystem and unit requirements that decompose them, and links the
-existing tests to them.
+The remaining settings of the configuration are validated and stored, and take effect as the linting and formatting
+units that read them are added.
 
 **Guards against pathological files**: A configuration file that exceeds the size limit or the nesting limit
 documented in the user guide (1 MiB and 64 levels) is reported as a problem with a position, promptly. The limits

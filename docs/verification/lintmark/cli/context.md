@@ -21,7 +21,11 @@ N/A - standard test environment.
 - Silent mode suppresses console output but does not affect the log file.
 - Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
   arguments, are rejected.
-- `--validate` combined with paths or `--check` is rejected before the log file is opened.
+- `--fix` and `--diff` each set only their own property and default to false; `--check` changes neither.
+- `--fix` combined with `--check` or with `--diff` is rejected with a message that names the conflict, in either
+  argument order; `--diff` combined with `--check` is accepted; `--fix` is accepted with paths and the
+  configuration option, and the value of the option is not taken for a path.
+- `--validate` combined with paths, `--check`, `--fix`, or `--diff` is rejected before the log file is opened.
 - `--config` exposes the file name exactly as written (the last one when repeated) and is never taken for a path;
   a missing or blank value is rejected; `--no-config` exposes a flag; both default to "not given".
 - `--config` combined with `--no-config`, and `--validate` combined with either configuration option, are rejected;
@@ -36,8 +40,8 @@ N/A - standard test environment.
 
 ##### Normal operation
 
-**No arguments give the default context**: All boolean flags are false, `ResultsFile` is null, `HeadingDepth` is
-1, and the exit code is 0.
+**No arguments give the default context**: All boolean flags are false (including `Fix` and `Diff`), `ResultsFile` is
+null, `HeadingDepth` is 1, and the exit code is 0.
 
 **Long and short version flags set the version flag**: `--version` and `-v` set `Version`.
 
@@ -48,6 +52,17 @@ N/A - standard test environment.
 **Validate flag sets validation**: `--validate` sets `Validate`.
 
 **Check flag sets check mode**: `--check` sets `Check` and changes no other flag.
+
+**Fix flag sets fix mode**: `--fix` sets `Fix`, leaves `Diff` and `Check` false, and the exit code is 0.
+
+**Diff flag sets diff mode**: `--diff` sets `Diff`, leaves `Fix` and `Check` false, and the exit code is 0.
+
+**Fix and diff default to off**: With no arguments `Fix` and `Diff` are false.
+
+**Diff can be combined with check**: `--diff --check` sets both and leaves `Fix` false, because neither writes a file.
+
+**Fix can be combined with paths and the configuration option**: `a.md --fix --config c.yaml b.md` sets `Fix`, gives
+`ConfigFile` equal to `c.yaml`, and `Paths` holds `a.md` and `b.md` only.
 
 **Results flag sets the results file**: `--results output.trx` sets `ResultsFile`.
 
@@ -157,6 +172,13 @@ message names `--no-config`.
 names the flag.
 
 **Validate combined with check is rejected**: `--validate` and `--check` throw `ArgumentException`.
+
+**Fix combined with check or diff is rejected**: `--fix --check`, and `--diff --fix` in the other order, each throw
+`ArgumentException` whose message contains `--fix cannot be combined with --check or --diff`.
+
+**Validate combined with fix or diff is rejected**: `--validate --fix`, and `--diff --validate`, each throw
+`ArgumentException` whose message contains `--validate cannot be combined with paths, --check, --fix, --diff, --config,
+or --no-config`.
 
 **Rejected validate combination creates no log file**: With `--log` pointing at a file that does not exist, the
 `--validate` conflict is raised and the log file is never created.

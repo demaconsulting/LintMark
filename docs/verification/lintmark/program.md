@@ -4,7 +4,8 @@
 
 `Program` is verified with unit tests defined in `ProgramTests.cs`. Because `Program` directly
 instantiates `Context` from real arguments, calls `Validation.Run` when needed, and hands path arguments to the
-real `LintMarkEngine`, no mocking is required. Tests pass controlled argument arrays and assert on captured
+real `LintMarkEngine` (also for the `--fix` and `--diff` options, whose behavior is verified in the engine verification
+design), no mocking is required. Tests pass controlled argument arrays and assert on captured
 console output and exit codes; the path scenarios use real temporary files (the `TemporaryDirectory` test
 helper).
 
@@ -21,6 +22,8 @@ N/A - standard test environment.
 - With a path argument, `Program.Run` processes the file with the real engine and reports failures through
   the context (exit code 1).
 - The help text lists the configuration options and the configuration files they concern.
+- The help text lists the `--fix` and `--diff` options and states that `--fix` is not combined with `--check` or
+  `--diff`.
 
 ### Test Scenarios
 
@@ -39,6 +42,10 @@ exit with 0.
 
 **Help lists the check option and the path arguments**: `["--help"]` outputs `[paths...]`, `--check`, and the
 default pattern `**/*.md`, and the exit code is 0.
+
+**Help lists the fix and diff options and the rule for combining them**: `["--help"]` outputs `--fix` and `--diff`
+and the phrase `not with --check or --diff` that tells the reader that `--fix` cannot be combined with the other two
+modes, and the exit code is 0.
 
 **Help lists the configuration options**: `["--help"]` outputs `--config <file>`, `--no-config`, and the names
 `.lintmark.yaml` and `.editorconfig`, and the exit code is 0.
@@ -63,4 +70,4 @@ N/A - the program has no numeric or size limits; its argument boundaries are ver
 code 1 without throwing.
 
 **Undecodable file is reported through the context**: A context for an undecodable file makes the exit code 1
-and writes `file-encoding-error` to the error stream; the former "not yet implemented" text no longer appears.
+and writes `file-encoding-error` to the error stream.

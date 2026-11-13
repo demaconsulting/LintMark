@@ -6,11 +6,12 @@ The `Configuration` subsystem is verified by integration tests in `Configuration
 builds a real temporary directory tree (using the `TemporaryDirectory` test helper) and drives the real
 `ConfigLoader`, `LintMarkConfig`, and `EditorConfigResolver` together, as the `Engine` subsystem does: it loads the
 configuration for Markdown files at several depths, or resolves the line ending that the editor settings give, and
-asserts on the returned configuration, the positioned problems, and the line ending. The editorconfig library
+asserts on the returned configuration, the positioned problems, and the line ending. The rule identifiers that the
+`rules` setting accepts come from the real rule catalog of the `Linting` subsystem. The editorconfig library
 behind `EditorConfigResolver` is the real library. The injected seams of the resolver are not used at this level,
 with one exception: the scenario about editor settings that cannot be read has no portable way to make a real file
-unreadable, so it injects a failing settings lookup, which is the failure the real lookup produces. No mocking is
-used.
+unreadable, so it injects a failing settings lookup, which is the failure the real lookup produces. (The system
+tests make a real file unreadable, as far as the platform allows.) No mocking is used.
 
 The subsystem does not lint or format anything and writes no output, so the observable interface is the values
 that its units return. The scenarios therefore check the combined behavior that no single unit can show: that
@@ -39,6 +40,8 @@ are therefore run sequentially with the other tests that touch process-wide stat
 - A tree without a configuration file and a tree with an empty file both give the documented defaults.
 - The sample file that gives every setting is accepted without problems, and representative values of it are applied,
   including a rule given by its legacy number.
+- A rule is accepted by its name or legacy number, the legacy number of a removed rule is accepted and changes
+  nothing, and the name of a rule that is registered but not configurable (`line-ending`) is reported as unknown.
 - Equivalent files in block style, in flow style, with the settings in another order, with CRLF line endings, and
   with a UTF-8 marker give equal settings.
 - A file with malformed YAML, with an unsupported structure (a list, two configurations, a reference, or a
@@ -51,14 +54,10 @@ are therefore run sequentially with the other tests that touch process-wide stat
   the documented nesting limit (a file nested 100,000 levels deep) is reported with a position within 10 seconds.
 - Editor settings that cannot be used (`cr`, `unset`, an unknown value such as `banana`, malformed lines, unrelated
   settings) are "not specified" and never an error.
-- Supporting: editor settings that cannot be read are reported as a one-line message, which is verified without a
-  requirement (see below).
+- The line ending that the editor settings give is resolved per file, honoring sections and `root = true`.
+- Editor settings that cannot be read are reported as a one-line message and give no line ending.
 - Many threads that use one loader and one resolver get results identical to sequential use.
 - Configurations and problem lists cannot be changed by their holders.
-
-The line ending that the editor settings give is resolved per file, honoring sections and `root = true`, and one
-scenario below shows this. It supports the later formatting phase and has no requirement here, because the line
-ending is not observable until files are rewritten; the formatting phase adds the requirements that it verifies.
 
 ### Test Scenarios
 
@@ -90,7 +89,7 @@ loaded; there are no problems, and the line length, line ending, table style, li
 by its legacy number (switched off under its rule name), and the ignore patterns (which replace the defaults) have
 the sample's values. The sample is shared with the unit and system tests through a neutral test helper.
 
-**Editor settings give the line ending per file (supporting evidence for the formatting phase)**: A root
+**Editor settings give the line ending per file**: A root
 `.editorconfig` gives `lf` to all files and `crlf` to Markdown files, and a second file in a sub folder declares
 `root = true` without any line-ending setting. A Markdown file gets `crlf`, a text file gets `lf`, and a Markdown
 file in the sub folder gets no line ending, because the nested root hides the outer file.
@@ -111,9 +110,9 @@ and loading takes less than 10 seconds. The time bound is part of the scenario b
 is that parsing such a file unguarded takes unbounded time.
 
 **Many threads get the sequential results**: Configuration and editor settings in several folders (one
-configuration invalid) are used by up to 16 threads over 48 files, each looked up ten times through one shared loader and
-one shared resolver; every result (line length, problem messages, line ending, and editor-settings problem) equals
-the result of sequential use with fresh instances.
+configuration invalid) are used by up to 16 threads over 48 files, each looked up ten times through one shared
+loader and one shared resolver; every result (line length, problem messages, line ending, and editor-settings
+problem) equals the result of sequential use with fresh instances.
 
 **Problems of one file are ordered by position**: A file whose problems are found at different stages (an unknown
 rule, an empty ignore pattern and an unknown setting while the settings are checked, and an anchor on its last line
@@ -157,10 +156,16 @@ is reported at 2:3 as invalid UTF-8; a file saved as UTF-16 is reported at 1:1 a
 and then by its name, and a setting given again at the end of the file, give no configuration and problems at the
 rule's second entry (4:3) and at the repeated setting (5:1), each naming the earlier line.
 
-**Editor settings that cannot be read are reported as a message (supporting)**: A resolver whose lookup of the
+**Editor settings that cannot be read are reported as a message**: A resolver whose lookup of the
 settings fails with a line break in its message gives no line ending and the one-line message
-`Cannot read .editorconfig settings: disk failure`. This scenario has no requirement; the formatting phase re-adds a
-requirement for it together with an observable system-level behavior.
+`Cannot read .editorconfig settings: disk failure`.
+
+**Rule aliases, dropped aliases, and non-configurable rules are handled by the rule catalog**: One configuration
+switches a rule off by its legacy number (`MD013`) and also names the legacy number of a removed rule (`MD033`);
+it gives no problem, the rule `line-length` is off, and every other rule keeps its default state, so the removed
+rule changed nothing. Another configuration names the rule `line-ending`, which the catalog registers but does not
+let a configuration change; it gives one problem at 2:3, `Unknown rule 'line-ending'`. The rule identifiers
+themselves are verified with the rule catalog unit.
 
 **Results cannot be changed through casts**: The rule table and the ignore patterns of a valid configuration, and the
 problem list of an invalid one, refuse every change attempted through the mutable collection interfaces.

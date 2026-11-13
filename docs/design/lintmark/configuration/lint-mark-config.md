@@ -7,8 +7,9 @@
 `LintMarkConfig` is the complete, validated, deeply immutable set of settings that governs how one Markdown
 file is linted and formatted. It owns the definition of every setting, its default, and the rule that an
 invalid configuration cannot exist. Its supporting types are described in this document: `LinkRefactorOptions`
-(the nested `link-refactor` options), `RuleIdentifiers` (the table of configurable rules), and twelve setting
-enumerations. They have no design documents of their own.
+(the nested `link-refactor` options), and twelve setting
+enumerations. They have no design documents of their own. The table of rule identifiers that the `rules` setting is
+validated against is owned by `RuleCatalog` of the `Linting` subsystem (see *RuleCatalog Design*) and consumed here.
 
 #### Data Model
 
@@ -90,55 +91,20 @@ Single-member enumerations (`HeadingStyle`, `CodeBlockStyle`, `TrailingWhitespac
 setting can be written explicitly today and gain further forms without changing the schema.
 
 **Rules**: `Rules` maps the canonical kebab-case id of every configurable rule to its enabled state. The map is
-always complete: it holds exactly the 22 ids below (with an ordinal comparer), so a consumer never needs a
-second lookup of the defaults. `RuleIdentifiers` is the single home of this table.
-
-| Rule id | Alias | Default |
-| --- | --- | --- |
-| `line-length` | `MD013` | on |
-| `paragraph-wrap` | none | on |
-| `heading-increment` | `MD001` | on |
-| `heading-duplicate` | `MD024` | on |
-| `heading-trailing-punctuation` | `MD026` | on |
-| `emphasis-as-heading` | `MD036` | on |
-| `image-alt-text` | `MD045` | on |
-| `link-empty` | `MD042` | on |
-| `link-fragment` | `MD051` | on |
-| `link-reference-undefined` | `MD052` | on |
-| `link-definition-unused` | `MD053` | on |
-| `link-reversed` | `MD011` | on |
-| `descriptive-link-text` | `MD059` | off |
-| `code-fence-language` | `MD040` | on |
-| `table-too-wide` | none | on |
-| `table-column-count` | `MD056` | on |
-| `table-grid-unformatted` | none | off |
-| `fence-unclosed` | none | on |
-| `grid-table-invalid` | none | on |
-| `footnote-unused` | none | on |
-| `blockquote-blank-line` | `MD028` | on |
-| `dollar-sign-in-shell-code` | `MD014` | off |
-
-Rule ids and aliases are resolved ignoring case, with an ordinal comparison that does not depend on the current
-culture. The aliases of nine rules that no longer exist are dropped: `MD002`, `MD006`, `MD008`, `MD025`, `MD033`,
-`MD041`, `MD043`, `MD044`, and `MD057`. A dropped alias is recognized (so a legacy configuration file is still
-accepted) but never resolves to a rule and is never stored. Rules that the formatter always applies are not
-configurable; their aliases (for example `MD009`) are unknown, not dropped.
-
-`RuleIdentifiers` exposes `ConfigurableRules` (the ids in ordinal order), `Defaults`, `Aliases`,
-`DroppedAliases`, `TryResolve`, and `IsDroppedAlias`. All of its data is immutable and initialized once, so
-every member is safe for concurrent use.
-
-Hand-over note: `RuleIdentifiers` is a supporting type of this unit only because the `rules` setting must be
-validated before the linting subsystem exists. When the rule catalog is introduced it must absorb this table
-(move it and add the rule metadata) rather than duplicate it, and the suppression map's rule-id canonical-form
-function can then be bound to the same resolution.
+always complete: it holds exactly the 22 ids of `RuleCatalog.ConfigurableRules` (with an ordinal comparer), so a
+consumer never needs a second lookup of the defaults. The defaults of the map are `RuleCatalog.Defaults`. The table of
+the 22 rules with their aliases and default states, the nine dropped aliases, and the identifiers that are registered
+but not configurable are described in *RuleCatalog Design*; this unit does not repeat them. Rules that the formatter
+always applies (such as `line-ending`) are not configurable, and their aliases (for example `MD009`) are unknown, not
+dropped.
 
 **Ignore**: `Ignore` holds glob patterns of files to skip. The default is `.git/**`, `node_modules/**`,
 `**/.venv/**`, `**/generated/**`, `**/thirdparty/**`, and `.agent-logs/**`. A configured `ignore` list replaces
 the default list; it is never merged with it. Patterns use forward slashes only; a pattern that contains a
 backslash is rejected by the property (the configuration file loader converts backslashes before storing).
-The setting is validated and stored but is not yet applied: the engine does not consult it, so it has no effect
-on which files are processed.
+The patterns are relative to the directory of the configuration file that applies to a file (the current directory
+when none does). The engine applies them (see *LintMarkEngine Design* and *FileDiscovery Design*): it skips the files
+that a directory, a glob, or the default pattern selected, and never a file named on the command line.
 
 **Invariants**:
 
@@ -157,23 +123,19 @@ on which files are processed.
   key order, `Ignore` element by element with an ordinal comparison, so order matters). `GetHashCode` combines
   the same content and is therefore consistent with `Equals`.
 
-**Scope of the requirements in this phase**: The requirements state what the configuration holds and refuses:
-the documented defaults, every value within its range, rule identification, refused values, and collections that
-holders and source collections cannot change. They state the refusal as an observable outcome (the value cannot be
-set); that it is raised as an exception from the initializer is a design decision described above. The rule
-identification requirements name `RuleIdentifiers`, the supporting type that implements them. Deriving a copy
-that differs in chosen settings, and equality by content, are needed only to fill in the line ending that the
-editor settings give, which takes effect with the formatter. Their tests are kept as tests without a requirement,
-and the formatting phase re-creates the requirement together with the system requirement that observes the line
-ending. Defensive checks without a separate observable need, such as the refusal of an uninitialized ignore array,
-are likewise verified by tests without a requirement.
+**Use of the invariants**: The configuration holds and refuses values as described above: the documented defaults,
+every value within its range, refused values, and collections that holders and source collections cannot change. The
+refusal is raised as an exception from the initializer, which is a design decision described above. Deriving a copy
+that differs in chosen settings (a `with` expression) is how the engine fills in the line ending that the editor
+settings give, without changing a shared instance; equality by content lets two configurations be compared by value.
+The `Ignore` setting is consumed by the engine and the `EndOfLine` setting by `DocumentFormatter`.
 
 #### Key Methods
 
 **Default** (static property): The configuration with every documented default.
 
 - *Returns*: `LintMarkConfig`; the same shared instance for every caller.
-- *Postconditions*: `EndOfLine` is `null`; `Rules` equals `RuleIdentifiers.Defaults`; `Ignore` equals the
+- *Postconditions*: `EndOfLine` is `null`; `Rules` equals `RuleCatalog.Defaults`; `Ignore` equals the
   default patterns.
 
 **Property initializers** (`LineLength`, `Wrap`, `EndOfLine`, `Headings`, `Bullet`, `ListIndent`, `OrderedStyle`,
@@ -187,18 +149,6 @@ are likewise verified by tests without a requirement.
 - *Postconditions*: the value is stored; nothing is stored when the initializer throws.
 
 **Equals and GetHashCode**: Value equality as described under Invariants.
-
-**RuleIdentifiers.TryResolve**: Resolves a rule id or legacy alias (such as `MD013`) to the canonical id.
-
-- *Parameters*: `string name` (any letter case), and an out parameter that receives the canonical id.
-- *Returns*: `true` for a configurable rule; `false` for an unknown name and for a dropped alias.
-- *Preconditions*: `name` is not null.
-
-**RuleIdentifiers.IsDroppedAlias**: Determines whether a name is one of the nine dropped aliases, ignoring case.
-
-- *Parameters*: `string name`.
-- *Returns*: `bool`.
-- *Preconditions*: `name` is not null.
 
 **LinkRefactorOptions.IsValidMarker**: Determines whether text is acceptable as a definitions marker.
 
@@ -217,8 +167,7 @@ logged and nothing is retried.
 - `ArgumentOutOfRangeException`: a number outside its range (`LineLength`, `MaxBlankLines`, the numeric
   `LinkRefactorOptions` options), a `ListIndent` that is neither 2 nor 4, and an enumeration value that is not a
   defined member.
-- `ArgumentNullException`: a null `LinkRefactor`, `Rules`, or `DefinitionsMarker`, and a null name given to
-  `TryResolve` or `IsDroppedAlias`.
+- `ArgumentNullException`: a null `LinkRefactor`, `Rules`, or `DefinitionsMarker`.
 - `ArgumentException`: an uninitialized (default) `Ignore` array; an `Ignore` element that is null, empty,
   blank, spans several lines, or contains a backslash; a `Rules` map that is missing a configurable id or holds
   a key that is not one; and a `DefinitionsMarker` that is not a single-line HTML comment.
@@ -230,11 +179,15 @@ files.
 #### Dependencies
 
 - **LineEnding** (`Document` subsystem) — the type of `EndOfLine`.
+- **RuleCatalog** (`Linting` subsystem) — the default state of every rule and the set of identifiers that a `rules`
+  map must hold exactly. This is the unit-level dependency behind the subsystem-level cycle described in
+  *Linting Design*.
 - **.NET BCL** — immutable and frozen collections and the standard exception types.
 
 #### Callers
 
 - **ConfigLoader** — builds configurations from files with `with` expressions on `LintMarkConfig.Default`, and
-  uses `RuleIdentifiers` and `LinkRefactorOptions.IsValidMarker` while validating.
-- **LintMarkEngine** — carries the configuration of each file in `FileResult` and derives the effective
-  configuration with a `with` expression.
+  uses `LinkRefactorOptions.IsValidMarker` while validating.
+- **LintMarkEngine** — carries the configuration of each file in `FileResult`, derives the effective
+  configuration with a `with` expression, and applies the `Ignore` patterns.
+- **DocumentFormatter** — reads `EndOfLine` and passes the configuration to block formatters.

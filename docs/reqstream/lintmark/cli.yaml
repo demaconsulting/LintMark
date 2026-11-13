@@ -159,17 +159,47 @@ sections:
           - id: LintMark-Cli-Check
             title: The Cli subsystem shall support the `--check` flag to request reporting without modifying files.
             justification: |
-              Pipelines and hooks need to state explicitly that they only want problems reported. The flag
-              must be accepted so that it keeps working when file-modifying modes are added.
+              Pipelines and hooks need to state explicitly that they only want problems reported, also
+              next to the options that modify files.
             children:
               - LintMark-Cli-Context-Check
             tests:
               - CliSubsystem_CheckFlow_ContextAndProgram_LeavesFilesUnchanged
 
+          - id: LintMark-Cli-Fix
+            title: The Cli subsystem shall support the `--fix` flag to request that files are rewritten.
+            justification: |
+              Users need a way to ask the tool to repair the files, and the rest of the tool needs to
+              know that the request was made.
+            children:
+              - LintMark-Cli-Context-Fix
+            tests:
+              - CliSubsystem_FixAndDiff_Flags_Parsed
+
+          - id: LintMark-Cli-Diff
+            title: The Cli subsystem shall support the `--diff` flag to request a unified diff of the rewrites.
+            justification: |
+              Users want to review a rewrite before they allow it, and the rest of the tool needs to
+              know that the request was made.
+            children:
+              - LintMark-Cli-Context-Diff
+            tests:
+              - CliSubsystem_FixAndDiff_Flags_Parsed
+
+          - id: LintMark-Cli-FixExclusive
+            title: The Cli subsystem shall reject `--fix` combined with `--check` or `--diff`.
+            justification: |
+              Asking to check only and to modify files in the same command contradict each other.
+              Choosing one silently could modify files that the user meant only to look at.
+            children:
+              - LintMark-Cli-Context-FixExclusive
+            tests:
+              - CliSubsystem_FixWithCheck_Arguments_Throws
+
           - id: LintMark-Cli-ValidateExclusive
             title: >-
-              The Cli subsystem shall reject `--validate` combined with positional paths, `--check`, `--config`,
-              or `--no-config`.
+              The Cli subsystem shall reject `--validate` combined with positional paths, `--check`, `--fix`,
+              `--diff`, `--config`, or `--no-config`.
             justification: |
               Self-validation ignores file and configuration arguments, so accepting them would silently
               discard part of the command line. Rejecting the combination as a usage error prevents a
@@ -178,7 +208,11 @@ sections:
               - LintMark-Cli-Context-ValidateExclusive
             tests:
               - CliSubsystem_ValidateWithPaths_ContextAndProgram_RejectsAndExitsNonZero
+              - CliSubsystem_ValidateWithCheck_ContextAndProgram_RejectsAndExitsNonZero
+              - CliSubsystem_ValidateWithFix_ContextAndProgram_RejectsAndExitsNonZero
+              - CliSubsystem_ValidateWithDiff_ContextAndProgram_RejectsAndExitsNonZero
               - CliSubsystem_ValidateWithConfig_ContextAndProgram_RejectsAndExitsNonZero
+              - CliSubsystem_ValidateWithNoConfig_ContextAndProgram_RejectsAndExitsNonZero
 
           - id: LintMark-Cli-ConfigOption
             title: >-

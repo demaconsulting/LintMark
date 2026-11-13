@@ -131,20 +131,53 @@ sections:
                 title: The Context class shall expose whether the `--check` flag was specified.
                 justification: |
                   The flag states that files must only be checked. Exposing it lets the rest of the tool
-                  honor the request, now and when file-modifying modes exist.
+                  honor the request.
                 tests:
                   - Context_Create_CheckFlag_SetsCheckTrue
 
+              - id: LintMark-Cli-Context-Fix
+                title: The Context class shall expose whether the `--fix` flag was specified.
+                justification: |
+                  The flag states that files must be rewritten. Exposing it lets the rest of the tool honor
+                  the request, and no other part of the tool may rewrite a file without it.
+                tests:
+                  - Context_Create_FixFlag_SetsFix
+                  - Context_Create_NoFlags_FixAndDiffAreFalse
+                  - Context_Create_FixWithPathsAndConfig_Accepted
+
+              - id: LintMark-Cli-Context-Diff
+                title: >-
+                  The Context class shall expose whether the `--diff` flag was specified, and accept it together
+                  with `--check`.
+                justification: |
+                  The flag states that a diff of the rewrites must be shown. A diff is a preview that writes
+                  nothing, so it is compatible with a request to only check.
+                tests:
+                  - Context_Create_DiffFlag_SetsDiff
+                  - Context_Create_DiffWithCheck_Accepted
+                  - Context_Create_NoFlags_FixAndDiffAreFalse
+
+              - id: LintMark-Cli-Context-FixExclusive
+                title: The Context class shall reject `--fix` combined with `--check` or `--diff`.
+                justification: |
+                  Asking to check only and to modify files in the same command contradict each other, so
+                  such a combination is a usage error that must be reported instead of choosing one.
+                tests:
+                  - Context_Create_FixWithCheck_Throws
+                  - Context_Create_FixWithDiff_Throws
+
               - id: LintMark-Cli-Context-ValidateExclusive
                 title: >-
-                  The Context class shall reject `--validate` combined with positional paths, `--check`,
-                  `--config`, or `--no-config`.
+                  The Context class shall reject `--validate` combined with positional paths, `--check`, `--fix`,
+                  `--diff`, `--config`, or `--no-config`.
                 justification: |
                   Self-validation does not process files or configuration, so such a combination is a usage
                   error that must be reported instead of silently discarding part of the command line.
                 tests:
                   - Context_Create_ValidateWithPaths_ThrowsArgumentException
                   - Context_Create_ValidateWithCheck_ThrowsArgumentException
+                  - Context_Create_ValidateWithFix_Throws
+                  - Context_Create_ValidateWithDiff_Throws
                   - Context_Create_ValidateWithConfig_ThrowsArgumentException
                   - Context_Create_ValidateWithNoConfig_ThrowsArgumentException
                   - Context_Create_ValidateWithItsOwnOptions_DoesNotThrow

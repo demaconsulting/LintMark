@@ -114,6 +114,9 @@ a bare carriage return is reported rather than silently rewritten. Programming e
 #### Callers
 
 - **LintMarkEngine** — creates a document for every file it reads and converts the typed failure into a
-  report line.
+  diagnostic; builds the bytes to write with `ToBytes`, creates documents from proposed text with `FromText`, and
+  converts positions with `PositionOf` and `OffsetOf`.
+- **DocumentFormatter** and **SourcePatcher** — read the LF-normalized text, the terminator counts, and the majority
+  line ending.
 - **DocumentParser** — parses `Text` and uses the line table.
 - **SuppressionMap** and **ReferenceIndex** — convert offsets to lines.

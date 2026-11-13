@@ -1,0 +1,213 @@
+---
+# Formatting Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Formatting subsystem
+# - The Formatting subsystem turns the changes that rules propose for a document into one rewritten text, and
+#   decides which line ending the document should have
+# - Subsystem requirements describe what the formatting step guarantees to the safety checks and to the engine
+# - The tool as shipped contains no rule that changes text yet; the subsystem tests use rules that exist only in the
+#   tests, and the line ending is the one change that real documents show
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        requirements:
+          - id: LintMark-Formatting-ApplyEdits
+            title: >-
+              The Formatting subsystem shall turn the changes that rules propose for a document into one
+              rewritten text.
+            justification: |
+              Rules propose small changes to a document, and the rewritten text must be the document with
+              those changes. Changes from different rules to different places must all be applied,
+              and the outcome must not depend on the order in which they were proposed.
+            children:
+              - LintMark-Formatting-EditSet-AllowsAdjacent
+              - LintMark-Formatting-EditSet-OrdersByPosition
+              - LintMark-Formatting-EditSet-InsertionBeforeReplacement
+              - LintMark-Formatting-EditSet-SnapshotUnaffectedByLaterAdds
+              - LintMark-Formatting-EditSet-ImmutableResults
+              - LintMark-Formatting-EditSet-RejectsNegativeRange
+              - LintMark-Formatting-EditSet-RejectsRangeOverflow
+              - LintMark-Formatting-EditSet-RejectsMissingReplacement
+              - LintMark-Formatting-EditSet-RejectsMissingRuleId
+              - LintMark-Formatting-EditSet-ExposesValues
+              - LintMark-Formatting-EditSet-ReportsEnd
+              - LintMark-Formatting-EditSet-ReportsContents
+              - LintMark-Formatting-SourcePatcher-AppliesEdits
+              - LintMark-Formatting-SourcePatcher-AppliesEditAtEnd
+              - LintMark-Formatting-SourcePatcher-UsesUtf16Positions
+              - LintMark-Formatting-SourcePatcher-RejectsMissingDocument
+              - LintMark-Formatting-SourcePatcher-RejectsUninitializedList
+              - LintMark-Formatting-SourcePatcher-RejectsUninitializedEdit
+              - LintMark-Formatting-DocumentFormatter-CollectsEdits
+              - LintMark-Formatting-DocumentFormatter-OneFormatterPerBlock
+              - LintMark-Formatting-DocumentFormatter-DeterministicResult
+              - LintMark-Formatting-DocumentFormatter-UnsuppressedBlocksFormatted
+              - LintMark-Formatting-DocumentFormatter-OtherRuleSuppressionIgnored
+              - LintMark-Formatting-DocumentFormatter-RejectsMissingArguments
+              - LintMark-Formatting-DocumentFormatter-RejectsMissingBlockFormatter
+              - LintMark-Formatting-DocumentFormatter-NoListMeansNoFormatters
+              - LintMark-Formatting-DocumentFormatter-FormatterListIsCopied
+              - LintMark-Formatting-DocumentFormatter-FormatContextRejectsMissingArguments
+              - LintMark-Formatting-DocumentFormatter-FormatContextExposesValues
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsInvalidEdits
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsInvalidDiagnostics
+              - LintMark-Formatting-DocumentFormatter-FormatResultRejectsUndefinedLineEnding
+              - LintMark-Formatting-DocumentFormatter-FormatResultExposesValues
+            tests:
+              - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
+
+          - id: LintMark-Formatting-UnchangedTextKept
+            title: >-
+              The Formatting subsystem shall leave every character of the rewritten text that no change covers
+              as it was in the document.
+            justification: |
+              The rewritten text must be the document with the proposed changes and nothing else. Every
+              other character, also one outside the basic plane, belongs to the author.
+            children:
+              - LintMark-Formatting-SourcePatcher-LeavesUnchangedText
+            tests:
+              - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
+              - FormattingSubsystem_Format_OneEdit_UnchangedCharactersKept
+
+          - id: LintMark-Formatting-ConflictingEdits
+            title: >-
+              The Formatting subsystem shall refuse changes that overlap instead of applying them.
+            justification: |
+              Two changes to the same characters have no single correct result. Guessing would damage the
+              document, so the rewrite must fail and leave the decision to the safety logic of the caller.
+            children:
+              - LintMark-Formatting-EditSet-RejectsOverlap
+              - LintMark-Formatting-EditSet-RejectsSecondInsertionAtPosition
+              - LintMark-Formatting-SourcePatcher-RejectsOverlappingEdits
+              - LintMark-Formatting-SourcePatcher-RejectsTwoInsertionsAtOnePosition
+              - LintMark-Formatting-SourcePatcher-RejectsUnorderedEdits
+              - LintMark-Formatting-DocumentFormatter-RejectsConflictingEdits
+            tests:
+              - FormattingSubsystem_Format_OverlappingEdits_Throws
+
+          - id: LintMark-Formatting-OutOfRangeEdits
+            title: >-
+              The Formatting subsystem shall refuse changes that lie outside the text instead of applying them.
+            justification: |
+              A change outside the text cannot be applied, and ignoring it would hide a defect in the rule
+              that proposed it, so the rewrite must fail and leave the decision to the safety logic of the
+              caller.
+            children:
+              - LintMark-Formatting-SourcePatcher-RejectsOutOfRange
+            tests:
+              - FormattingSubsystem_Format_OutOfRangeEdit_PatchingThrows
+
+          - id: LintMark-Formatting-FormatterFailuresPropagate
+            title: >-
+              The Formatting subsystem shall let a failure of a rule that proposes changes reach the caller
+              instead of hiding it.
+            justification: |
+              A failing rule is a defect that the caller must see, so that the safety logic can leave the
+              document untouched and report the failure. Hiding it could let a partial result through.
+            children:
+              - LintMark-Formatting-DocumentFormatter-PropagatesFormatterExceptions
+            tests:
+              - FormattingSubsystem_Format_ThrowingFormatter_ExceptionReachesCaller
+
+          - id: LintMark-Formatting-VerbatimByDefault
+            title: >-
+              The Formatting subsystem shall leave a block of a document exactly as it is when no rule proposes
+              a change to it.
+            justification: |
+              Only what a rule asks to change may change. Everything else belongs to the author, and a
+              document without proposed changes must come out identical.
+            children:
+              - LintMark-Formatting-DocumentFormatter-VerbatimByDefault
+              - LintMark-Formatting-SourcePatcher-NoEditsIdentity
+            tests:
+              - FormattingSubsystem_Format_NoFormatter_LeavesTextIdentical
+
+          - id: LintMark-Formatting-SuppressedBlocksVerbatim
+            title: >-
+              The Formatting subsystem shall leave a block exactly as it is when a suppression comment of the
+              document suppresses a rule that would change it.
+            justification: |
+              An author who switched a rule off for a passage expects the passage to stay as written.
+            children:
+              - LintMark-Formatting-DocumentFormatter-SuppressedByRuleComment
+              - LintMark-Formatting-DocumentFormatter-SuppressedByDisableAll
+              - LintMark-Formatting-DocumentFormatter-SuppressedByIgnoreComment
+            tests:
+              - FormattingSubsystem_Format_SuppressedBlock_LeftVerbatim
+
+          - id: LintMark-Formatting-SuppressionInsideBlockVerbatim
+            title: >-
+              The Formatting subsystem shall leave a block exactly as it is when the suppression of a rule that
+              would change it takes effect anywhere inside the block.
+            justification: |
+              An author who switched a rule off in the middle of a passage expects the whole passage to stay
+              as written, also when the comment sits in the middle of the block.
+            children:
+              - LintMark-Formatting-DocumentFormatter-SuppressionAnywhereInBlock
+            tests:
+              - FormattingSubsystem_Format_SuppressionInsideBlock_LeftVerbatim
+
+          - id: LintMark-Formatting-FormatUnsafeUntouched
+            title: >-
+              The Formatting subsystem shall propose no change and report no problem for a document that the
+              Document subsystem flagged as unsafe to rewrite.
+            justification: |
+              The document cannot be understood reliably, so no change can be shown to be safe, and a
+              line ending problem would invite a fix that the tool must not make.
+            children:
+              - LintMark-Formatting-DocumentFormatter-FormatUnsafeProducesNothing
+            tests:
+              - FormattingSubsystem_Format_FormatUnsafeDocument_ProducesNothing
+
+          - id: LintMark-Formatting-LineEndingConfigured
+            title: >-
+              The Formatting subsystem shall give a document the line ending of its configuration.
+            justification: |
+              A project that decided on a line ending gets it.
+            children:
+              - LintMark-Formatting-DocumentFormatter-LineEndingConfigured
+            tests:
+              - FormattingSubsystem_Format_CrlfDocument_PatchedTextKeepsLfAndReportsLineEnding
+
+          - id: LintMark-Formatting-LineEndingMajority
+            title: >-
+              The Formatting subsystem shall give a document the line ending that most of the document's lines
+              use when its configuration gives none.
+            justification: |
+              For a file that nobody decided about, the predominant style changes the fewest lines and gives a
+              deterministic answer.
+            children:
+              - LintMark-Formatting-DocumentFormatter-LineEndingMajority
+              - LintMark-Formatting-DocumentFormatter-LineEndingTieDefaultsToLf
+            tests:
+              - FormattingSubsystem_Format_NoConfiguredLineEnding_UsesMajority
+
+          - id: LintMark-Formatting-LineEndingViolation
+            title: >-
+              The Formatting subsystem shall report a document in which any line ending differs from the line
+              ending that the document should have as one `line-ending` problem.
+            justification: |
+              Mixed or unwanted line endings are a property of the whole file, so they are reported once,
+              in a way that the fix option repairs by rewriting every line ending.
+            children:
+              - LintMark-Formatting-DocumentFormatter-LineEndingViolation
+              - LintMark-Formatting-DocumentFormatter-LineEndingViolationPosition
+              - LintMark-Formatting-DocumentFormatter-LineEndingViolationMessage
+            tests:
+              - FormattingSubsystem_Format_CrlfDocument_PatchedTextKeepsLfAndReportsLineEnding
+              - FormattingSubsystem_Format_NoConfiguredLineEnding_UsesMajority
+
+          - id: LintMark-Formatting-LineEndingNoViolation
+            title: >-
+              The Formatting subsystem shall report no `line-ending` problem for a document in which no line
+              ending differs from the line ending that the document should have.
+            justification: |
+              A file that already has the right line ending needs no repair, and reporting it would invite a
+              change that does nothing.
+            children:
+              - LintMark-Formatting-DocumentFormatter-LineEndingNoViolation
+            tests:
+              - FormattingSubsystem_Format_UniformDocument_ReportsNoLineEndingProblem

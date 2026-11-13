@@ -682,4 +682,65 @@ public class DocumentSubsystemTests
         Assert.Contains(document.Blocks, b => b.Kind == BlockKind.UnreferencedFootnote);
         Assert.Empty(SpanTilingAssertions.Check(document));
     }
+
+    /// <summary>
+    ///     Test that a valid grid table together with an invalid one marks the loaded document format-unsafe at the invalid line.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_GridFallback_InvalidAndValidTables_MarksUnsafeAtOffendingLine()
+    {
+        // Arrange: CRLF bytes with a valid grid table (lines 1 to 3) and an invalid border on line 5
+        const string text = "+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n";
+        var bytes = new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        // Act: load and parse
+        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", bytes));
+
+        // Assert: the document is format-unsafe at the invalid line, read without grid tables, and the blocks nest
+        Assert.True(document.IsFormatUnsafe);
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(5, 1), document.GridFallback);
+        Assert.DoesNotContain(document.Blocks, b => b.Kind == BlockKind.GridTable);
+        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
+    }
+
+    /// <summary>
+    ///     Test that a loaded document with only a valid grid table is not marked and keeps its grid table.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_GridFallback_ValidTableOnly_NotMarked()
+    {
+        // Arrange: CRLF bytes with a valid grid table between two paragraphs
+        const string text = "before\n\n+---+---+\n| a | b |\n+---+---+\n\nafter\n";
+        var bytes = new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        // Act: load and parse
+        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", bytes));
+
+        // Assert: no fallback, the table is a grid table, and the blocks tile the text
+        Assert.False(document.IsFormatUnsafe);
+        Assert.Null(document.GridFallback);
+        Assert.Single(document.Blocks, b => b.Kind == BlockKind.GridTable);
+        Assert.Empty(SpanTilingAssertions.Check(document));
+    }
+
+    /// <summary>
+    ///     Test that parsing the same text twice reports the same fallback location.
+    /// </summary>
+    [Fact]
+    public void DocumentSubsystem_GridFallback_ParsedAgain_SameFallback()
+    {
+        // Arrange: a document that takes the fallback
+        const string text = "para\n+---+---+\n\n> quote\n> +---+\n";
+        var source = SourceDocument.FromText("again.md", text);
+
+        // Act: parse the same source twice, and an equal source once more
+        var first = DocumentParser.Parse(source);
+        var second = DocumentParser.Parse(source);
+        var third = DocumentParser.Parse(SourceDocument.FromText("again.md", text));
+
+        // Assert: every parse reports the same location, the first offending line
+        Assert.Equal<GridTableFallback?>(new GridTableFallback(2, 1), first.GridFallback);
+        Assert.Equal<GridTableFallback?>(first.GridFallback, second.GridFallback);
+        Assert.Equal<GridTableFallback?>(first.GridFallback, third.GridFallback);
+    }
 }

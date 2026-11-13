@@ -31,6 +31,11 @@ namespace DemaConsulting.LintMark.Document;
 /// <param name="Blocks">Flattened, filtered and source-ordered blocks (see <see cref="DocumentParser"/>).</param>
 /// <param name="Suppressions">Suppression directives found in HTML comments.</param>
 /// <param name="References">Link reference definitions.</param>
+/// <param name="GridFallback">
+///     Where an invalid grid table was found, or <see langword="null"/> when the first reading of the text
+///     nested correctly. When present, the document was read without grid tables and is
+///     <see cref="IsFormatUnsafe"/>.
+/// </param>
 /// <remarks>
 ///     Created per file and never shared between workers. Treated as read-only after creation; the block
 ///     list is an immutable array, so no holder of the document can change it.
@@ -40,4 +45,16 @@ internal sealed record ParsedDocument(
     MarkdownDocument Ast,
     ImmutableArray<BlockInfo> Blocks,
     SuppressionMap Suppressions,
-    ReferenceIndex References);
+    ReferenceIndex References,
+    GridTableFallback? GridFallback = null)
+{
+    /// <summary>
+    ///     Gets a value indicating whether the document must never be rewritten.
+    /// </summary>
+    /// <remarks>
+    ///     True exactly when the parser had to fall back to reading the text without grid tables (see
+    ///     <see cref="GridFallback"/>): the blocks then no longer describe the grid tables of the file, so no
+    ///     edit based on them can be trusted. Linting continues to use the fallback reading.
+    /// </remarks>
+    public bool IsFormatUnsafe => GridFallback is not null;
+}

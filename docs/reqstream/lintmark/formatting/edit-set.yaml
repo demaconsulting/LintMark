@@ -1,0 +1,140 @@
+---
+# Software Unit Requirements for the EditSet Class
+#
+# The EditSet class (with the TextEdit record) collects the changes that rules propose for one document and
+# hands them out as an ordered, conflict-free list.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: EditSet Requirements
+            requirements:
+              - id: LintMark-Formatting-EditSet-RejectsOverlap
+                title: >-
+                  The EditSet class shall refuse a change that covers a character that another change already
+                  covers.
+                justification: |
+                  Two changes to the same characters have no single correct result. Accepting them would let
+                  the text depend on which rule ran first.
+                tests:
+                  - EditSet_Add_OverlappingEdit_Throws
+                  - EditSet_Add_ContainedEdit_Throws
+                  - EditSet_Add_EditContainingExistingEdit_Throws
+                  - EditSet_Add_InsertionStrictlyInsideReplacement_Throws
+                  - EditSet_Add_ReplacementAroundExistingInsertion_Throws
+                  - EditSet_Add_IdenticalRange_Throws
+
+              - id: LintMark-Formatting-EditSet-RejectsSecondInsertionAtPosition
+                title: >-
+                  The EditSet class shall refuse a second insertion at a position where it already holds an
+                  insertion.
+                justification: |
+                  Two insertions at one position have no defined order, so accepting both would let the text
+                  depend on which rule ran first.
+                tests:
+                  - EditSet_Add_TwoInsertionsAtSameOffset_Throws
+
+              - id: LintMark-Formatting-EditSet-AllowsAdjacent
+                title: >-
+                  The EditSet class shall accept changes that touch without sharing a character, including an
+                  insertion at the end of another change.
+                justification: |
+                  Rules that change neighboring text, for example a line and the blank line after it, must
+                  not be mistaken for conflicting.
+                tests:
+                  - EditSet_Add_AdjacentEdits_Accepted
+                  - EditSet_Add_InsertionAtEndOfReplacement_Accepted
+
+              - id: LintMark-Formatting-EditSet-OrdersByPosition
+                title: >-
+                  The EditSet class shall hand out its changes in ascending order of position, whatever the order
+                  in which the changes were added.
+                justification: |
+                  The rewritten text must not depend on the order in which rules ran.
+                tests:
+                  - EditSet_ToImmutable_AnyAddOrder_SameOrderedResult
+                  - EditSet_ToImmutable_NoEdits_ReturnsEmpty
+
+              - id: LintMark-Formatting-EditSet-InsertionBeforeReplacement
+                title: >-
+                  The EditSet class shall hand out an insertion before a replacement that starts at the same
+                  position.
+                justification: |
+                  An insertion and a replacement at one position need a fixed order, and the insertion has to
+                  come first so that it does not end up inside the replaced characters.
+                tests:
+                  - EditSet_Add_InsertionBeforeReplacementAtSameStart_OrdersInsertionFirst
+
+              - id: LintMark-Formatting-EditSet-SnapshotUnaffectedByLaterAdds
+                title: The EditSet class shall not let later additions alter a list of changes that it handed out.
+                justification: |
+                  A list that is being applied must not change under the applier.
+                tests:
+                  - EditSet_ToImmutable_LaterAdds_DoNotChangeEarlierSnapshot
+
+              - id: LintMark-Formatting-EditSet-ImmutableResults
+                title: The EditSet class shall hand out its changes in a form that their holders cannot change.
+                justification: |
+                  The list is passed between the formatting and the safety logic. A list that anyone could
+                  modify, even through a cast, would make the result depend on who touched it.
+                tests:
+                  - EditSet_ToImmutable_CastToMutableTypes_CannotBeModified
+
+              - id: LintMark-Formatting-EditSet-RejectsNegativeRange
+                title: The TextEdit record shall refuse a negative position or a negative length.
+                justification: |
+                  A change that cannot describe a range of the text must never exist.
+                tests:
+                  - TextEdit_Constructor_NegativeStart_Throws
+                  - TextEdit_Constructor_NegativeLength_Throws
+
+              - id: LintMark-Formatting-EditSet-RejectsRangeOverflow
+                title: The TextEdit record shall refuse a range that extends beyond the largest position.
+                justification: |
+                  A range whose end cannot be represented cannot be compared with other ranges, so it must
+                  never exist.
+                tests:
+                  - TextEdit_Constructor_StartPlusLengthOverflow_Throws
+                  - TextEdit_Constructor_RangeEndingAtMaxValue_Accepted
+
+              - id: LintMark-Formatting-EditSet-RejectsMissingReplacement
+                title: The TextEdit record shall refuse a missing replacement.
+                justification: |
+                  A change without a replacement does not say what the text becomes. A deletion uses an empty
+                  replacement.
+                tests:
+                  - TextEdit_Constructor_NullReplacement_Throws
+
+              - id: LintMark-Formatting-EditSet-RejectsMissingRuleId
+                title: The TextEdit record shall refuse a missing or empty rule identifier.
+                justification: |
+                  Every change must name the rule that proposed it so that a refusal can be traced.
+                tests:
+                  - TextEdit_Constructor_NullRuleId_Throws
+                  - TextEdit_Constructor_EmptyRuleId_Throws
+
+              - id: LintMark-Formatting-EditSet-ExposesValues
+                title: The TextEdit record shall expose the values that it was created with.
+                justification: |
+                  The applier and the diagnostics read the position, the length, the replacement, and the rule
+                  of a change as they were given.
+                tests:
+                  - TextEdit_Constructor_AllArguments_ExposesValues
+
+              - id: LintMark-Formatting-EditSet-ReportsEnd
+                title: The TextEdit record shall report the position where its range ends.
+                justification: |
+                  Overlap and adjacency are decided by the end of a range, so every user of a change must get
+                  the same end.
+                tests:
+                  - TextEdit_End_AnyEdit_ReturnsStartPlusLength
+
+              - id: LintMark-Formatting-EditSet-ReportsContents
+                title: The EditSet class shall report how many changes it holds and whether it holds none.
+                justification: |
+                  Callers skip the rewrite of a document for which no change was proposed.
+                tests:
+                  - EditSet_Count_AfterAdds_CountsEdits
+                  - EditSet_IsEmpty_NewSet_IsTrue

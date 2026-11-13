@@ -214,3 +214,24 @@ sections:
               - LintMark-Document-ReferenceIndex-DuplicateLabels
             tests:
               - DocumentSubsystem_ParseToSuppressionAndReferences_Workflow_ProducesConsistentResults
+
+          - id: LintMark-Document-GridFallback
+            title: >-
+              The Document subsystem shall flag a document as unsafe to rewrite, and give the line and column of
+              the offending line, when the document contains a line that looks like the border of a grid table
+              but is not part of a valid grid table, and shall not flag a document whose grid tables are valid.
+            justification: |
+              When a grid table is written wrongly, the Markdown parser reads it as ordinary text, and a
+              rewrite that treats it as text would change it. The author must be told which line to
+              repair, and a document with a valid table must not be bothered.
+            children:
+              - LintMark-Document-DocumentParser-GridFallbackMarked
+              - LintMark-Document-DocumentParser-GridFallbackLocation
+              - LintMark-Document-DocumentParser-ValidGridTableNotMarked
+              - LintMark-Document-DocumentParser-LiteralBlocksNotMarked
+              - LintMark-Document-DocumentParser-GridFallbackStillProducesBlocks
+              - LintMark-Document-DocumentParser-ValidatesGridFallback
+            tests:
+              - DocumentSubsystem_GridFallback_InvalidAndValidTables_MarksUnsafeAtOffendingLine
+              - DocumentSubsystem_GridFallback_ValidTableOnly_NotMarked
+              - DocumentSubsystem_GridFallback_ParsedAgain_SameFallback

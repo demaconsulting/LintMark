@@ -98,13 +98,12 @@ package LintMark {
     }
 
     part def LintMarkConfig {
-        doc /* The complete, validated, deeply immutable set of settings that governs how one Markdown file is linted and formatted (also documents the RuleIdentifiers supporting table, the LinkRefactorOptions type and the setting enumerations). */
+        doc /* The complete, validated, deeply immutable set of settings that governs how one Markdown file is linted and formatted; its defaults come from the rule catalog (also documents the LinkRefactorOptions type and the setting enumerations). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Configuration/LintMarkConfig.cs",
                 "src/DemaConsulting.LintMark/Configuration/LinkRefactorOptions.cs",
-                "src/DemaConsulting.LintMark/Configuration/RuleIdentifiers.cs",
                 "src/DemaConsulting.LintMark/Configuration/WrapMode.cs",
                 "src/DemaConsulting.LintMark/Configuration/HeadingStyle.cs",
                 "src/DemaConsulting.LintMark/Configuration/BulletMarker.cs",
@@ -117,9 +116,7 @@ package LintMark {
                 "src/DemaConsulting.LintMark/Configuration/TableStyle.cs",
                 "src/DemaConsulting.LintMark/Configuration/BareUrlStyle.cs",
                 "src/DemaConsulting.LintMark/Configuration/TrailingWhitespaceStyle.cs");
-            testFiles = (
-                "test/DemaConsulting.LintMark.Tests/Configuration/LintMarkConfigTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Configuration/RuleIdentifiersTests.cs");
+            testFiles = ("test/DemaConsulting.LintMark.Tests/Configuration/LintMarkConfigTests.cs");
             designFiles = ("docs/design/lintmark/configuration/lint-mark-config.md");
             verificationFiles = ("docs/verification/lintmark/configuration/lint-mark-config.md");
             requirementFiles = ("docs/reqstream/lintmark/configuration/lint-mark-config.yaml");
@@ -168,5 +165,9 @@ package LintMark {
         dependency LintMarkConfig to BareUrlStyle;
         dependency LintMarkConfig to TrailingWhitespaceStyle;
         dependency LintMarkConfig to LinkRefactorOptions;
+
+        // The default enabled state of every rule and the complete set of configurable rule ids come from
+        // the rule catalog, which the rules map is checked against.
+        dependency LintMarkConfig to RuleCatalog;
     }
 }

@@ -18,12 +18,13 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 - *Contract*: Parses `string[] args` into flag properties and, if `--log` is present, opens the log file for
   writing (an existing file is truncated). Returns a fully
   initialized `Context`. Accepts `--result` as a legacy alias for
-  `--results`, `--check`, `--config <file>`, `--no-config`, and positional path arguments. Every argument that
-  does not start with a dash is a path; they are exposed in order through `Paths`.
+  `--results`, `--check`, `--fix`, `--diff`, `--config <file>`, `--no-config`, and positional path arguments. Every
+  argument that does not start with a dash is a path; they are exposed in order through `Paths`.
 - *Constraints*: Throws `ArgumentException` for unknown or malformed arguments (every unrecognized
   dash-leading token, including a lone `-`, and an empty argument), for `--config` with a missing or blank
-  filename, for `--config` combined with `--no-config`, and for `--validate` combined with a path, `--check`,
-  `--config`, or `--no-config`; the combinations are raised before the log file is opened. Throws
+  filename, for `--config` combined with `--no-config`, for `--fix` combined with `--check` or `--diff`, and for
+  `--validate` combined with a path, `--check`, `--fix`, `--diff`, `--config`, or `--no-config`; the combinations are
+  raised before the log file is opened. `--diff` may be combined with `--check`. Throws
   `InvalidOperationException` when the log file cannot be opened.
 
 **Context.WriteLine**: Writes a message to stdout and to the log file.
@@ -51,15 +52,18 @@ flags and write output. The `Cli` subsystem contains one unit: `Context`.
 - *Contract*: Returns 1 if `WriteError` has been called at least once; returns 0 otherwise.
 - *Constraints*: Read-only; reads the error flag under the output lock.
 
-**Context.Paths** and **Context.Check**: Parsed positional arguments and the `--check` flag.
+**Context.Paths**, **Context.Check**, **Context.Fix**, and **Context.Diff**: Parsed positional arguments and the
+processing mode flags.
 
 - *Type*: In-process .NET properties.
 - *Role*: Provider.
 - *Contract*: `Paths` lists the positional arguments in the order given (empty when none were
-  given), as an immutable list; `Check` is true when `--check` was present. Both are fixed after
-  `Create`.
-- *Constraints*: Read-only; a caller cannot change `Paths` even by casting it. Phase 1 processing is
-  identical with and without `Check`.
+  given), as an immutable list; `Check` is true when `--check` was present, `Fix` when `--fix` was present, and
+  `Diff` when `--diff` was present. All are fixed after `Create`. `Fix` makes the engine write the rewrites that
+  passed every safety check; `Diff` makes it print a unified diff and write nothing; `Check` is an explicit statement
+  of the default (report only) and never changes processing.
+- *Constraints*: Read-only; a caller cannot change `Paths` even by casting it. `Fix` is never set together with
+  `Check` or `Diff`, because `Create` rejects the combinations.
 
 **Context.ConfigFile** and **Context.NoConfig**: Parsed configuration options.
 
@@ -89,9 +93,11 @@ of each invocation and passes it to all other units that produce output or need 
 arguments.
 
 The subsystem has no dependencies on other tool subsystems; it uses only .NET BCL types
-(`Console`, `StreamWriter`, `System.Threading.Lock`). The configuration options (`--config`, `--no-config`) are
+(`Console`, `StreamWriter`, `System.Threading.Lock`). The configuration options (`--config`, `--no-config`) and the
+mode options (`--check`, `--fix`, `--diff`) are
 only parsed and validated here; selecting and reading configuration files belongs to the `Configuration` and
-`Engine` subsystems.
+`Engine` subsystems, and acting on the mode belongs to the `Engine` subsystem. It is consumed by the `Reporting`
+subsystem, which writes through the `Context`.
 
 Error handling flows from `Context.Create` to `Program.Main`: argument parsing errors propagate
 as `ArgumentException`; log-file errors propagate as `InvalidOperationException`. Both are
@@ -100,7 +106,9 @@ caught and handled in `Program.Main`, which writes the error to stderr and retur
 Because files are processed in parallel by the `Engine` subsystem, the output members are guarded
 by a single lock. The engine itself reports results from one thread after its workers finish, so
 the lock is a defensive guarantee for any caller that writes concurrently rather than a
-requirement of the current flow. `ExitCode` logic is unchanged: 1 after any `WriteError`.
+requirement of the current flow. `ExitCode` logic is unchanged: 1 after any `WriteError`. The two output channels
+have fixed roles: findings go to `WriteError` (standard error, and the exit code), and the diff of the diff option goes
+to `WriteLine` (standard output), which never changes the exit code.
 
 When `--log` is active, `Context` opens the log file with a `StreamWriter` (`append: false`, `AutoFlush` on) when
 it is created, so an existing file at that path is truncated, exactly as in the other DEMA Consulting tools, and

@@ -1,0 +1,164 @@
+---
+# Safety Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Safety subsystem
+# - The Safety subsystem decides whether a proposed rewrite of a document may be written: whether it renders the
+#   same, keeps the structure that HTML cannot show, and is stable when formatted again
+# - Subsystem requirements describe the verdicts that the engine relies on; any check that cannot be completed
+#   counts as a failed check
+# - The verdict type (EquivalenceResult) is a unit of the subsystem; the status enumeration is a supporting type,
+#   documented in the subsystem design
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Safety Requirements
+        requirements:
+          - id: LintMark-Safety-HtmlEquivalence
+            title: >-
+              The Safety subsystem shall decide whether two texts of one document render to equivalent HTML,
+              ignoring only differences that a reader of the rendered document cannot see.
+            justification: |
+              A rewrite that changes how a document renders has changed its meaning, and a rewrite that
+              only changes how the source is laid out has not. The decision must treat code, raw HTML, and
+              the spaces between words exactly, because they are visible.
+            children:
+              - LintMark-Safety-HtmlEquivalenceChecker-RendersWithFixedPipeline
+              - LintMark-Safety-HtmlEquivalenceChecker-AttributesCompared
+              - LintMark-Safety-HtmlEquivalenceChecker-TagWhitespaceExact
+              - LintMark-Safety-HtmlEquivalenceChecker-CommentExact
+              - LintMark-Safety-HtmlEquivalenceChecker-UnterminatedTagExact
+              - LintMark-Safety-HtmlEquivalenceChecker-BlockTagSpacingEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-RenderedAttributesEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-IdenticalTextEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-SoftBreakEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-BulletMarkerEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-TableSpacingEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-SetextAtxEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-TrailingWhitespaceEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsLostHardBreak
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingList
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsBreakCreatingHeading
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsChangedLinkDestination
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsLostEmphasis
+              - LintMark-Safety-HtmlEquivalenceChecker-DetectsGluedWords
+              - LintMark-Safety-HtmlEquivalenceChecker-CodeSpanExact
+              - LintMark-Safety-HtmlEquivalenceChecker-FencedCodeExact
+              - LintMark-Safety-HtmlEquivalenceChecker-PreformattedHtmlExact
+              - LintMark-Safety-HtmlEquivalenceChecker-ElementNameCaseInsensitive
+              - LintMark-Safety-HtmlEquivalenceChecker-UnclosedElementExact
+              - LintMark-Safety-HtmlEquivalenceChecker-ScriptStyleTextareaExact
+              - LintMark-Safety-HtmlEquivalenceChecker-VerbatimHeadingIdsExact
+              - LintMark-Safety-HtmlEquivalenceChecker-HtmlWhitespaceCollapsed
+              - LintMark-Safety-HtmlEquivalenceChecker-InlineWhitespaceSignificant
+              - LintMark-Safety-HtmlEquivalenceChecker-LinearTime
+              - LintMark-Safety-HtmlEquivalenceChecker-ThreadSafe
+              - LintMark-Safety-HtmlEquivalenceChecker-RejectsMissingText
+              - LintMark-Safety-HtmlEquivalenceChecker-RejectsCarriageReturn
+              - LintMark-Safety-HtmlEquivalenceChecker-FailsClosed
+            tests:
+              - SafetySubsystem_HtmlEquivalence_BenignReflow_Equivalent
+              - SafetySubsystem_HtmlEquivalence_SemanticChange_Detected
+
+          - id: LintMark-Safety-LineEndingEquivalence
+            title: >-
+              The Safety subsystem shall decide whether two texts of one document, with the line endings they
+              have on disk, render to equivalent HTML, so that a change of the line endings alone is detected
+              when it changes how the document renders.
+            justification: |
+              The renderer shows some text differently for CRLF and LF, so converting the line endings of a
+              file can change its page although no character of the text changes. A rewrite that changes the
+              page has changed the meaning of the document, whatever the reason.
+            children:
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndings
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsEquivalent
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsFailsClosed
+              - LintMark-Safety-HtmlEquivalenceChecker-ComparesLineEndingsRejectsMissingText
+            tests:
+              - SafetySubsystem_HtmlEquivalence_LineEndingChangeOfCodeSpan_Detected
+              - SafetySubsystem_HtmlEquivalence_LineEndingChangeOfOrdinaryText_Equivalent
+
+          - id: LintMark-Safety-StructureEquivalence
+            title: >-
+              The Safety subsystem shall decide whether two texts of one document have the same structure that
+              the rendered HTML does not show: fenced code with attributes, page breaks, display math, grid table
+              borders, attribute groups, and citations.
+            justification: |
+              Documents are also built with tools other than a Markdown renderer. A rewrite that joins
+              two fence lines or drops an attribute group may render the same in HTML and still break
+              the built document.
+            children:
+              - LintMark-Safety-StructuralTokenChecker-SentinelSequence
+              - LintMark-Safety-StructuralTokenChecker-AttributeGroupsPreserved
+              - LintMark-Safety-StructuralTokenChecker-CitationsPreserved
+              - LintMark-Safety-StructuralTokenChecker-IndentationIgnored
+              - LintMark-Safety-StructuralTokenChecker-BlockQuotePrefixIgnored
+              - LintMark-Safety-StructuralTokenChecker-TrailingBlanksIgnored
+              - LintMark-Safety-StructuralTokenChecker-SameStructureEquivalent
+              - LintMark-Safety-StructuralTokenChecker-LookAlikeLinesIgnored
+              - LintMark-Safety-StructuralTokenChecker-ThreadSafe
+              - LintMark-Safety-StructuralTokenChecker-RejectsMissingText
+              - LintMark-Safety-StructuralTokenChecker-RejectsCarriageReturn
+              - LintMark-Safety-StructuralTokenChecker-FailsClosed
+            tests:
+              - SafetySubsystem_StructureEquivalence_JoinedFence_Detected
+              - SafetySubsystem_StructureEquivalence_HtmlBlindToJoinedFence_ButStructureCatches
+
+          - id: LintMark-Safety-Idempotency
+            title: >-
+              The Safety subsystem shall decide whether formatting a rewritten text again leaves it unchanged.
+            justification: |
+              A rewrite that changes again each time it is applied would keep modifying the file and could
+              never pass a check.
+            children:
+              - LintMark-Safety-IdempotencyChecker-AcceptsStableFormatting
+              - LintMark-Safety-IdempotencyChecker-DetectsUnstableFormatting
+              - LintMark-Safety-IdempotencyChecker-RejectsInvalidArguments
+            tests:
+              - SafetySubsystem_Idempotency_FlipFlopFormatter_Detected
+              - SafetySubsystem_Idempotency_GrowingFormatter_Detected
+              - SafetySubsystem_AllChecks_CorrectFormatter_AllPass
+
+          - id: LintMark-Safety-IdempotencyFailsClosed
+            title: The Safety subsystem shall treat a formatting step that fails as a change.
+            justification: |
+              A step that cannot be completed gives no evidence of stability, so the rewrite must not be
+              allowed.
+            children:
+              - LintMark-Safety-IdempotencyChecker-FailsClosed
+            tests:
+              - SafetySubsystem_Idempotency_FailingFormattingStep_Detected
+
+          - id: LintMark-Safety-ReportsDifference
+            title: >-
+              The Safety subsystem shall describe the first difference that a check found in one line of bounded
+              length.
+            justification: |
+              A refusal is reported to the author, who must be able to find the cause. A description that
+              spanned several lines or grew without bound would break the report format.
+            children:
+              - LintMark-Safety-HtmlEquivalenceChecker-ReportsFirstDifference
+              - LintMark-Safety-HtmlEquivalenceChecker-DescriptionIsOneBoundedLine
+              - LintMark-Safety-StructuralTokenChecker-ReportsFirstDifference
+              - LintMark-Safety-IdempotencyChecker-ReportsFirstDifference
+              - LintMark-Safety-EquivalenceResult-ShortDescriptionKept
+              - LintMark-Safety-EquivalenceResult-DescriptionLineBreaksReplaced
+              - LintMark-Safety-EquivalenceResult-DescriptionCutWhenTooLong
+              - LintMark-Safety-EquivalenceResult-RejectsMissingDescription
+              - LintMark-Safety-EquivalenceResult-ExcerptControlCharactersVisible
+              - LintMark-Safety-EquivalenceResult-ExcerptIsBounded
+              - LintMark-Safety-EquivalenceResult-ExcerptStartsAtPosition
+              - LintMark-Safety-EquivalenceResult-LocatesFirstDifference
+            tests:
+              - SafetySubsystem_ReportsDifference_FailedChecks_DescribeFirstDifferenceInOneBoundedLine
+
+          - id: LintMark-Safety-PassedCheckHasNoDescription
+            title: The Safety subsystem shall describe no difference when a check found none.
+            justification: |
+              A passed check has nothing to report, and a description on a passed check would be read as a
+              finding.
+            children:
+              - LintMark-Safety-EquivalenceResult-PassedHasNoDescription
+            tests:
+              - SafetySubsystem_ReportsDifference_PassedChecks_HaveNoDescription

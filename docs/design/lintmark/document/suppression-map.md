@@ -23,7 +23,7 @@ identifiers ordinal-ignore-case. The listed rules (`Rules`) are held in a frozen
 them even by casting the collection.
 
 **Alias resolver**: An optional `Func<string, string>` applied to every rule identifier, both in directives
-and in queries, before comparison. It is the identity in this phase; a later phase supplies rule alias
+and in queries, before comparison. It is the identity at present; a later change supplies rule alias
 resolution through it so that this unit does not change.
 
 Directive families (their different scoping semantics are kept distinct on purpose):
@@ -91,3 +91,6 @@ than reported. All regular expressions have a match timeout. The map is immutabl
 #### Callers
 
 - **DocumentParser** — builds a map for every parsed document.
+- **DocumentFormatter** — asks whether a rule is suppressed inside a block (`IsSuppressedRange`).
+- **LintMarkEngine** — asks whether the `grid-table-invalid` rule is suppressed at the offending offset
+  (`IsSuppressed`).

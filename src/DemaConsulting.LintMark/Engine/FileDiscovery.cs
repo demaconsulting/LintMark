@@ -38,7 +38,9 @@ namespace DemaConsulting.LintMark.Engine;
 ///         directories, whether the folder is named by the argument (or by the leading, wildcard-free
 ///         part of a glob) or found beneath the folder searched; only explicitly named files are exempt
 ///         from that built-in exclusion, and they are not exempt from user excludes. A pattern that
-///         matches nothing is not an error.
+///         matches nothing is not an error. <see cref="DiscoverFiles"/> also reports which files were named
+///         (are explicit), because the <c>ignore</c> patterns of a configuration, like the built-in exclusion,
+///         do not apply to them (see <see cref="IsIgnored"/>).
 ///     </para>
 ///     <para>
 ///         The result consists of distinct full paths in ordinal order, so it is independent of
@@ -85,11 +87,31 @@ internal static class FileDiscovery
     /// <param name="baseDirectory">Directory that relative patterns are resolved against. Must not be null.</param>
     /// <returns>Distinct full paths in ordinal order; empty when nothing matches.</returns>
     /// <remarks>
+    ///     Directory enumeration is the only side effect. Safe to call concurrently. Equivalent to the paths
+    ///     of <see cref="DiscoverFiles"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
+    public static IReadOnlyList<string> Discover(IReadOnlyList<string> patterns, string baseDirectory) =>
+        [.. DiscoverFiles(patterns, baseDirectory).Select(static file => file.Path)];
+
+    /// <summary>
+    ///     Expands path arguments into the files to process, remembering which files the command line named.
+    /// </summary>
+    /// <param name="patterns">The positional arguments (paths, directories, globs, <c>!</c> excludes). Must not be null.</param>
+    /// <param name="baseDirectory">Directory that relative patterns are resolved against. Must not be null.</param>
+    /// <returns>
+    ///     Distinct files in ordinal order of the full path; empty when nothing matches. A file is explicit when
+    ///     an include argument names it as an existing file or as a path without wildcards (also when it does not
+    ///     exist); a file found only through a directory, a glob or the default pattern is not. A file that is
+    ///     both named and found, also under another spelling that differs only in case, is explicit.
+    /// </returns>
+    /// <remarks>
     ///     Directory enumeration is the only side effect. Safe to call concurrently.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
-    public static IReadOnlyList<string> Discover(IReadOnlyList<string> patterns, string baseDirectory)
+    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(IReadOnlyList<string> patterns, string baseDirectory)
     {
         // Validate input, every element before any is interpreted, so a null is always the null error
         ArgumentNullException.ThrowIfNull(patterns);
@@ -120,23 +142,76 @@ internal static class FileDiscovery
             includes.Add(DefaultPattern);
         }
 
-        // Collect candidates from every include
+        // Collect candidates from every include, remembering the ones that an include names itself
         var root = Path.GetFullPath(baseDirectory);
         var candidates = new HashSet<string>(StringComparer.Ordinal);
+        var named = new HashSet<string>(StringComparer.Ordinal);
         foreach (var include in includes)
         {
-            Expand(include, root, candidates);
+            Expand(include, root, candidates, named);
         }
 
         // Apply user excludes, then keep one spelling of each file: where names are case-insensitive the
         // spellings of one file differ only in case, and the smallest-in-ordinal-order wins so that the result
-        // does not depend on the order of the arguments (or on which expansion found a file first)
+        // does not depend on the order of the arguments (or on which expansion found a file first); the file
+        // is explicit when any of its spellings was named
         var result = ApplyExcludes(candidates, excludes, root)
             .GroupBy(static path => path, StringComparer.FromComparison(PathComparison))
-            .Select(static group => group.Order(StringComparer.Ordinal).First())
+            .Select(group => new DiscoveredFile(group.Order(StringComparer.Ordinal).First(), group.Any(named.Contains)))
             .ToList();
-        result.Sort(StringComparer.Ordinal);
+        result.Sort(static (a, b) => string.CompareOrdinal(a.Path, b.Path));
         return result;
+    }
+
+    /// <summary>
+    ///     Determines whether the <c>ignore</c> patterns of a configuration match a file.
+    /// </summary>
+    /// <param name="fullPath">The full path of the file. Must not be null.</param>
+    /// <param name="ignoreRoot">
+    ///     The directory the patterns are relative to: the directory of the configuration file that applies to
+    ///     the file, or the current directory when none does. Must not be null.
+    /// </param>
+    /// <param name="patterns">The glob patterns (<c>*</c> and <c>**</c>); either separator style is accepted. Must not be null or contain null.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the file lies below the root and its path relative to the root matches a
+    ///     pattern; a file outside the root (reached with <c>..</c>, or on another drive) is never ignored.
+    /// </returns>
+    /// <remarks>
+    ///     Names compare with <see cref="PathComparison"/>. Only the explicit-file rule of the caller decides
+    ///     whether the patterns are consulted at all; this method judges the path alone. Pure: no file system access.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
+    public static bool IsIgnored(string fullPath, string ignoreRoot, IReadOnlyList<string> patterns)
+    {
+        // Validate input, every element before any is interpreted
+        ArgumentNullException.ThrowIfNull(fullPath);
+        ArgumentNullException.ThrowIfNull(ignoreRoot);
+        ArgumentNullException.ThrowIfNull(patterns);
+        if (patterns.Any(static pattern => pattern is null))
+        {
+            throw new ArgumentNullException(nameof(patterns), "Ignore patterns must not contain null.");
+        }
+
+        if (patterns.Count == 0)
+        {
+            return false;
+        }
+
+        // A file outside the root can never match a pattern that is relative to it
+        var root = Path.GetFullPath(ignoreRoot);
+        var relative = Path.GetRelativePath(root, Path.GetFullPath(fullPath, root));
+        if (IsOutside(relative))
+        {
+            return false;
+        }
+
+        var matcher = new Matcher(PathComparison);
+        foreach (var pattern in patterns)
+        {
+            matcher.AddInclude(NormalizeSeparators(pattern));
+        }
+
+        return matcher.Match(root, [relative.Replace(Path.DirectorySeparatorChar, Slash)]).HasMatches;
     }
 
     /// <summary>
@@ -157,7 +232,8 @@ internal static class FileDiscovery
     /// <param name="pattern">The include argument.</param>
     /// <param name="baseDirectory">The full base directory.</param>
     /// <param name="candidates">Receives the candidate full paths.</param>
-    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates)
+    /// <param name="named">Receives the full paths that the argument names itself (an existing file, or a path without wildcards).</param>
+    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates, HashSet<string> named)
     {
         // An existing file is taken as given; an existing directory means all Markdown files beneath it
         pattern = NormalizeSeparators(pattern);
@@ -165,6 +241,7 @@ internal static class FileDiscovery
         if (File.Exists(full))
         {
             candidates.Add(full);
+            named.Add(full);
             return;
         }
 
@@ -179,6 +256,7 @@ internal static class FileDiscovery
         if (relativePattern is null)
         {
             candidates.Add(full);
+            named.Add(full);
             return;
         }
 

@@ -6,9 +6,7 @@
 # - The Configuration subsystem decides which settings apply to a Markdown file: it finds and
 #   validates the configuration file and determines the line ending given by the editor settings
 # - Subsystem requirements describe the externally visible configuration behavior, one behavior each
-# - Using the line ending from the editor settings is not observable until files are rewritten, so the
-#   formatting phase adds the matching requirements; until then only the tolerance of editor settings is
-#   required
+# - The rules that a configuration may name come from the rule registry of the Linting subsystem
 
 sections:
   - title: LintMark Requirements
@@ -100,8 +98,6 @@ sections:
               must be accepted, as must the link conversion options and the ignore patterns.
             children:
               - LintMark-Configuration-LintMarkConfig-AcceptedValues
-              - LintMark-Configuration-LintMarkConfig-RuleIdentifiers
-              - LintMark-Configuration-LintMarkConfig-RemovedRuleNumbers
               - LintMark-Configuration-ConfigLoader-ChoiceSettings
               - LintMark-Configuration-ConfigLoader-QuotedChoices
               - LintMark-Configuration-ConfigLoader-NumericSettings
@@ -288,13 +284,62 @@ sections:
               that it cannot use.
             justification: |
               Editor settings are shared between file types and tools. Values meant for other tools must
-              never turn into errors. The line ending that the editor settings do give takes effect with the
-              formatter, which adds the matching requirements.
+              never turn into errors. The line ending that the editor settings do give is used, and settings
+              that cannot be read at all are reported separately.
             children:
               - LintMark-Configuration-EditorConfigResolver-UnsupportedValues
               - LintMark-Configuration-EditorConfigResolver-MalformedContent
             tests:
               - ConfigurationSubsystem_EditorConfig_UnsupportedValues_NotSpecifiedWithoutError
+
+          - id: LintMark-Configuration-EditorConfigLineEnding
+            title: >-
+              The Configuration subsystem shall give, for a Markdown file, the line ending LF or CRLF that the
+              editor settings specify for it, with the nearest settings file winning and a settings file marked
+              as root ending the search.
+            justification: |
+              Many projects state their line ending only in the editor settings that they share with other
+              tools. Which settings apply to a file follows the rules of that format, so that the tool and
+              the editors agree on the line ending of a file.
+            children:
+              - LintMark-Configuration-EditorConfigResolver-LineEndingValues
+              - LintMark-Configuration-EditorConfigResolver-Precedence
+              - LintMark-Configuration-EditorConfigResolver-SectionPatterns
+              - LintMark-Configuration-EditorConfigResolver-FilePaths
+            tests:
+              - ConfigurationSubsystem_EditorConfig_SectionsAndRoot_ResolveLineEndingPerFile
+
+          - id: LintMark-Configuration-EditorSettingsProblems
+            title: >-
+              The Configuration subsystem shall report editor settings that apply to a Markdown file but cannot
+              be read as a message, and give no line ending for that file.
+            justification: |
+              A settings file that cannot be read leaves the tool without the line ending that the project
+              asked for. The caller must be told, so that it can report the problem instead of using
+              another line ending in silence.
+            children:
+              - LintMark-Configuration-EditorConfigResolver-UnreadableSettings
+            tests:
+              - ConfigurationSubsystem_EditorConfig_UnreadableSettings_ReportedAsMessage
+
+          - id: LintMark-Configuration-RuleRegistryUse
+            title: >-
+              The Configuration subsystem shall accept in a configuration exactly the rules that the rule
+              registry lists as configurable, by their names or legacy numbers, start from the registry's
+              default state for each, and recognize the legacy numbers of removed rules without treating them as
+              rules.
+            justification: |
+              The registry is the one place where rules, their legacy numbers, and their defaults are
+              defined. A configuration that kept its own list could accept a rule that the tool does not
+              know, or miss one that it does.
+            children:
+              - LintMark-Configuration-LintMarkConfig-RuleRegistryUse
+              - LintMark-Configuration-ConfigLoader-RuleToggles
+              - LintMark-Configuration-ConfigLoader-RuleAliases
+              - LintMark-Configuration-ConfigLoader-RemovedRuleNumbers
+            tests:
+              - ConfigurationSubsystem_RulesBlock_AliasAndDroppedAlias_StillAccepted
+              - ConfigurationSubsystem_Settings_FullSampleFile_AcceptedWithRepresentativeValuesApplied
 
           - id: LintMark-Configuration-ConcurrentUse
             title: >-
@@ -319,6 +364,7 @@ sections:
             children:
               - LintMark-Configuration-LintMarkConfig-ImmutableSettings
               - LintMark-Configuration-LintMarkConfig-IndependentOfSources
+              - LintMark-Configuration-LintMarkConfig-DerivedCopy
               - LintMark-Configuration-ConfigLoader-ImmutableResults
             tests:
               - ConfigurationSubsystem_ImmutableResults_RulesIgnoreAndErrors_CannotBeModified

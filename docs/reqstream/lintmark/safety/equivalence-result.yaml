@@ -1,0 +1,111 @@
+---
+# Software Unit Requirements for the EquivalenceResult Class
+#
+# The EquivalenceResult class is the verdict of one safety check: the check found no difference, or it found one
+# and describes it in one line of bounded length. It also provides the helpers that the checks use to locate and
+# excerpt the first difference of two texts.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Safety Requirements
+        sections:
+          - title: EquivalenceResult Requirements
+            requirements:
+              - id: LintMark-Safety-EquivalenceResult-PassedHasNoDescription
+                title: >-
+                  The EquivalenceResult class shall represent a check that found no difference as equivalent and
+                  without a description.
+                justification: |
+                  A passed check has nothing to report, and a description on a passed check would be read as a
+                  finding.
+                tests:
+                  - EquivalenceResult_Equivalent_Result_HasNoDescription
+
+              - id: LintMark-Safety-EquivalenceResult-ShortDescriptionKept
+                title: >-
+                  The EquivalenceResult class shall keep the description of a failed check as it is when it is
+                  short enough.
+                justification: |
+                  A description that was changed without need would hide the cause of the refusal.
+                tests:
+                  - EquivalenceResult_Different_ShortDescription_KeptAsIs
+                  - EquivalenceResult_Different_DescriptionAroundLimit_CutOnlyAbove
+
+              - id: LintMark-Safety-EquivalenceResult-DescriptionLineBreaksReplaced
+                title: >-
+                  The EquivalenceResult class shall replace every line break in the description of a failed
+                  check with a space.
+                justification: |
+                  A refusal is reported to the author in a format with one line per finding. A description that
+                  spanned several lines would break that format.
+                tests:
+                  - EquivalenceResult_Different_LineBreaks_ReplacedBySpaces
+
+              - id: LintMark-Safety-EquivalenceResult-DescriptionCutWhenTooLong
+                title: >-
+                  The EquivalenceResult class shall cut the description of a failed check that is longer than
+                  the bounded length.
+                justification: |
+                  A description that grew without bound would break the format of the report, which has one
+                  short line per finding.
+                tests:
+                  - EquivalenceResult_Different_LongDescription_IsCutAndSingleLine
+                  - EquivalenceResult_Different_DescriptionAroundLimit_CutOnlyAbove
+                  - EquivalenceResult_Different_CutInsideSurrogatePair_KeepsPairWhole
+
+              - id: LintMark-Safety-EquivalenceResult-RejectsMissingDescription
+                title: >-
+                  The EquivalenceResult class shall refuse to represent a failed check without a description.
+                justification: |
+                  A refusal that says nothing cannot be acted upon. Rejecting the missing description at the
+                  point of creation keeps every report complete.
+                tests:
+                  - EquivalenceResult_Different_NullDescription_Throws
+
+              - id: LintMark-Safety-EquivalenceResult-ExcerptControlCharactersVisible
+                title: >-
+                  The EquivalenceResult class shall make control characters and line separators visible in an
+                  excerpt of a text, so that the excerpt stays on one line.
+                justification: |
+                  The description of a difference quotes the text around it, and the quoted text must not break
+                  the line whatever the text contains.
+                tests:
+                  - EquivalenceResult_Excerpt_ControlCharacters_AreEscaped
+                  - EquivalenceResult_Excerpt_LineAndParagraphSeparators_AreEscaped
+
+              - id: LintMark-Safety-EquivalenceResult-ExcerptIsBounded
+                title: >-
+                  The EquivalenceResult class shall bound the length of an excerpt of a text, also when the
+                  excerpt contains control characters and surrogate pairs.
+                justification: |
+                  The description of a difference quotes the text around it, and the quoted text must not grow
+                  without bound whatever the text contains.
+                tests:
+                  - EquivalenceResult_Excerpt_LongText_CutAtExcerptLength
+                  - EquivalenceResult_Excerpt_ManyLineFeeds_AtMostTwiceExcerptLength
+                  - EquivalenceResult_Excerpt_SurrogatePairAtEnds_KeepsPairWhole
+
+              - id: LintMark-Safety-EquivalenceResult-ExcerptStartsAtPosition
+                title: >-
+                  The EquivalenceResult class shall start an excerpt of a text at the requested position, and at
+                  the nearest position inside the text when the requested one is outside it.
+                justification: |
+                  The excerpt must show the text around the first difference, and a position that is not inside
+                  the text must not make the report fail.
+                tests:
+                  - EquivalenceResult_Excerpt_StartInsideText_StartsThere
+                  - EquivalenceResult_Excerpt_StartOutsideText_IsClamped
+
+              - id: LintMark-Safety-EquivalenceResult-LocatesFirstDifference
+                title: >-
+                  The EquivalenceResult class shall locate the first position at which two texts differ,
+                  including the case that one text is the beginning of the other and the case that they are
+                  identical.
+                justification: |
+                  The author is pointed at the first place where the rewrite departs from the original, and the
+                  answer must be defined for every pair of texts.
+                tests:
+                  - EquivalenceResult_FirstDifference_DifferentTexts_ReturnsOffset
+                  - EquivalenceResult_FirstDifference_PrefixOfOther_ReturnsShorterLength
+                  - EquivalenceResult_FirstDifference_IdenticalTexts_ReturnsLength

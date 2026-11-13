@@ -6,11 +6,11 @@ package). Requirements for this OTS item are defined in the EditorConfig OTS Sof
 ### Required Functionality
 
 EditorConfig finds and evaluates `.editorconfig` files. LintMark depends on it to learn, through the raw text of
-the `end_of_line` property, which line ending the editor settings give for a Markdown file: in this phase it relies
-on the library to expose the raw property text (including `unset`), to ignore malformed lines, and to be used from
-many threads. It also relies on it for the layering of files and sections, for the section patterns, and for
-resolving a directory chain once and evaluating many files against it; those capabilities are pinned by tests and
-required once the formatting phase uses the line ending.
+the `end_of_line` property, which line ending the editor settings give for a Markdown file: it relies on the
+library to expose the raw property text (including `unset`), to ignore malformed lines, to match property names and
+values without regard to letter case, to match sections to file paths with the glob syntax of the editor settings
+format, to layer settings files and sections in the order that the format defines, to resolve a directory chain once
+and evaluate many files against it, and to be used from many threads.
 
 ### Verification Approach
 
@@ -25,11 +25,10 @@ word (which is why LintMark interprets the raw text itself), and section pattern
 significant on every platform. The behavior of LintMark's own interpretation of the raw text (for example `cr` as
 "not specified") is verified in the `EditorConfigResolver` unit tests.
 
-The scenarios for section patterns, letter case, layering, the root file, chain evaluation, the typed accessor, and
-files that do not exist describe pinned library behavior and are not linked to a requirement in this phase,
-because the line ending that they lead to is not observable until files are rewritten. The scenarios for the raw
-`unset` property, malformed lines, and concurrent use (one shared parser, one shared resolved chain, and a parser
-per thread) are required.
+All scenarios describe library behavior that LintMark relies on and are required: the raw `unset` property, the
+typed accessor deviations, malformed lines, letter case, section matching, layering and the root file, chain
+evaluation, files that do not exist, and concurrent use (one shared parser, one shared resolved chain, and a parser
+per thread).
 
 ### Test Scenarios
 

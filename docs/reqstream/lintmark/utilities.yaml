@@ -3,7 +3,8 @@
 #
 # PURPOSE:
 # - Define requirements for the LintMark Utilities subsystem
-# - The Utilities subsystem spans PathHelpers.cs (safe path-combination utilities)
+# - The Utilities subsystem spans PathHelpers.cs (safe path-combination utilities) and TextWidth.cs (display width
+#   of text)
 # - Subsystem requirements describe the shared utility behavior available to all other subsystems
 
 sections:
@@ -11,6 +12,31 @@ sections:
     sections:
       - title: Utilities Requirements
         requirements:
+          - id: LintMark-Utilities-DisplayWidth
+            title: >-
+              The Utilities subsystem shall measure the width of a text in terminal display columns, counting wide
+              East Asian characters and emoji as two columns, narrow characters as one, and combining marks,
+              joiners, and control characters as none.
+            justification: |
+              Rules that limit the length of a line must count what a reader sees. A text in Japanese,
+              Korean, or Chinese, or with emoji, is much wider on screen than it is in characters, and a
+              combining accent does not take a column at all. The subsystem provides the one measurement
+              that every such rule shares.
+            children:
+              - LintMark-Utilities-TextWidth-WideCharacters
+              - LintMark-Utilities-TextWidth-NarrowCharacters
+              - LintMark-Utilities-TextWidth-EmptyText
+              - LintMark-Utilities-TextWidth-Emoji
+              - LintMark-Utilities-TextWidth-TextPresentation
+              - LintMark-Utilities-TextWidth-ZeroWidthCharacters
+              - LintMark-Utilities-TextWidth-GraphemeClusters
+              - LintMark-Utilities-TextWidth-LoneSurrogate
+              - LintMark-Utilities-TextWidth-RejectsNullText
+              - LintMark-Utilities-TextWidth-CultureIndependent
+              - LintMark-Utilities-TextWidth-LinearTime
+              - LintMark-Utilities-TextWidth-Deterministic
+            tests:
+              - UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns
           - id: LintMark-Utilities-SafePaths
             title: >-
               The Utilities subsystem shall provide safe file path manipulation that

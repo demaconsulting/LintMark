@@ -28,8 +28,18 @@ to `false` within the same invocation. Always read and written under `_outputLoc
 
 **Validate**: `bool` — `true` when `--validate` was present in the argument list.
 
-**Check**: `bool` — `true` when `--check` was present in the argument list. In this phase it is an
-explicit statement of the default behavior and does not change processing.
+**Check**: `bool` — `true` when `--check` was present in the argument list. It is an
+explicit statement of the default behavior (report problems, write nothing) and does not change processing.
+
+**Fix**: `bool` — `true` when `--fix` was present: the engine rewrites the files into canonical form when every
+safety check passes and reports the problems that remain.
+
+**Diff**: `bool` — `true` when `--diff` was present: the engine prints a unified diff of what `--fix` would change
+and writes no file.
+
+**Option combinations**: `--fix` cannot be combined with `--check` or `--diff` (fixing writes files, checking and
+diffing promise not to). `--diff` implies that nothing is written and may be combined with `--check`.
+`--validate` cannot be combined with `--fix` or `--diff` (nor with a path, `--check`, `--config`, or `--no-config`).
 
 **Paths**: `IReadOnlyList<string>` — The positional arguments (files, directories, globs, and
 `!` exclusions) in the order given; empty when none were supplied. Backed by an immutable array, so a caller
@@ -62,7 +72,8 @@ is read under `_outputLock`.
   file has been opened for writing (an existing file is truncated).
 
 Delegates to the private `ArgumentParser` helper to parse flags, then rejects `--validate` combined
-with `--check`, `--config`, `--no-config`, or any path, rejects `--config` combined with `--no-config`, and only
+with `--check`, `--fix`, `--diff`, `--config`, `--no-config`, or any path, rejects `--fix` combined with `--check` or
+`--diff`, rejects `--config` combined with `--no-config`, and only
 then, if `--log` was present, opens the log file with
 `OpenLogFile` (`StreamWriter` with `append: false` and `AutoFlush` on, so an existing file is truncated, as in
 the other DEMA Consulting tools). `--config` takes the next argument as its value (a missing, blank, or dash-leading
@@ -72,7 +83,7 @@ treats a token that does not start with a dash as a positional
 path. Every other token (including a lone `-` and the empty string) that is not a recognized
 option is an unsupported argument. `-v`/`--version` and `-?`/`-h`/`--help` may appear together
 with paths, `--config`, and `--no-config`; the dispatcher then ignores them. Throws `ArgumentException` for
-unknown or malformed arguments and for the `--validate` and `--config`/`--no-config` combinations; throws
+unknown or malformed arguments and for the `--validate`, `--fix`, and `--config`/`--no-config` combinations; throws
 `InvalidOperationException` if
 the log file cannot be opened.
 
@@ -114,7 +125,9 @@ dash-leading argument (including a lone `-`) and for an empty argument (the mess
 "Unsupported argument ''"; an empty string is never a path), ("{arg} requires {description}") for an
 option whose required value is missing or not an accepted integer ("--config requires a configuration filename
 argument" when the value of `--config` is missing or blank), ("--validate cannot be combined with paths, --check,
---config, or --no-config") for the self-validation conflict, and
+--fix, --diff, --config, or --no-config") for the self-validation conflict, ("--fix cannot be combined with --check
+or --diff") for
+the conflict of fixing with the read-only modes, and
 ("--config cannot be combined with --no-config") for the contradictory configuration options. It throws
 `InvalidOperationException` ("Failed to open log file '{path}': {detail}", with the underlying exception as
 the inner exception) when the `--log` file cannot be opened. Both exceptions propagate to
@@ -133,4 +146,6 @@ Consulting tools. `Dispose` closes the writer and can likewise throw if the fina
 
 - **Program** — creates `Context` via `Context.Create` and calls `WriteLine` and `WriteError`.
 - **Validation** — receives `Context` from `Program` and calls `WriteLine` and `WriteError`.
-- **LintMarkEngine** — reads `Paths`, `ConfigFile`, and `NoConfig`, and reports failures with `WriteError`.
+- **LintMarkEngine** — reads `Paths`, `ConfigFile`, `NoConfig`, `Fix`, and `Diff`, and reports through the `Reporting`
+  subsystem.
+- **TextReporter** and **DiffReporter** — write findings with `WriteError` and diffs with `WriteLine`.

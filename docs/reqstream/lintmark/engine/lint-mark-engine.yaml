@@ -1,8 +1,8 @@
 ---
 # Software Unit Requirements for the LintMarkEngine Class
 #
-# The LintMarkEngine class processes the selected files and reports failures deterministically through
-# the Context.
+# The LintMarkEngine class processes the selected files, rewrites them when asked to, and reports problems
+# deterministically through the Context.
 
 sections:
   - title: LintMark Requirements
@@ -87,7 +87,7 @@ sections:
 
               - id: LintMark-Engine-LintMarkEngine-FailureFormat
                 title: >-
-                  The LintMarkEngine class shall write each failure on its own line as `path:line:col: rule-id
+                  The LintMarkEngine class shall write each problem on its own line as `path:line:col: rule-id
                   message` through the error output of the Context, with the path relative to the current
                   directory using forward slashes.
                 justification: |
@@ -97,7 +97,7 @@ sections:
                   - LintMarkEngine_Run_Failures_WritesFormattedLinesInPathOrder
 
               - id: LintMark-Engine-LintMarkEngine-FailureOrderWithinFile
-                title: The LintMarkEngine class shall list the failures of one file in order of position.
+                title: The LintMarkEngine class shall list the problems of one file in order of position.
                 justification: |
                   A reader fixing a file works from top to bottom, and a fixed order keeps output
                   reproducible.
@@ -106,8 +106,8 @@ sections:
 
               - id: LintMark-Engine-LintMarkEngine-ExitStatus
                 title: >-
-                  The LintMarkEngine class shall leave the exit status at zero when no failure was reported and
-                  make it non-zero when at least one failure was reported.
+                  The LintMarkEngine class shall leave the exit status at zero when no problem was reported and
+                  make it non-zero when at least one problem was reported.
                 justification: |
                   Scripts and build pipelines act on the exit status alone.
                 tests:
@@ -131,13 +131,14 @@ sections:
 
               - id: LintMark-Engine-LintMarkEngine-ImmutableResults
                 title: >-
-                  The LintMarkEngine class shall return file results whose failure lists cannot be changed by
+                  The LintMarkEngine class shall return file results whose lists of problems cannot be changed by
                   their holders.
                 justification: |
                   Results are produced by parallel workers and consumed later by the reporter. A list that
                   anyone could modify would make the report depend on who touched it.
                 tests:
-                  - FileResult_Failures_CastToMutableTypes_CannotBeModified
+                  - FileResult_Diagnostics_CastToMutableTypes_CannotBeModified
+                  - LintMarkEngine_Process_DiagnosticsCastToMutableTypes_CannotBeModified
 
               - id: LintMark-Engine-LintMarkEngine-ConfigPerFile
                 title: >-
@@ -233,7 +234,7 @@ sections:
 
               - id: LintMark-Engine-LintMarkEngine-ConfigErrorOrder
                 title: >-
-                  The LintMarkEngine class shall order configuration problems together with file failures by
+                  The LintMarkEngine class shall order configuration problems together with the other problems by
                   path and then by position.
                 justification: |
                   Reproducible output is required for comparing runs and for stable build logs.
@@ -259,3 +260,391 @@ sections:
                 tests:
                   - LintMarkEngine_Run_InvalidConfig_ReportsErrorLineAndExitsOne
                   - LintMarkEngine_Run_ExplicitConfigMissing_ReportsErrorEvenWithNoFiles
+
+              - id: LintMark-Engine-LintMarkEngine-RegisteredRuleIds
+                title: >-
+                  The LintMarkEngine class shall report every problem under a rule identifier that the rule
+                  registry lists.
+                justification: |
+                  Users look up a rule identifier in the documentation and use it to switch a rule off where
+                  that is allowed. An identifier that is not registered could not be looked up.
+                tests:
+                  - LintMarkEngine_Run_EmittedRuleIds_AreRegisteredInRuleCatalog
+
+              - id: LintMark-Engine-LintMarkEngine-FormatFailure
+                title: >-
+                  The LintMarkEngine class shall report a file whose formatting fails, because a rule fails or
+                  proposes changes that cannot be applied, as a `file-format-error` problem at line 1 and column 1
+                  and leave the file as it is.
+                justification: |
+                  A defect in one rule must not abort the run over a whole documentation set or damage the
+                  file that triggered it.
+                tests:
+                  - LintMarkEngine_Run_FixFormatterThrows_ReportsFormatErrorAndLeavesFile
+                  - LintMarkEngine_Process_FormatterThrows_ReportsFormatErrorAndNoChange
+                  - LintMarkEngine_Run_FixOverlappingEdits_ReportsFormatError
+                  - LintMarkEngine_Run_FixEditOutsideText_ReportsFormatError
+                  - LintMarkEngine_Run_FixCarriageReturnInserted_ReportsFormatError
+
+              - id: LintMark-Engine-LintMarkEngine-WriteFailure
+                title: >-
+                  The LintMarkEngine class shall report a file that cannot be written as a `file-write-error`
+                  problem at line 1 and column 1, keep the problems of that file, and leave the file as it was.
+                justification: |
+                  A read-only file, a full disk, or a file that changed after it was read must be reported
+                  and must not cost the user the file.
+                tests:
+                  - LintMarkEngine_Run_FixWriterThrows_ReportsWriteErrorKeepsFormattingDiagnostic
+                  - LintMarkEngine_Run_FixOneWriteFails_OtherFilesStillWritten
+                  - LintMarkEngine_Run_FixFileChangedAfterRead_ReportsWriteErrorAndLeavesFile
+
+              - id: LintMark-Engine-LintMarkEngine-CapturesResolvedTarget
+                title: >-
+                  The LintMarkEngine class shall record the full path of the file that a path resolves to, with
+                  symbolic links followed, when it reads the file, read the bytes from that file, and hand the
+                  recorded path to the writer with the rewrite.
+                justification: |
+                  The identity of the file must be taken together with its bytes, at the time of the read. An
+                  identity taken only when the write starts could not reveal a link that was redirected
+                  after the read.
+                tests:
+                  - LintMarkEngine_Process_FormatterEditsApplied_ChangeHasNewBytes
+                  - LintMarkEngine_Run_FixRegularFile_PassesResolvedTargetToWriter
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseRedirectedLink
+                title: >-
+                  The LintMarkEngine class shall report a file whose link was redirected to another file after
+                  it was read as a `file-write-error` problem and leave both files as they were, also when both
+                  hold the same bytes.
+                justification: |
+                  Rewriting a file that the rewrite was not computed from would damage it. The test needs
+                  symbolic links, so only Linux and macOS runs count as evidence.
+                tests:
+                  - ubuntu@LintMarkEngine_Run_FixLinkRedirectedAfterRead_ReportsWriteErrorAndLeavesBothFiles
+                  - macos@LintMarkEngine_Run_FixLinkRedirectedAfterRead_ReportsWriteErrorAndLeavesBothFiles
+
+              - id: LintMark-Engine-LintMarkEngine-FixRewrites
+                title: >-
+                  The LintMarkEngine class shall write, when the fix option is given, the proposed rewrite of
+                  each file that passed every safety check, in the line ending that the file should have.
+                justification: |
+                  This is what the fix option is for. The rewrite is the file with the proposed changes and
+                  the chosen line endings, and nothing else.
+                tests:
+                  - LintMarkEngine_Run_FixCrlfFile_RewritesToLfAndReportsNothing
+                  - LintMarkEngine_Run_FixTextChange_WritesSafeRewrite
+                  - LintMarkEngine_Run_FixMixedFile_WritesMajorityEnding
+                  - LintMarkEngine_Process_FormatterEditsApplied_ChangeHasNewBytes
+
+              - id: LintMark-Engine-LintMarkEngine-FixLeavesCompliantFiles
+                title: >-
+                  The LintMarkEngine class shall not write a file whose rewrite would be identical to the file
+                  as it is.
+                justification: |
+                  Touching files that need no change disturbs timestamps, file watchers, and builds that
+                  depend on them.
+                tests:
+                  - LintMarkEngine_Run_FixCompliantFile_DoesNotTouchFile
+                  - LintMarkEngine_Run_FixTwice_SecondRunLeavesFileAndReportsNothing
+
+              - id: LintMark-Engine-LintMarkEngine-FixReportsRemaining
+                title: >-
+                  The LintMarkEngine class shall omit from its report, when the fix option is given, the problems
+                  of a file that was written that rewriting removes, and keep every other problem.
+                justification: |
+                  A repaired problem is gone, while a problem that rewriting cannot remove must still fail
+                  the run.
+                tests:
+                  - LintMarkEngine_Run_FixSuccessfulWrite_DropsFixedDiagnostics
+                  - LintMarkEngine_Run_FixCrlfFile_RewritesToLfAndReportsNothing
+
+              - id: LintMark-Engine-LintMarkEngine-FixKeepsByteOrderMark
+                title: >-
+                  The LintMarkEngine class shall write a rewritten file with the byte order mark that it had.
+                justification: |
+                  The byte order mark is not text, so a rewrite of the text must not add or remove it.
+                tests:
+                  - LintMarkEngine_Run_FixBomCrlfFile_KeepsBomAndConvertsEndings
+
+              - id: LintMark-Engine-LintMarkEngine-FixDeterministic
+                title: >-
+                  The LintMarkEngine class shall write the same files with the same content whether the files are
+                  processed one at a time or concurrently.
+                justification: |
+                  A rewrite that depended on scheduling could not be reviewed or trusted.
+                tests:
+                  - LintMarkEngine_Run_FixParallelAndSequential_ProduceIdenticalOutputAndFiles
+
+              - id: LintMark-Engine-LintMarkEngine-DiffOutput
+                title: >-
+                  The LintMarkEngine class shall write, when the diff option is given, the unified diff of the
+                  rewrite of each file that passed every safety check, and nothing for a file that would not change.
+                justification: |
+                  The diff shows what the fix option would write, so it covers exactly the same files and
+                  changes.
+                tests:
+                  - LintMarkEngine_Run_DiffCrlfFile_PrintsDiffAndWritesNothing
+                  - LintMarkEngine_Run_DiffCompliantFile_PrintsNothing
+                  - LintMarkEngine_Run_DiffTextChange_PrintsHunkAndWritesNothing
+
+              - id: LintMark-Engine-LintMarkEngine-NoWriteWithoutFix
+                title: >-
+                  The LintMarkEngine class shall write no file when the fix option is not given, whatever the
+                  problems found, while still reporting what the fix option would do.
+                justification: |
+                  Checking and previewing must be safe on any files, and the problems they report should
+                  predict what the fix option does.
+                tests:
+                  - LintMarkEngine_Run_CheckCrlfFile_ReportsLineEndingAndWritesNothing
+                  - LintMarkEngine_Run_CheckMixedFile_ReportsMixedLineEndings
+                  - LintMarkEngine_Run_CheckBrokenFormatter_ReportsSafetyDiagnostic
+                  - LintMarkEngine_Run_CheckFlag_BehavesLikeDefault
+
+              - id: LintMark-Engine-LintMarkEngine-LineEndingFromConfiguration
+                title: >-
+                  The LintMarkEngine class shall give the formatting of a file the line ending of its
+                  configuration, without consulting the editor settings.
+                justification: |
+                  The tool's own configuration is the more specific source and wins over shared editor
+                  settings.
+                tests:
+                  - LintMarkEngine_Process_ConfigEndOfLine_WinsOverEditorConfig
+                  - LintMarkEngine_Process_ConfigEndOfLine_EditorConfigNotConsulted
+                  - LintMarkEngine_Run_FixConfigCrlf_WritesCrlf
+
+              - id: LintMark-Engine-LintMarkEngine-LineEndingFromEditorSettings
+                title: >-
+                  The LintMarkEngine class shall give the formatting of a file the line ending of the editor
+                  settings that apply to it when its configuration gives none, also when the configuration comes
+                  from a file named on the command line.
+                justification: |
+                  Many projects state their line ending only in their editor settings, and a named
+                  configuration file that says nothing about line endings must not hide them.
+                tests:
+                  - LintMarkEngine_Process_ConfigSilent_FallsBackToEditorConfig
+                  - LintMarkEngine_Process_ExplicitConfig_StillConsultsEditorConfig
+                  - LintMarkEngine_Run_ExplicitConfig_StillConsultsEditorConfig
+                  - LintMarkEngine_Run_FixEditorConfigCrlf_WritesCrlf
+
+              - id: LintMark-Engine-LintMarkEngine-LineEndingUnspecified
+                title: >-
+                  The LintMarkEngine class shall leave the line ending of a file unspecified when neither its
+                  configuration nor the editor settings give one that the tool can use.
+                justification: |
+                  An unspecified line ending lets the file keep the one that most of its lines use, instead of
+                  being converted to a default that nobody chose.
+                tests:
+                  - LintMarkEngine_Process_EditorConfigCr_EndOfLineStaysNull
+                  - LintMarkEngine_Process_NeitherSpecifiesEndOfLine_StaysNull
+
+              - id: LintMark-Engine-LintMarkEngine-EditorSettingsProblems
+                title: >-
+                  The LintMarkEngine class shall report editor settings that apply to a Markdown file but cannot
+                  be read as one configuration problem at line 1 and column 1 of that Markdown file, and keep the
+                  configuration of the file.
+                justification: |
+                  The only place that the tool can point to is the Markdown file, because the settings file
+                  may be unreadable as a whole, and the rest of the configuration is still valid.
+                tests:
+                  - LintMarkEngine_Process_EditorConfigUnreadable_AddsConfigErrorAtMarkdownFileAndKeepsConfig
+                  - LintMarkEngine_Run_EditorConfigUnreadable_ReportsConfigErrorAtMarkdownFile
+
+              - id: LintMark-Engine-LintMarkEngine-NeverRewriteInvalidConfiguration
+                title: >-
+                  The LintMarkEngine class shall neither format nor rewrite a file whose configuration is
+                  invalid or whose editor settings cannot be read, while still reading it and reporting its own
+                  problems.
+                justification: |
+                  The style that the file should get is not known, and guessing it could rewrite the
+                  document in a style that nobody chose.
+                tests:
+                  - LintMarkEngine_Process_InvalidConfig_NeverFormatted
+                  - LintMarkEngine_Run_FixInvalidConfig_NeverRewritesFile
+                  - LintMarkEngine_Process_EditorConfigUnreadable_NeverFormatted
+                  - LintMarkEngine_Run_FixEditorConfigUnreadable_NeverRewritesFile
+                  - LintMarkEngine_Process_InvalidConfigIgnoreUnknown_FileProcessedNotFormatted
+                  - LintMarkEngine_Run_IgnoreInvalidConfig_ProcessedButNeverFormatted
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseHtmlChange
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite would change
+                  how the document renders as HTML, report it as a `safety-html-mismatch` problem at the first
+                  line that differs, and leave the file as it is.
+                justification: |
+                  A rewrite that changes how a document renders has changed its meaning.
+                tests:
+                  - LintMarkEngine_Run_FixHardBreakDropped_RefusesWithHtmlMismatch
+                  - LintMarkEngine_Process_HardBreakFormatter_SetsHtmlMismatchAndNoChange
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseLineEndingHtmlChange
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite, also one that
+                  only changes the line endings, would change how the document renders as HTML with the line
+                  endings it has on disk, report it as a `safety-html-mismatch` problem, and leave the file as it
+                  is.
+                justification: |
+                  The renderer shows some text, such as a code span that spans lines, differently for CRLF and LF,
+                  so converting the line endings can change what a reader sees. The tool must never write a file
+                  whose rendering changes, whatever the reason.
+                tests:
+                  - LintMarkEngine_Run_FixCodeSpanLineEndingChange_RefusesWithHtmlMismatchAndLeavesFile
+                  - LintMarkEngine_Run_CheckCodeSpanLineEndingChange_ReportsHtmlMismatchAndWritesNothing
+                  - LintMarkEngine_Process_CodeSpanLineEndingChange_SetsHtmlMismatchAndNoChange
+
+              - id: LintMark-Engine-LintMarkEngine-AllowsHarmlessLineEndingChange
+                title: >-
+                  The LintMarkEngine class shall write a rewrite that only changes the line endings of a file
+                  when the document renders as the same HTML with both line endings.
+                justification: |
+                  Most documents render the same with either line ending, and the fix option must still
+                  convert them.
+                tests:
+                  - LintMarkEngine_Run_FixOrdinaryLineEndingChange_StillWritten
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseStructureChange
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite would change
+                  its Pandoc structure, report it as a `safety-structure-mismatch` problem at the first line that
+                  differs, and leave the file as it is.
+                justification: |
+                  Constructs that the HTML rendering cannot show, such as fences with attributes or page
+                  breaks, still matter to the documents that are built from the file.
+                tests:
+                  - LintMarkEngine_Run_FixFencesJoined_RefusesWithStructureMismatch
+                  - LintMarkEngine_Process_JoiningFormatter_SetsStructureMismatchAndNoChange
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseUnstableFormatting
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when formatting the rewritten text
+                  again would change it, report it as a `safety-not-idempotent` problem at the first line that
+                  differs, and leave the file as it is.
+                justification: |
+                  A rewrite that changes again each time it is applied would keep modifying the file and
+                  could never pass a check.
+                tests:
+                  - LintMarkEngine_Run_FixFlipFlopFormatter_RefusesWithNotIdempotent
+                  - LintMarkEngine_Run_FixGrowingFormatter_RefusesWithNotIdempotent
+                  - LintMarkEngine_Process_FlipFlopFormatter_SetsNotIdempotentAndNoChange
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseUnreadableResult
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when the proposed rewrite would create
+                  a line that looks like the border of a grid table without being part of a valid grid table,
+                  report it as a `safety-structure-mismatch` problem, and leave the file as it is.
+                justification: |
+                  Such a document is one that the tool refuses to rewrite, and the rendered output does
+                  not show the damage.
+                tests:
+                  - LintMarkEngine_Run_FixGridBorderCreated_RefusesAndLeavesFile
+                  - LintMarkEngine_Run_FixRewriteReadAsFallback_RefusesWithStructureMismatch
+
+              - id: LintMark-Engine-LintMarkEngine-RefuseUndecidedCheck
+                title: >-
+                  The LintMarkEngine class shall refuse to rewrite a file when a safety check cannot be
+                  completed, report it as a problem of that check that says the check failed, and leave the
+                  file as it is.
+                justification: |
+                  A check that could not be completed gives no evidence that the rewrite is safe, so the
+                  rewrite must be refused instead of allowed, and the file must stay as it is.
+                tests:
+                  - LintMarkEngine_Run_FixReparseThrows_RefusesWithCheckFailedAndLeavesFile
+                  - LintMarkEngine_Process_ReparseThrows_SetsStructureMismatchAndNoChange
+                  - LintMarkEngine_Run_FixIdempotencyParseThrows_RefusesWithNotIdempotentAndLeavesFile
+
+              - id: LintMark-Engine-LintMarkEngine-ValidatesResultTypes
+                title: >-
+                  The FileResult and FileChange records shall refuse a missing or empty path, missing text,
+                  a missing or blank resolved target, missing or default lists of findings or bytes, a missing
+                  finding, and a line ending that is not defined, and shall expose the values that they were
+                  created with.
+                justification: |
+                  Results travel from the workers to the writer and the reporters, and a rewrite is written
+                  from a change. An incomplete value would fail far from where it was made, or damage a file,
+                  so it must never exist.
+                tests:
+                  - FileResult_Constructor_ValidArguments_KeepsValues
+                  - FileResult_Constructor_MissingPath_Throws
+                  - FileResult_Constructor_InvalidDiagnostics_Throws
+                  - FileChange_Constructor_ValidArguments_KeepsValues
+                  - FileChange_Constructor_NullText_Throws
+                  - FileChange_Constructor_DefaultBytes_Throws
+                  - FileChange_Constructor_UndefinedLineEnding_Throws
+                  - FileChange_Constructor_MissingResolvedTarget_Throws
+
+              - id: LintMark-Engine-LintMarkEngine-IsolatedRefusals
+                title: >-
+                  The LintMarkEngine class shall still write the files that are safe to rewrite when other files
+                  are refused or cannot be written.
+                justification: |
+                  A problem in one file must not stop the repair of the others, and must not be
+                  hidden by their repair.
+                tests:
+                  - LintMarkEngine_Run_FixSafeFileNextToRefusedFile_StillWritten
+                  - LintMarkEngine_Run_FixOneWriteFails_OtherFilesStillWritten
+
+              - id: LintMark-Engine-LintMarkEngine-GridFallbackReported
+                title: >-
+                  The LintMarkEngine class shall report a document that the parser flagged as unsafe to rewrite
+                  because of an invalid grid table as a `grid-table-invalid` problem at the line that the parser
+                  located, unless that rule is switched off or suppressed at that line, and shall report nothing
+                  for a document whose grid tables are valid.
+                justification: |
+                  The author must be told which line to repair, may switch the report off or suppress it,
+                  and must not be bothered about valid tables.
+                tests:
+                  - LintMarkEngine_Run_CheckGridFallbackDocument_ReportsOffendingLineAndExitsOne
+                  - LintMarkEngine_Run_FixGridFallbackRuleDisabled_NoDiagnosticStillUntouched
+                  - LintMarkEngine_Run_FixGridFallbackSuppressed_NoDiagnosticStillUntouched
+                  - LintMarkEngine_Run_FixValidGridTable_FormattedNormallyNoDiagnostic
+
+              - id: LintMark-Engine-LintMarkEngine-GridFallbackNeverRewritten
+                title: >-
+                  The LintMarkEngine class shall neither format nor rewrite a document that the parser flagged
+                  as unsafe to rewrite because of an invalid grid table, whether or not the problem is reported.
+                justification: |
+                  Switching the report off must not switch off the protection.
+                tests:
+                  - LintMarkEngine_Run_FixGridFallbackDocument_ByteIdenticalAndGridDiagnostic
+                  - LintMarkEngine_Process_GridFallbackDocument_HasNoChangeAndGridDiagnostic
+                  - LintMarkEngine_Run_FixGridFallbackRuleDisabled_NoDiagnosticStillUntouched
+                  - LintMarkEngine_Run_FixGridFallbackSuppressed_NoDiagnosticStillUntouched
+
+              - id: LintMark-Engine-LintMarkEngine-IgnoredFilesSkipped
+                title: >-
+                  The LintMarkEngine class shall skip a file that was selected by a directory, a glob, or the
+                  default selection and that matches an `ignore` pattern of its configuration, without reading
+                  it, reporting anything for it, or rewriting it.
+                justification: |
+                  A file that the project does not format must not cost time or produce reports, and a
+                  missing or damaged file that is skipped is not a problem.
+                tests:
+                  - LintMarkEngine_Process_IgnoredFile_NotReadAndMarkedIgnored
+                  - LintMarkEngine_Process_IgnoredFileWithMissingContent_NoReadError
+                  - LintMarkEngine_Run_IgnoreGlobSelected_SkipsMatches
+                  - LintMarkEngine_Run_IgnoreDirectorySelected_SkipsMatches
+                  - LintMarkEngine_Run_IgnoreDefaultSelection_SkipsDefaultPatterns
+                  - LintMarkEngine_Run_IgnoreNoConfig_DefaultStillApplies
+                  - LintMarkEngine_Run_IgnoreExcludeOnCommandLine_BothApply
+
+              - id: LintMark-Engine-LintMarkEngine-IgnorePerConfiguration
+                title: >-
+                  The LintMarkEngine class shall apply the `ignore` patterns of the configuration that applies to
+                  each file, relative to the directory of that configuration file, and never ignore a file that
+                  lies outside that directory.
+                justification: |
+                  Different folders can have different configurations, and a pattern written in a
+                  configuration file refers to the folder of that file.
+                tests:
+                  - LintMarkEngine_Run_IgnoreNearestConfig_EachDirectoryUsesItsOwn
+                  - LintMarkEngine_Run_IgnoreWithExplicitConfig_RelativeToConfigDirectory
+                  - LintMarkEngine_Run_IgnoreOutsideDirectory_NeverIgnored
+
+              - id: LintMark-Engine-LintMarkEngine-IgnoreExplicitFile
+                title: >-
+                  The LintMarkEngine class shall process a file that is named on the command line even when an
+                  `ignore` pattern of its configuration matches it.
+                justification: |
+                  Naming a file is a deliberate choice, as it already is for files in third-party folders.
+                tests:
+                  - LintMarkEngine_Process_ExplicitFileMatchingIgnore_IsProcessed
+                  - LintMarkEngine_Run_IgnoreExplicitFile_IsProcessed

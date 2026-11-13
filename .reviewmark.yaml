@@ -82,6 +82,15 @@ reviews:
       - "docs/design/introduction.md"
       - "docs/design/lintmark/**/*.md"
       - "docs/design/ots.md"
+
+  - id: LintMark-Verification
+    title: Review that LintMark Verification is Consistent and Complete
+    context:
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/verification/introduction.md"
+      - "docs/verification/lintmark.md"
+      - "docs/verification/lintmark/**/*.md"
       - "docs/verification/ots.md"
 
   - id: LintMark-AllRequirements
@@ -157,7 +166,6 @@ reviews:
       - "docs/verification/lintmark/configuration/lint-mark-config.md"
       - "src/**/Configuration/LintMarkConfig.cs"
       - "src/**/Configuration/LinkRefactorOptions.cs"
-      - "src/**/Configuration/RuleIdentifiers.cs"
       - "src/**/Configuration/WrapMode.cs"
       - "src/**/Configuration/HeadingStyle.cs"
       - "src/**/Configuration/BulletMarker.cs"
@@ -171,7 +179,6 @@ reviews:
       - "src/**/Configuration/BareUrlStyle.cs"
       - "src/**/Configuration/TrailingWhitespaceStyle.cs"
       - "test/**/Configuration/LintMarkConfigTests.cs"
-      - "test/**/Configuration/RuleIdentifiersTests.cs"
 
   - id: LintMark-Configuration-ConfigLoader
     title: Review that LintMark Configuration ConfigLoader Implementation is Correct
@@ -256,6 +263,7 @@ reviews:
       - "src/**/Document/BlockInfo.cs"
       - "src/**/Document/BlockKind.cs"
       - "src/**/Document/LeafLine.cs"
+      - "src/**/Document/GridTableFallback.cs"
       - "test/**/Document/DocumentParserTests.cs"
 
   - id: LintMark-Document-SuppressionMap
@@ -314,6 +322,7 @@ reviews:
       - "docs/design/lintmark/engine/file-discovery.md"
       - "docs/verification/lintmark/engine/file-discovery.md"
       - "src/**/Engine/FileDiscovery.cs"
+      - "src/**/Engine/DiscoveredFile.cs"
       - "test/**/Engine/FileDiscoveryTests.cs"
 
   - id: LintMark-Engine-LintMarkEngine
@@ -329,8 +338,237 @@ reviews:
       - "docs/verification/lintmark/engine/lint-mark-engine.md"
       - "src/**/Engine/LintMarkEngine.cs"
       - "src/**/Engine/FileResult.cs"
-      - "src/**/Engine/FileFailure.cs"
+      - "src/**/Engine/FileChange.cs"
       - "test/**/Engine/LintMarkEngineTests.cs"
+      - "test/**/Engine/LintMarkEngineFixTests.cs"
+      - "test/**/Engine/LintMarkEngineIgnoreTests.cs"
+
+  - id: LintMark-Engine-AtomicFileWriter
+    title: Review that LintMark Engine AtomicFileWriter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/engine.md
+      - docs/reqstream/lintmark/engine.yaml
+    paths:
+      - "docs/reqstream/lintmark/engine/atomic-file-writer.yaml"
+      - "docs/design/lintmark/engine/atomic-file-writer.md"
+      - "docs/verification/lintmark/engine/atomic-file-writer.md"
+      - "src/**/Engine/AtomicFileWriter.cs"
+      - "test/**/Engine/AtomicFileWriterTests.cs"
+
+  # LintMark - Formatting
+  - id: LintMark-Formatting
+    title: Review that LintMark Formatting Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting.yaml"
+      - "docs/design/lintmark/formatting.md"
+      - "docs/verification/lintmark/formatting.md"
+      - "test/**/Formatting/FormattingSubsystemTests.cs"
+      - "test/**/Formatting/TestBlockFormatters.cs"
+
+  - id: LintMark-Formatting-EditSet
+    title: Review that LintMark Formatting EditSet Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/edit-set.yaml"
+      - "docs/design/lintmark/formatting/edit-set.md"
+      - "docs/verification/lintmark/formatting/edit-set.md"
+      - "src/**/Formatting/EditSet.cs"
+      - "src/**/Formatting/TextEdit.cs"
+      - "test/**/Formatting/EditSetTests.cs"
+
+  - id: LintMark-Formatting-SourcePatcher
+    title: Review that LintMark Formatting SourcePatcher Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/source-patcher.yaml"
+      - "docs/design/lintmark/formatting/source-patcher.md"
+      - "docs/verification/lintmark/formatting/source-patcher.md"
+      - "src/**/Formatting/SourcePatcher.cs"
+      - "test/**/Formatting/SourcePatcherTests.cs"
+
+  - id: LintMark-Formatting-DocumentFormatter
+    title: Review that LintMark Formatting DocumentFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/document-formatter.yaml"
+      - "docs/design/lintmark/formatting/document-formatter.md"
+      - "docs/verification/lintmark/formatting/document-formatter.md"
+      - "src/**/Formatting/DocumentFormatter.cs"
+      - "src/**/Formatting/IBlockFormatter.cs"
+      - "src/**/Formatting/FormatContext.cs"
+      - "src/**/Formatting/FormatResult.cs"
+      - "test/**/Formatting/DocumentFormatterTests.cs"
+      - "test/**/Formatting/TestBlockFormatters.cs"
+
+  # LintMark - Linting
+  - id: LintMark-Linting
+    title: Review that LintMark Linting Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/linting.yaml"
+      - "docs/design/lintmark/linting.md"
+      - "docs/verification/lintmark/linting.md"
+      - "test/**/Linting/LintingSubsystemTests.cs"
+
+  - id: LintMark-Linting-Diagnostic
+    title: Review that LintMark Linting Diagnostic Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/linting.md
+      - docs/reqstream/lintmark/linting.yaml
+    paths:
+      - "docs/reqstream/lintmark/linting/diagnostic.yaml"
+      - "docs/design/lintmark/linting/diagnostic.md"
+      - "docs/verification/lintmark/linting/diagnostic.md"
+      - "src/**/Linting/Diagnostic.cs"
+      - "src/**/Linting/DiagnosticKind.cs"
+      - "test/**/Linting/DiagnosticTests.cs"
+
+  - id: LintMark-Linting-RuleCatalog
+    title: Review that LintMark Linting RuleCatalog Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/linting.md
+      - docs/reqstream/lintmark/linting.yaml
+    paths:
+      - "docs/reqstream/lintmark/linting/rule-catalog.yaml"
+      - "docs/design/lintmark/linting/rule-catalog.md"
+      - "docs/verification/lintmark/linting/rule-catalog.md"
+      - "src/**/Linting/RuleCatalog.cs"
+      - "src/**/Linting/RuleInfo.cs"
+      - "test/**/Linting/RuleCatalogTests.cs"
+
+  # LintMark - Reporting
+  - id: LintMark-Reporting
+    title: Review that LintMark Reporting Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/reporting.yaml"
+      - "docs/design/lintmark/reporting.md"
+      - "docs/verification/lintmark/reporting.md"
+      - "test/**/Reporting/ReportingSubsystemTests.cs"
+      - "test/**/Reporting/PatchApplier.cs"
+
+  - id: LintMark-Reporting-TextReporter
+    title: Review that LintMark Reporting TextReporter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/reporting.md
+      - docs/reqstream/lintmark/reporting.yaml
+    paths:
+      - "docs/reqstream/lintmark/reporting/text-reporter.yaml"
+      - "docs/design/lintmark/reporting/text-reporter.md"
+      - "docs/verification/lintmark/reporting/text-reporter.md"
+      - "src/**/Reporting/TextReporter.cs"
+      - "test/**/Reporting/TextReporterTests.cs"
+
+  - id: LintMark-Reporting-DiffReporter
+    title: Review that LintMark Reporting DiffReporter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/reporting.md
+      - docs/reqstream/lintmark/reporting.yaml
+    paths:
+      - "docs/reqstream/lintmark/reporting/diff-reporter.yaml"
+      - "docs/design/lintmark/reporting/diff-reporter.md"
+      - "docs/verification/lintmark/reporting/diff-reporter.md"
+      - "src/**/Reporting/DiffReporter.cs"
+      - "src/**/Reporting/FileDiff.cs"
+      - "test/**/Reporting/DiffReporterTests.cs"
+
+  # LintMark - Safety
+  - id: LintMark-Safety
+    title: Review that LintMark Safety Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/safety.yaml"
+      - "docs/design/lintmark/safety.md"
+      - "docs/verification/lintmark/safety.md"
+      - "src/**/Safety/SafetyStatus.cs"
+      - "test/**/Safety/SafetySubsystemTests.cs"
+
+  - id: LintMark-Safety-EquivalenceResult
+    title: Review that LintMark Safety EquivalenceResult Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/safety.md
+      - docs/reqstream/lintmark/safety.yaml
+    paths:
+      - "docs/reqstream/lintmark/safety/equivalence-result.yaml"
+      - "docs/design/lintmark/safety/equivalence-result.md"
+      - "docs/verification/lintmark/safety/equivalence-result.md"
+      - "src/**/Safety/EquivalenceResult.cs"
+      - "test/**/Safety/EquivalenceResultTests.cs"
+
+  - id: LintMark-Safety-HtmlEquivalenceChecker
+    title: Review that LintMark Safety HtmlEquivalenceChecker Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/safety.md
+      - docs/reqstream/lintmark/safety.yaml
+    paths:
+      - "docs/reqstream/lintmark/safety/html-equivalence-checker.yaml"
+      - "docs/design/lintmark/safety/html-equivalence-checker.md"
+      - "docs/verification/lintmark/safety/html-equivalence-checker.md"
+      - "src/**/Safety/HtmlEquivalenceChecker.cs"
+      - "test/**/Safety/HtmlEquivalenceCheckerTests.cs"
+
+  - id: LintMark-Safety-StructuralTokenChecker
+    title: Review that LintMark Safety StructuralTokenChecker Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/safety.md
+      - docs/reqstream/lintmark/safety.yaml
+    paths:
+      - "docs/reqstream/lintmark/safety/structural-token-checker.yaml"
+      - "docs/design/lintmark/safety/structural-token-checker.md"
+      - "docs/verification/lintmark/safety/structural-token-checker.md"
+      - "src/**/Safety/StructuralTokenChecker.cs"
+      - "test/**/Safety/StructuralTokenCheckerTests.cs"
+
+  - id: LintMark-Safety-IdempotencyChecker
+    title: Review that LintMark Safety IdempotencyChecker Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/safety.md
+      - docs/reqstream/lintmark/safety.yaml
+    paths:
+      - "docs/reqstream/lintmark/safety/idempotency-checker.yaml"
+      - "docs/design/lintmark/safety/idempotency-checker.md"
+      - "docs/verification/lintmark/safety/idempotency-checker.md"
+      - "src/**/Safety/IdempotencyChecker.cs"
+      - "test/**/Safety/IdempotencyCheckerTests.cs"
 
   # LintMark - SelfTest
   - id: LintMark-SelfTest
@@ -383,6 +621,20 @@ reviews:
       - "docs/verification/lintmark/utilities/path-helpers.md"
       - "src/**/Utilities/PathHelpers.cs"
       - "test/**/Utilities/PathHelpersTests.cs"
+
+  - id: LintMark-Utilities-TextWidth
+    title: Review that LintMark Utilities TextWidth Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/utilities.md
+      - docs/reqstream/lintmark/utilities.yaml
+    paths:
+      - "docs/reqstream/lintmark/utilities/text-width.yaml"
+      - "docs/design/lintmark/utilities/text-width.md"
+      - "docs/verification/lintmark/utilities/text-width.md"
+      - "src/**/Utilities/TextWidth.cs"
+      - "test/**/Utilities/TextWidthTests.cs"
 
   # OTS Items
   - id: OTS-BuildMark

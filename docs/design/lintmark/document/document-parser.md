@@ -36,8 +36,18 @@ A second, private pipeline exists. It is identical except that grid tables are n
 only when the first parse leaves blocks that do not nest (see *Invalid grid tables*).
 
 **ParsedDocument**: A record `(SourceDocument Source, MarkdownDocument Ast, ImmutableArray<BlockInfo> Blocks,
-SuppressionMap Suppressions, ReferenceIndex References)`, created per file. The block list is an immutable
-array, so no holder of the document can change it.
+SuppressionMap Suppressions, ReferenceIndex References, GridTableFallback? GridFallback = null)`, created per file.
+The block list is an immutable array, so no holder of the document can change it. `GridFallback` is `null` when the
+first reading of the text nested correctly and holds the location of the offending line when the document had to be
+read without grid tables. The derived property `IsFormatUnsafe` is true exactly when `GridFallback` is present: the
+blocks then no longer describe the grid tables of the file, so no edit based on them can be trusted and the document
+must never be rewritten. Linting continues to use the second reading.
+
+**GridTableFallback**: A readonly record struct with the constructor `(int line, int column)`, both 1-based, which
+rejects a line or column below one with `ArgumentOutOfRangeException`: the position of the first
+border character of the first grid-table-looking line that is not part of a valid table, or 1:1 when no line can be
+located. A default instance (zero line and column) bypasses the check, is not valid, and is never produced by the
+parser.
 
 **BlockInfo**: A record `(Block? Node, BlockKind Kind, int Start, int EndInclusive, int Depth, Block?
 Parent)`. `Start` is the first and `EndInclusive` the last visible character of the block; the end is the
@@ -69,8 +79,9 @@ visible character of the definition. `BlockKind`, `BlockInfo`, and `ParsedDocume
 one source line of a paragraph or heading.
 
 **Pipeline**: An `internal static` read-only property holding the fixed pipeline described above. It is built
-when the type is first used and never changes afterwards, so it can be shared by all threads. Only `Parse`
-uses it; its `internal` access level is not a contract.
+when the type is first used and never changes afterwards, so it can be shared by all threads. `Parse` uses it, and
+`HtmlEquivalenceChecker` of the `Safety` subsystem renders HTML with it, so that the safety check judges a document
+the way the tool reads it. Its `internal` access level is not a contract.
 
 #### Parser Behaviors Compensated
 
@@ -107,8 +118,10 @@ these names.
   validates the block list after the walk and, when the blocks do not nest, parses the document **once more
   with the same pipeline minus grid tables**, so the text is read as ordinary Markdown. This is a deliberate
   behavior: a document that has both a valid and an invalid grid table is read without grid tables (the valid
-  table becomes ordinary text and reports no `GridTable`). The fallback is silent in Phase 1; a later phase
-  may add a diagnostic for it. A document whose first parse nests correctly is never parsed a second time.
+  table becomes ordinary text and reports no `GridTable`). The fallback is not silent: the unit locates the offending
+  line (see *Locating the offending grid line* below) and marks the result as format-unsafe through
+  `ParsedDocument.GridFallback`, so the engine reports it and never rewrites the document. A document whose first parse
+  nests correctly is never parsed a second time.
   The grid table parser is the only known cause of a block list that does not nest: the ranges the unit builds
   itself (dropped footnotes, definitions) are built so that they never fail the check.
 - **Dropped footnote definitions**: The parser produces no node for a footnote definition that nothing
@@ -157,7 +170,8 @@ stop of four; the lazy-line comparison therefore measures prefix width with tab 
 - *Preconditions*: `source` is not null.
 - *Postconditions*: `Blocks` is sorted by (`Start`, `Depth`) with enclosing blocks first; siblings do not
   overlap and every block lies inside its parent (a container ends no earlier than its last child);
-  `Suppressions` and `References` describe the same parse.
+  `Suppressions` and `References` describe the same parse; `GridFallback` is set exactly when the second reading
+  (without grid tables) was used.
 
 Steps: parse `source.Text` with the shared pipeline, then flatten the syntax tree with a private flattener (steps
 1 to 6). Step 7 validates the result and, when needed, repeats the parse and the flattening with the private
@@ -185,11 +199,26 @@ pipeline that has no grid tables:
    emission order.
 7. **Validate** (in `Parse`, after the flattener). Sweep the sorted blocks with a stack of the blocks that
    are still open: the innermost open block must be the block's parent and must contain it, and a block with
-   no open block must be top level. When a block fails this check, parse the text once more with the pipeline
-   without grid tables and flatten again (see *Invalid grid tables*). The second result is used as it is. The
-   check is general; only the grid table parser is known to fail it.
+   no open block must be top level. When a block fails this check, locate the offending grid line in the damaged
+   reading (see *Locating the offending grid line*), parse the text once more with the pipeline without grid tables,
+   and flatten again (see *Invalid grid tables*). The second result is used as it is and the document is marked
+   format-unsafe. The check is general; only the grid table parser is known to fail it.
 
-Then `SuppressionMap` and `ReferenceIndex` are built from the blocks and the tree.
+Then `SuppressionMap` and `ReferenceIndex` are built from the blocks and the tree, and the `ParsedDocument` is
+assembled with the fallback location (null when the first reading was used).
+
+**Locating the offending grid line** (private `LocateOffendingGridLine`): The damaged block cannot be used for the
+location, because the parser rebuilds an invalid table as a paragraph whose start is reported as the start of the
+document. The lines are therefore scanned for the shape the parser accepts as the opening line of a grid table: a
+generated regular expression (match timeout one second) that allows block quote markers and blanks before the first
+plus sign, then one or more column headers (an optional colon, dashes, an optional colon, between blanks) each ended by
+a plus sign or the end of the line, and nothing else. The lines that belong to blocks of the first reading that are
+grid tables, fenced or unclosed fenced code, indented code, HTML blocks, math blocks, or front matter are skipped,
+because such a line is ordinary text there; a block whose span does not lie inside the text cannot be used to skip
+lines. The first remaining line that matches is the location (the column is that of its first plus sign). When no line
+matches, or when the offending line belongs to a block that the first reading still calls a grid table, the location is
+1:1: the damage is known but cannot be located. Consequences that are inherent in marking the document whenever the
+fallback happens: a document whose only grid-looking line is stray text such as `+---+` is also format-unsafe.
 
 *Complexity*: the flattener is O(n log n) in the number of blocks (and lines). No step scans the block list once
 per definition, paragraph, or footnote: the containers and the definitions are visited in order of their start
@@ -274,15 +303,22 @@ Argument errors raise `ArgumentNullException`. `GetLines` and `GetContinuationPr
 `ArgumentException` for a block that is not a paragraph or heading and for a block whose range is outside
 the document text. Exceptions raised by Markdig are not caught here; they propagate to the caller, and
 `LintMarkEngine` reports them as `file-parse-error` for that file only. The validation and the fallback parse
-raise no exceptions of their own. Both regular expressions (footnote
-definition marker and footnote marker at the end of a prefix) have a match timeout. A block range that would
-fall outside the text is clamped.
+raise no exceptions of their own. All three regular expressions (footnote
+definition marker, footnote marker at the end of a prefix, and the grid table opening line of the locator) have a
+match timeout. A block range that would fall outside the text is clamped.
 
 #### Dependencies
 
 - **Markdig** — parsing and the syntax tree (see the Markdig OTS design).
 - **SourceDocument** — the normalized text and the line table.
 - **SuppressionMap** and **ReferenceIndex** — built for every document by calling their `Build` methods.
+
+**Follow-up (alias wiring)**: `SuppressionMap.Build` accepts an optional function that canonicalizes the rule names of
+suppression comments, but `Parse` does not pass one: the names in a comment are compared as written. That is enough
+while the only rule a block formatter or the engine asks about is `grid-table-invalid`, which has no alias. Before
+block formatters honor comments such as `markdownlint-disable MD009` (no later than the first block formatters, a
+later phase), `Parse` must pass a function built on `RuleCatalog.TryResolve`. It is recorded here so that the wiring
+is not forgotten; it is not done yet.
 
 `SuppressionMap` and `ReferenceIndex` in turn read the `BlockInfo` and `BlockKind` types that are declared with
 this unit. This is a cycle at the level of types only: the parser calls the two units, and they never call
@@ -291,5 +327,9 @@ to build their inputs, which is a test-time dependency only.
 
 #### Callers
 
-- **LintMarkEngine** — parses every file it reads (the call can be replaced in tests through a seam).
+- **LintMarkEngine** — parses every file it reads (the call can be replaced in tests through a seam), and parses the
+  proposed text again in the safety checks; it reads `GridFallback` to refuse and report a document that must not be
+  rewritten.
+- **DocumentFormatter** — reads `IsFormatUnsafe`, the blocks, and the suppressions of the parsed document.
+- **HtmlEquivalenceChecker** — renders with the shared `Pipeline`.
 - `GetLines` and `GetContinuationPrefix` have no production callers yet (see *Key Methods*).

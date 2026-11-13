@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def EngineSubsystem {
-        doc /* Selects the Markdown files named on the command line, processes them in parallel and reports failures deterministically. */
+        doc /* Selects the Markdown files named on the command line, processes them in parallel, optionally rewrites them safely, and reports diagnostics deterministically. */
 
         metadata info : SoftwareInfo {
             testFiles = ("test/DemaConsulting.LintMark.Tests/Engine/EngineSubsystemTests.cs");
@@ -13,5 +13,6 @@ package LintMark {
 
         part fileDiscovery : FileDiscovery;
         part lintMarkEngine : LintMarkEngine;
+        part atomicFileWriter : AtomicFileWriter;
     }
 }

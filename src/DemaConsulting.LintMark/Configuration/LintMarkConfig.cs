@@ -20,6 +20,7 @@
 
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Configuration;
 
@@ -39,7 +40,7 @@ namespace DemaConsulting.LintMark.Configuration;
 ///         The record is deeply immutable: collections are immutable types, so a <c>with</c> expression
 ///         can never share a mutable collection between configurations, and every accessor validates its
 ///         value (also when used by <c>with</c>), so an invalid instance cannot be created. Value
-///         equality includes the collections. Supporting types: <see cref="RuleIdentifiers"/>,
+///         equality includes the collections. Supporting types: <see cref="RuleCatalog"/>,
 ///         <see cref="LinkRefactorOptions"/> and the setting enumerations in this namespace.
 ///     </para>
 ///     <para>
@@ -154,7 +155,7 @@ internal sealed record LintMarkConfig
     /// <summary>
     ///     Backing field of <see cref="Rules"/>.
     /// </summary>
-    private readonly ImmutableSortedDictionary<string, bool> _rules = RuleIdentifiers.Defaults;
+    private readonly ImmutableSortedDictionary<string, bool> _rules = RuleCatalog.Defaults;
 
     /// <summary>
     ///     Backing field of <see cref="Ignore"/>.
@@ -382,10 +383,10 @@ internal sealed record LintMarkConfig
 
     /// <summary>
     ///     Gets the enabled state of every configurable rule, keyed by canonical rule id (default
-    ///     <see cref="RuleIdentifiers.Defaults"/>).
+    ///     <see cref="RuleCatalog.Defaults"/>).
     /// </summary>
     /// <remarks>
-    ///     The map is always complete: it holds exactly the ids of <see cref="RuleIdentifiers.ConfigurableRules"/>
+    ///     The map is always complete: it holds exactly the ids of <see cref="RuleCatalog.ConfigurableRules"/>
     ///     (ordinal comparer), so a consumer never needs a second lookup of the defaults.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown by the initializer when the value is null.</exception>
@@ -401,8 +402,8 @@ internal sealed record LintMarkConfig
 
             // Always store an ordinal-keyed map so lookups cannot depend on the caller's comparer
             var normalized = value.WithComparers(StringComparer.Ordinal);
-            if (normalized.Count != RuleIdentifiers.Defaults.Count
-                || normalized.Keys.Any(static key => !RuleIdentifiers.Defaults.ContainsKey(key)))
+            if (normalized.Count != RuleCatalog.Defaults.Count
+                || normalized.Keys.Any(static key => !RuleCatalog.Defaults.ContainsKey(key)))
             {
                 throw new ArgumentException("The rules must contain exactly the configurable rule ids.", nameof(value));
             }
@@ -415,7 +416,10 @@ internal sealed record LintMarkConfig
     ///     Gets the glob patterns of files that are skipped (default <see cref="DefaultIgnore"/>).
     /// </summary>
     /// <remarks>
-    ///     Patterns use forward slashes. The setting is validated and stored but not applied by the engine yet.
+    ///     Patterns use forward slashes and are relative to the directory of the configuration file that
+    ///     applies (the current directory when none does). The engine skips the files they match when the
+    ///     files were selected by a directory, a glob or the default pattern, but not files named on the
+    ///     command line.
     /// </remarks>
     /// <exception cref="ArgumentException">
     ///     Thrown by the initializer when the array is the uninitialized default, or an element is null, empty,

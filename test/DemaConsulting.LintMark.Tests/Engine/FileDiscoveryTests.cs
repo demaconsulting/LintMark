@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Engine;
 
 namespace DemaConsulting.LintMark.Tests;
@@ -691,5 +692,474 @@ public class FileDiscoveryTests
 
         // Assert: only the remaining file is left
         Assert.Equal(Expected(directory, "docs/generated/api.md"), files);
+    }
+
+    /// <summary>
+    ///     Test that a file named as an existing path is explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_NamedFile_IsExplicit()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name one file
+        var files = FileDiscovery.DiscoverFiles(["docs/guide.md"], directory.FullPath);
+
+        // Assert: that file is returned and is explicit
+        var file = Assert.Single(files);
+        Assert.Equal(directory.PathOf("docs/guide.md"), file.Path);
+        Assert.True(file.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that a file found through a glob is not explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_GlobMatch_IsNotExplicit()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: select a file with a glob
+        var files = FileDiscovery.DiscoverFiles(["docs/*.md"], directory.FullPath);
+
+        // Assert: the file is returned but is not explicit
+        var file = Assert.Single(files);
+        Assert.Equal(directory.PathOf("docs/guide.md"), file.Path);
+        Assert.False(file.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that files found beneath a directory argument are not explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_DirectoryArgument_FilesAreNotExplicit()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name a directory
+        var files = FileDiscovery.DiscoverFiles(["docs"], directory.FullPath);
+
+        // Assert: several files, none explicit
+        Assert.Equal(3, files.Count);
+        Assert.All(files, file => Assert.False(file.IsExplicit));
+    }
+
+    /// <summary>
+    ///     Test that files found through the default pattern are not explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_DefaultPattern_FilesAreNotExplicit()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: use no arguments
+        var files = FileDiscovery.DiscoverFiles([], directory.FullPath);
+
+        // Assert: four files, none explicit
+        Assert.Equal(4, files.Count);
+        Assert.All(files, file => Assert.False(file.IsExplicit));
+    }
+
+    /// <summary>
+    ///     Test that a file that is both named and matched by a glob is explicit, and only that file.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_NamedAndGlobbed_IsExplicit()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: glob everything below docs and also name one file of it
+        var files = FileDiscovery.DiscoverFiles(["docs/**/*.md", "docs/guide.md"], directory.FullPath);
+
+        // Assert: each file once; only the named one is explicit
+        Assert.Equal(3, files.Count);
+        var explicitFile = Assert.Single(files, static file => file.IsExplicit);
+        Assert.Equal(directory.PathOf("docs/guide.md"), explicitFile.Path);
+    }
+
+    /// <summary>
+    ///     Test that a missing path without wildcards is explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_MissingLiteralPath_IsExplicit()
+    {
+        // Arrange: a tree without the named file
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name a file that does not exist
+        var files = FileDiscovery.DiscoverFiles(["missing.md"], directory.FullPath);
+
+        // Assert: it is passed through as an explicit file
+        var file = Assert.Single(files);
+        Assert.Equal(directory.PathOf("missing.md"), file.Path);
+        Assert.True(file.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that spellings of one file that differ only in case collapse to the smallest spelling, explicit when any spelling was named.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_CaseVariantSpellings_KeepsSmallestAndExplicit()
+    {
+        // Arrange: one file, found by a glob under its real spelling and named under another spelling
+        if (FileDiscovery.PathComparison != StringComparison.OrdinalIgnoreCase)
+        {
+            // Names are case-sensitive here, so the spellings are different files
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("docs/guide.md");
+
+        // Act: discover in both argument orders
+        var globFirst = FileDiscovery.DiscoverFiles(["docs/*.md", "docs/GUIDE.md"], directory.FullPath);
+        var namedFirst = FileDiscovery.DiscoverFiles(["docs/GUIDE.md", "docs/*.md"], directory.FullPath);
+
+        // Assert: one explicit file under the smallest spelling, whatever the order
+        var file = Assert.Single(globFirst);
+        Assert.Equal(directory.PathOf("docs/GUIDE.md"), file.Path);
+        Assert.True(file.IsExplicit);
+        Assert.Equal(globFirst, namedFirst);
+    }
+
+    /// <summary>
+    ///     Test that an explicitly named file inside <c>node_modules</c> is kept and explicit.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_NamedFileInsideNodeModules_IsExplicitAndKept()
+    {
+        // Arrange: a tree with a file in node_modules
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name the file
+        var files = FileDiscovery.DiscoverFiles(["node_modules/pkg/readme.md"], directory.FullPath);
+
+        // Assert: the file is kept and explicit
+        var file = Assert.Single(files);
+        Assert.Equal(directory.PathOf("node_modules/pkg/readme.md"), file.Path);
+        Assert.True(file.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that a user exclude still removes an explicitly named file.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ExplicitFileWithExclude_IsRemoved()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: name two files and exclude one
+        var files = FileDiscovery.DiscoverFiles(["README.md", "docs/guide.md", "!README.md"], directory.FullPath);
+
+        // Assert: only the other file remains, still explicit
+        var file = Assert.Single(files);
+        Assert.Equal(directory.PathOf("docs/guide.md"), file.Path);
+        Assert.True(file.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that the result is in ordinal order of the full path regardless of how the files were found.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_AnyMatches_ResultOrderedByOrdinalPath()
+    {
+        // Arrange: a tree
+        using var directory = new TemporaryDirectory();
+        CreateTree(directory);
+
+        // Act: mix a named file, a glob and a directory in unsorted order
+        var files = FileDiscovery.DiscoverFiles(["docs/guide.md", "README.md", "docs"], directory.FullPath);
+
+        // Assert: the paths are ordinal-sorted and distinct
+        var paths = files.Select(static file => file.Path).ToList();
+        Assert.Equal(paths.Order(StringComparer.Ordinal).ToList(), paths);
+        Assert.Equal(paths.Distinct(StringComparer.Ordinal).Count(), paths.Count);
+        Assert.Equal(4, paths.Count);
+    }
+
+    /// <summary>
+    ///     Test that null arguments, and a null element of the patterns, are rejected.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_NullArguments_Throw()
+    {
+        // Arrange / Act / Assert: nulls are rejected
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles(null!, "."));
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles([], null!));
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles(["*.md", null!], "."));
+    }
+
+    /// <summary>
+    ///     Test that a discovered file keeps its path and flag.
+    /// </summary>
+    [Fact]
+    public void DiscoveredFile_Constructor_ValidArguments_KeepsValues()
+    {
+        // Arrange / Act: an explicit and an implicit file
+        var named = new DiscoveredFile("a.md", isExplicit: true);
+        var found = new DiscoveredFile("b.md", isExplicit: false);
+
+        // Assert: the values are kept
+        Assert.Equal("a.md", named.Path);
+        Assert.True(named.IsExplicit);
+        Assert.Equal("b.md", found.Path);
+        Assert.False(found.IsExplicit);
+    }
+
+    /// <summary>
+    ///     Test that a discovered file without a path is rejected.
+    /// </summary>
+    [Fact]
+    public void DiscoveredFile_Constructor_MissingPath_Throws()
+    {
+        // Arrange / Act / Assert: the path may be neither null nor empty
+        Assert.Throws<ArgumentNullException>(() => new DiscoveredFile(null!, isExplicit: true));
+        Assert.Throws<ArgumentException>(() => new DiscoveredFile(string.Empty, isExplicit: false));
+    }
+
+    /// <summary>
+    ///     Test that blank patterns are rejected as usage errors.
+    /// </summary>
+    /// <param name="pattern">The blank pattern.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("!")]
+    public void FileDiscovery_DiscoverFiles_EmptyPattern_Throws(string pattern)
+    {
+        // Arrange: a base directory
+        using var directory = new TemporaryDirectory();
+
+        // Act / Assert: blank patterns are rejected
+        Assert.Throws<ArgumentException>(() => FileDiscovery.DiscoverFiles([pattern], directory.FullPath));
+    }
+
+    /// <summary>
+    ///     Test that an ignore pattern matches a file below the root.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_PatternMatch_True()
+    {
+        // Arrange: a root and a file in a generated folder
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf("docs/generated/api.md");
+
+        // Act: judge the file
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, ["docs/generated/**"]);
+
+        // Assert: it is ignored
+        Assert.True(ignored);
+    }
+
+    /// <summary>
+    ///     Test that a file matching no pattern is not ignored.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_NoMatch_False()
+    {
+        // Arrange: a root and a file outside the generated folder
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf("docs/guide.md");
+
+        // Act: judge the file
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, ["docs/generated/**", "*.txt"]);
+
+        // Assert: it is not ignored
+        Assert.False(ignored);
+    }
+
+    /// <summary>
+    ///     Test that patterns are relative to the ignore root rather than the current directory.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_PatternRelativeToConfigDirectory_Matches()
+    {
+        // Arrange: a root that is a subdirectory of the base
+        using var directory = new TemporaryDirectory();
+        var root = directory.PathOf("sub");
+
+        // Act: judge files below the root and below the base with the same pattern
+        var belowRoot = FileDiscovery.IsIgnored(directory.PathOf("sub/x/a.md"), root, ["x/**"]);
+        var belowBase = FileDiscovery.IsIgnored(directory.PathOf("x/a.md"), root, ["x/**"]);
+        var wrongDepth = FileDiscovery.IsIgnored(directory.PathOf("sub/x/a.md"), directory.FullPath, ["x/**"]);
+
+        // Assert: only the file below the root matches
+        Assert.True(belowRoot);
+        Assert.False(belowBase);
+        Assert.False(wrongDepth);
+    }
+
+    /// <summary>
+    ///     Test that a file outside the root is never ignored, even by a pattern that matches everything.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_FileOutsideRoot_False()
+    {
+        // Arrange: a root and files beside and above it
+        using var directory = new TemporaryDirectory();
+        var root = directory.PathOf("sub");
+
+        // Act: judge files outside the root and one inside it with a match-everything pattern
+        var sibling = FileDiscovery.IsIgnored(directory.PathOf("other/a.md"), root, ["**"]);
+        var parent = FileDiscovery.IsIgnored(directory.PathOf("a.md"), root, ["**"]);
+        var inside = FileDiscovery.IsIgnored(directory.PathOf("sub/a.md"), root, ["**"]);
+
+        // Assert: only the file inside the root is ignored
+        Assert.False(sibling);
+        Assert.False(parent);
+        Assert.True(inside);
+    }
+
+    /// <summary>
+    ///     Test that a pattern written with backslashes matches like its forward-slash form.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_BackslashPattern_Matches()
+    {
+        // Arrange: a root and a file in a generated folder
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf("docs/generated/api.md");
+
+        // Act: judge the file with a backslash pattern
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, [@"docs\generated\**"]);
+
+        // Assert: it is ignored
+        Assert.True(ignored);
+    }
+
+    /// <summary>
+    ///     Test that pattern matching follows the case rules of the platform.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_CaseRules_FollowPlatform()
+    {
+        // Arrange: a path whose case differs from the pattern
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf("Docs/Api.md");
+
+        // Act: judge the file
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, ["docs/**"]);
+
+        // Assert: ignored only when the platform compares names case-insensitively
+        Assert.Equal(FileDiscovery.PathComparison == StringComparison.OrdinalIgnoreCase, ignored);
+    }
+
+    /// <summary>
+    ///     Test that an empty pattern list ignores nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_EmptyPatternList_False()
+    {
+        // Arrange: a root and a file
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf("docs/guide.md");
+
+        // Act: judge the file against no patterns
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, []);
+
+        // Assert: it is not ignored
+        Assert.False(ignored);
+    }
+
+    /// <summary>
+    ///     Test that null arguments, and a null element of the patterns, are rejected.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_NullArgument_Throws()
+    {
+        // Arrange / Act / Assert: nulls are rejected
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored(null!, ".", ["**"]));
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", null!, ["**"]));
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", ".", null!));
+        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", ".", ["*.txt", null!]));
+    }
+
+    /// <summary>
+    ///     Test that the built-in ignore patterns match the version-control, dependency and generated folders only.
+    /// </summary>
+    /// <param name="relative">The path relative to the root.</param>
+    /// <param name="expected">Whether the path is ignored.</param>
+    [Theory]
+    [InlineData(".git/info.md", true)]
+    [InlineData(".git/hooks/h.md", true)]
+    [InlineData("node_modules/pkg/readme.md", true)]
+    [InlineData("tools/.venv/lib/readme.md", true)]
+    [InlineData("docs/generated/api.md", true)]
+    [InlineData("generated/api.md", true)]
+    [InlineData("a/thirdparty/lib/readme.md", true)]
+    [InlineData(".agent-logs/report.md", true)]
+    [InlineData("README.md", false)]
+    [InlineData("docs/guide.md", false)]
+    [InlineData("docs/generated.md", false)]
+    [InlineData("src/agent-logs/report.md", false)]
+    public void FileDiscovery_IsIgnored_DefaultIgnorePatterns_MatchGitNodeModulesAndGenerated(string relative, bool expected)
+    {
+        // Arrange: a root and a path relative to it
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf(relative);
+
+        // Act: judge the file with the default ignore patterns
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, LintMarkConfig.DefaultIgnore);
+
+        // Assert: ignored exactly when expected
+        Assert.Equal(expected, ignored);
+    }
+
+    /// <summary>
+    ///     Test that a recursive wildcard in the middle of a pattern matches at any depth.
+    /// </summary>
+    /// <param name="relative">The path relative to the root.</param>
+    /// <param name="expected">Whether the path is ignored.</param>
+    [Theory]
+    [InlineData("docs/x.md", true)]
+    [InlineData("docs/a/x.md", true)]
+    [InlineData("docs/a/b/c/x.md", true)]
+    [InlineData("other/x.md", false)]
+    [InlineData("docs/a/y.md", false)]
+    public void FileDiscovery_IsIgnored_GlobStarStar_MatchesAtAnyDepth(string relative, bool expected)
+    {
+        // Arrange: a root and a path relative to it
+        using var directory = new TemporaryDirectory();
+        var file = directory.PathOf(relative);
+
+        // Act: judge the file
+        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, ["docs/**/x.md"]);
+
+        // Assert: ignored exactly when expected
+        Assert.Equal(expected, ignored);
+    }
+
+    /// <summary>
+    ///     Test that a pattern without a directory part matches a file directly under the root only.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_IsIgnored_FileDirectlyUnderRoot_PatternWithoutDirectoryMatches()
+    {
+        // Arrange: a root with a matching file directly under it, a non-matching one, and a matching one deeper
+        using var directory = new TemporaryDirectory();
+
+        // Act: judge the three files with a single-segment wildcard
+        var direct = FileDiscovery.IsIgnored(directory.PathOf("a.generated.md"), directory.FullPath, ["*.generated.md"]);
+        var other = FileDiscovery.IsIgnored(directory.PathOf("a.md"), directory.FullPath, ["*.generated.md"]);
+        var deeper = FileDiscovery.IsIgnored(directory.PathOf("docs/a.generated.md"), directory.FullPath, ["*.generated.md"]);
+
+        // Assert: only the file directly under the root matches
+        Assert.True(direct);
+        Assert.False(other);
+        Assert.False(deeper);
     }
 }

@@ -37,4 +37,20 @@ package LintMark {
     view ConfigurationView {
         expose ConfigurationSubsystem;
     }
+
+    view LintingView {
+        expose LintingSubsystem;
+    }
+
+    view FormattingView {
+        expose FormattingSubsystem;
+    }
+
+    view SafetyView {
+        expose SafetySubsystem;
+    }
+
+    view ReportingView {
+        expose ReportingSubsystem;
+    }
 }

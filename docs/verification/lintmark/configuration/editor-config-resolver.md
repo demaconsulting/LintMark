@@ -18,10 +18,10 @@ Every scenario that reads settings from the file system starts its tree with a r
 the temporary tree. Section patterns are exercised through one data-driven test whose cases are the pattern forms
 of the editor settings specification; each case is a separate test case.
 
-The behavior that is required in this phase is the tolerance of settings that cannot be used and the same results
-under concurrent use. Which line ending the settings give is not observable until files are rewritten, and neither
-is the report of settings that cannot be read. The scenarios that verify them (marked supporting below) are tests
-without a requirement; the formatting phase adds the requirements that they then verify.
+The behavior that is required is the tolerance of settings that cannot be used, the line ending that the settings
+give (with the order in which settings files and sections apply), the report of settings that cannot be read, the
+handling of paths, and the same results under concurrent use. The editor settings are shared with other tools, so
+the scenarios follow the rules of the editor settings format.
 
 #### Test Environment
 
@@ -37,10 +37,10 @@ and repeat every lookup ten times through one shared resolver.
   specified" without an error message.
 - Malformed lines are ignored and no error is reported.
 - Many threads get the sequential results.
-- Supporting: settings that cannot be read give a one-line message and no line ending, never an exception; a failed
-  lookup is made once per directory.
-- Supporting: a path that cannot be resolved, or has no containing directory, gives "not specified".
-- Supporting: `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
+- Settings that cannot be read give a one-line message and no line ending, never an exception; the same message is
+  given for every file of the directory, and a failed lookup is made once per directory.
+- A path that cannot be resolved, or has no containing directory, gives "not specified".
+- `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
   value in any letter case; the nearest file that gives a value wins, a value that cannot be used in a nearer file
   hides a farther one, a file that declares `root = true` ends the search, and a later section overrides an
   earlier one; section patterns follow the editor settings format with letter case significant on every platform;
@@ -73,13 +73,12 @@ folders are resolved ten times each from up to 16 threads through one shared res
 ending and message) equals the result of a fresh resolver used sequentially, and both line endings occur among
 the results.
 
-##### Supporting scenarios (no requirement until the formatting phase)
+##### Unreadable settings, paths, and line endings
 
 **Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
 whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
 settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
-"Cannot read .editorconfig settings: denied". Nothing is thrown. The formatting phase re-adds a requirement for the
-report of unreadable settings together with an observable system-level behavior.
+"Cannot read .editorconfig settings: denied". Nothing is thrown.
 
 **A failed settings lookup is made once per directory and reported for every file**: With a chain lookup that fails
 and counts its calls, three files of one folder get the same message from one lookup, and a file in another folder

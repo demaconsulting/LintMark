@@ -28,6 +28,10 @@ package LintMark {
         part configuration : ConfigurationSubsystem;
         part selfTest : SelfTestSubsystem;
         part utilities : UtilitiesSubsystem;
+        part linting : LintingSubsystem;
+        part formatting : FormattingSubsystem;
+        part safety : SafetySubsystem;
+        part reporting : ReportingSubsystem;
         part markdig : Markdig;
         part fileSystemGlobbing : FileSystemGlobbing;
         part yamlDotNet : YamlDotNet;

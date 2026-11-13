@@ -60,9 +60,10 @@ namespace DemaConsulting.LintMark.Document;
 ///         (guaranteed by <see cref="SourceDocument"/>); lazy continuation lines are flagged by
 ///         <see cref="GetLines"/>; paragraph lines are rebuilt from the source text by
 ///         <see cref="GetLines"/> because the parser releases them; a grid table that turns out to be
-///         invalid leaves blocks that do not nest, in which case the document is parsed again without
-///         grid tables (a deliberate fallback; a document with a valid and an invalid grid table is
-///         therefore read without grid tables).
+///         invalid leaves blocks that do not nest, in which case the offending line is located, the
+///         document is parsed again without grid tables (a deliberate fallback; a document with a valid and
+///         an invalid grid table is therefore read without grid tables) and the result is marked
+///         format-unsafe (<see cref="ParsedDocument.IsFormatUnsafe"/>) so that it is never rewritten.
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless apart from the immutable pipeline; each call works on its
@@ -90,6 +91,23 @@ internal static partial class DocumentParser
         RegexOptions.CultureInvariant,
         matchTimeoutMilliseconds: 1000)]
     private static partial Regex FootnoteMarkerSuffixRegex();
+
+    /// <summary>
+    ///     Matches a line with the shape of the opening line of a Pandoc grid table: a plus sign, then one or
+    ///     more column headers (optional colon, dashes, optional colon) each ended by a plus sign or the end of
+    ///     the line, and nothing else.
+    /// </summary>
+    /// <remarks>
+    ///     Mirrors the opening test of the grid table parser, which skips blanks around the border
+    ///     characters. The match may be preceded by block quote markers and blanks (a table inside a quote); the
+    ///     group <c>border</c> is the first border character.
+    /// </remarks>
+    /// <returns>The compiled expression.</returns>
+    [GeneratedRegex(
+        @"^[ >]*(?<border>\+)(?:[ \t]*:?-+:?[ \t]*(?:\+|$))+[ \t]*$",
+        RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    private static partial Regex GridBorderRegex();
 
     /// <summary>
     ///     The indentation that continues a footnote body (four spaces).
@@ -135,17 +153,83 @@ internal static partial class DocumentParser
         var blocks = new Flattener(source).Flatten(ast);
 
         // The grid table parser mishandles a table that turns out to be invalid; when the blocks do not
-        // nest, parse again without it (silent in Phase 1: a document with a valid and an invalid grid
-        // table is then read without grid tables)
+        // nest, locate the offending line in the damaged reading and parse again without the grid table
+        // parser. The document is then marked format-unsafe: the second reading can turn valid grid tables
+        // into paragraphs, which rendered-output comparison cannot see, so it must never be rewritten
+        GridTableFallback? fallback = null;
         if (!NestsCorrectly(blocks))
         {
+            fallback = LocateOffendingGridLine(source, blocks);
             ast = Markdown.Parse(source.Text, PipelineWithoutGridTables);
             blocks = new Flattener(source).Flatten(ast);
         }
 
         var suppressions = SuppressionMap.Build(source, blocks, ast);
         var references = ReferenceIndex.Build(source, blocks);
-        return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references);
+        return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references, fallback);
+    }
+
+    /// <summary>
+    ///     Finds the first line that looks like a grid table border but is not part of a valid grid table.
+    /// </summary>
+    /// <param name="source">The source document.</param>
+    /// <param name="blocks">The blocks of the first (damaged) reading, in source order.</param>
+    /// <returns>
+    ///     The position of the first border character of the line, or 1:1 when no line qualifies (the
+    ///     damage is then known but cannot be located).
+    /// </returns>
+    /// <remarks>
+    ///     The damaged block cannot be used for the location: the parser rebuilds an invalid table as a
+    ///     paragraph whose start is reported as the start of the document. The lines are therefore scanned for
+    ///     the shape the parser accepts as the opening line of a grid table (see <see cref="GridBorderRegex"/>),
+    ///     skipping lines that belong to valid grid tables of the first reading and lines inside code, HTML,
+    ///     math and front matter blocks, where such a line is ordinary text.
+    /// </remarks>
+    private static GridTableFallback LocateOffendingGridLine(SourceDocument source, List<BlockInfo> blocks)
+    {
+        // Mark the lines that cannot hold the offending line
+        var skipped = new bool[source.LineStarts.Count + 1];
+        foreach (var block in blocks)
+        {
+            if (block.Kind is not (BlockKind.GridTable or BlockKind.FencedCode or BlockKind.UnclosedFence
+                or BlockKind.IndentedCode or BlockKind.HtmlBlock or BlockKind.MathBlock or BlockKind.FrontMatter))
+            {
+                continue;
+            }
+
+            // A damaged reading can carry spans that do not lie inside the text; they cannot be used to skip lines
+            if (block.Start < 0 || block.EndInclusive < block.Start || block.EndInclusive >= source.Text.Length)
+            {
+                continue;
+            }
+
+            var first = source.PositionOf(block.Start).Line;
+            var last = source.PositionOf(block.EndInclusive).Line;
+            for (var line = first; line <= last; line++)
+            {
+                skipped[line] = true;
+            }
+        }
+
+        // The first remaining line that has the shape of a grid table's opening line is the one to report
+        var text = source.Text;
+        for (var line = 1; line <= source.LineStarts.Count; line++)
+        {
+            if (skipped[line])
+            {
+                continue;
+            }
+
+            var start = source.LineStarts[line - 1];
+            var end = line < source.LineStarts.Count ? source.LineStarts[line] - 1 : text.Length;
+            var match = GridBorderRegex().Match(text[start..end]);
+            if (match.Success)
+            {
+                return new GridTableFallback(line, match.Groups["border"].Index + 1);
+            }
+        }
+
+        return new GridTableFallback(1, 1);
     }
 
     /// <summary>

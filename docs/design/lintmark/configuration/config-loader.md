@@ -135,17 +135,19 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
   mean "no settings" and yield the defaults without an error.
 - A key that appears twice is reported at the later occurrence and the message names the line of the first. The
   same applies to the options inside `link-refactor`.
-- Rule names in `rules` are rule ids or legacy aliases such as `MD013`, compared ignoring case. The canonical id is
+- Rule names in `rules` are rule ids or legacy aliases such as `MD013`, compared ignoring case and resolved with
+  `RuleCatalog.TryResolveConfigurable`. The canonical id is
   stored, whatever spelling the file used, and the stored map is built from canonical ids in ordinal order, so
   reordering the entries never changes the result. Two entries that resolve to the same rule (by id and alias, or by letter
   case) are a conflict, reported at every occurrence after the first by source position, so the outcome depends
-  only on the content of the file. The alias of a dropped rule is accepted and ignored (not stored) but still
-  takes part in conflict detection. An unknown name is an error; so is the alias of a rule the formatter always
-  applies. The value must be a boolean.
+  only on the content of the file. The alias of a dropped rule (`RuleCatalog.IsDroppedAlias`) is accepted and ignored
+  (not stored) but still takes part in conflict detection. An unknown name is an error; so is the alias of a rule the
+  formatter always applies and the identifier of a rule that is registered but not configurable (such as
+  `line-ending`). The value must be a boolean.
 - `ignore` must be a list of non-blank, single-line text elements. A backslash in a pattern is converted to a
   slash, exact duplicates are removed keeping the first, and the order is preserved. A configured list replaces
-  the default list and is used as given, apart from that normalization. The setting is validated and stored but
-  not applied by the engine yet.
+  the default list and is used as given, apart from that normalization. The engine applies the patterns relative to
+  the directory of the configuration file (see *FileDiscovery Design*).
 - `definitions-marker` must be a single-line HTML comment (see *LintMarkConfig Design*).
 - Anchors, aliases, and tags (including `!!str`) are rejected, because the meaning of a setting must be readable
   where it is written. Complex (non-scalar) keys are rejected. Literal and folded scalars are accepted by the
@@ -321,8 +323,9 @@ the exit code) belongs to the engine.
 
 #### Dependencies
 
-- **LintMarkConfig**, **LinkRefactorOptions**, **RuleIdentifiers**, and the twelve setting enumerations — the
+- **LintMarkConfig**, **LinkRefactorOptions**, and the twelve setting enumerations — the
   target of validation and the vocabulary of the schema.
+- **RuleCatalog** (`Linting` subsystem) — the registry that `ConfigParser` validates rule names against.
 - **LineEnding** (`Document` subsystem) — the type behind the `end-of-line` setting.
 - **YamlDotNet** (OTS) — the event-level YAML parser; see *YamlDotNet Integration Design*.
 - **.NET BCL** — file access, strict UTF-8 decoding, and concurrent collections.

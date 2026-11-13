@@ -56,17 +56,13 @@ for a directory whose chain was already resolved.
 **Thread safety**: One library parser is created per resolver and shared; it is safe for concurrent use. The cache
 gives every concurrent caller the same chain, so results are identical to sequential use.
 
-**Scope of the requirements in this phase**: What a user can observe before files are rewritten is that editor
-settings that cannot be used (a `cr` or `unset` value, an unknown word, a missing setting, no applicable section,
-malformed lines) never produce an error. That is the behavior the resolver's requirements state. Two further groups
-of behavior take effect only with the formatter, so their tests have no requirement in this phase:
-
-- A settings file that cannot be read is reported as a message. The formatting phase adds a requirement for it
-  together with an observable system-level behavior.
-- Which line ending a given set of settings gives: the layering of files and sections, the root file, the section
-  patterns, letter case, and the per-directory cache. The formatting phase adds the system requirement that the
-  tool uses the line ending given by the editor settings, together with the requirements that decompose it for
-  this unit.
+**Use of the result**: The engine copies a specified line ending into the effective configuration of the file, and
+`DocumentFormatter` writes the file with it, so the layering of files and sections, the root file, the section
+patterns, letter case, and the per-directory cache decide which line ending a file gets. Editor settings that cannot
+be used (a `cr` or `unset` value, an unknown word, a missing setting, no applicable section, malformed lines) never
+produce an error: the line ending is then "not specified" and the majority line ending of the file decides. A
+settings file that cannot be read is reported as a message, which the engine reports as a `config-error` and which
+also prevents the file from being formatted, because the line ending it should get is not known.
 
 **Test seam**: The internal constructor takes two delegates, one that resolves the chain for a directory and one
 that evaluates a file against a chain. The public constructor binds them to one shared library parser. The seam lets
@@ -95,8 +91,9 @@ property, if present, and map it as in the table above; (5) a failure while eval
 The only error outcome is an unreadable settings file: an I/O failure, access denied, an unsupported operation, or a
 security failure while resolving the chain or evaluating the file. It is returned as
 `EditorConfigResult.ErrorMessage` with the text `Cannot read .editorconfig settings: {detail}` and the line ending
-stays unspecified. The engine reports it against the Markdown file at line 1, column 1. Malformed `.editorconfig`
-content is never an error; the library ignores bad lines and later valid sections still apply. A failed chain is
+stays unspecified. The engine reports it against the Markdown file at line 1, column 1 and does not format that
+file. Malformed `.editorconfig` content is never an error; the library ignores bad lines and later valid sections
+still apply. A failed chain is
 cached for the directory like a successful one, so the failure is reported consistently for every file there.
 
 Only argument misuse raises exceptions: `ArgumentNullException` for a null path, `ArgumentException` for an empty

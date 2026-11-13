@@ -9,6 +9,15 @@ package LintMark {
         enum crLf;
     }
 
+    attribute def LineEndingInfo {
+        doc /* Counts of the original line terminators found in a source file. */
+
+        attribute lfCount : Integer;
+        attribute crLfCount : Integer;
+        // Derived: true when both lfCount and crLfCount are above zero.
+        attribute isMixed : Boolean;
+    }
+
     part def SourceDocument {
         doc /* Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged (also documents the LineEnding and LineEndingInfo supporting types). */
 

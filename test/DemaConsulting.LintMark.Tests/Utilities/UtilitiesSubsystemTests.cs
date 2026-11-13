@@ -146,5 +146,24 @@ public class UtilitiesSubsystemTests
             }
         }
     }
+
+    /// <summary>
+    ///     Test that the utilities subsystem measures the display columns of a line that mixes scripts.
+    /// </summary>
+    [Fact]
+    public void UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns()
+    {
+        // Arrange: a line with accented, combined, East Asian and emoji characters
+        const string line = "Caf\u00E9 e\u0301 漢字 \U0001F600 ok";
+
+        // Act: measure the line and pad it to a fixed number of columns, as a table layout would
+        var width = TextWidth.Of(line);
+        var padded = line + new string(' ', 20 - width);
+
+        // Assert: the width counts display columns, not UTF-16 code units, and the padded line fills the columns exactly
+        Assert.Equal(17, width);
+        Assert.NotEqual(line.Length, width);
+        Assert.Equal(20, TextWidth.Of(padded));
+    }
 }
 

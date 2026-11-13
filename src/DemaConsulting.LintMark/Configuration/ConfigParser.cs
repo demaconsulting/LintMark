@@ -21,6 +21,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Linting;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 
@@ -772,11 +773,11 @@ internal static class ConfigParser
                 // Resolve the name; the alias of a dropped rule is accepted and ignored, anything else is unknown
                 string canonical;
                 var dropped = false;
-                if (RuleIdentifiers.TryResolve(name, out var id))
+                if (RuleCatalog.TryResolveConfigurable(name, out var id))
                 {
                     canonical = id;
                 }
-                else if (RuleIdentifiers.IsDroppedAlias(name))
+                else if (RuleCatalog.IsDroppedAlias(name))
                 {
                     canonical = name.ToUpperInvariant();
                     dropped = true;

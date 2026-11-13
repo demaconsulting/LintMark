@@ -6,6 +6,10 @@ resource-path:
   - docs/design/lintmark/configuration
   - docs/design/lintmark/document
   - docs/design/lintmark/engine
+  - docs/design/lintmark/formatting
+  - docs/design/lintmark/linting
+  - docs/design/lintmark/reporting
+  - docs/design/lintmark/safety
   - docs/design/lintmark/self-test
   - docs/design/lintmark/utilities
   - docs/design/ots
@@ -28,13 +32,30 @@ input-files:
   - docs/design/lintmark/document/document-parser.md
   - docs/design/lintmark/document/suppression-map.md
   - docs/design/lintmark/document/reference-index.md
+  - docs/design/lintmark/linting.md
+  - docs/design/lintmark/linting/diagnostic.md
+  - docs/design/lintmark/linting/rule-catalog.md
+  - docs/design/lintmark/formatting.md
+  - docs/design/lintmark/formatting/edit-set.md
+  - docs/design/lintmark/formatting/source-patcher.md
+  - docs/design/lintmark/formatting/document-formatter.md
+  - docs/design/lintmark/safety.md
+  - docs/design/lintmark/safety/equivalence-result.md
+  - docs/design/lintmark/safety/html-equivalence-checker.md
+  - docs/design/lintmark/safety/structural-token-checker.md
+  - docs/design/lintmark/safety/idempotency-checker.md
+  - docs/design/lintmark/reporting.md
+  - docs/design/lintmark/reporting/text-reporter.md
+  - docs/design/lintmark/reporting/diff-reporter.md
   - docs/design/lintmark/engine.md
   - docs/design/lintmark/engine/file-discovery.md
   - docs/design/lintmark/engine/lint-mark-engine.md
+  - docs/design/lintmark/engine/atomic-file-writer.md
   - docs/design/lintmark/self-test.md
   - docs/design/lintmark/self-test/validation.md
   - docs/design/lintmark/utilities.md
   - docs/design/lintmark/utilities/path-helpers.md
+  - docs/design/lintmark/utilities/text-width.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/editorconfig.md

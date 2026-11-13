@@ -1,0 +1,65 @@
+---
+# Software Unit Requirements for the IdempotencyChecker Class
+#
+# The IdempotencyChecker class decides whether formatting an already formatted text changes it, given the formatting
+# step as a function.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Safety Requirements
+        sections:
+          - title: IdempotencyChecker Requirements
+            requirements:
+              - id: LintMark-Safety-IdempotencyChecker-AcceptsStableFormatting
+                title: >-
+                  The IdempotencyChecker class shall treat a text as stable when the formatting step returns it
+                  unchanged.
+                justification: |
+                  A rewrite that formatting leaves alone is a fixed point, and a safe rewrite must not be
+                  refused for being stable.
+                tests:
+                  - IdempotencyChecker_Check_StableFormatter_Idempotent
+
+              - id: LintMark-Safety-IdempotencyChecker-DetectsUnstableFormatting
+                title: >-
+                  The IdempotencyChecker class shall treat a text as unstable when the formatting step changes
+                  it, whether the change flips back and forth or grows.
+                justification: |
+                  A rewrite that is not stable would modify the file again on every run, and could never pass
+                  a check.
+                tests:
+                  - IdempotencyChecker_Check_FlipFlopFormatter_NotIdempotent
+                  - IdempotencyChecker_Check_GrowingFormatter_NotIdempotent
+                  - IdempotencyChecker_Check_EmptyTextGrows_ReportsLineOne
+
+              - id: LintMark-Safety-IdempotencyChecker-FailsClosed
+                title: >-
+                  The IdempotencyChecker class shall treat a text as unstable when the formatting step throws or
+                  returns nothing.
+                justification: |
+                  A step that cannot be completed gives no evidence of stability, so the rewrite must not be
+                  allowed.
+                tests:
+                  - IdempotencyChecker_Check_DelegateThrows_NotIdempotent
+                  - IdempotencyChecker_Check_DelegateReturnsNull_NotIdempotent
+
+              - id: LintMark-Safety-IdempotencyChecker-ReportsFirstDifference
+                title: >-
+                  The IdempotencyChecker class shall name the first line at which the formatted text differs from
+                  the text that it started from, including a difference on the first or the last line.
+                justification: |
+                  The author must be able to find what the tool objected to without comparing two
+                  documents by hand.
+                tests:
+                  - IdempotencyChecker_Check_FirstDifference_ReportsLine
+                  - IdempotencyChecker_Check_DifferenceOnFirstLine_ReportsLineOne
+                  - IdempotencyChecker_Check_DifferenceAtEnd_ReportsLastLine
+
+              - id: LintMark-Safety-IdempotencyChecker-RejectsInvalidArguments
+                title: The IdempotencyChecker class shall refuse a missing text and a missing formatting step.
+                justification: |
+                  Missing arguments are programming errors that must be reported as such, not treated as a
+                  stable text.
+                tests:
+                  - IdempotencyChecker_Check_NullArguments_Throw

@@ -5,11 +5,12 @@ tool from DEMA Consulting for markdown linting and formatting.
 
 ## Purpose
 
-The purpose of this document is to describe how each requirement for the LintMark is
+The purpose of this document is to describe how the requirements for the LintMark are
 verified. For every software item — system, subsystem, and unit — this document names the
 verification approach, identifies the test scenarios (including boundary conditions and error
-paths), describes what is mocked or stubbed, and maps each requirement to at least one named
-test scenario. The document does not restate design; it explains how the design is proven correct.
+paths), and describes what is mocked or stubbed. Traceability from each requirement to its tests
+is provided by the ReqStream trace matrix, not by these documents. The document does not restate
+design; it explains how the design is proven correct.
 
 ## Scope
 
@@ -22,7 +23,7 @@ This document covers the verification design for the following software items:
   - **Cli** subsystem
     - **Context** — argument parser and I/O owner
   - **Configuration** subsystem
-    - **LintMarkConfig** — validated, immutable settings of one file, with the rule-identifier table
+    - **LintMarkConfig** — validated, immutable settings of one file
     - **ConfigLoader** — discovery, reading, and validation of `.lintmark.yaml` files
     - **EditorConfigResolver** — line ending given by the `.editorconfig` files
   - **Document** subsystem
@@ -32,11 +33,27 @@ This document covers the verification design for the following software items:
     - **ReferenceIndex** — link reference definition index
   - **Engine** subsystem
     - **FileDiscovery** — expansion of path, directory, glob, and exclusion arguments
-    - **LintMarkEngine** — parallel processing, per-file configuration, and deterministic reporting
+    - **LintMarkEngine** — parallel processing, per-file configuration, safe rewriting, and deterministic reporting
+    - **AtomicFileWriter** — all-or-nothing replacement of a file's content
+  - **Linting** subsystem
+    - **Diagnostic** — one finding with its position and rule identifier
+    - **RuleCatalog** — registry of rule identifiers, aliases, and defaults
+  - **Formatting** subsystem
+    - **EditSet** — validated, ordered collection of text edits
+    - **SourcePatcher** — application of an edit set to the source text
+    - **DocumentFormatter** — block formatter orchestration and line ending decision
+  - **Safety** subsystem
+    - **HtmlEquivalenceChecker** — comparison of the rendered HTML of two texts
+    - **StructuralTokenChecker** — comparison of structural tokens of two texts
+    - **IdempotencyChecker** — proof that formatting the formatted text changes nothing
+  - **Reporting** subsystem
+    - **TextReporter** — diagnostic output in the documented line format
+    - **DiffReporter** — unified diff output of the changes a rewrite would make
   - **SelfTest** subsystem
     - **Validation** — self-validation test runner
   - **Utilities** subsystem
     - **PathHelpers** — safe path combination utilities
+    - **TextWidth** — display width of text in terminal columns
 
 **OTS items:**
 
@@ -75,8 +92,12 @@ test/
 │   ├── Configuration/              — Configuration subsystem and unit tests
 │   ├── Document/                   — Document subsystem and unit tests, with test-support helpers
 │   ├── Engine/                     — Engine subsystem and unit tests
+│   ├── Formatting/                 — Formatting subsystem and unit tests, with test block formatters
+│   ├── Linting/                    — Linting subsystem and unit tests
+│   ├── Reporting/                  — Reporting subsystem and unit tests, with a patch applier
+│   ├── Safety/                     — Safety subsystem and unit tests
 │   ├── SelfTest/                   — SelfTest subsystem and Validation tests
-│   └── Utilities/                  — Utilities subsystem and PathHelpers tests
+│   └── Utilities/                  — Utilities subsystem, PathHelpers and TextWidth tests
 └── OtsSoftwareTests/               — integration tests for the OTS libraries
 ```
 

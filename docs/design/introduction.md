@@ -51,7 +51,12 @@ elsewhere in this document. The model captures the shipped system's runtime comp
 the local software items and the OTS libraries the shipped tool consumes (Markdig,
 FileSystemGlobbing, YamlDotNet, and EditorConfig, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS
 items listed in Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
-rather than modeled as SysML2 parts.
+rather than modeled as SysML2 parts. The system is made of the entry point `Program` and ten subsystems: `Cli`,
+`Configuration`, `Document`, `Engine`, `Formatting`, `Linting`, `Reporting`, `Safety`, `SelfTest`, and `Utilities`.
+`Linting` (findings and the rule registry), `Formatting` (edits and the document formatter), `Safety` (the checks that
+decide whether a rewrite may be written), and `Reporting` (text and diff output) are the subsystems that make rewriting
+files possible and safe; `AtomicFileWriter` is a unit of the `Engine` subsystem and `TextWidth` a unit of the
+`Utilities` subsystem.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -68,16 +73,35 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
   - **DemaConsulting.LintMark/** - main application source
     - **Cli/** - command-line interface subsystem
     - **Configuration/** - configuration subsystem
-      - `LintMarkConfig.cs`, `LinkRefactorOptions.cs`, `RuleIdentifiers.cs`, and the twelve setting enumerations
+      - `LintMarkConfig.cs`, `LinkRefactorOptions.cs`, and the twelve setting enumerations
         (`WrapMode.cs`, `HeadingStyle.cs`, `BulletMarker.cs`, `OrderedStyle.cs`, `EmphasisMarker.cs`,
         `FenceMarker.cs`, `CodeBlockStyle.cs`, `HardBreakStyle.cs`, `ThematicBreakStyle.cs`, `TableStyle.cs`,
         `BareUrlStyle.cs`, `TrailingWhitespaceStyle.cs`) - the `LintMarkConfig` unit
       - `ConfigLoader.cs`, `ConfigParser.cs`, `ConfigLoadResult.cs`, `ConfigError.cs` - the `ConfigLoader` unit
       - `EditorConfigResolver.cs`, `EditorConfigResult.cs` - the `EditorConfigResolver` unit
     - **Document/** - document loading and parsing subsystem
-    - **Engine/** - file discovery and parallel processing subsystem
+      - `ParsedDocument.cs` and `GridTableFallback.cs` - supporting types of the `DocumentParser` unit
+    - **Engine/** - file discovery, parallel processing, and writing subsystem
+      - `FileDiscovery.cs`, `DiscoveredFile.cs` - the `FileDiscovery` unit
+      - `LintMarkEngine.cs`, `FileResult.cs`, `FileChange.cs` - the `LintMarkEngine` unit
+      - `AtomicFileWriter.cs` - the `AtomicFileWriter` unit
+    - **Formatting/** - formatting subsystem (edits, patching, and the document formatter)
+      - `TextEdit.cs`, `EditSet.cs` - the `EditSet` unit
+      - `SourcePatcher.cs` - the `SourcePatcher` unit
+      - `DocumentFormatter.cs`, `IBlockFormatter.cs`, `FormatContext.cs`, `FormatResult.cs` - the `DocumentFormatter`
+        unit
+    - **Linting/** - findings and rule registry subsystem
+      - `Diagnostic.cs`, `DiagnosticKind.cs` - the `Diagnostic` unit
+      - `RuleCatalog.cs`, `RuleInfo.cs` - the `RuleCatalog` unit
+    - **Reporting/** - text and diff output subsystem
+      - `TextReporter.cs` - the `TextReporter` unit
+      - `DiffReporter.cs`, `FileDiff.cs` - the `DiffReporter` unit
+    - **Safety/** - rewrite safety checks subsystem
+      - `HtmlEquivalenceChecker.cs`, `StructuralTokenChecker.cs`, `IdempotencyChecker.cs`, `EquivalenceResult.cs` - one
+        unit each
+      - `SafetyStatus.cs` - supporting type shared by the checks and the engine
     - **SelfTest/** - self-validation subsystem
-    - **Utilities/** - shared utilities subsystem
+    - **Utilities/** - shared utilities subsystem (`PathHelpers.cs` and `TextWidth.cs`)
 - **test/** - test projects (not covered by design documents)
   - **DemaConsulting.LintMark.Tests/** - unit, subsystem, and system tests for the local items
   - **OtsSoftwareTests/** - integration tests for the OTS libraries
@@ -101,6 +125,16 @@ Local software items have corresponding artifacts in parallel directory trees:
 - Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
 - Source code: `src/{System}/.../{Item}.cs` (PascalCase for C#)
 - Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
+
+For example, the `Safety` subsystem and its `HtmlEquivalenceChecker` unit have the design documents
+`docs/design/lintmark/safety.md` and `docs/design/lintmark/safety/html-equivalence-checker.md`, the source folder
+`src/DemaConsulting.LintMark/Safety/`, and the test files `SafetySubsystemTests.cs` and
+`HtmlEquivalenceCheckerTests.cs` under `test/DemaConsulting.LintMark.Tests/Safety/`. A unit that is classified as a
+unit of one subsystem keeps the folder of that subsystem in every artifact tree: `AtomicFileWriter` is a unit of the
+`Engine` subsystem (`docs/design/lintmark/engine/atomic-file-writer.md`) and `TextWidth` is a unit of the `Utilities`
+subsystem (`docs/design/lintmark/utilities/text-width.md`). A supporting type that has no design document of its own
+is described in the document of the unit that owns it (for example `TextEdit` in the `EditSet` design, and
+`SafetyStatus` in the `Safety` subsystem design).
 
 OTS items have integration/usage design documentation parallel to system folders:
 

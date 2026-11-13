@@ -2,20 +2,20 @@
 
 #### Verification Approach
 
-`LintMarkConfig` is verified with unit tests in `LintMarkConfigTests.cs`, and its rule-identifier table
-(`RuleIdentifiers`) with unit tests in `RuleIdentifiersTests.cs`. The two supporting types that belong to the same
-unit, `LinkRefactorOptions` and the setting enumerations, are verified through the same test classes. The class is a
-value holder with no dependencies, so no mocking, test doubles, or file-system access is needed; the tests create
-configurations from the built-in default with `with` expressions and assert on the stored values, on the
-exceptions thrown for refused values, and on equality. The tests that check immutability use the shared
-`ReadOnlyAssertions` helper, which casts a collection to its mutable interfaces and proves that every attempted
-change throws `NotSupportedException`. One scenario switches the current culture to Turkish for the duration of
-the test to prove that rule names are matched without regard to culture.
+`LintMarkConfig` is verified with unit tests in `LintMarkConfigTests.cs`. The two supporting types that belong to the
+same unit, `LinkRefactorOptions` and the setting enumerations, are verified through the same test class. The table
+of rule identifiers, legacy numbers, and defaults that the configuration holds states for belongs to the rule
+catalog of the `Linting` subsystem and is verified with that unit (see the verification design of the rule catalog);
+the tests here use the real catalog through the default configuration and check only that the configuration holds
+exactly the states that the catalog defines. The class is a value holder with no dependencies, so no mocking, test
+doubles, or file-system access is needed; the tests create configurations from the built-in default with `with`
+expressions and assert on the stored values, on the exceptions thrown for refused values, and on equality. The
+tests that check immutability use the shared `ReadOnlyAssertions` helper, which casts a collection to its mutable
+interfaces and proves that every attempted change throws `NotSupportedException`.
 
 #### Test Environment
 
-N/A - standard test environment. The tests use no files; the Turkish-culture scenario restores the original
-culture when it ends.
+N/A - standard test environment. The tests use no files and no process-wide state.
 
 #### Acceptance Criteria
 
@@ -29,13 +29,12 @@ culture when it ends.
 - A value outside its range, an undefined enumeration value, a malformed ignore pattern, an incomplete or
   mistaken rule table, and a marker that is not exactly one HTML comment on one line are refused with the documented
   exception type.
-- A rule is identified by its name or legacy number in any letter case, in every culture; the legacy numbers of
-  removed rules are recognized but are not rules.
+- The rule table holds a state for exactly the configurable rules of the rule catalog, starting from the catalog's
+  defaults, and is stored with an ordinal comparer.
 - Rule states and ignore patterns cannot be changed through casts, and later changes to the array or the rule
   table they were built from do not reach the configuration.
-- Supporting: a copy made with `with` differs from the original only in the chosen setting, and equal content gives
-  equal configurations and equal hash codes. This is needed once the line ending from the editor settings is
-  applied, so it has no requirement until the formatting phase.
+- A copy made with `with` differs from the original only in the chosen setting, and equal content gives equal
+  configurations and equal hash codes.
 
 #### Test Scenarios
 
@@ -47,9 +46,10 @@ incrementing ordered lists, asterisk emphasis and strong, backtick fences, fence
 breaks, dashes for thematic breaks, compact tables, autolinked bare URLs, one blank line, and stripped trailing
 whitespace).
 
-**Default rules enable every rule except the documented three**: The default rule table holds 22 rules, and only
-the descriptive-link-text, dollar-sign-in-shell-code, and table-grid-unformatted rules are off; the line-length
-and paragraph-wrap rules are on.
+**Default rules enable every rule except the documented three**: The default rule table holds a state for each of
+the 22 rules that the rule catalog lists as configurable, and only the
+descriptive-link-text, dollar-sign-in-shell-code, and table-grid-unformatted rules are off; the line-length and
+paragraph-wrap rules are on.
 
 **Default ignore patterns are the documented ones in order**: The six patterns for `.git`, `node_modules`, `.venv`,
 `generated`, `thirdparty`, and `.agent-logs` appear in the documented order.
@@ -59,13 +59,10 @@ and paragraph-wrap rules are on.
 **Link conversion is off by default with the documented option values**: It is disabled, with threshold 60,
 conversion in tables on, link-text breaking off, label length 40, and the marker `<!-- Link References -->`.
 
-**The identifier table disables exactly the documented three rules by default**: The default table of the identifier
-class turns off only those three rules.
+**A modified copy leaves the original unchanged**: A copy with a line ending differs from the default, and the
+default still has none.
 
-**A modified copy leaves the original unchanged (supporting)**: A copy with a line ending differs from the default,
-and the default still has none.
-
-**Equal content gives equal configurations (supporting)**: Two configurations built separately with equal ignore
+**Equal content gives equal configurations**: Two configurations built separately with equal ignore
 patterns and an equal rule change are equal and have equal hash codes; changing a pattern, or changing from the
 default, makes them unequal.
 
@@ -73,21 +70,6 @@ default, makes them unequal.
 (line length, wrap mode, line ending, final newline, headings, bullet, list indent, ordered style, emphasis,
 strong, code fence, code block style, hard break, thematic break, tables, bare URLs, maximum blank lines, trailing
 whitespace, link conversion options, rule states, and ignore patterns) returns each value.
-
-**A rule name or legacy number resolves to its canonical rule name**: The name `heading-increment` resolves to
-itself, and each of the 16 documented legacy numbers (for example `MD013`) resolves to its documented rule name.
-
-**Rule names and legacy numbers are matched in any letter case**: `LINE-LENGTH`, `Line-Length`, `md013`, and `Md013`
-all resolve to the rule `line-length`.
-
-**Matching does not depend on the culture**: With the Turkish culture current, the upper-case names `LINE-LENGTH`
-and `LINK-EMPTY` still resolve to their rules.
-
-**The configurable rules are sorted, unique, and covered by the defaults**: The 22 rule names are in ordinal order,
-without duplicates, and each has a default; the default table has the same size.
-
-**Legacy numbers are unique and map to configurable rules**: Every legacy number resolves to a configurable rule, no
-rule has two numbers, no number is also a dropped number, and there are nine dropped numbers.
 
 ##### Boundary conditions
 
@@ -116,14 +98,7 @@ change to the array leaves the stored patterns as they were.
 snapshot, changes to the builder (a rule switched, a rule removed) leave the stored rule states and their count as
 they were.
 
-**Legacy numbers of removed rules are recognized but are not rules**: `MD002`, `MD006`, `MD008`, `MD025`, `MD033`,
-`MD041`, `MD043`, `MD044`, and `MD057` (and a lower-case spelling) do not resolve to a rule but are reported as
-dropped.
-
-**An unknown name is neither a rule nor dropped**: An empty name, `no-such-rule`, `MD009` (a rule that the formatter
-always applies), and `MD999` do not resolve and are not dropped.
-
-**A rule table with a case-insensitive comparer is stored with an ordinal one (supporting)**: Looking up
+**A rule table with a case-insensitive comparer is stored with an ordinal one**: Looking up
 `LINE-LENGTH` fails after the table is assigned, while `line-length` succeeds.
 
 ##### Error handling
@@ -140,8 +115,8 @@ typed settings (wrap, line ending, headings, bullet, ordered style, emphasis, st
 style, hard break, thematic break, tables, bare URLs, and trailing whitespace) throws
 `ArgumentOutOfRangeException`.
 
-**An uninitialized ignore array is refused (supporting)**: The default value of the immutable array throws
-`ArgumentException`. The refusal has no separate observable need, so the scenario has no requirement.
+**An uninitialized ignore array is refused**: The default value of the immutable array throws
+`ArgumentException`.
 
 **A malformed ignore pattern is refused**: A null, empty, blank, multi-line (LF, CRLF, a lone CR, or a next-line, line
 separator, or paragraph separator character), or backslash pattern among valid ones throws `ArgumentException`.
@@ -159,9 +134,6 @@ unopened comment, `<!-->`, `<!--->`, `<!--> -->`, `<!---> -->`, a comment follow
 markers with a line break (LF, CRLF, a lone CR, or a next-line, line separator, or paragraph separator character)
 throw `ArgumentException`, the shared marker check returns false for each, and a null marker throws
 `ArgumentNullException`, also from the shared marker check.
-
-**A null name is refused by the rule lookups (supporting)**: Resolving null, and asking whether null is dropped,
-throw `ArgumentNullException`.
 
 **The rule table cannot be changed through a cast**: Every attempted change through the mutable dictionary
 interface throws `NotSupportedException`.
