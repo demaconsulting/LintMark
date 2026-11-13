@@ -131,6 +131,81 @@ reviews:
       - "src/**/Cli/Context.cs"
       - "test/**/Cli/ContextTests.cs"
 
+  # LintMark - Configuration
+  - id: LintMark-Configuration
+    title: Review that LintMark Configuration Satisfies Subsystem Requirements
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/configuration.yaml"
+      - "docs/design/lintmark/configuration.md"
+      - "docs/verification/lintmark/configuration.md"
+      - "test/**/Configuration/ConfigurationSubsystemTests.cs"
+      - "test/**/Configuration/ConfigurationSamples.cs"
+
+  - id: LintMark-Configuration-LintMarkConfig
+    title: Review that LintMark Configuration LintMarkConfig Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/configuration.md
+      - docs/reqstream/lintmark/configuration.yaml
+    paths:
+      - "docs/reqstream/lintmark/configuration/lint-mark-config.yaml"
+      - "docs/design/lintmark/configuration/lint-mark-config.md"
+      - "docs/verification/lintmark/configuration/lint-mark-config.md"
+      - "src/**/Configuration/LintMarkConfig.cs"
+      - "src/**/Configuration/LinkRefactorOptions.cs"
+      - "src/**/Configuration/RuleIdentifiers.cs"
+      - "src/**/Configuration/WrapMode.cs"
+      - "src/**/Configuration/HeadingStyle.cs"
+      - "src/**/Configuration/BulletMarker.cs"
+      - "src/**/Configuration/OrderedStyle.cs"
+      - "src/**/Configuration/EmphasisMarker.cs"
+      - "src/**/Configuration/FenceMarker.cs"
+      - "src/**/Configuration/CodeBlockStyle.cs"
+      - "src/**/Configuration/HardBreakStyle.cs"
+      - "src/**/Configuration/ThematicBreakStyle.cs"
+      - "src/**/Configuration/TableStyle.cs"
+      - "src/**/Configuration/BareUrlStyle.cs"
+      - "src/**/Configuration/TrailingWhitespaceStyle.cs"
+      - "test/**/Configuration/LintMarkConfigTests.cs"
+      - "test/**/Configuration/RuleIdentifiersTests.cs"
+
+  - id: LintMark-Configuration-ConfigLoader
+    title: Review that LintMark Configuration ConfigLoader Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/configuration.md
+      - docs/reqstream/lintmark/configuration.yaml
+    paths:
+      - "docs/reqstream/lintmark/configuration/config-loader.yaml"
+      - "docs/design/lintmark/configuration/config-loader.md"
+      - "docs/verification/lintmark/configuration/config-loader.md"
+      - "src/**/Configuration/ConfigLoader.cs"
+      - "src/**/Configuration/ConfigParser.cs"
+      - "src/**/Configuration/ConfigLoadResult.cs"
+      - "src/**/Configuration/ConfigError.cs"
+      - "test/**/Configuration/ConfigLoaderTests.cs"
+      - "test/**/Configuration/ConfigLoaderParseTests.cs"
+
+  - id: LintMark-Configuration-EditorConfigResolver
+    title: Review that LintMark Configuration EditorConfigResolver Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/configuration.md
+      - docs/reqstream/lintmark/configuration.yaml
+    paths:
+      - "docs/reqstream/lintmark/configuration/editor-config-resolver.yaml"
+      - "docs/design/lintmark/configuration/editor-config-resolver.md"
+      - "docs/verification/lintmark/configuration/editor-config-resolver.md"
+      - "src/**/Configuration/EditorConfigResolver.cs"
+      - "src/**/Configuration/EditorConfigResult.cs"
+      - "test/**/Configuration/EditorConfigResolverTests.cs"
+
   # LintMark - Document
   - id: LintMark-Document
     title: Review that LintMark Document Satisfies Subsystem Requirements
@@ -317,6 +392,14 @@ reviews:
       - "docs/design/ots/buildmark.md"
       - "docs/verification/ots/buildmark.md"
 
+  - id: OTS-EditorConfig
+    title: Review that EditorConfig Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/editorconfig.yaml"
+      - "docs/design/ots/editorconfig.md"
+      - "docs/verification/ots/editorconfig.md"
+      - "test/OtsSoftwareTests/EditorConfigTests.cs"
+
   - id: OTS-FileAssert
     title: Review that FileAssert Provides Required Functionality
     paths:
@@ -402,3 +485,11 @@ reviews:
       - "docs/reqstream/ots/xunit.yaml"
       - "docs/design/ots/xunit.md"
       - "docs/verification/ots/xunit.md"
+
+  - id: OTS-YamlDotNet
+    title: Review that YamlDotNet Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/yamldotnet.yaml"
+      - "docs/design/ots/yamldotnet.md"
+      - "docs/verification/ots/yamldotnet.md"
+      - "test/OtsSoftwareTests/YamlDotNetTests.cs"

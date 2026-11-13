@@ -39,6 +39,7 @@ words:
   - thirdparty
   - unidirectionality
   - venv
+  - yamldotnet
   - yamlfix
 
 # Exclude common build artifacts, dependencies, and vendored third-party code

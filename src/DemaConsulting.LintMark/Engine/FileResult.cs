@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using DemaConsulting.LintMark.Configuration;
 
 namespace DemaConsulting.LintMark.Engine;
 
@@ -27,8 +28,24 @@ namespace DemaConsulting.LintMark.Engine;
 /// </summary>
 /// <param name="Path">The path of the file as it was given to the engine.</param>
 /// <param name="Failures">The failures found (empty when the file was read and parsed successfully).</param>
+/// <param name="Config">
+///     The effective configuration of the file (the configuration that applies to it, with the line ending
+///     filled in from the editor settings when the configuration gives none), or <see langword="null"/> when
+///     the file's configuration is invalid or has not been attached.
+/// </param>
 /// <remarks>
 ///     Workers return results and never write output; the engine emits them later in path order so
-///     output does not depend on scheduling. Immutable once created, including the failure list.
+///     output does not depend on scheduling. Immutable once created, including the failure and
+///     configuration-error lists and the configuration itself.
 /// </remarks>
-internal sealed record FileResult(string Path, ImmutableArray<FileFailure> Failures);
+internal sealed record FileResult(string Path, ImmutableArray<FileFailure> Failures, LintMarkConfig? Config = null)
+{
+    /// <summary>
+    ///     Gets the configuration problems that apply to the file (empty when its configuration is valid).
+    /// </summary>
+    /// <remarks>
+    ///     The same problem is shared by every file that uses the same configuration; the engine reports each
+    ///     distinct problem once.
+    /// </remarks>
+    public ImmutableArray<ConfigError> ConfigErrors { get; init; } = ImmutableArray<ConfigError>.Empty;
+}

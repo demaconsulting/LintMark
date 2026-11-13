@@ -1,0 +1,151 @@
+---
+# Software Unit Requirements for the LintMarkConfig Class
+#
+# The LintMarkConfig class (with its supporting rule-identifier table, link conversion options, and
+# setting enumerations) holds the complete, validated set of settings for one Markdown file. Deriving a copy
+# of a configuration that differs in chosen settings is only needed once the line ending from the editor
+# settings is applied, so it is verified by tests that are not linked to a requirement until the formatting
+# phase adds the matching system requirement.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: LintMarkConfig Requirements
+            requirements:
+              - id: LintMark-Configuration-LintMarkConfig-Defaults
+                title: >-
+                  The LintMarkConfig class shall provide the documented default for every setting, including the
+                  enabled state of every rule, the ignore patterns, the link conversion options, and an
+                  unspecified line ending.
+                justification: |
+                  Defaults that are provided in one place and written down can be relied on by every
+                  consumer and reviewed against the documentation.
+                tests:
+                  - LintMarkConfig_Default_Values_MatchDocumentedDefaults
+                  - LintMarkConfig_Default_Rules_MatchDocumentedRuleDefaults
+                  - LintMarkConfig_Default_Ignore_ListsDocumentedPatterns
+                  - LintMarkConfig_Default_EndOfLine_IsNotSpecified
+                  - LintMarkConfig_Default_LinkRefactor_IsDisabledWithDocumentedValues
+                  - RuleIdentifiers_Defaults_DisabledRules_AreTheDocumentedThree
+
+              - id: LintMark-Configuration-LintMarkConfig-AcceptedValues
+                title: >-
+                  The LintMarkConfig class shall accept every value within the documented range of each setting,
+                  including both ends of the range.
+                justification: |
+                  Every value that the documentation allows must be usable, including the smallest and the
+                  largest.
+                tests:
+                  - LintMarkConfig_Init_EverySetting_ReadsBackGivenValue
+                  - LintMarkConfig_LineLength_ZeroAndMax_Accepted
+                  - LintMarkConfig_MaxBlankLines_OneAndMax_Accepted
+                  - LintMarkConfig_ListIndent_TwoAndFour_Accepted
+                  - LinkRefactorOptions_ThresholdAndLabelLength_OneAndMax_Accepted
+                  - LintMarkConfig_Ignore_EmptyList_Accepted
+                  - LinkRefactorOptions_DefinitionsMarker_SingleLineHtmlComment_IsAccepted
+
+              - id: LintMark-Configuration-LintMarkConfig-RuleIdentifiers
+                title: >-
+                  The RuleIdentifiers class shall identify each configurable rule by its name or by its legacy rule
+                  number in any letter case.
+                justification: |
+                  Rules have a descriptive name and, for users coming from other tools, a legacy number.
+                tests:
+                  - RuleIdentifiers_TryResolve_KebabId_ReturnsCanonical
+                  - RuleIdentifiers_TryResolve_EveryAlias_ReturnsItsRule
+                  - RuleIdentifiers_TryResolve_AnyLetterCase_ReturnsCanonical
+                  - RuleIdentifiers_TryResolve_TurkishCulture_StillMatches
+                  - RuleIdentifiers_TryResolve_UnknownName_ReturnsFalse
+                  - RuleIdentifiers_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults
+                  - RuleIdentifiers_Aliases_AllAliases_UniqueAndMapToConfigurableRules
+
+              - id: LintMark-Configuration-LintMarkConfig-RemovedRuleNumbers
+                title: >-
+                  The RuleIdentifiers class shall recognize the legacy number of a removed rule without treating
+                  it as a rule.
+                justification: |
+                  Removed rules must stay recognizable so that an old entry is neither an error nor a rule.
+                tests:
+                  - RuleIdentifiers_TryResolve_DroppedAlias_ReturnsFalseAndIsDropped
+
+              - id: LintMark-Configuration-LintMarkConfig-RangeChecks
+                title: >-
+                  The LintMarkConfig class shall refuse a setting value that is outside its documented range.
+                justification: |
+                  A configuration object must never hold a value that a formatter could not honor, however
+                  the value arrived.
+                tests:
+                  - LintMarkConfig_LineLength_OutOfRange_ThrowsArgumentOutOfRangeException
+                  - LintMarkConfig_ListIndent_NotTwoOrFour_Throws
+                  - LintMarkConfig_MaxBlankLines_OutOfRange_Throws
+                  - LinkRefactorOptions_Constructor_ThresholdOrLabelLengthOutOfRange_ThrowsArgumentOutOfRange
+
+              - id: LintMark-Configuration-LintMarkConfig-ChoiceChecks
+                title: >-
+                  The LintMarkConfig class shall refuse a setting value that is not one of the defined choices.
+                justification: |
+                  A choice that is not defined cannot be honored by a formatter.
+                tests:
+                  - LintMarkConfig_Init_EnumSettings_UndefinedValue_ThrowsArgumentOutOfRange
+
+              - id: LintMark-Configuration-LintMarkConfig-IgnorePatternChecks
+                title: >-
+                  The LintMarkConfig class shall refuse an ignore pattern that is empty, blank, spread over several
+                  lines, or written with a backslash.
+                justification: |
+                  A pattern that cannot match anything meaningful must never be held, however it arrived.
+                tests:
+                  - LintMarkConfig_Ignore_InvalidElement_Throws
+
+              - id: LintMark-Configuration-LintMarkConfig-RuleTableChecks
+                title: >-
+                  The LintMarkConfig class shall refuse a rule table that names a rule that does not exist or
+                  leaves a configurable rule out.
+                justification: |
+                  Every consumer relies on finding the enabled state of every configurable rule, so a table that
+                  is incomplete or names unknown rules must never be held.
+                tests:
+                  - LintMarkConfig_Rules_InvalidKeyOrMissingRule_Throws
+
+              - id: LintMark-Configuration-LintMarkConfig-MarkerChecks
+                title: >-
+                  The LintMarkConfig class shall refuse a link definitions marker that is not a single HTML comment
+                  on one line.
+                justification: |
+                  The marker is written into documents on a line of its own, so only text that stays invisible,
+                  stays on one line, and is recognizable as one comment can be held.
+                tests:
+                  - LinkRefactorOptions_DefinitionsMarker_NotSingleLineHtmlComment_ThrowsException
+
+              - id: LintMark-Configuration-LintMarkConfig-LinkOptionChecks
+                title: >-
+                  The LintMarkConfig class shall refuse a configuration that has no link conversion options.
+                justification: |
+                  Every consumer reads the link conversion options, so a configuration without them must never
+                  be held.
+                tests:
+                  - LintMarkConfig_LinkRefactor_Null_Throws
+
+              - id: LintMark-Configuration-LintMarkConfig-ImmutableSettings
+                title: >-
+                  The LintMarkConfig class shall expose its rule states and ignore patterns as collections that
+                  cannot be changed by their holders.
+                justification: |
+                  One configuration is shared by many files and threads. A collection that anyone could
+                  modify would let one consumer change the behavior for all the others.
+                tests:
+                  - LintMarkConfig_Rules_CastToMutableTypes_CannotBeModified
+                  - LintMarkConfig_Ignore_CastToMutableTypes_CannotBeModified
+                  - LintMarkConfig_DefaultIgnore_Value_IsInitializedImmutableArray
+
+              - id: LintMark-Configuration-LintMarkConfig-IndependentOfSources
+                title: >-
+                  The LintMarkConfig class shall be unaffected by later changes to the collections it was built
+                  from.
+                justification: |
+                  A configuration that changed after it was handed out would make results depend on timing.
+                tests:
+                  - LintMarkConfig_Ignore_SourceArrayChangedAfterAssignment_ConfigUnchanged
+                  - LintMarkConfig_Rules_SourceDictionaryChangedAfterAssignment_ConfigUnchanged

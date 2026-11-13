@@ -22,6 +22,10 @@ N/A - standard test environment.
 - Positional arguments are collected in order as paths; dash-leading tokens that are not options, and empty
   arguments, are rejected.
 - `--validate` combined with paths or `--check` is rejected before the log file is opened.
+- `--config` exposes the file name exactly as written (the last one when repeated) and is never taken for a path;
+  a missing or blank value is rejected; `--no-config` exposes a flag; both default to "not given".
+- `--config` combined with `--no-config`, and `--validate` combined with either configuration option, are rejected;
+  `--help` and `--version` are accepted together with them.
 - The log file is opened (and so created or truncated) when the context is created, written by `WriteLine` and
   `WriteError`, and closed by disposal; a log file that cannot be opened is reported as a wrapped
   `InvalidOperationException`.
@@ -78,6 +82,22 @@ throw.
 **Validate with its own options is accepted**: `--validate` combined with `--results`, `--depth`, and `--silent`
 parses as before.
 
+**Config option exposes the file name as written**: `--config conf/lint.yaml a.md` gives `ConfigFile` equal to
+`conf/lint.yaml`, `NoConfig` false, and `Paths` holding only `a.md`, so the value is not taken for a path.
+
+**No-config flag sets no-config**: `--no-config` sets `NoConfig`, leaves `ConfigFile` null, and adds no path.
+
+**Repeated config option keeps the last value**: `--config first.yaml --config second.yaml` gives `ConfigFile` equal
+to `second.yaml`.
+
+**Config option and paths can be mixed in any order**: `a.md --config c.yaml --silent b.md` gives `ConfigFile` equal
+to `c.yaml`, `Paths` holding `a.md` and `b.md` in that order, and `Silent` set.
+
+**Help and version are accepted together with the configuration options**: `--help --config a.yaml` and
+`--no-config --version` do not throw, and the flags and the config file are all exposed.
+
+**Configuration options default to not given**: With no arguments `ConfigFile` is null and `NoConfig` is false.
+
 **Output goes to the console unless silent**: `WriteLine` and `WriteError` on a non-silent context put the
 message on standard output and standard error, respectively.
 
@@ -113,8 +133,23 @@ exactly once and intact in the log file, and no error is recorded.
 
 **Unknown argument is rejected**: `--unknown` throws `ArgumentException` that contains "Unsupported argument".
 
-**Option without a value is rejected**: `--log`, `--results`, `--result`, and `--depth` without a value each
-throw `ArgumentException`.
+**Option without a value is rejected**: `--log`, `--results`, `--result`, `--depth`, and `--config` without a value
+each throw `ArgumentException`; for `--config` the message says that a configuration filename argument is required.
+
+**Blank config value is rejected like a missing one**: `--config` followed by an empty string or by spaces throws
+`ArgumentException` with the same message.
+
+**Option after the config option is rejected**: `--config --no-config`, `--config --validate`, and `--config -v` throw
+`ArgumentException` with the same message instead of taking the option as the file name.
+
+**Config combined with no-config is rejected**: `--config a.yaml --no-config` throws `ArgumentException` whose message
+names both options.
+
+**Validate combined with the config option is rejected**: `--validate --config a.yaml` throws `ArgumentException`
+whose message names `--config`.
+
+**Validate combined with the no-config flag is rejected**: `--no-config --validate` throws `ArgumentException` whose
+message names `--no-config`.
 
 **Non-integer depth is rejected**: `--depth abc` throws `ArgumentException`.
 

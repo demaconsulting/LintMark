@@ -22,6 +22,7 @@ Local items:
 OTS items:
 
 - **BuildMark**: integration and usage design.
+- **EditorConfig**: integration and usage design.
 - **FileAssert**: integration and usage design.
 - **FileSystemGlobbing**: integration and usage design.
 - **Markdig**: integration and usage design.
@@ -34,6 +35,7 @@ OTS items:
 - **VersionMark**: integration and usage design.
 - **WeasyPrint**: integration and usage design.
 - **xUnit**: integration and usage design.
+- **YamlDotNet**: integration and usage design.
 
 The following topics are out of scope:
 
@@ -46,9 +48,9 @@ The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to
 below by SysML2Tools as part of the build pipeline. AI agents should query the SysML2 model
 directly (see the `sysml2tools-query` skill) rather than parsing this diagram or the prose
 elsewhere in this document. The model captures the shipped system's runtime composition only:
-the local software items and the OTS libraries the shipped tool consumes (Markdig and
-FileSystemGlobbing, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS items listed in
-Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
+the local software items and the OTS libraries the shipped tool consumes (Markdig,
+FileSystemGlobbing, YamlDotNet, and EditorConfig, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS
+items listed in Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
 rather than modeled as SysML2 parts.
 
 ![Software Structure](SoftwareStructureView.svg)
@@ -65,6 +67,13 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
 - **src/** - source files and projects
   - **DemaConsulting.LintMark/** - main application source
     - **Cli/** - command-line interface subsystem
+    - **Configuration/** - configuration subsystem
+      - `LintMarkConfig.cs`, `LinkRefactorOptions.cs`, `RuleIdentifiers.cs`, and the twelve setting enumerations
+        (`WrapMode.cs`, `HeadingStyle.cs`, `BulletMarker.cs`, `OrderedStyle.cs`, `EmphasisMarker.cs`,
+        `FenceMarker.cs`, `CodeBlockStyle.cs`, `HardBreakStyle.cs`, `ThematicBreakStyle.cs`, `TableStyle.cs`,
+        `BareUrlStyle.cs`, `TrailingWhitespaceStyle.cs`) - the `LintMarkConfig` unit
+      - `ConfigLoader.cs`, `ConfigParser.cs`, `ConfigLoadResult.cs`, `ConfigError.cs` - the `ConfigLoader` unit
+      - `EditorConfigResolver.cs`, `EditorConfigResult.cs` - the `EditorConfigResolver` unit
     - **Document/** - document loading and parsing subsystem
     - **Engine/** - file discovery and parallel processing subsystem
     - **SelfTest/** - self-validation subsystem

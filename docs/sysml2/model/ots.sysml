@@ -20,4 +20,24 @@ package LintMark {
             requirementFiles = ("docs/reqstream/ots/filesystemglobbing.yaml");
         }
     }
+
+    part def YamlDotNet {
+        doc /* YamlDotNet YAML parsing library (OTS): its event-level parser reads .lintmark.yaml with the position of every key and value. */
+
+        metadata info : SoftwareInfo {
+            designFiles = ("docs/design/ots/yamldotnet.md");
+            verificationFiles = ("docs/verification/ots/yamldotnet.md");
+            requirementFiles = ("docs/reqstream/ots/yamldotnet.yaml");
+        }
+    }
+
+    part def EditorConfig {
+        doc /* editorconfig library (OTS): finds and evaluates .editorconfig files so that the end_of_line setting can be read for a file. */
+
+        metadata info : SoftwareInfo {
+            designFiles = ("docs/design/ots/editorconfig.md");
+            verificationFiles = ("docs/verification/ots/editorconfig.md");
+            requirementFiles = ("docs/reqstream/ots/editorconfig.yaml");
+        }
+    }
 }

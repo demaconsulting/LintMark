@@ -301,6 +301,37 @@ public class ProgramTests
     }
 
     /// <summary>
+    ///     Test that Run with help flag lists the configuration options.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithHelpFlag_ListsConfigOptions()
+    {
+        // Arrange: capture the console output
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var context = Context.Create(["--help"]);
+
+            // Act: execute the operation being tested
+            Program.Run(context);
+
+            // Assert: both configuration options are described
+            var output = outWriter.ToString();
+            Assert.Contains("--config <file>", output);
+            Assert.Contains("--no-config", output);
+            Assert.Contains(".lintmark.yaml", output);
+            Assert.Contains(".editorconfig", output);
+            Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
     ///     Test that Run with a path argument runs the engine on that file.
     /// </summary>
     [Fact]

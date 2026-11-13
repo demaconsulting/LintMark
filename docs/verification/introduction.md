@@ -21,6 +21,10 @@ This document covers the verification design for the following software items:
   - **Program** — entry point and execution orchestrator
   - **Cli** subsystem
     - **Context** — argument parser and I/O owner
+  - **Configuration** subsystem
+    - **LintMarkConfig** — validated, immutable settings of one file, with the rule-identifier table
+    - **ConfigLoader** — discovery, reading, and validation of `.lintmark.yaml` files
+    - **EditorConfigResolver** — line ending given by the `.editorconfig` files
   - **Document** subsystem
     - **SourceDocument** — decoding, line-ending normalization, and positions
     - **DocumentParser** — fixed-pipeline parsing into corrected, source-ordered blocks
@@ -28,7 +32,7 @@ This document covers the verification design for the following software items:
     - **ReferenceIndex** — link reference definition index
   - **Engine** subsystem
     - **FileDiscovery** — expansion of path, directory, glob, and exclusion arguments
-    - **LintMarkEngine** — parallel processing and deterministic failure reporting
+    - **LintMarkEngine** — parallel processing, per-file configuration, and deterministic reporting
   - **SelfTest** subsystem
     - **Validation** — self-validation test runner
   - **Utilities** subsystem
@@ -37,6 +41,7 @@ This document covers the verification design for the following software items:
 **OTS items:**
 
 - **BuildMark** — build-notes documentation tool
+- **EditorConfig** — editor settings (`.editorconfig`) evaluation library
 - **FileAssert** — document assertion tool
 - **FileSystemGlobbing** — glob pattern matching library
 - **Markdig** — Markdown parsing library
@@ -49,6 +54,7 @@ This document covers the verification design for the following software items:
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework
+- **YamlDotNet** — YAML parsing library
 
 The following topics are out of scope:
 
@@ -66,6 +72,7 @@ The test folder structure mirrors the source subsystem breakdown:
 test/
 ├── DemaConsulting.LintMark.Tests/  — unit, subsystem, and system tests
 │   ├── Cli/                        — Cli subsystem and Context tests
+│   ├── Configuration/              — Configuration subsystem and unit tests
 │   ├── Document/                   — Document subsystem and unit tests, with test-support helpers
 │   ├── Engine/                     — Engine subsystem and unit tests
 │   ├── SelfTest/                   — SelfTest subsystem and Validation tests

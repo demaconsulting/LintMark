@@ -76,4 +76,29 @@ internal static class ReadOnlyAssertions
             Assert.Throws<NotSupportedException>(mutable.Clear);
         }
     }
+
+    /// <summary>
+    ///     Asserts that a read-only dictionary cannot be modified through a cast.
+    /// </summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <typeparam name="TValue">The value type.</typeparam>
+    /// <param name="dictionary">The dictionary under test; must contain at least one entry.</param>
+    public static void AssertCannotBeModified<TKey, TValue>(IReadOnlyDictionary<TKey, TValue> dictionary)
+        where TKey : notnull
+    {
+        Assert.NotEmpty(dictionary);
+
+        // The common mutable backing store must not be what is exposed
+        Assert.IsNotType<Dictionary<TKey, TValue>>(dictionary);
+
+        // Whatever is exposed must refuse changes made through the mutable interface
+        if (dictionary is IDictionary<TKey, TValue> mutable)
+        {
+            var first = dictionary.First();
+            Assert.Throws<NotSupportedException>(() => mutable[first.Key] = first.Value);
+            Assert.Throws<NotSupportedException>(() => mutable.Add(first.Key, first.Value));
+            Assert.Throws<NotSupportedException>(() => mutable.Remove(first.Key));
+            Assert.Throws<NotSupportedException>(mutable.Clear);
+        }
+    }
 }

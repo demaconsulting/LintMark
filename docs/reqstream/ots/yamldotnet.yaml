@@ -1,0 +1,150 @@
+---
+# YamlDotNet OTS Software Requirements
+#
+# Requirements for the YamlDotNet YAML parsing library functionality that LintMark relies on to read
+# .lintmark.yaml. The configuration loader works with the library's event-level parser only. Each
+# requirement states one capability that the loader needs.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: YamlDotNet Requirements
+        requirements:
+          - id: LintMark-OTS-YamlDotNet-Positions
+            title: >-
+              YamlDotNet shall report the 1-based line and column of every key and value that it parses, for
+              block and flow collections.
+            justification: |
+              LintMark reports each configuration problem at its exact position in the file. The tests
+              pin the position convention so that a library update that changes it is noticed.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_BlockMapping_ReportsKeysAndValuesWithOneBasedPositions
+              - YamlDotNet_Parser_FlowMapping_ReportsPositions
+
+          - id: LintMark-OTS-YamlDotNet-LineEndingPositions
+            title: >-
+              YamlDotNet shall number lines the same way for LF and CRLF input.
+            justification: |
+              Configuration files are written on many platforms, and a reported line number must match what
+              the user's editor shows whatever the line ending.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_CrlfInput_ReportsSameLinesAsLf
+
+          - id: LintMark-OTS-YamlDotNet-ScalarStyles
+            title: >-
+              YamlDotNet shall tell plain scalars from quoted scalars.
+            justification: |
+              LintMark accepts numbers and booleans only when they are written without quotes. It can only
+              do so if the library reports how each value was written.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_ScalarStyles_ReportPlainAndQuoted
+
+          - id: LintMark-OTS-YamlDotNet-EmptyValues
+            title: >-
+              YamlDotNet shall report a key with no value, a tilde, and the word null as plain scalars.
+            justification: |
+              LintMark treats a missing value as an error rather than as a default, which requires every
+              spelling of a missing value to arrive in a form that can be recognized.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_EmptyValue_IsEmptyPlainScalar
+
+          - id: LintMark-OTS-YamlDotNet-EmptyDocuments
+            title: >-
+              YamlDotNet shall report no document for empty and comment-only input.
+            justification: |
+              A configuration file with no settings must behave like having none, so LintMark must be
+              able to tell a missing document from a document with content.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_EmptyAndCommentOnlyStreams_ProduceNoDocument
+
+          - id: LintMark-OTS-YamlDotNet-DocumentMarkerOnly
+            title: >-
+              YamlDotNet shall report one document holding an empty scalar for a lone document marker.
+            justification: |
+              A file that holds only a document marker must behave like an empty file, so LintMark must be
+              able to recognize an empty document.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_DocumentMarkerOnly_ProducesEmptyScalarDocument
+
+          - id: LintMark-OTS-YamlDotNet-Features
+            title: >-
+              YamlDotNet shall report anchors, aliases, and tags, so that a caller can reject them.
+            justification: |
+              LintMark rejects these constructs, and it can only reject what the library reports.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_AnchorAliasAndTag_AreReported
+
+          - id: LintMark-OTS-YamlDotNet-Documents
+            title: >-
+              YamlDotNet shall report the start of each document of a stream, so that a caller can reject more
+              than one.
+            justification: |
+              LintMark allows one configuration per file, and it can only enforce that if the library reports
+              each document.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_MultipleDocuments_AreReported
+
+          - id: LintMark-OTS-YamlDotNet-DuplicateKeys
+            title: >-
+              YamlDotNet shall deliver every occurrence of a repeated key with its own position instead of
+              rejecting or merging them.
+            justification: |
+              LintMark detects duplicate settings itself and reports them at the later occurrence. That
+              requires every occurrence to arrive, and the tests pin that the library does not decide for
+              the caller.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_DuplicateKeys_AreNotRejected
+
+          - id: LintMark-OTS-YamlDotNet-Errors
+            title: >-
+              YamlDotNet shall fail on malformed input, including tab indentation and unclosed collections,
+              instead of returning content.
+            justification: |
+              LintMark turns every parsing failure into a positioned report, so malformed input must never
+              be mistaken for content.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_TabIndentation_ThrowsYamlException
+              - YamlDotNet_Parser_UnclosedFlowSequence_ThrowsInvalidOperationException
+
+          - id: LintMark-OTS-YamlDotNet-FailurePositions
+            title: >-
+              YamlDotNet shall give the position of a failure that it reports with its own error type.
+            justification: |
+              LintMark reports a parsing failure at the position where the content stopped making sense, so
+              the position must be available for the failures that carry one.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_MalformedInput_ThrowsYamlExceptionWithPosition
+
+          - id: LintMark-OTS-YamlDotNet-Nesting
+            title: >-
+              YamlDotNet shall parse nested collections up to the nesting limit documented in the user guide
+              without failing.
+            justification: |
+              LintMark rejects nesting beyond the documented limit before parsing, and everything it admits must
+              be parsed reliably. The test records that the depth the library handles is well above the
+              documented limit.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_DeeplyNestedFlowInput_ParsesWithoutStackExhaustion
+
+          - id: LintMark-OTS-YamlDotNet-Concurrency
+            title: >-
+              YamlDotNet shall give identical results when independent parsers parse the same input on several
+              threads at once.
+            justification: |
+              Configuration files are parsed by parallel workers. The test confirms that independent parser
+              instances do not interfere with each other.
+            tags: [ots]
+            tests:
+              - YamlDotNet_Parser_IndependentParsers_ParallelParse_IdenticalResults

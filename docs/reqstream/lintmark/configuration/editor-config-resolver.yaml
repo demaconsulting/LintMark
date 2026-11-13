@@ -1,0 +1,57 @@
+---
+# Software Unit Requirements for the EditorConfigResolver Class
+#
+# The EditorConfigResolver class determines the line ending that the .editorconfig files give for a
+# Markdown file. Only the tolerance of settings that cannot be used is observable before files are
+# rewritten, so that is the behavior required in this phase. The resolution of the line ending value
+# itself and the reporting of settings that cannot be read are verified by tests that are not linked to
+# a requirement until the formatting phase adds the matching system requirements. Requirements that
+# depend on the behavior of the editor-settings library list the matching OTS requirements as children.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: EditorConfigResolver Requirements
+            requirements:
+              - id: LintMark-Configuration-EditorConfigResolver-UnsupportedValues
+                title: >-
+                  The EditorConfigResolver class shall report the line ending as not specified, without an error,
+                  when the editor settings give `cr`, unset the value, give an unknown value, give none, or do
+                  not apply to the file.
+                justification: |
+                  Editor settings are shared with other file types and tools. Values that LintMark cannot use
+                  must not break its run.
+                tests:
+                  - EditorConfigResolver_Resolve_CrValue_NotSpecified
+                  - EditorConfigResolver_Resolve_UnsetValue_NotSpecified
+                  - EditorConfigResolver_Resolve_InvalidValue_NotSpecified
+                  - EditorConfigResolver_Resolve_NoEndOfLineSetting_NotSpecified
+                  - EditorConfigResolver_Resolve_FileOutsideAnySection_NotSpecified
+                children:
+                  - LintMark-OTS-EditorConfig-RawProperties
+
+              - id: LintMark-Configuration-EditorConfigResolver-MalformedContent
+                title: >-
+                  The EditorConfigResolver class shall ignore malformed lines in an editor settings file without
+                  reporting an error.
+                justification: |
+                  Editor settings files are maintained for other tools. Their mistakes are not LintMark's
+                  business and must not stop it.
+                tests:
+                  - EditorConfigResolver_Resolve_MalformedEditorConfig_BadLinesIgnored_LaterSectionApplies
+                children:
+                  - LintMark-OTS-EditorConfig-MalformedLines
+
+              - id: LintMark-Configuration-EditorConfigResolver-ConcurrentLookups
+                title: >-
+                  The EditorConfigResolver class shall give every thread the same result for the same Markdown
+                  file, however many threads ask at the same time.
+                justification: |
+                  Parallel workers ask for line endings at the same time, and results that depended on timing
+                  would make reports differ between runs.
+                tests:
+                  - EditorConfigResolver_Resolve_ManyThreads_ResultsEqualSequential
+                children:
+                  - LintMark-OTS-EditorConfig-Concurrency

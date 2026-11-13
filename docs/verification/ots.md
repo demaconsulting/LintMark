@@ -10,7 +10,7 @@ Each OTS item is verified by a combination of:
 - The OTS tool's own self-validation suite (where the tool supports `--validate`)
 - Pipeline output assertions performed by FileAssert on documents produced by the tool
 - Integration tests in the dedicated OTS test project `test/OtsSoftwareTests` for libraries that have no
-  self-validation mode (Markdig and FileSystemGlobbing)
+  self-validation mode (Markdig, FileSystemGlobbing, YamlDotNet, and EditorConfig)
 
 Internal OTS tool design is out of scope; only integration and usage evidence is documented.
 
@@ -19,6 +19,7 @@ Internal OTS tool design is out of scope; only integration and usage evidence is
 The following OTS items have verification evidence in this section:
 
 - BuildMark (_buildmark.md_) — build-notes documentation tool
+- EditorConfig (_editorconfig.md_) — editor settings (`.editorconfig`) evaluation library
 - FileAssert (_fileassert.md_) — document assertion tool
 - FileSystemGlobbing (_filesystemglobbing.md_) — glob pattern matching library
 - Markdig (_markdig.md_) — Markdown parsing library
@@ -31,3 +32,4 @@ The following OTS items have verification evidence in this section:
 - VersionMark (_versionmark.md_) — tool-version documentation tool
 - WeasyPrint (_weasyprint.md_) — HTML-to-PDF conversion tool
 - xUnit (_xunit.md_) — unit-testing framework
+- YamlDotNet (_yamldotnet.md_) — YAML parsing library

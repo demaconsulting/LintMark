@@ -1,0 +1,324 @@
+---
+# Configuration Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the LintMark Configuration subsystem
+# - The Configuration subsystem decides which settings apply to a Markdown file: it finds and
+#   validates the configuration file and determines the line ending given by the editor settings
+# - Subsystem requirements describe the externally visible configuration behavior, one behavior each
+# - Using the line ending from the editor settings is not observable until files are rewritten, so the
+#   formatting phase adds the matching requirements; until then only the tolerance of editor settings is
+#   required
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Configuration Requirements
+        requirements:
+          - id: LintMark-Configuration-Discovery
+            title: >-
+              The Configuration subsystem shall select, for a Markdown file, the nearest configuration file in
+              the file's own directory or a parent directory up to and including the repository root.
+            justification: |
+              A single, predictable configuration per file keeps the result of a run explainable: the user can
+              always tell which file governs a document by looking upward from it. Looking beyond the
+              repository would let settings from an unrelated project leak in.
+            children:
+              - LintMark-Configuration-ConfigLoader-NearestFile
+              - LintMark-Configuration-ConfigLoader-NonexistentPaths
+              - LintMark-Configuration-ConfigLoader-NamesakeDirectory
+              - LintMark-Configuration-ConfigLoader-RelativePaths
+              - LintMark-Configuration-ConfigLoader-PathSeparators
+              - LintMark-Configuration-ConfigLoader-RepositoryBoundary
+              - LintMark-Configuration-ConfigLoader-NoRepositoryBoundary
+            tests:
+              - ConfigurationSubsystem_Discovery_NestedConfigsAndRepositoryBoundary_ResolvesNearestWithinRepository
+
+          - id: LintMark-Configuration-NoMerging
+            title: >-
+              The Configuration subsystem shall let no configuration file other than the selected one influence
+              the settings or the problems of a Markdown file.
+            justification: |
+              Combining several files would make the effective settings depend on every file above, and a
+              file that does not govern a document must not be able to fail the run for it.
+            children:
+              - LintMark-Configuration-ConfigLoader-NoMerging
+              - LintMark-Configuration-ConfigLoader-FartherFilesIgnored
+            tests:
+              - ConfigurationSubsystem_NoMerging_InvalidFartherFileInRepository_NoInfluenceOnNearerFile
+
+          - id: LintMark-Configuration-ExplicitFile
+            title: >-
+              The Configuration subsystem shall use exactly the configuration file it is told to use, without
+              discovery.
+            justification: |
+              Users who name a configuration file expect that file and no other to govern the run.
+            children:
+              - LintMark-Configuration-ConfigLoader-ExplicitFile
+              - LintMark-Configuration-ConfigLoader-ExplicitFileOverridesDiscovery
+              - LintMark-Configuration-ConfigLoader-ExplicitRelativePath
+            tests:
+              - ConfigurationSubsystem_ExplicitFile_RelativePath_UsedInsteadOfDiscovery
+
+          - id: LintMark-Configuration-ExplicitFileProblems
+            title: >-
+              The Configuration subsystem shall report a configuration file it is told to use that is missing or
+              cannot be read as a configuration problem.
+            justification: |
+              Users expect to be told when the file they named cannot be used rather than have the tool
+              continue with different settings.
+            children:
+              - LintMark-Configuration-ConfigLoader-ExplicitFileMissing
+              - LintMark-Configuration-ConfigLoader-ExplicitFileUnreadable
+              - LintMark-Configuration-ConfigLoader-ExplicitFileProblemsUpFront
+            tests:
+              - ConfigurationSubsystem_ExplicitFile_MissingOrUnreadableFile_ReportedAtLineOne
+
+          - id: LintMark-Configuration-Defaults
+            title: >-
+              The Configuration subsystem shall use the documented default for every setting that a configuration
+              does not give, including when there is no configuration file or the file is empty.
+            justification: |
+              The tool must be usable without any configuration, and a configuration should need to state
+              only what differs from the preferred style. Defaults that are written down can be relied on
+              and reviewed.
+            children:
+              - LintMark-Configuration-LintMarkConfig-Defaults
+              - LintMark-Configuration-ConfigLoader-DefaultsWithoutFile
+              - LintMark-Configuration-ConfigLoader-DefaultsOnly
+              - LintMark-Configuration-ConfigLoader-EmptyFile
+              - LintMark-Configuration-ConfigLoader-OmittedSettings
+            tests:
+              - ConfigurationSubsystem_Defaults_NoConfigFilesAndEmptyFile_ReturnDocumentedDefaults
+
+          - id: LintMark-Configuration-Settings
+            title: >-
+              The Configuration subsystem shall accept every documented setting in a configuration file.
+            justification: |
+              The settings are the way users express their preferred style. Rules are known by two
+              names, and users migrating from other Markdown tools write the legacy rule number, so both
+              must be accepted, as must the link conversion options and the ignore patterns.
+            children:
+              - LintMark-Configuration-LintMarkConfig-AcceptedValues
+              - LintMark-Configuration-LintMarkConfig-RuleIdentifiers
+              - LintMark-Configuration-LintMarkConfig-RemovedRuleNumbers
+              - LintMark-Configuration-ConfigLoader-ChoiceSettings
+              - LintMark-Configuration-ConfigLoader-QuotedChoices
+              - LintMark-Configuration-ConfigLoader-NumericSettings
+              - LintMark-Configuration-ConfigLoader-ListIndentSetting
+              - LintMark-Configuration-ConfigLoader-BooleanSettings
+              - LintMark-Configuration-ConfigLoader-LinkRefactorSettings
+              - LintMark-Configuration-ConfigLoader-RuleToggles
+              - LintMark-Configuration-ConfigLoader-RuleAliases
+              - LintMark-Configuration-ConfigLoader-RemovedRuleNumbers
+              - LintMark-Configuration-ConfigLoader-IgnorePatterns
+              - LintMark-Configuration-ConfigLoader-IgnorePatternSlashes
+              - LintMark-Configuration-ConfigLoader-IgnorePatternDuplicates
+              - LintMark-Configuration-ConfigLoader-IgnorePatternCase
+            tests:
+              - ConfigurationSubsystem_Settings_FullSampleFile_AcceptedWithRepresentativeValuesApplied
+
+          - id: LintMark-Configuration-EquivalentLayouts
+            title: >-
+              The Configuration subsystem shall give the same settings for equivalent configuration files
+              whatever their layout.
+            justification: |
+              Configuration files are written by hand on many platforms and in many editors, and files that
+              say the same thing must mean the same thing.
+            children:
+              - LintMark-Configuration-ConfigLoader-BlockAndFlowStyle
+              - LintMark-Configuration-ConfigLoader-KeyOrder
+              - LintMark-Configuration-ConfigLoader-Utf8Marker
+              - LintMark-Configuration-ConfigLoader-LineEndings
+            tests:
+              - ConfigurationSubsystem_Layouts_EquivalentFiles_GiveEqualSettings
+
+          - id: LintMark-Configuration-InvalidSyntax
+            title: >-
+              The Configuration subsystem shall report content that is not valid YAML as a configuration
+              problem.
+            justification: |
+              A configuration that cannot be read must be reported instead of ignored, because ignoring it
+              would reformat a documentation set in a style the user did not choose.
+            children:
+              - LintMark-Configuration-ConfigLoader-InvalidSyntax
+            tests:
+              - ConfigurationSubsystem_Validation_MalformedYaml_ReportedWithPosition
+
+          - id: LintMark-Configuration-UnsupportedStructure
+            title: >-
+              The Configuration subsystem shall report a configuration file whose structure it does not support
+              as a configuration problem.
+            justification: |
+              The meaning of a setting must be readable where it is written. A list instead of named
+              settings, several configurations in one file, references to other parts of the file, and names
+              that are not plain text have no clear meaning and are not supported.
+            children:
+              - LintMark-Configuration-ConfigLoader-RootNotSettings
+              - LintMark-Configuration-ConfigLoader-MultipleDocuments
+              - LintMark-Configuration-ConfigLoader-IndirectContent
+              - LintMark-Configuration-ConfigLoader-NonTextNames
+            tests:
+              - ConfigurationSubsystem_Validation_UnsupportedStructure_ReportedWithPosition
+
+          - id: LintMark-Configuration-UnsupportedText
+            title: >-
+              The Configuration subsystem shall report a configuration file that is not valid UTF-8 text, or that
+              is saved in another encoding, as a configuration problem.
+            justification: |
+              A file read with the wrong encoding gives meaningless settings, so the user must be told to
+              repair or save it again.
+            children:
+              - LintMark-Configuration-ConfigLoader-InvalidText
+              - LintMark-Configuration-ConfigLoader-UnsupportedEncoding
+            tests:
+              - ConfigurationSubsystem_Validation_UnsupportedText_ReportedWithPosition
+
+          - id: LintMark-Configuration-UnknownSettings
+            title: >-
+              The Configuration subsystem shall report a setting, rule, or link conversion option that it does
+              not know as a configuration problem.
+            justification: |
+              A misspelled setting that is silently ignored would make a whole documentation set be
+              reformatted in a style the user did not choose.
+            children:
+              - LintMark-Configuration-ConfigLoader-UnknownSettings
+              - LintMark-Configuration-ConfigLoader-UnknownLinkOptions
+              - LintMark-Configuration-ConfigLoader-UnknownRules
+            tests:
+              - ConfigurationSubsystem_Validation_UnknownSettings_ReportedWithMessageAndPosition
+
+          - id: LintMark-Configuration-InvalidValues
+            title: >-
+              The Configuration subsystem shall reject a setting value that is not allowed and report it as a
+              configuration problem.
+            justification: |
+              An invalid value that is silently ignored or partly applied would reformat a documentation
+              set in a style the user did not choose, and a configuration must never be used in part.
+            children:
+              - LintMark-Configuration-ConfigLoader-InvalidChoices
+              - LintMark-Configuration-ConfigLoader-InvalidNumbers
+              - LintMark-Configuration-ConfigLoader-InvalidBooleans
+              - LintMark-Configuration-ConfigLoader-WrongValueShape
+              - LintMark-Configuration-ConfigLoader-InvalidMarker
+              - LintMark-Configuration-ConfigLoader-InvalidIgnorePatterns
+              - LintMark-Configuration-ConfigLoader-NullValues
+              - LintMark-Configuration-LintMarkConfig-RangeChecks
+              - LintMark-Configuration-LintMarkConfig-ChoiceChecks
+              - LintMark-Configuration-LintMarkConfig-IgnorePatternChecks
+              - LintMark-Configuration-LintMarkConfig-RuleTableChecks
+              - LintMark-Configuration-LintMarkConfig-MarkerChecks
+              - LintMark-Configuration-LintMarkConfig-LinkOptionChecks
+            tests:
+              - ConfigurationSubsystem_Validation_InvalidValue_ReportedWithMessageAndPosition
+
+          - id: LintMark-Configuration-ConflictingEntries
+            title: >-
+              The Configuration subsystem shall report a setting given more than once, or a rule named more
+              than once, as a configuration problem.
+            justification: |
+              Which of two conflicting entries would win is not obvious, and silently taking one hides
+              mistakes.
+            children:
+              - LintMark-Configuration-ConfigLoader-DuplicateSettings
+              - LintMark-Configuration-ConfigLoader-RuleConflicts
+            tests:
+              - ConfigurationSubsystem_Validation_ConflictingEntries_ReportedAtLaterEntry
+
+          - id: LintMark-Configuration-SizeLimit
+            title: >-
+              The Configuration subsystem shall report a configuration file that exceeds the size limit documented
+              in the user guide as a configuration problem.
+            justification: |
+              No valid configuration is anywhere near that size, and a damaged or unrelated file must be named
+              as a problem instead of being processed.
+            children:
+              - LintMark-Configuration-ConfigLoader-SizeLimit
+            tests:
+              - ConfigurationSubsystem_Limits_OversizedFile_ReportedAtLineOne
+
+          - id: LintMark-Configuration-NestingLimit
+            title: >-
+              The Configuration subsystem shall report a configuration file whose nesting exceeds the limit
+              documented in the user guide as a configuration problem.
+            justification: |
+              A damaged or hostile file, for example one arriving in a pull request that a build pipeline
+              checks, must be rejected promptly and must not be able to stall or bring down the run. The
+              scenario that verifies the requirement therefore also bounds the time taken.
+            children:
+              - LintMark-Configuration-ConfigLoader-NestingLimit
+            tests:
+              - ConfigurationSubsystem_Limits_DeeplyNestedFile_ReportedWithinTimeBound
+
+          - id: LintMark-Configuration-ErrorPositions
+            title: >-
+              The Configuration subsystem shall report every problem of a configuration file at its line and
+              column in that file.
+            justification: |
+              A user repairing a configuration needs to be taken to each problem, and an editor can jump to
+              the reported position.
+            children:
+              - LintMark-Configuration-ConfigLoader-ErrorPositions
+            tests:
+              - ConfigurationSubsystem_Validation_InvalidFile_ReportsEveryProblemWithPosition
+
+          - id: LintMark-Configuration-AllErrorsReported
+            title: >-
+              The Configuration subsystem shall report all problems of a configuration file in one run.
+            justification: |
+              Fixing problems one run at a time to discover the next is slow.
+            children:
+              - LintMark-Configuration-ConfigLoader-AllErrorsReported
+            tests:
+              - ConfigurationSubsystem_Validation_InvalidFile_ReportsEveryProblemWithPosition
+
+          - id: LintMark-Configuration-ErrorOrder
+            title: >-
+              The Configuration subsystem shall order the problems of a configuration file by position.
+            justification: |
+              A fixed order keeps reports comparable and easy to read.
+            children:
+              - LintMark-Configuration-ConfigLoader-ErrorOrder
+            tests:
+              - ConfigurationSubsystem_ErrorPositions_MultipleProblems_AreOrderedByPosition
+
+          - id: LintMark-Configuration-EditorConfigTolerance
+            title: >-
+              The Configuration subsystem shall give no line ending, and report no problem, for editor settings
+              that it cannot use.
+            justification: |
+              Editor settings are shared between file types and tools. Values meant for other tools must
+              never turn into errors. The line ending that the editor settings do give takes effect with the
+              formatter, which adds the matching requirements.
+            children:
+              - LintMark-Configuration-EditorConfigResolver-UnsupportedValues
+              - LintMark-Configuration-EditorConfigResolver-MalformedContent
+            tests:
+              - ConfigurationSubsystem_EditorConfig_UnsupportedValues_NotSpecifiedWithoutError
+
+          - id: LintMark-Configuration-ConcurrentUse
+            title: >-
+              The Configuration subsystem shall give the same results when configuration and editor settings are
+              looked up from many threads at once as when they are looked up one after another.
+            justification: |
+              Files are processed in parallel and every worker needs its configuration. Results that
+              depended on scheduling would make reports differ from run to run.
+            children:
+              - LintMark-Configuration-ConfigLoader-ConcurrentLoads
+              - LintMark-Configuration-EditorConfigResolver-ConcurrentLookups
+            tests:
+              - ConfigurationSubsystem_ConcurrentUse_ManyThreadsLoaderAndResolver_ResultsIdenticalToSequential
+
+          - id: LintMark-Configuration-ImmutableResults
+            title: >-
+              The Configuration subsystem shall provide configurations and problem lists whose content cannot
+              be changed after they are returned.
+            justification: |
+              One configuration is shared by every file below it and by every worker. A holder that could
+              modify it would change the settings of unrelated files.
+            children:
+              - LintMark-Configuration-LintMarkConfig-ImmutableSettings
+              - LintMark-Configuration-LintMarkConfig-IndependentOfSources
+              - LintMark-Configuration-ConfigLoader-ImmutableResults
+            tests:
+              - ConfigurationSubsystem_ImmutableResults_RulesIgnoreAndErrors_CannotBeModified

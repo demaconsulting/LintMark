@@ -10,9 +10,17 @@ executes its real logic in scenarios that exercise the `--validate` path, and th
 processes the files in the scenarios that pass paths; temporary files come from the `TemporaryDirectory` test
 helper. No mocking is applied at any level.
 
+The configuration scenarios follow the same pattern. The configuration options are passed through
+`Context.Create`, the scenarios assert that `Context` exposes them (`ConfigFile` and `NoConfig`), and `Program.Run`
+passes them on to the real engine, which loads the real configuration files that the scenario wrote to a temporary
+directory; the assertions are on the lines in the log file and on the exit code. The two scenarios that reject a
+combination of options go through `Program.Main` and assert on the captured standard error.
+
 ### Test Environment
 
-N/A - standard test environment.
+The scenarios that pass paths or configuration files use temporary directories from the `TemporaryDirectory` test
+helper. Each holds an empty `.git` directory, so configuration discovery that starts inside it never reaches a
+`.lintmark.yaml` file above the system temporary directory. Otherwise the standard test environment applies.
 
 ### Acceptance Criteria
 
@@ -25,6 +33,11 @@ N/A - standard test environment.
 - Positional paths flow from `Context.Create` to the engine; an undecodable file gives a diagnostic and
   exit code 1, and `--check` leaves files unchanged.
 - `--validate` combined with paths is rejected with exit code 1.
+- `--config` names the configuration file that governs the run and `--no-config` makes the run ignore every
+  configuration file; both flow from `Context.Create` through `Program.Run` to the engine, and a problem in the
+  named file gives a positioned `config-error` line and exit code 1.
+- `--config` combined with `--no-config`, and `--validate` combined with `--config`, are rejected with exit code 1
+  and an error on standard error that names the option.
 - Concurrent writers to one `Context` produce intact lines and exit code 1.
 
 ### Test Scenarios
@@ -64,6 +77,15 @@ log contains no diagnostic, and the exit code is 0.
 **Check flag leaves files unchanged**: `--check` and a file path are passed; `Context.Check` is true, the exit
 code is 0, and the file's bytes and last-write time are unchanged.
 
+**Config flag names the configuration file and its problems are reported**: A valid Markdown file and a configuration
+file with an unknown setting name is created; `--silent --log <log> --config <file> <path>` makes
+`Context.ConfigFile` equal the named file, and after `Program.Run` the log contains
+`custom.yaml:1:1: config-error Unknown setting` followed by the offending name, and the exit code is 1.
+
+**No-config flag ignores an invalid configuration file**: An invalid `.lintmark.yaml` sits beside a valid Markdown
+file; `--no-config` makes `Context.NoConfig` true, and after `Program.Run` the exit code is 0 and the log contains
+no `config-error`.
+
 #### Boundary conditions
 
 **Concurrent writers keep lines intact**: Many threads write lines and errors to one silent `Context` with a log
@@ -82,3 +104,9 @@ and an error on standard error that names the flag.
 
 **Validate combined with paths is rejected**: `["--validate", "docs"]` passed to `Program.Main` gives exit code 1
 and an error on standard error that names `--validate`.
+
+**Validate combined with the config option is rejected**: `["--validate", "--config", "a.yaml"]` passed to
+`Program.Main` gives exit code 1 and an error on standard error that names `--config`.
+
+**Config option combined with the no-config flag is rejected**: `["--config", "a.yaml", "--no-config"]` passed to
+`Program.Main` gives exit code 1 and an error on standard error that names `--no-config`.

@@ -3,6 +3,7 @@ resource-path:
   - docs/design
   - docs/design/lintmark
   - docs/design/lintmark/cli
+  - docs/design/lintmark/configuration
   - docs/design/lintmark/document
   - docs/design/lintmark/engine
   - docs/design/lintmark/self-test
@@ -18,6 +19,10 @@ input-files:
   - docs/design/lintmark/program.md
   - docs/design/lintmark/cli.md
   - docs/design/lintmark/cli/context.md
+  - docs/design/lintmark/configuration.md
+  - docs/design/lintmark/configuration/lint-mark-config.md
+  - docs/design/lintmark/configuration/config-loader.md
+  - docs/design/lintmark/configuration/editor-config-resolver.md
   - docs/design/lintmark/document.md
   - docs/design/lintmark/document/source-document.md
   - docs/design/lintmark/document/document-parser.md
@@ -32,6 +37,7 @@ input-files:
   - docs/design/lintmark/utilities/path-helpers.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
+  - docs/design/ots/editorconfig.md
   - docs/design/ots/fileassert.md
   - docs/design/ots/filesystemglobbing.md
   - docs/design/ots/markdig.md
@@ -44,6 +50,7 @@ input-files:
   - docs/design/ots/versionmark.md
   - docs/design/ots/weasyprint.md
   - docs/design/ots/xunit.md
+  - docs/design/ots/yamldotnet.md
 template: template.html
 table-of-contents: true
 number-sections: true

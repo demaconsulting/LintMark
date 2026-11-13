@@ -86,6 +86,21 @@ internal sealed class Context : IDisposable
     public IReadOnlyList<string> Paths { get; private init; } = ImmutableArray<string>.Empty;
 
     /// <summary>
+    ///     Gets the path of the configuration file given with <c>--config</c>, as written on the command line,
+    ///     or <see langword="null"/> when none was given.
+    /// </summary>
+    /// <remarks>
+    ///     A relative path is relative to the current directory. When present, configuration discovery is not used.
+    /// </remarks>
+    public string? ConfigFile { get; private init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <c>--no-config</c> was specified: both <c>.lintmark.yaml</c> and
+    ///     <c>.editorconfig</c> are ignored and the built-in defaults apply.
+    /// </summary>
+    public bool NoConfig { get; private init; }
+
+    /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
     public string? ResultsFile { get; private init; }
@@ -122,7 +137,9 @@ internal sealed class Context : IDisposable
     /// <param name="args">Command-line arguments.</param>
     /// <returns>A new Context instance.</returns>
     /// <exception cref="ArgumentException">
-    ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths or <c>--check</c>.
+    ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths, <c>--check</c>,
+    ///     <c>--config</c> or <c>--no-config</c>, when <c>--config</c> is combined with <c>--no-config</c>, or when
+    ///     <c>--config</c> has no (or a blank) filename.
     /// </exception>
     /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
     public static Context Create(string[] args)
@@ -134,9 +151,15 @@ internal sealed class Context : IDisposable
         parser.ParseArguments(args);
 
         // Self-validation is a separate mode: lint arguments would be silently ignored, so reject them
-        if (parser.Validate && (parser.Check || parser.Paths.Count > 0))
+        if (parser.Validate && (parser.Check || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig))
         {
-            throw new ArgumentException("--validate cannot be combined with paths or --check", nameof(args));
+            throw new ArgumentException("--validate cannot be combined with paths, --check, --config, or --no-config", nameof(args));
+        }
+
+        // A named configuration file and "no configuration" contradict each other
+        if (parser.ConfigFile != null && parser.NoConfig)
+        {
+            throw new ArgumentException("--config cannot be combined with --no-config", nameof(args));
         }
 
         var result = new Context
@@ -147,6 +170,8 @@ internal sealed class Context : IDisposable
             Validate = parser.Validate,
             Check = parser.Check,
             Paths = parser.Paths.ToImmutableArray(),
+            ConfigFile = parser.ConfigFile,
+            NoConfig = parser.NoConfig,
             ResultsFile = parser.ResultsFile,
             HeadingDepth = parser.HeadingDepth
         };
@@ -222,6 +247,16 @@ internal sealed class Context : IDisposable
         public List<string> Paths { get; } = [];
 
         /// <summary>
+        ///     Gets the configuration file path given with <c>--config</c>.
+        /// </summary>
+        public string? ConfigFile { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the no-config flag was specified.
+        /// </summary>
+        public bool NoConfig { get; private set; }
+
+        /// <summary>
         ///     Gets the log file path.
         /// </summary>
         public string? LogFile { get; private set; }
@@ -285,6 +320,19 @@ internal sealed class Context : IDisposable
 
                 case "--check":
                     Check = true;
+                    return index;
+
+                case "--config":
+                    ConfigFile = GetRequiredStringArgument(arg, args, index, "a configuration filename argument");
+                    if (string.IsNullOrWhiteSpace(ConfigFile) || ConfigFile.StartsWith('-'))
+                    {
+                        throw new ArgumentException($"{arg} requires a configuration filename argument", nameof(args));
+                    }
+
+                    return index + 1;
+
+                case "--no-config":
+                    NoConfig = true;
                     return index;
 
                 case "--log":

@@ -21,6 +21,7 @@
 using System.Globalization;
 using System.Text;
 using DemaConsulting.LintMark.Cli;
+using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 
@@ -39,13 +40,24 @@ public class LintMarkEngineTests
     /// <param name="engine">The engine to run.</param>
     /// <param name="arguments">Command-line arguments (paths and options).</param>
     /// <returns>The exit code and the reported lines.</returns>
-    internal static (int ExitCode, string[] Lines) Execute(TemporaryDirectory directory, LintMarkEngine engine, params string[] arguments)
+    internal static (int ExitCode, string[] Lines) Execute(TemporaryDirectory directory, LintMarkEngine engine, params string[] arguments) =>
+        ExecuteIn(directory, ".", engine, arguments);
+
+    /// <summary>
+    ///     Runs an engine with a folder of a temporary directory as the current directory and captures its report.
+    /// </summary>
+    /// <param name="directory">The temporary directory that holds the working folder and the log.</param>
+    /// <param name="workingDirectory">Path of the working folder relative to <paramref name="directory"/>.</param>
+    /// <param name="engine">The engine to run.</param>
+    /// <param name="arguments">Command-line arguments (paths and options).</param>
+    /// <returns>The exit code and the reported lines.</returns>
+    internal static (int ExitCode, string[] Lines) ExecuteIn(TemporaryDirectory directory, string workingDirectory, LintMarkEngine engine, params string[] arguments)
     {
         var originalDirectory = Directory.GetCurrentDirectory();
         try
         {
-            Directory.SetCurrentDirectory(directory.FullPath);
             var log = directory.PathOf("report.log");
+            Directory.SetCurrentDirectory(directory.PathOf(workingDirectory));
             int exitCode;
             using (var context = Context.Create(["--silent", "--log", log, .. arguments]))
             {
@@ -572,5 +584,549 @@ public class LintMarkEngineTests
         // Assert: the result is unaffected and a caller cannot change it
         Assert.Equal("rule-a", failures[0].RuleId);
         ReadOnlyAssertions.AssertCannotBeModified(failures);
+    }
+
+    /// <summary>
+    ///     Writes an <c>.editorconfig</c> that stops the search and gives every Markdown file a line ending.
+    /// </summary>
+    /// <param name="directory">The directory to write into.</param>
+    /// <param name="value">The value of <c>end_of_line</c>.</param>
+    private static void WriteEditorConfig(TemporaryDirectory directory, string value) =>
+        directory.WriteFile(".editorconfig", $"root = true\n\n[*.md]\nend_of_line = {value}\n");
+
+    /// <summary>
+    ///     Test that processing without a loader attaches the default configuration to every file.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_Files_AttachDefaultConfig()
+    {
+        // Arrange: two files, and a configuration file that must not be read by this overload
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 50\n");
+        var files = new[] { directory.WriteFile("a.md"), directory.WriteFile("b.md") };
+
+        // Act: process them
+        var results = new LintMarkEngine(1).Process(files);
+
+        // Assert: every result carries the defaults and no configuration problem
+        Assert.All(results, r => Assert.Equal(LintMarkConfig.Default, r.Config));
+        Assert.All(results, r => Assert.Empty(r.ConfigErrors));
+    }
+
+    /// <summary>
+    ///     Test that each file gets the settings of its own nearest configuration.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_DiscoveredConfigs_EachFileGetsItsNearestConfig()
+    {
+        // Arrange: a root configuration, a nested configuration and a folder without its own
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 100\n");
+        directory.WriteFile("nested/.lintmark.yaml", "line-length: 80\n");
+        var root = directory.WriteFile("a.md");
+        var nested = directory.WriteFile("nested/deeper/b.md");
+        var plain = directory.WriteFile("plain/c.md");
+
+        // Act: process them with discovery
+        var results = new LintMarkEngine(4).Process([root, nested, plain], ConfigLoader.ForDiscovery(), null);
+
+        // Assert: each result carries the settings of its nearest file
+        Assert.Equal(100, results.Single(r => r.Path == root).Config!.LineLength);
+        Assert.Equal(80, results.Single(r => r.Path == nested).Config!.LineLength);
+        Assert.Equal(100, results.Single(r => r.Path == plain).Config!.LineLength);
+    }
+
+    /// <summary>
+    ///     Test that the line ending of the configuration wins over the editor settings.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ConfigEndOfLine_WinsOverEditorConfig()
+    {
+        // Arrange: a configuration that chooses lf and editor settings that choose crlf
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        WriteEditorConfig(directory, "crlf");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with both sources
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
+
+        // Assert: the configuration's line ending is used
+        Assert.Equal(LineEnding.Lf, result.Config!.EndOfLine);
+    }
+
+    /// <summary>
+    ///     Test that the editor settings are not consulted when the configuration gives a line ending.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ConfigEndOfLine_EditorConfigNotConsulted()
+    {
+        // Arrange: a configuration that chooses crlf and a resolver that fails when consulted
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        var file = directory.WriteFile("a.md");
+        var resolver = new EditorConfigResolver(_ => throw new IOException("consulted"), (_, _) => throw new InvalidOperationException());
+
+        // Act: process with both sources
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), resolver));
+
+        // Assert: the configuration's line ending is used and the failing resolver was never asked
+        Assert.Equal(LineEnding.CrLf, result.Config!.EndOfLine);
+        Assert.Empty(result.ConfigErrors);
+    }
+
+    /// <summary>
+    ///     Test that the editor settings supply the line ending when the configuration gives none.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ConfigSilent_FallsBackToEditorConfig()
+    {
+        // Arrange: a configuration without a line ending and editor settings that choose crlf
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 90\n");
+        WriteEditorConfig(directory, "crlf");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with both sources
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
+
+        // Assert: the editor settings' line ending is used and the rest of the configuration is kept
+        Assert.Equal(LineEnding.CrLf, result.Config!.EndOfLine);
+        Assert.Equal(90, result.Config.LineLength);
+    }
+
+    /// <summary>
+    ///     Test that a line ending specified nowhere stays unspecified.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_NeitherSpecifiesEndOfLine_StaysNull()
+    {
+        // Arrange: editor settings that say nothing about line endings
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".editorconfig", "root = true\n\n[*]\nindent_style = space\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with both sources
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
+
+        // Assert: still unspecified, and no problem
+        Assert.Null(result.Config!.EndOfLine);
+        Assert.Empty(result.ConfigErrors);
+    }
+
+    /// <summary>
+    ///     Test that an unsupported editor value leaves the line ending unspecified.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_EditorConfigCr_EndOfLineStaysNull()
+    {
+        // Arrange: editor settings that choose cr
+        using var directory = new TemporaryDirectory();
+        WriteEditorConfig(directory, "cr");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with both sources
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
+
+        // Assert: unspecified, with no problem
+        Assert.Null(result.Config!.EndOfLine);
+        Assert.Empty(result.ConfigErrors);
+    }
+
+    /// <summary>
+    ///     Test that without an editor-settings resolver the editor settings are not read.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_NoEditorConfigResolver_EndOfLineStaysNull()
+    {
+        // Arrange: editor settings that choose crlf
+        using var directory = new TemporaryDirectory();
+        WriteEditorConfig(directory, "crlf");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process without a resolver
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), null));
+
+        // Assert: the editor settings had no effect
+        Assert.Null(result.Config!.EndOfLine);
+    }
+
+    /// <summary>
+    ///     Test that an explicit configuration still consults the editor settings.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ExplicitConfig_StillConsultsEditorConfig()
+    {
+        // Arrange: an explicit configuration without a line ending and editor settings that choose crlf
+        using var directory = new TemporaryDirectory();
+        var config = directory.WriteFile("custom.yaml", "line-length: 70\n");
+        WriteEditorConfig(directory, "crlf");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with the explicit file
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForFile(config), new EditorConfigResolver()));
+
+        // Assert: the editor settings' line ending is used
+        Assert.Equal(LineEnding.CrLf, result.Config!.EndOfLine);
+        Assert.Equal(70, result.Config.LineLength);
+    }
+
+    /// <summary>
+    ///     Test that an explicit configuration is used instead of a discovered one.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ExplicitConfig_UsedInsteadOfDiscoveredConfig()
+    {
+        // Arrange: an invalid discoverable configuration and a valid explicit one
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var config = directory.WriteFile("custom.yaml", "line-length: 77\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process with the explicit file
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForFile(config), null));
+
+        // Assert: the explicit file's settings are used and the discoverable file's problem is not reported
+        Assert.Equal(77, result.Config!.LineLength);
+        Assert.Empty(result.ConfigErrors);
+    }
+
+    /// <summary>
+    ///     Test that a file with an invalid configuration is still read and parsed.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_InvalidConfig_FileStillParsedAndConfigNull()
+    {
+        // Arrange: an invalid configuration and a file that cannot be decoded
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var bad = directory.WriteBytes("bad.md", [0xFF]);
+        var good = directory.WriteFile("good.md");
+
+        // Act: process both
+        var results = new LintMarkEngine(2).Process([bad, good], ConfigLoader.ForDiscovery(), new EditorConfigResolver());
+
+        // Assert: no configuration, the configuration problem on both files, and the decoding failure still found
+        Assert.All(results, r => Assert.Null(r.Config));
+        Assert.All(results, r => Assert.Single(r.ConfigErrors));
+        Assert.Equal("file-encoding-error", Assert.Single(results.Single(r => r.Path == bad).Failures).RuleId);
+        Assert.Empty(results.Single(r => r.Path == good).Failures);
+    }
+
+    /// <summary>
+    ///     Test that editor settings that cannot be read add a problem at the Markdown file and keep the configuration.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_EditorConfigUnreadable_AddsConfigErrorAtMarkdownFileAndKeepsConfig()
+    {
+        // Arrange: a resolver whose settings cannot be read
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("a.md");
+        var resolver = new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException());
+
+        // Act: process with it
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDefaults(), resolver));
+
+        // Assert: one problem at the start of the Markdown file; the configuration is kept with an unspecified line ending
+        var error = Assert.Single(result.ConfigErrors);
+        Assert.Equal((file, 1, 1, "Cannot read .editorconfig settings: disk failure"), (error.Path, error.Line, error.Column, error.Message));
+        Assert.NotNull(result.Config);
+        Assert.Null(result.Config.EndOfLine);
+    }
+
+    /// <summary>
+    ///     Test that parallel processing with configurations gives the same results as sequential processing.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ParallelWithConfigs_EqualsSequential()
+    {
+        // Arrange: many files below several configurations, one of them invalid, and editor settings
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 100\n");
+        directory.WriteFile("a/.lintmark.yaml", "end-of-line: lf\n");
+        directory.WriteFile("b/.lintmark.yaml", "bogus: 1\n");
+        WriteEditorConfig(directory, "crlf");
+        var files = Enumerable.Range(0, 60).Select(i => directory.WriteFile($"{(char)('a' + (i % 4))}/f{i:D2}.md")).ToArray();
+
+        // Act: process sequentially and in parallel
+        var sequential = new LintMarkEngine(1).Process(files, ConfigLoader.ForDiscovery(), new EditorConfigResolver());
+        var parallel = new LintMarkEngine(8).Process(files, ConfigLoader.ForDiscovery(), new EditorConfigResolver());
+
+        // Assert: identical results in identical order
+        Assert.Equal(Describe(sequential), Describe(parallel));
+        return;
+
+        static List<string> Describe(IReadOnlyList<FileResult> results) =>
+            [.. results.Select(r => $"{r.Path}|{r.Config?.LineLength}|{r.Config?.EndOfLine}|{string.Join(";", r.ConfigErrors.Select(e => e.Message))}")];
+    }
+
+    /// <summary>
+    ///     Test that the configuration problems of a result cannot be modified through a cast.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_ConfigErrors_CastToMutableTypes_CannotBeModified()
+    {
+        // Arrange: a file with an invalid configuration
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        var file = directory.WriteFile("a.md");
+
+        // Act: process it
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), null));
+
+        // Assert: a caller cannot change the list
+        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<ConfigError>)result.ConfigErrors);
+    }
+
+    /// <summary>
+    ///     Test that a null loader is rejected.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_NullLoader_Throws()
+    {
+        // Act & Assert: the loader is validated
+        Assert.Throws<ArgumentNullException>(() => new LintMarkEngine(1).Process([], null!, null));
+    }
+
+    /// <summary>
+    ///     Test that an invalid configuration is reported as a positioned configuration error and gives exit code one.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_InvalidConfig_ReportsErrorLineAndExitsOne()
+    {
+        // Arrange: a valid file beside an invalid configuration
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: abc\n");
+        directory.WriteFile("a.md");
+
+        // Act: run
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2));
+
+        // Assert: one line in path:line:col: rule-id message form
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            [".lintmark.yaml:1:14: config-error Invalid value 'abc' for setting 'line-length'; expected a whole number without quotes from 0 to 100000"],
+            lines);
+    }
+
+    /// <summary>
+    ///     Test that a configuration problem shared by many files is reported once.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ConfigErrorSharedByManyFiles_ReportedOnce()
+    {
+        // Arrange: one invalid configuration used by files in many folders
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        foreach (var i in Enumerable.Range(0, 12))
+        {
+            directory.WriteFile($"d{i % 3}/f{i}.md");
+        }
+
+        // Act: run in parallel
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(8));
+
+        // Assert: reported once
+        Assert.Equal(1, exitCode);
+        Assert.Equal([".lintmark.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
+    }
+
+    /// <summary>
+    ///     Test that configuration problems and file failures are merged in path then position order.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ConfigErrorsAndFileFailures_MergedInPathThenPositionOrder()
+    {
+        // Arrange: a root configuration with two problems, a nested configuration with one, and failing files
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "wrap: nope\nbogus: 1\n");
+        directory.WriteFile("docs/.lintmark.yaml", "tables: grid\n");
+        directory.WriteBytes("a.md", [0xFF]);
+        directory.WriteBytes("docs/x.md", [0xFF]);
+
+        // Act: run
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(4));
+
+        // Assert: ordinal path order, so the dotted file names come first, then position within a file
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            [
+                ".lintmark.yaml:1:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence, semantic",
+                ".lintmark.yaml:2:1: config-error Unknown setting 'bogus'",
+                "a.md:1:1: file-encoding-error Invalid UTF-8 byte sequence",
+                "docs/.lintmark.yaml:1:9: config-error Invalid value 'grid' for setting 'tables'; expected one of: compact, aligned",
+                "docs/x.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"
+            ],
+            lines);
+    }
+
+    /// <summary>
+    ///     Test that an invalid configuration does not hide a read failure of a Markdown file.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_InvalidConfig_StillReportsFileReadFailures()
+    {
+        // Arrange: an invalid configuration and a missing file named explicitly
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+
+        // Act: run with the missing file
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "missing.md");
+
+        // Assert: both problems are reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            [".lintmark.yaml:1:1: config-error Unknown setting 'bogus'", "missing.md:1:1: file-read-error File not found"],
+            lines);
+    }
+
+    /// <summary>
+    ///     Test that a missing explicit configuration is reported even when no Markdown file is selected.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ExplicitConfigMissing_ReportsErrorEvenWithNoFiles()
+    {
+        // Arrange: an empty directory
+        using var directory = new TemporaryDirectory();
+
+        // Act: run with a configuration file that does not exist
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--config", "missing.yaml");
+
+        // Assert: reported at 1:1
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["missing.yaml:1:1: config-error Configuration file not found"], lines);
+    }
+
+    /// <summary>
+    ///     Test that an explicit relative configuration is reported with a display path relative to the current directory.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ExplicitConfigRelative_ReportedWithRelativeDisplayPath()
+    {
+        // Arrange: an invalid configuration in a sub folder, and a Markdown file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("conf/custom.yaml", "bogus: 1\n");
+        directory.WriteFile("a.md");
+
+        // Act: run with the file named with backslashes
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--config", "conf\\custom.yaml");
+
+        // Assert: reported once, with forward slashes
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["conf/custom.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
+    }
+
+    /// <summary>
+    ///     Test that a configuration outside the current directory is reported with a parent-relative path.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ConfigOutsideCurrentDirectory_ReportedWithParentRelativePath()
+    {
+        // Arrange: the current directory is a sub folder, the invalid configuration sits beside it
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("other.yaml", "bogus: 1\n");
+        directory.WriteFile("sub/a.md");
+
+        // Act: run inside the sub folder with a configuration in the parent
+        var (exitCode, lines) = ExecuteIn(directory, "sub", new LintMarkEngine(2), "--config", "../other.yaml");
+
+        // Assert: reported relative to the current directory
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["../other.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
+    }
+
+    /// <summary>
+    ///     Test that unreadable editor settings are reported at the Markdown file with exit code one.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_EditorConfigUnreadable_ReportsConfigErrorAtMarkdownFile()
+    {
+        // Arrange: a Markdown file and a resolver whose settings cannot be read
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a.md");
+        var engine = new LintMarkEngine(
+            1,
+            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException()));
+
+        // Act: run
+        var (exitCode, lines) = Execute(directory, engine);
+
+        // Assert: reported against the Markdown file at 1:1
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: disk failure"], lines);
+    }
+
+    /// <summary>
+    ///     Test that no-config ignores both an invalid configuration and the editor settings.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_NoConfig_InvalidConfigAndUnreadableEditorConfig_ReportsNothing()
+    {
+        // Arrange: an invalid configuration, and a resolver that would fail if it were consulted
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
+        directory.WriteFile("a.md");
+        var engine = new LintMarkEngine(
+            1,
+            editorConfigFactory: () => throw new InvalidOperationException("The editor settings must not be consulted"));
+
+        // Act: run with --no-config
+        var (exitCode, lines) = Execute(directory, engine, "--no-config");
+
+        // Assert: silent success
+        Assert.Equal(0, exitCode);
+        Assert.Empty(lines);
+    }
+
+    /// <summary>
+    ///     Test that an explicit configuration still consults the editor settings during a run.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ExplicitConfig_StillConsultsEditorConfig()
+    {
+        // Arrange: a valid explicit configuration and a resolver that fails when consulted
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("custom.yaml", "line-length: 90\n");
+        directory.WriteFile("a.md");
+        var engine = new LintMarkEngine(
+            1,
+            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("consulted"), (_, _) => throw new InvalidOperationException()));
+
+        // Act: run with --config
+        var (exitCode, lines) = Execute(directory, engine, "--config", "custom.yaml");
+
+        // Assert: the editor settings were consulted, which is visible through the failure they report
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: consulted"], lines);
+    }
+
+    /// <summary>
+    ///     Test that parallel and sequential runs produce identical output when configurations have problems.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ConfigErrors_ParallelAndSequentialProduceIdenticalOutput()
+    {
+        // Arrange: invalid configurations in several folders and many files below them
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "wrap: nope\n");
+        directory.WriteFile("b/.lintmark.yaml", "bogus: 1\n");
+        directory.WriteFile("c/.lintmark.yaml", "line-length: 0\nrules:\n  MD013: false\n  line-length: true\n");
+        foreach (var i in Enumerable.Range(0, 40))
+        {
+            directory.WriteFile($"{(char)('a' + (i % 4))}/f{i:D2}.md");
+        }
+
+        directory.WriteBytes("a/bad.md", [0xFF]);
+
+        // Act: run sequentially and in parallel
+        var sequential = Execute(directory, new LintMarkEngine(1));
+        var parallel = Execute(directory, new LintMarkEngine(16));
+
+        // Assert: identical output and exit code, with each problem reported once
+        Assert.Equal(1, sequential.ExitCode);
+        Assert.Equal(sequential.ExitCode, parallel.ExitCode);
+        Assert.Equal(sequential.Lines, parallel.Lines);
+        Assert.Equal(sequential.Lines.Length, sequential.Lines.Distinct().Count());
+        Assert.Equal(4, sequential.Lines.Length);
     }
 }

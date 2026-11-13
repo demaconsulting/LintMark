@@ -1,0 +1,45 @@
+---
+# EditorConfig OTS Software Requirements
+#
+# Requirements for the editorconfig library functionality that LintMark relies on to read the end_of_line
+# setting of .editorconfig files. Only the capabilities behind the behaviors that are required before files
+# are rewritten are listed. The library's section matching, layering, and chain evaluation are pinned by
+# tests that are not linked to a requirement until the formatting phase requires the line ending to be used.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: EditorConfig Requirements
+        requirements:
+          - id: LintMark-OTS-EditorConfig-RawProperties
+            title: >-
+              EditorConfig shall expose the raw text of the end_of_line property, including the value unset.
+            justification: |
+              The library's typed line-ending value does not honor unset or unknown values and still reports
+              a value from a farther file, so LintMark interprets the raw text of end_of_line itself. The
+              tests pin both the raw behavior LintMark uses and the typed behavior it avoids.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_UnsetValue_RawPropertyIsUnset
+
+          - id: LintMark-OTS-EditorConfig-MalformedLines
+            title: >-
+              EditorConfig shall ignore malformed lines in a settings file without failing.
+            justification: |
+              Editor settings files are shared with other tools, and mistakes in them must not stop LintMark.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_MalformedLines_AreIgnored
+
+          - id: LintMark-OTS-EditorConfig-Concurrency
+            title: >-
+              EditorConfig shall give identical results when one parser instance, one parser instance per
+              thread, or one resolved chain of settings files evaluates files on several threads at once.
+            justification: |
+              Line endings are resolved by parallel workers through one shared parser that evaluates files
+              against shared, cached chains of settings files. The tests confirm that sharing is safe.
+            tags: [ots]
+            tests:
+              - EditorConfig_Parser_SharedParser_ParallelParse_IdenticalResults
+              - EditorConfig_Parser_SharedResolvedChain_ParallelParse_IdenticalResults
+              - EditorConfig_Parser_ParserPerThread_ParallelParse_IdenticalResults

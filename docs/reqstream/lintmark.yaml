@@ -36,6 +36,7 @@ sections:
         tests:
           - LintMark_HelpFlag_Provided_OutputsUsageInformation
           - LintMark_HelpFlag_Provided_ListsPathsAndCheckOption
+          - LintMark_HelpFlag_Provided_ListsConfigOptions
 
       - id: LintMark-System-Validate
         title: The tool shall execute self-validation tests when the validate flag is provided.
@@ -267,18 +268,294 @@ sections:
           - LintMark-Engine-DeterministicOrder
           - LintMark-Cli-ThreadSafeOutput
           - LintMark-Document-ConcurrentParse
+          - LintMark-Configuration-ConcurrentUse
+          - LintMark-Configuration-ImmutableResults
+          - LintMark-Engine-ConfigurationIndependence
         tests:
           - LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder
+          - LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder
 
       - id: LintMark-System-ValidateExclusive
-        title: The tool shall reject the validate option combined with paths or the check option with an error.
+        title: >-
+          The tool shall reject the validate option combined with paths, the check option, the config option, or
+          the no-config option with an error.
         tags: [system]
         justification: |
-          Self-validation is a separate mode of operation. Silently ignoring file arguments while
-          reporting a successful validation could give users the false impression that their files
-          were checked.
+          Self-validation is a separate mode of operation. Silently ignoring file or configuration
+          arguments while reporting a successful validation could give users the false impression that
+          their files were checked.
         children:
           - LintMark-Cli-ValidateExclusive
         tests:
           - LintMark_ValidateWithPaths_Combined_ReturnsError
           - LintMark_ValidateWithCheck_Combined_ReturnsError
+          - LintMark_ValidateWithConfig_Combined_ReturnsError
+          - LintMark_ValidateWithNoConfig_Combined_ReturnsError
+
+      - id: LintMark-System-ConfigDiscovery
+        title: >-
+          The tool shall process each Markdown file with the nearest `.lintmark.yaml` in the file's directory or
+          a parent directory up to and including the repository root, without combining it with any other
+          configuration file.
+        tags: [system]
+        justification: |
+          Users keep a configuration with the documents it governs. Looking upward from each document, and
+          never beyond the repository, makes it easy to tell which file governs a document and keeps
+          settings of unrelated projects out. Different folders of one repository can then have their
+          own settings.
+        children:
+          - LintMark-Configuration-Discovery
+          - LintMark-Configuration-NoMerging
+          - LintMark-Engine-EffectiveConfiguration
+        tests:
+          - LintMark_ConfigDiscovery_NearestConfigInvalid_ReportsItsErrors
+          - LintMark_ConfigDiscovery_FartherConfigInvalidNearestValid_ReturnsSuccess
+          - LintMark_ConfigDiscovery_ConfigAboveRepositoryRoot_IsNotUsed
+
+      - id: LintMark-System-ConfigOption
+        title: >-
+          The tool shall process every selected file with the configuration file named by the config option,
+          instead of discovering one.
+        tags: [system]
+        justification: |
+          Teams that share one configuration between several projects, and users who run the tool outside
+          a repository, need to name the file to use.
+        children:
+          - LintMark-Cli-ConfigOption
+          - LintMark-Configuration-ExplicitFile
+          - LintMark-Engine-ExplicitConfiguration
+        tests:
+          - LintMark_ConfigOption_FileProvided_UsesItInsteadOfDiscovery
+
+      - id: LintMark-System-ConfigOptionProblems
+        title: >-
+          The tool shall report a problem with the configuration file named by the config option as a
+          configuration problem, also when no Markdown file is selected.
+        tags: [system]
+        justification: |
+          A configuration file that was named but cannot be used must be reported instead of replaced by
+          other settings, whether or not the selection of files happens to contain any.
+        children:
+          - LintMark-Configuration-ExplicitFileProblems
+          - LintMark-Engine-ExplicitConfigurationProblems
+        tests:
+          - LintMark_ConfigOption_MissingFile_ReportsErrorAndReturnsError
+          - LintMark_ConfigOption_MissingFileNoMarkdownFiles_ReportsErrorAndReturnsError
+
+      - id: LintMark-System-NoConfigOption
+        title: >-
+          The tool shall ignore both `.lintmark.yaml` and `.editorconfig` files and use the built-in defaults
+          when the no-config option is provided.
+        tags: [system]
+        justification: |
+          Running the tool exactly as shipped is the way to rule configuration out as the cause of a
+          surprise, and the way to get a result that does not depend on the machine.
+        children:
+          - LintMark-Cli-NoConfigOption
+          - LintMark-Engine-NoConfig
+        tests:
+          - LintMark_NoConfigOption_InvalidConfigPresent_IgnoresIt
+
+      - id: LintMark-System-ConfigExclusive
+        title: The tool shall reject the config option combined with the no-config option with an error.
+        tags: [system]
+        justification: |
+          Naming a configuration file and asking for none contradict each other. Silently choosing one
+          would hide the contradiction.
+        children:
+          - LintMark-Cli-ConfigExclusive
+        tests:
+          - LintMark_ConfigAndNoConfig_Combined_ReturnsError
+
+      - id: LintMark-System-ConfigDefaults
+        title: >-
+          The tool shall use the documented default for every setting that is not configured, including when
+          there is no configuration file or the file is empty.
+        tags: [system]
+        justification: |
+          The tool must work without any configuration, and a configuration should state only what differs
+          from the preferred style.
+        children:
+          - LintMark-Configuration-Defaults
+        tests:
+          - LintMark_ConfigDefaults_NoConfigFile_ReturnsSuccess
+          - LintMark_ConfigDefaults_EmptyConfigFile_ReturnsSuccess
+          - LintMark_ConfigDefaults_PartialConfigFile_ReturnsSuccess
+
+      - id: LintMark-System-ConfigSettings
+        title: >-
+          The tool shall accept a `.lintmark.yaml` file that uses any documented setting.
+        tags: [system]
+        justification: |
+          The configuration file is how users express their preferred style and which checks they want:
+          the formatting and linting settings, rules switched on or off by name or legacy rule number,
+          link conversion, and ignore patterns. Users who come from other Markdown tools write the rule
+          numbers they know, and equivalent files must mean the same however they are laid out.
+        children:
+          - LintMark-Configuration-Settings
+          - LintMark-Configuration-EquivalentLayouts
+        tests:
+          - LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess
+
+      - id: LintMark-System-ConfigInvalidSyntax
+        title: >-
+          The tool shall report a configuration file that cannot be read as a set of settings, because its
+          syntax, structure, or text encoding is not supported, as a configuration problem.
+        tags: [system]
+        justification: |
+          A configuration that is silently ignored would reformat a documentation set in a style the user
+          did not choose. Failing loudly protects the user's files.
+        children:
+          - LintMark-Configuration-InvalidSyntax
+          - LintMark-Configuration-UnsupportedStructure
+          - LintMark-Configuration-UnsupportedText
+        tests:
+          - LintMark_ConfigValidation_MalformedYaml_ReportsErrorAndReturnsError
+          - LintMark_ConfigValidation_TwoDocuments_ReportsErrorAndReturnsError
+          - LintMark_ConfigValidation_Utf16File_ReportsErrorAndReturnsError
+
+      - id: LintMark-System-ConfigUnknownSettings
+        title: >-
+          The tool shall report a setting, rule, or link conversion option that it does not know as a
+          configuration problem.
+        tags: [system]
+        justification: |
+          A misspelled setting that is silently ignored would reformat a documentation set in a style the
+          user did not choose. Failing loudly protects the user's files.
+        children:
+          - LintMark-Configuration-UnknownSettings
+        tests:
+          - LintMark_ConfigValidation_UnknownKey_ReportsErrorAndReturnsError
+
+      - id: LintMark-System-ConfigInvalidValues
+        title: >-
+          The tool shall reject a setting value that is not allowed and report it as a configuration problem.
+        tags: [system]
+        justification: |
+          An invalid value that is ignored or partially applied would reformat a documentation set in a
+          style the user did not choose. Failing loudly protects the user's files.
+        children:
+          - LintMark-Configuration-InvalidValues
+        tests:
+          - LintMark_ConfigValidation_InvalidValue_ReportsErrorAndReturnsError
+
+      - id: LintMark-System-ConfigConflictingEntries
+        title: >-
+          The tool shall report a setting given more than once, or a rule named more than once, as a
+          configuration problem.
+        tags: [system]
+        justification: |
+          Which of two conflicting entries would win is not obvious, and silently taking one would hide a
+          mistake in the user's configuration.
+        children:
+          - LintMark-Configuration-ConflictingEntries
+        tests:
+          - LintMark_ConfigValidation_DuplicateSetting_ReportsErrorAndReturnsError
+
+      - id: LintMark-System-ConfigInputLimits
+        title: >-
+          The tool shall report a configuration file that exceeds the size or nesting limits documented in the
+          user guide as a configuration problem.
+        tags: [system]
+        justification: |
+          A damaged or hostile configuration file, for example one arriving in a pull request that a build
+          pipeline checks, must be rejected promptly and must not be able to stall or bring down the run.
+        children:
+          - LintMark-Configuration-SizeLimit
+          - LintMark-Configuration-NestingLimit
+        tests:
+          - LintMark_ConfigLimits_OversizedFile_ReportsErrorAndReturnsError
+          - LintMark_ConfigLimits_DeeplyNestedFile_ReportsErrorWithinTimeBound
+
+      - id: LintMark-System-ConfigErrorFormat
+        title: >-
+          The tool shall report each configuration problem on its own line as `path:line:col: config-error
+          message`, with the position inside the configuration file.
+        tags: [system]
+        justification: |
+          Users and build pipelines need to be told precisely what is wrong with a configuration and where,
+          in the same regular format as every other problem, without having to fix problems one run at a
+          time.
+        children:
+          - LintMark-Engine-ConfigErrorFormat
+          - LintMark-Configuration-ErrorPositions
+          - LintMark-Configuration-AllErrorsReported
+        tests:
+          - LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage
+
+      - id: LintMark-System-ConfigErrorPathDisplay
+        title: >-
+          The tool shall show the path of a configuration problem relative to the current directory with
+          forward slashes, also when the file lies outside the current directory.
+        tags: [system]
+        justification: |
+          The user must be able to open the named file from where the tool was run, whatever the platform
+          separator.
+        children:
+          - LintMark-Engine-ConfigErrorPathDisplay
+        tests:
+          - LintMark_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithRelativeForwardSlashPath
+
+      - id: LintMark-System-ConfigErrorOnce
+        title: >-
+          The tool shall report a configuration problem once, however many Markdown files use that
+          configuration.
+        tags: [system]
+        justification: |
+          One broken configuration used by hundreds of files would otherwise bury the report.
+        children:
+          - LintMark-Engine-ConfigErrorOnce
+        tests:
+          - LintMark_ConfigErrors_SharedByManyFiles_ReportedOnce
+
+      - id: LintMark-System-ConfigErrorOrder
+        title: >-
+          The tool shall order configuration problems together with file failures by path and then by
+          position.
+        tags: [system]
+        justification: |
+          Reproducible output is required for comparing runs and for stable build logs.
+        children:
+          - LintMark-Engine-ConfigErrorOrder
+          - LintMark-Configuration-ErrorOrder
+        tests:
+          - LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder
+
+      - id: LintMark-System-ConfigErrorIsolation
+        title: >-
+          The tool shall still read and check every selected Markdown file when a configuration problem is
+          reported.
+        tags: [system]
+        justification: |
+          A configuration problem must not hide the state of the documents, so that one run shows every
+          problem there is to fix.
+        children:
+          - LintMark-Engine-ConfigErrorIsolation
+        tests:
+          - LintMark_ConfigErrors_InvalidConfig_StillReportsFileFailures
+
+      - id: LintMark-System-ConfigErrorExitStatus
+        title: The tool shall exit with a non-zero status when a configuration problem was reported.
+        tags: [system]
+        justification: |
+          Build pipelines and scripts act on the exit status without reading the output, and a run with an
+          invalid configuration did not do what the user asked.
+        children:
+          - LintMark-Engine-ConfigErrorExitStatus
+        tests:
+          - LintMark_ConfigErrors_Reported_ReturnsError
+
+      - id: LintMark-System-EditorConfigTolerance
+        title: >-
+          The tool shall not report an error for `.editorconfig` settings that it cannot use.
+        tags: [system]
+        justification: |
+          Projects keep editor settings for other file types and tools in the same files. Settings meant for
+          them, such as an unsupported or unset line ending, malformed lines, or unrelated properties, must
+          never break a run. The line ending that the editor settings do give takes effect once files are
+          rewritten, so the requirement to use it is added with the formatter, which is the first time it
+          can be observed at system level.
+        children:
+          - LintMark-Configuration-EditorConfigTolerance
+        tests:
+          - LintMark_EditorConfig_UnsupportedOrUnusedSettings_Provided_ReturnsSuccess

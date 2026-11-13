@@ -25,9 +25,12 @@ package LintMark {
         part cli : CliSubsystem;
         part document : DocumentSubsystem;
         part engine : EngineSubsystem;
+        part configuration : ConfigurationSubsystem;
         part selfTest : SelfTestSubsystem;
         part utilities : UtilitiesSubsystem;
         part markdig : Markdig;
         part fileSystemGlobbing : FileSystemGlobbing;
+        part yamlDotNet : YamlDotNet;
+        part editorConfig : EditorConfig;
     }
 }

@@ -127,6 +127,7 @@ sections:
                   - LintMarkEngine_Process_InputOrder_DoesNotAffectResultOrder
                   - LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted
                   - LintMarkEngine_Process_ParallelVersusSequential_ProduceIdenticalResults
+                  - LintMarkEngine_Run_ConfigErrors_ParallelAndSequentialProduceIdenticalOutput
 
               - id: LintMark-Engine-LintMarkEngine-ImmutableResults
                 title: >-
@@ -137,3 +138,124 @@ sections:
                   anyone could modify would make the report depend on who touched it.
                 tests:
                   - FileResult_Failures_CastToMutableTypes_CannotBeModified
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigPerFile
+                title: >-
+                  The LintMarkEngine class shall give each file the settings of the configuration that applies to
+                  it, with the built-in defaults when none applies.
+                justification: |
+                  Files in different folders can have different configurations, and a file for which no
+                  configuration exists must still be processed.
+                tests:
+                  - LintMarkEngine_Process_Files_AttachDefaultConfig
+                  - LintMarkEngine_Process_DiscoveredConfigs_EachFileGetsItsNearestConfig
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigIndependentOfScheduling
+                title: >-
+                  The LintMarkEngine class shall give each file the same settings regardless of the other files,
+                  the order of processing, and the number of files processed at once.
+                justification: |
+                  The settings of one file must never leak into another, and scheduling must never be visible
+                  in the result.
+                tests:
+                  - LintMarkEngine_Process_ParallelWithConfigs_EqualsSequential
+
+              - id: LintMark-Engine-LintMarkEngine-ImmutableConfigResults
+                title: >-
+                  The LintMarkEngine class shall return file results whose configuration problem lists cannot be
+                  changed by their holders.
+                justification: |
+                  The same problems are shared by every file that uses a configuration, and a list that
+                  anyone could modify would make the report depend on who touched it.
+                tests:
+                  - LintMarkEngine_Process_ConfigErrors_CastToMutableTypes_CannotBeModified
+
+              - id: LintMark-Engine-LintMarkEngine-ExplicitConfig
+                title: >-
+                  The LintMarkEngine class shall give every file the settings of the configuration file named on
+                  the command line instead of a discovered configuration.
+                justification: |
+                  Naming a configuration file is a deliberate choice that overrides discovery.
+                tests:
+                  - LintMarkEngine_Process_ExplicitConfig_UsedInsteadOfDiscoveredConfig
+
+              - id: LintMark-Engine-LintMarkEngine-ExplicitConfigProblems
+                title: >-
+                  The LintMarkEngine class shall report the problems of the configuration file named on the
+                  command line even when no Markdown file is selected.
+                justification: |
+                  A configuration that cannot be used is a problem whether or not the selection happens to
+                  contain files.
+                tests:
+                  - LintMarkEngine_Run_ExplicitConfigMissing_ReportsErrorEvenWithNoFiles
+
+              - id: LintMark-Engine-LintMarkEngine-NoConfig
+                title: >-
+                  The LintMarkEngine class shall give every file the default configuration, unaffected by any
+                  configuration file or editor settings however invalid or unreadable, when the no-config option
+                  is given.
+                justification: |
+                  The option exists to run the tool exactly as shipped. Any configuration source that
+                  influenced the result, or made it fail, would defeat that purpose.
+                tests:
+                  - LintMarkEngine_Run_NoConfig_InvalidConfigAndUnreadableEditorConfig_ReportsNothing
+                  - LintMarkEngine_Process_NoEditorConfigResolver_EndOfLineStaysNull
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorFormat
+                title: >-
+                  The LintMarkEngine class shall write each configuration problem on its own line as
+                  `path:line:col: config-error message` through the error output of the Context.
+                justification: |
+                  Configuration problems share the regular line format of all other problems, so that editors
+                  and build systems can read them.
+                tests:
+                  - LintMarkEngine_Run_InvalidConfig_ReportsErrorLineAndExitsOne
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorPathDisplay
+                title: >-
+                  The LintMarkEngine class shall show the path of a configuration problem relative to the
+                  current directory with forward slashes, also when the file lies outside the current directory.
+                justification: |
+                  The user must be able to open the named file from where the tool was run, whatever the
+                  platform separator.
+                tests:
+                  - LintMarkEngine_Run_ExplicitConfigRelative_ReportedWithRelativeDisplayPath
+                  - LintMarkEngine_Run_ConfigOutsideCurrentDirectory_ReportedWithParentRelativePath
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorOnce
+                title: >-
+                  The LintMarkEngine class shall report a configuration problem once, however many files use the
+                  configuration that has it.
+                justification: |
+                  One broken configuration used by hundreds of files would otherwise bury the report.
+                tests:
+                  - LintMarkEngine_Run_ConfigErrorSharedByManyFiles_ReportedOnce
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorOrder
+                title: >-
+                  The LintMarkEngine class shall order configuration problems together with file failures by
+                  path and then by position.
+                justification: |
+                  Reproducible output is required for comparing runs and for stable build logs.
+                tests:
+                  - LintMarkEngine_Run_ConfigErrorsAndFileFailures_MergedInPathThenPositionOrder
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorIsolation
+                title: >-
+                  The LintMarkEngine class shall read and check a file whose configuration is invalid, so that its
+                  own read and decoding failures are still reported.
+                justification: |
+                  A configuration problem must not hide the state of the files themselves.
+                tests:
+                  - LintMarkEngine_Process_InvalidConfig_FileStillParsedAndConfigNull
+                  - LintMarkEngine_Run_InvalidConfig_StillReportsFileReadFailures
+
+              - id: LintMark-Engine-LintMarkEngine-ConfigErrorExitStatus
+                title: >-
+                  The LintMarkEngine class shall make the exit status non-zero when at least one configuration
+                  problem was reported.
+                justification: |
+                  Scripts and build pipelines act on the exit status alone.
+                tests:
+                  - LintMarkEngine_Run_InvalidConfig_ReportsErrorLineAndExitsOne
+                  - LintMarkEngine_Run_ExplicitConfigMissing_ReportsErrorEvenWithNoFiles

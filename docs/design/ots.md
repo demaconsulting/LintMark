@@ -6,7 +6,8 @@ items used by the LintMark.
 ## Scope
 
 OTS items are third-party tools and libraries consumed by the project: build and documentation
-tooling used by the pipeline, and runtime libraries (Markdig and FileSystemGlobbing) that are part of
+tooling used by the pipeline, and runtime libraries (Markdig, FileSystemGlobbing, YamlDotNet, and EditorConfig)
+that are part of
 the shipped tool. This document covers the integration pattern and usage design for each item. The
 internal design of OTS items is out of scope; only how this project integrates and uses each item is
 documented.
@@ -16,6 +17,7 @@ documented.
 The following OTS items have integration design documentation:
 
 - BuildMark (_buildmark.md_) — build-notes documentation tool
+- EditorConfig (_editorconfig.md_) — editor settings (`.editorconfig`) library (runtime)
 - FileAssert (_fileassert.md_) — document assertion tool
 - FileSystemGlobbing (_filesystemglobbing.md_) — glob pattern matching library (runtime)
 - Markdig (_markdig.md_) — Markdown parsing library (runtime)
@@ -28,6 +30,7 @@ The following OTS items have integration design documentation:
 - VersionMark (_versionmark.md_) — tool-version documentation tool
 - WeasyPrint (_weasyprint.md_) — HTML-to-PDF conversion tool
 - xUnit (_xunit.md_) — unit-testing framework
+- YamlDotNet (_yamldotnet.md_) — YAML parsing library (runtime)
 
 ## References
 

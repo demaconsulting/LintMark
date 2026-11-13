@@ -12,10 +12,21 @@ files that must or must not be read: a reported failure proves that a file was r
 was not. No mocking is used. The tests change the current directory and are therefore run sequentially with the
 other tests that touch process-wide state.
 
+The configuration scenarios use the real `ConfigLoader`, `LintMarkConfig`, and `EditorConfigResolver` that the
+engine creates itself (so the real editorconfig library too), and drive them through the same helper: the
+`--config` and `--no-config` options are passed as command-line arguments to the `Context`, and the configuration
+problems that the engine writes are asserted as lines, together with the file failures. The line ending that a file
+ends up with is not visible in the report, so the supporting scenario about it calls the engine's `Process` method
+with a real loader and a real resolver and asserts on the configuration attached to each result; no requirement
+asserts it until the formatting phase makes the line ending observable.
+
 ### Test Environment
 
 Temporary directories are created and removed by each test. The directory trees avoid names that differ
-only by case, so the tests behave the same on case-insensitive and case-sensitive file systems.
+only by case, so the tests behave the same on case-insensitive and case-sensitive file systems. Each temporary
+directory holds an empty `.git` directory, so configuration discovery that starts inside it never reaches a
+`.lintmark.yaml` or `.editorconfig` file above the system temporary directory, and every editor-settings file that a
+scenario writes declares `root = true`.
 
 ### Acceptance Criteria
 
@@ -27,6 +38,19 @@ only by case, so the tests behave the same on case-insensitive and case-sensitiv
 - Failures are reported in the documented format, in path order, with exit code 1.
 - One worker and eight workers produce identical output and exit code.
 - A file selected by several arguments is reported once, and exclusions keep files from being read.
+- Each file is processed with the nearest configuration file of its own folder, and an invalid configuration is
+  reported once, as `path:line:col: config-error message`, however many files use it, with exit code 1; the files
+  are still read.
+- `--config` makes one named file govern every file and its problems are reported once, also when no file is
+  selected; `--no-config` reads no configuration file and no editor settings, so invalid ones are never reported.
+- Editor-settings values that cannot be used are never an error.
+- Configuration problems and file failures are merged in path order and, within a file, in position order.
+- A configuration file outside the current directory is reported with a forward-slash path relative to the current
+  directory, starting with `../`.
+- A file is processed with the same configuration, and gives the same configuration problems and exit code, for one
+  worker and for eight workers.
+- Supporting: the line ending of a file comes from its configuration, else from the editor settings, else stays
+  unspecified.
 
 ### Test Scenarios
 
@@ -50,7 +74,53 @@ under `generated` is never read and the exit code is 0.
 `node_modules/pkg` that is named on the command line is read, and its failure is reported with its relative
 path and the exit code is 1.
 
+**Each folder is processed with its nearest configuration and a broken one is reported once**: A valid root
+configuration, an invalid configuration in `bad` (`wrap: nope`), and ten files below each of `good` and
+`bad/deeper` are processed; the exit code is 1 and the only output is one line,
+`bad/.lintmark.yaml:1:7: config-error Invalid value 'nope' for setting 'wrap'; expected one of: fill, sentence,
+semantic`, in the documented failure format.
+
+**A named configuration file governs every file and is reported once**: A valid discoverable file, an invalid
+`custom.yaml`, and nine Markdown files in three folders are processed with `--config custom.yaml`; the exit code
+is 1 and the only output is `custom.yaml:1:1: config-error Unknown setting` followed by the offending name, so the
+discoverable file is not involved and the problem is not repeated for every file.
+
+**A configuration outside the current directory is reported with a parent-relative path**: With a sub folder as the
+current directory, an invalid `other.yaml` in its parent named as `../other.yaml` with `--config`, and a Markdown file
+in the sub folder, the exit code is 1 and the only output is `../other.yaml:1:1: config-error Unknown setting` followed
+by the offending name, in the documented failure format.
+
+**The no-config option reads no configuration and no editor settings**: An invalid `.lintmark.yaml` and an
+`.editorconfig` with a malformed line and an unknown `end_of_line` value are present; with `--no-config` the
+exit code is 0 and nothing is written, and the same run without the option exits with 1 and writes one line.
+
+**Sequential and parallel runs give identical configuration reports (configuration independent of scheduling)**: Six
+folders hold twelve files each, three of
+them with an invalid configuration that has two problems, and one failing file; with one worker and with eight
+workers the seven lines are identical, in ordinal path order, with the same exit code 1.
+
+**Configuration problems and file failures are merged in path and position order**: A root configuration with two
+problems (`wrap: nope` and an unknown setting), a nested configuration in `docs` with one problem, and two
+undecodable files (`a.md` and `docs/x.md`) are run with four workers; the exit code is 1 and the five lines come out
+in ordinal path order (the dotted `.lintmark.yaml` first, then `a.md`, then `docs/.lintmark.yaml`, then
+`docs/x.md`) and, within a file, in position order, with the messages of the configuration and file problems.
+
+**Editor settings that cannot be used are not an error**: An `.editorconfig` that gives `cr`, `unset`, an unknown
+word, an unrelated setting, and has malformed lines is present for five files; the exit code is 0 and nothing is
+written.
+
+**The line ending of each file comes from its configuration, else the editor settings, else stays unspecified
+(supporting)**: Editor
+settings give `crlf` to Markdown files and `cr` to `notes`, and one folder's configuration chooses `lf`. Processing a
+file of that folder, a file of a folder without configuration, and a file in `notes` with a real loader and a real
+resolver gives `lf` (the configuration wins), `crlf` (the editor settings fill in), and no line ending (the
+unsupported `cr` leaves it unspecified).
+
 #### Boundary conditions
+
+**A problem with the named configuration is reported when no Markdown file is selected**: A directory that holds
+only a non-Markdown file is processed with `--config missing.yaml`; the exit code is 1 and the only output is
+`missing.yaml:1:1: config-error Configuration file not found`.
 
 **A third-party folder named as an argument selects nothing**: The folders `node_modules` and `.git`, each with an
 undecodable file, are named as arguments, and so is the glob `node_modules/**/*.md`; nothing is read, nothing is

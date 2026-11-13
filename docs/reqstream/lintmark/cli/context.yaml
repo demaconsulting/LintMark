@@ -136,14 +136,67 @@ sections:
                   - Context_Create_CheckFlag_SetsCheckTrue
 
               - id: LintMark-Cli-Context-ValidateExclusive
-                title: The Context class shall reject `--validate` combined with positional paths or `--check`.
+                title: >-
+                  The Context class shall reject `--validate` combined with positional paths, `--check`,
+                  `--config`, or `--no-config`.
                 justification: |
-                  Self-validation does not process files, so such a combination is a usage error that
-                  must be reported instead of silently discarding part of the command line.
+                  Self-validation does not process files or configuration, so such a combination is a usage
+                  error that must be reported instead of silently discarding part of the command line.
                 tests:
                   - Context_Create_ValidateWithPaths_ThrowsArgumentException
                   - Context_Create_ValidateWithCheck_ThrowsArgumentException
+                  - Context_Create_ValidateWithConfig_ThrowsArgumentException
+                  - Context_Create_ValidateWithNoConfig_ThrowsArgumentException
                   - Context_Create_ValidateWithItsOwnOptions_DoesNotThrow
+
+              - id: LintMark-Cli-Context-ConfigFile
+                title: >-
+                  The Context class shall expose the file named with `--config` as written on the command line.
+                justification: |
+                  The configuration file is chosen by the user, and the rest of the tool needs the name exactly
+                  as given.
+                tests:
+                  - Context_Create_ConfigFlag_SetsConfigFile
+                  - Context_Create_ConfigAndPaths_ParsesBoth
+                  - Context_Create_NoArguments_ConfigFileNullAndNoConfigFalse
+                  - Context_Create_ConfigWithHelpOrVersion_DoesNotThrow
+
+              - id: LintMark-Cli-Context-ConfigFileRepeated
+                title: >-
+                  The Context class shall keep the last file named when the `--config` option is repeated.
+                justification: |
+                  A later option overriding an earlier one is the usual command-line rule, and it lets a script
+                  override an option it was given.
+                tests:
+                  - Context_Create_ConfigFlag_Repeated_LastWins
+
+              - id: LintMark-Cli-Context-ConfigFileValueRequired
+                title: >-
+                  The Context class shall reject the `--config` option when its value is missing, blank, or another
+                  option.
+                justification: |
+                  A missing name must be reported instead of consuming the next argument or being silently
+                  ignored, and an option that follows must not be mistaken for the name.
+                tests:
+                  - Context_Create_ConfigFlag_WithoutValue_ThrowsArgumentException
+                  - Context_Create_ConfigFlag_BlankValue_ThrowsArgumentException
+                  - Context_Create_ConfigFlag_FollowedByOption_ThrowsArgumentException
+
+              - id: LintMark-Cli-Context-NoConfig
+                title: The Context class shall expose whether the `--no-config` flag was specified.
+                justification: |
+                  The flag states that no configuration source may be used. Exposing it lets the rest of the
+                  tool honor the request.
+                tests:
+                  - Context_Create_NoConfigFlag_SetsNoConfig
+
+              - id: LintMark-Cli-Context-ConfigExclusive
+                title: The Context class shall reject `--config` combined with `--no-config`.
+                justification: |
+                  Naming a configuration file and asking for none contradict each other, so the combination is
+                  a usage error that must be reported.
+                tests:
+                  - Context_Create_ConfigWithNoConfig_ThrowsArgumentException
 
               - id: LintMark-Cli-Context-ThreadSafeOutput
                 title: >-

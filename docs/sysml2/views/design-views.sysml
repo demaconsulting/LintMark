@@ -33,4 +33,8 @@ package LintMark {
     view EngineView {
         expose EngineSubsystem;
     }
+
+    view ConfigurationView {
+        expose ConfigurationSubsystem;
+    }
 }

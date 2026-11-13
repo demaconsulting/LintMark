@@ -549,6 +549,110 @@ public class CliSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the config option flows from Context through Program and reports an invalid configuration file.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ConfigFlow_ContextAndProgram_ReportsConfigErrorAndExitsNonZero()
+    {
+        // Arrange: a Markdown file and a configuration file with an unknown setting
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("ok.md");
+        var config = directory.WriteFile("custom.yaml", "color: red\n");
+        var logFile = directory.PathOf("run.log");
+
+        // Act: create context and run program logic
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--log", logFile, "--config", config, file]))
+        {
+            Program.Run(context);
+            exitCode = context.ExitCode;
+            Assert.Equal(config, context.ConfigFile);
+        }
+
+        // Assert: non-zero exit code and a positioned config error against the named file
+        Assert.Equal(1, exitCode);
+        Assert.Matches(@"custom\.yaml:1:1: config-error Unknown setting 'color'", File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that the no-config flag flows from Context through Program and ignores an invalid configuration file.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_NoConfigFlow_ContextAndProgram_IgnoresInvalidConfig()
+    {
+        // Arrange: a Markdown file beside an invalid configuration file
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteFile("ok.md");
+        directory.WriteFile(".lintmark.yaml", "color: red\n");
+        var logFile = directory.PathOf("run.log");
+
+        // Act: create context and run program logic
+        int exitCode;
+        using (var context = Context.Create(["--silent", "--log", logFile, "--no-config", file]))
+        {
+            Program.Run(context);
+            exitCode = context.ExitCode;
+            Assert.True(context.NoConfig);
+        }
+
+        // Assert: success and nothing about configuration is reported
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", File.ReadAllText(logFile));
+    }
+
+    /// <summary>
+    ///     Test that combining the config option with the no-config flag is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ConfigAndNoConfig_ContextAndProgram_RejectsAndExitsNonZero()
+    {
+        // Arrange: capture stderr produced by Main
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: invoke Main with the contradictory options
+            var exitCode = Program.Main(["--config", "a.yaml", "--no-config"]);
+
+            // Assert: usage error and exit code one
+            Assert.Equal(1, exitCode);
+            Assert.Contains("--no-config", errorWriter.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
+    ///     Test that combining validate with the config option is rejected by Context and reported by Main.
+    /// </summary>
+    [Fact]
+    public void CliSubsystem_ValidateWithConfig_ContextAndProgram_RejectsAndExitsNonZero()
+    {
+        // Arrange: capture stderr produced by Main
+        var originalError = Console.Error;
+        try
+        {
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            // Act: invoke Main with the invalid combination
+            var exitCode = Program.Main(["--validate", "--config", "a.yaml"]);
+
+            // Assert: usage error and exit code one
+            Assert.Equal(1, exitCode);
+            Assert.Contains("--config", errorWriter.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
     ///     Test that concurrent writers on one context keep the output intact end to end.
     /// </summary>
     [Fact]
