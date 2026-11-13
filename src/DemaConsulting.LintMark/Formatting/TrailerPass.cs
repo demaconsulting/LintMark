@@ -91,7 +91,8 @@ internal static class TrailerPass
             return;
         }
 
-        if (document.Suppressions.IsSuppressedRange(trailerStart, text.Length + 1, RuleCatalog.FinalNewlineRuleId))
+        // The query starts at the last content line so a line-scoped directive on that line suppresses the edit
+        if (document.Suppressions.IsSuppressedRange(layout.LineStart(lastContent), text.Length + 1, RuleCatalog.FinalNewlineRuleId))
         {
             return;
         }

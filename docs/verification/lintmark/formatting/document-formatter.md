@@ -285,6 +285,10 @@ text are formatted. Each ends with exactly one line feed.
 document are each covered by a comment that disables the rule by its identifier. The text is left as written, no edit and
 no problem results, and the same content without the comment is changed (a control).
 
+**A line-scoped suppression on the last line keeps the end of the document**: A document whose last content line carries
+a comment that disables `final-newline` for that line, with and without trailing blank lines and by identifier or alias,
+is left as written, with no edit and no problem.
+
 **A suppressed rule, named by an alias, leaves its part alone**: Trailing whitespace, tabs, and the end of a document are
 each covered by a comment that disables the rule by its legacy number. The text is left as written, no edit and no
 problem results, and the same content without the comment is changed (a control).

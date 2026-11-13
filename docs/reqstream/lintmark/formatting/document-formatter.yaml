@@ -702,6 +702,7 @@ sections:
                   An author who switched a rule off for a passage expects the passage to stay as written.
                 tests:
                   - DocumentFormatter_Format_RuleSuppressedById_LeavesThatPart
+                  - DocumentFormatter_Format_LineSuppressionOnLastLine_KeepsTheTrailer
 
               - id: LintMark-Formatting-DocumentFormatter-SuppressedRuleKeptByAlias
                 title: >-

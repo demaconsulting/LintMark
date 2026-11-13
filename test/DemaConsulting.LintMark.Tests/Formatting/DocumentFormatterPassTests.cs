@@ -535,6 +535,24 @@ public class DocumentFormatterPassTests
         AssertSuppressedRuleLeavesContent(directive, content);
 
     /// <summary>
+    ///     Test that a line-scoped suppression on the last content line keeps the final line ending as written.
+    /// </summary>
+    [Theory]
+    [InlineData("text <!-- lintmark-disable-line final-newline -->")]
+    [InlineData("text <!-- lintmark-disable-line final-newline -->\n\n\n")]
+    [InlineData("text <!-- markdownlint-disable-line MD047 -->")]
+    public void DocumentFormatter_Format_LineSuppressionOnLastLine_KeepsTheTrailer(string text)
+    {
+        // Act: format a document whose last content line disables the final newline rule
+        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter(), text);
+
+        // Assert: nothing is fixed or reported
+        Assert.Equal(text, formatted);
+        Assert.Empty(result.Edits);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
     ///     Assert that a document with a violation inside a region that disables its rule is left alone, and that
     ///     the same content without the directive is changed.
     /// </summary>
