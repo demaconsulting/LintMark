@@ -887,10 +887,10 @@ public partial class LintMarkEngineTests
         // Act: run with the fix option
         var (exitCode, lines) = Execute(directory, engine, "--fix");
 
-        // Assert: the expected target is the full path of the file and the rewrite happened
+        // Assert: the expected target is the resolved full path of the file and the rewrite happened
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-        Assert.Equal(Path.GetFullPath(path), received);
+        Assert.Equal(AtomicFileWriter.ResolveTarget(Path.GetFullPath(path)), received);
         Assert.Equal(Utf8(CompliantText), File.ReadAllBytes(path));
     }
 
