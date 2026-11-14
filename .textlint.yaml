@@ -54,6 +54,7 @@ ignorePaths:
   - "**/generated/**"
   - "**/AGENT_REPORT_*.md"
   - "**/.agent-logs/**"
+  - "**/.corpus/**"
   - "**/bin/**"
   - "**/obj/**"
   - package-lock.json
