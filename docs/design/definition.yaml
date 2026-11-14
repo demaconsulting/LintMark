@@ -8,6 +8,7 @@ resource-path:
   - docs/design/lintmark/engine
   - docs/design/lintmark/formatting
   - docs/design/lintmark/formatting/blocks
+  - docs/design/lintmark/formatting/inline
   - docs/design/lintmark/linting
   - docs/design/lintmark/reporting
   - docs/design/lintmark/safety
@@ -44,6 +45,10 @@ input-files:
   - docs/design/lintmark/formatting/blocks/heading-formatter.md
   - docs/design/lintmark/formatting/blocks/code-block-formatter.md
   - docs/design/lintmark/formatting/blocks/thematic-break-formatter.md
+  - docs/design/lintmark/formatting/blocks/list-formatter.md
+  - docs/design/lintmark/formatting/blocks/block-quote-formatter.md
+  - docs/design/lintmark/formatting/inline.md
+  - docs/design/lintmark/formatting/inline/inline-normalizer.md
   - docs/design/lintmark/safety.md
   - docs/design/lintmark/safety/equivalence-result.md
   - docs/design/lintmark/safety/html-equivalence-checker.md

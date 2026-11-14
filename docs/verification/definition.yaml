@@ -8,6 +8,7 @@ resource-path:
   - docs/verification/lintmark/engine
   - docs/verification/lintmark/formatting
   - docs/verification/lintmark/formatting/blocks
+  - docs/verification/lintmark/formatting/inline
   - docs/verification/lintmark/linting
   - docs/verification/lintmark/reporting
   - docs/verification/lintmark/safety
@@ -44,6 +45,10 @@ input-files:
   - docs/verification/lintmark/formatting/blocks/heading-formatter.md
   - docs/verification/lintmark/formatting/blocks/code-block-formatter.md
   - docs/verification/lintmark/formatting/blocks/thematic-break-formatter.md
+  - docs/verification/lintmark/formatting/blocks/list-formatter.md
+  - docs/verification/lintmark/formatting/blocks/block-quote-formatter.md
+  - docs/verification/lintmark/formatting/inline.md
+  - docs/verification/lintmark/formatting/inline/inline-normalizer.md
   - docs/verification/lintmark/linting.md
   - docs/verification/lintmark/linting/diagnostic.md
   - docs/verification/lintmark/linting/rule-catalog.md

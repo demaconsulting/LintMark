@@ -22,6 +22,7 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Safety;
 
@@ -39,11 +40,13 @@ namespace DemaConsulting.LintMark.Tests;
 internal static class BlockFormatterAssertions
 {
     /// <summary>
-    ///     Creates the formatter the shipped tool uses: the three block formatters and the document passes.
+    ///     Creates the formatter the shipped tool uses: the five block formatters, the inline normalizer and the document passes.
     /// </summary>
     /// <returns>The formatter.</returns>
     public static DocumentFormatter ProductionFormatter() =>
-        new([new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter()]);
+        new(
+            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
+            new InlineNormalizer());
 
     /// <summary>
     ///     Parses LF-normalized text as a document named <c>a.md</c>.
@@ -411,6 +414,37 @@ internal static class BlockFormatterAssertions
         Assert.Empty(result.Diagnostics);
         Assert.Equal(text, formatted);
     }
+
+    /// <summary>
+    ///     Runs a check over a set of named documents and collects the failures instead of stopping at the first.
+    /// </summary>
+    /// <param name="names">The names of the documents, for the failure messages.</param>
+    /// <param name="check">The check, called once per document index.</param>
+    /// <returns>One line per failed document.</returns>
+    public static List<string> CollectFailures(IReadOnlyList<string> names, Action<int> check)
+    {
+        var failures = new List<string>();
+        for (var i = 0; i < names.Count; i++)
+        {
+            try
+            {
+                check(i);
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{names[i]}: {ex.Message.ReplaceLineEndings("\\n")}");
+            }
+        }
+
+        return failures;
+    }
+
+    /// <summary>
+    ///     Asserts that no document failed, showing the first failures in the message.
+    /// </summary>
+    /// <param name="failures">The failures collected by <see cref="CollectFailures"/>.</param>
+    public static void AssertNone(List<string> failures) =>
+        Assert.True(failures.Count == 0, $"{failures.Count} document(s) failed:\n{string.Join("\n", failures.Take(8))}");
 
     /// <summary>
     ///     Asserts that an equivalence verdict is equivalent, with a message that shows the texts.

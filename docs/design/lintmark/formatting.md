@@ -9,22 +9,25 @@ bring the document into canonical form. It never writes anything and never appli
 describes the change, so that the `Safety` subsystem can verify the result before the `Engine` subsystem lets any
 byte reach the disk. All text changes are expressed as edits against the LF-normalized text of the document, so text
 that no edit touches is preserved by construction. The subsystem contains three units, `EditSet`, `SourcePatcher`,
-and `DocumentFormatter`, and the nested `Blocks` subsystem.
+and `DocumentFormatter`, and the nested `Blocks` and `Inline` subsystems.
 
 - `EditSet` is the per-file collection of proposed edits, checked for conflicts as they are added. Its supporting
   type `TextEdit` (one change) is described in *EditSet Design*.
 - `SourcePatcher` applies an ordered set of edits to the text of a document in one pass.
-- `DocumentFormatter` walks the blocks of a document, lets block formatters propose edits, honors suppression
-  comments, applies the rules that concern every document (trailing whitespace, tabs, blank lines, the blank lines
-  between blocks, and the end of the file), reports every edit of an always-applied rule as a problem, decides the line
-  ending, and returns a `FormatResult`. Its supporting types `IBlockFormatter`, `FormatContext`, and `FormatResult`, and
+- `DocumentFormatter` applies the rules that concern every document (trailing whitespace, tabs, blank lines, the blank
+  lines between blocks, and the end of the file) and the inline rules, lets block formatters propose edits, honors
+  suppression comments, reports every edit of an always-applied rule as a problem, decides the line ending, and returns
+  a `FormatResult`. Its supporting types `IBlockFormatter`, `FormatContext`, and `FormatResult`, and
   the internal helpers that the passes and the block formatters share, are described in *DocumentFormatter Design*.
 - `Blocks` is the nested subsystem that holds the block formatters of the tool: `HeadingFormatter`,
-  `CodeBlockFormatter`, and `ThematicBreakFormatter`. It is described in *Blocks Design*.
+  `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`. It is described in
+  *Blocks Design*.
+- `Inline` is the nested subsystem that rewrites the inline syntax of paragraphs: its unit `InlineNormalizer` writes
+  emphasis, strong emphasis, and bare URLs in the canonical form. It is described in *Inline Design*.
 
 The subsystem defines the extension point (`IBlockFormatter`) and the machinery around it. The production engine
-creates the `DocumentFormatter` with the three block formatters of `Blocks`; further block formatters (for lists,
-paragraphs, and tables) belong to later work and register in the same way.
+creates the `DocumentFormatter` with the five block formatters of `Blocks` and an `InlineNormalizer`; further formatters
+(for paragraph wrapping and tables) belong to later work and register in the same way.
 
 ### Interfaces
 
@@ -68,14 +71,25 @@ paragraphs, and tables) belong to later work and register in the same way.
   for an accepted block through the `EditSet` of the file.
 - *Constraints*: Implementations must be pure and safe for concurrent use.
 
+**InlineNormalizer.AddBlockEdits**: Adds the inline edits of one paragraph.
+
+- *Type*: In-process .NET instance method of the `Inline` subsystem.
+- *Role*: Consumer (`DocumentFormatter` calls it for each paragraph that no block formatter claims).
+- *Contract*: Takes the document, the paragraph, the configuration, and the `EditSet`, and adds the edits for the rules
+  `emphasis`, `strong`, and `bare-urls`; see *Inline Design*.
+- *Constraints*: Pure and safe for concurrent use; throws `ArgumentException` for a block that is not a paragraph.
+
 The subsystem consumes the `Document` subsystem (`ParsedDocument`, `BlockInfo`, `SourceDocument`, `LineEnding`, and
 the `SuppressionMap`), the `Configuration` subsystem (`LintMarkConfig`), and the `Linting` subsystem (`Diagnostic`,
 `RuleCatalog`, and the rule identifiers). It is consumed by the `Engine` subsystem.
 
 ### Design
 
-The units form a short pipeline that the engine drives for each file. `DocumentFormatter` creates an `EditSet`, offers
-every block to the registered formatters, and returns the snapshot of the set. The engine then calls `SourcePatcher`
+The units form a short pipeline that the engine drives for each file. `DocumentFormatter` creates an `EditSet`, collects
+the edits of the passes and of the inline normalizer first, then offers every block to the registered formatters from the
+last block to the first, and returns the snapshot of the set. The order lets a formatter of a container (a list) judge the
+lines after it as they will be after the same run, which keeps the result stable when it is formatted again (see
+*DocumentFormatter Design*). The engine then calls `SourcePatcher`
 with that snapshot to obtain the proposed text. The patcher does not trust the edits it is given: it checks each edit
 against the text length and against the edit before it, because a wrong edit would silently corrupt a user's file and
 the check costs little next to reading the file. `EditSet` rejects conflicts when edits are added; `SourcePatcher`
@@ -94,8 +108,11 @@ Safety of the whole subsystem rests on three properties: nothing is applied here
 result; a document the parser could only read by dropping grid tables is never formatted; and a block with a
 suppressed rule is left verbatim. The rules themselves add a fourth: every edit is computed from the source lines of a
 block that the parser classified, protected content (code, HTML, math, front matter, grid tables, and blocks the tool does
-not model) is never edited, and a conversion whose result could be read differently is not made (see *Blocks Design*
-and *DocumentFormatter Design*).
+not model) is never edited, and a conversion whose result could be read differently is not made (see *Blocks Design*,
+*Inline Design*, and *DocumentFormatter Design*). Where a rewrite cannot be shown to keep the meaning by rules of
+thumb alone, the unit proves it by rendering: the list formatter renders the list and the lines after it with and without
+its edits, and the inline normalizer renders each paragraph with and without its edits, and the edits stand only when the
+two renderings are identical.
 
 Every edit of an always-applied rule is also a violation: `DocumentFormatter` reports it at the place it changes, so that
 checking a file is formatting it and listing what would change, and a second run over a fixed file finds nothing. This is
@@ -106,6 +123,7 @@ The always-applied rules are not configurable: `DocumentFormatter` honors suppre
 of the tool enforce appears there. A rule that a configuration may switch off would have to be checked by its block
 formatter through `FormatContext.Config.Rules`; the formatters of the tool have no such rule.
 
-Thread safety: `DocumentFormatter` holds an immutable list of formatters and keeps all state of a call in local
-variables, so one instance serves every worker. `EditSet` is a per-file builder used by one thread; its snapshots,
-`TextEdit`, `FormatContext`, and `FormatResult` are immutable. `SourcePatcher` is static and stateless.
+Thread safety: `DocumentFormatter` holds an immutable list of formatters and a stateless inline normalizer, and keeps all
+state of a call in local variables, so one instance serves every worker. `EditSet` is a per-file builder used by one
+thread; its snapshots, `TextEdit`, `FormatContext`, and `FormatResult` are immutable. `SourcePatcher` is static and
+stateless.

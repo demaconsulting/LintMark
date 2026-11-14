@@ -73,7 +73,8 @@ Its supporting types are described with the unit that owns them: `DiscoveredFile
 The subsystem consumes the `Cli` subsystem (`Context`: paths and options in, reports out), the `Document` subsystem
 (`SourceDocument` and `DocumentParser`), the `Configuration` subsystem (`ConfigLoader`, `EditorConfigResolver`,
 `LintMarkConfig`, `ConfigLoadResult`, `ConfigError`, and `EditorConfigResult`), the `Formatting` subsystem
-(`DocumentFormatter` and `SourcePatcher`, and the three block formatters of its `Blocks` subsystem that the default
+(`DocumentFormatter` and `SourcePatcher`, the five block formatters of its `Blocks` subsystem, and the `InlineNormalizer`
+of its `Inline` subsystem that the default
 formatter is created with), the `Safety` subsystem (the three checkers, `EquivalenceResult`, and
 `SafetyStatus`), the `Reporting` subsystem (`TextReporter` and `DiffReporter`), the `Linting` subsystem (`Diagnostic`
 and the rule identifiers), and the FileSystemGlobbing library.

@@ -34,8 +34,8 @@ namespace DemaConsulting.LintMark.Linting;
 ///         validated against it, a diagnostic can be traced to a registered rule, and the default state of every
 ///         configurable rule has one home. Three groups are registered: the configurable rules (the <c>rules</c>
 ///         setting of a configuration can switch them on or off), the always-applied formatting rules
-///         (<c>line-ending</c>, the whitespace, blank-line, block-spacing, heading, code block, thematic break
-///         and final newline rules, some of which carry legacy rule-number aliases), and the identifiers under
+///         (<c>line-ending</c>, the whitespace, blank-line, block-spacing, heading, code block, thematic break,
+///         list, block quote, inline and final newline rules, some of which carry legacy rule-number aliases), and the identifiers under
 ///         which the tool reports its own failures (file, safety and configuration problems). The last two
 ///         groups are known but not configurable, so a configuration that names one (by id or by alias) is
 ///         still rejected as an unknown rule; their aliases do resolve where a suppression comment names a rule.
@@ -126,6 +126,46 @@ internal static class RuleCatalog
     ///     The identifier of the always-applied rule that decides whether a file ends with a line ending.
     /// </summary>
     public const string FinalNewlineRuleId = "final-newline";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes the items of a bullet list with the configured marker.
+    /// </summary>
+    public const string BulletRuleId = "bullet";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that numbers the items of an ordered list in the configured style.
+    /// </summary>
+    public const string OrderedStyleRuleId = "ordered-style";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that aligns the items of a list and indents nested bullet lists.
+    /// </summary>
+    public const string ListIndentRuleId = "list-indent";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that puts exactly one space after a list marker.
+    /// </summary>
+    public const string ListMarkerSpaceRuleId = "list-marker-space";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that puts exactly one space after a block quote marker.
+    /// </summary>
+    public const string BlockQuoteSpaceRuleId = "blockquote-space";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes emphasis with the configured delimiter.
+    /// </summary>
+    public const string EmphasisRuleId = "emphasis";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes strong emphasis with the configured delimiter.
+    /// </summary>
+    public const string StrongRuleId = "strong";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that wraps bare URLs in angle brackets.
+    /// </summary>
+    public const string BareUrlsRuleId = "bare-urls";
 
     /// <summary>
     ///     The identifier reported when a rewrite would change how the document renders.
@@ -229,6 +269,14 @@ internal static class RuleCatalog
         Applied(CodeBlockStyleRuleId, "A code block is not written in the configured style.", "MD046"),
         Applied(CodeFenceRuleId, "A code fence does not use the configured fence character.", "MD048"),
         Applied(FinalNewlineRuleId, "The file does not end with the configured final line ending.", "MD047"),
+        Applied(BulletRuleId, "A bullet list item does not use the configured marker character.", "MD004"),
+        Applied(OrderedStyleRuleId, "An ordered list is not numbered in the configured style.", "MD029"),
+        Applied(ListIndentRuleId, "The items of a list are not aligned or a nested bullet list is not indented as configured.", "MD005", "MD007"),
+        Applied(ListMarkerSpaceRuleId, "A list marker is followed by more than one space.", "MD030"),
+        Applied(BlockQuoteSpaceRuleId, "A block quote marker is followed by more than one space.", "MD027"),
+        Applied(EmphasisRuleId, "Emphasis is not written with the configured delimiter.", "MD049"),
+        Applied(StrongRuleId, "Strong emphasis is not written with the configured delimiter.", "MD050"),
+        Applied(BareUrlsRuleId, "A bare URL is not wrapped in angle brackets.", "MD034"),
 
         // Safety refusals
         Fixed(HtmlMismatchRuleId, DiagnosticKind.LintOnly, "A rewrite would change how the document renders, so the file is not rewritten."),

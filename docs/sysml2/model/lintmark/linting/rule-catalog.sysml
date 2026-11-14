@@ -14,7 +14,7 @@ package LintMark {
     }
 
     part def RuleCatalog {
-        doc /* The single registry of every rule the tool knows: identifiers, kinds, descriptions, aliases, dropped aliases and defaults, including the formatting rules that the tool always applies and their legacy rule numbers, from which configuration validation, the resolution of rule names in suppression comments, and the identifiers of emitted diagnostics are derived (also documents the RuleInfo supporting type). */
+        doc /* The single registry of every rule the tool knows: identifiers, kinds, descriptions, aliases, dropped aliases and defaults, including the formatting rules that the tool always applies (whitespace, blank lines, block spacing, headings, code blocks, thematic breaks, lists, block quotes, emphasis, bare URLs, and the end of the file) and their legacy rule numbers, from which configuration validation, the resolution of rule names in suppression comments, and the identifiers of emitted diagnostics are derived (also documents the RuleInfo supporting type). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (

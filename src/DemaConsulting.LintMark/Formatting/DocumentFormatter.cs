@@ -21,6 +21,7 @@
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Formatting;
@@ -31,11 +32,12 @@ namespace DemaConsulting.LintMark.Formatting;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The formatter walks the blocks of the document in source order and gives each block to the first
-///         registered <see cref="IBlockFormatter"/> that accepts it. A block is left verbatim when no formatter
-///         accepts it, or when any rule of the accepting formatter is suppressed anywhere inside the block. A
-///         block that a formatter accepts is <em>claimed</em> (also when it is suppressed): only that formatter
-///         edits its lines.
+///         The formatter walks the blocks of the document from the last to the first and gives each block to the first
+///         registered <see cref="IBlockFormatter"/> that accepts it (the order does not change the result: edits are ordered by
+///         position, and a formatter that looks at the edits already proposed sees those of the blocks after its own). A
+///         block is left verbatim when no formatter accepts it, or when any rule of the accepting formatter is suppressed
+///         anywhere inside the block. A block that a formatter accepts is <em>claimed</em> (also when it is suppressed): only
+///         that formatter edits its lines.
 ///     </para>
 ///     <para>
 ///         What no formatter claims is handled by the rules that apply to every document: trailing whitespace and
@@ -45,7 +47,9 @@ namespace DemaConsulting.LintMark.Formatting;
 ///         code, HTML, math, front matter, grid tables or blocks the tool does not model
 ///         (<see cref="LineOwnership"/> decides which lines those are), and they honor suppression comments at
 ///         block granularity. Every edit of such an always-applied rule is also reported as a formatting violation
-///         at the place it changes, so that linting a file is formatting it and listing what would change.
+///         at the place it changes, so that linting a file is formatting it and listing what would change. The
+///         inline rules (emphasis, strong emphasis and bare URLs) are applied the same way: each paragraph that no
+///         formatter claims is given to the <see cref="InlineNormalizer"/>, when one is registered.
 ///     </para>
 ///     <para>
 ///         The line ending is decided here, not by an edit, because the LF-normalized text has no line ending
@@ -77,14 +81,23 @@ internal sealed class DocumentFormatter
     private readonly ImmutableArray<IBlockFormatter> _formatters;
 
     /// <summary>
+    ///     The inline normalizer that handles the paragraphs no block formatter claims, or <see langword="null"/> for none.
+    /// </summary>
+    private readonly InlineNormalizer? _inline;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="DocumentFormatter"/> class.
     /// </summary>
     /// <param name="formatters">
     ///     The block formatters in priority order (the first that accepts a block formats it), or
     ///     <see langword="null"/> for none. The list is copied.
     /// </param>
+    /// <param name="inline">
+    ///     The inline normalizer that is asked for each paragraph that no block formatter claims, or
+    ///     <see langword="null"/> for none (then no inline rule is applied).
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="formatters"/> is null.</exception>
-    public DocumentFormatter(IReadOnlyList<IBlockFormatter>? formatters = null)
+    public DocumentFormatter(IReadOnlyList<IBlockFormatter>? formatters = null, InlineNormalizer? inline = null)
     {
         // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
         ImmutableArray<IBlockFormatter> copy = formatters is null ? [] : ImmutableArray.CreateRange(formatters);
@@ -94,6 +107,7 @@ internal sealed class DocumentFormatter
         }
 
         _formatters = copy;
+        _inline = inline;
     }
 
     /// <summary>
@@ -125,11 +139,22 @@ internal sealed class DocumentFormatter
         var layout = new LineLayout(source);
         var ownership = LineOwnership.Build(document, layout, block => FindFormatter(block) is not null);
 
-        // Collect the edits of the first formatter that accepts each block, skipping blocks with suppressed rules
+        // The passes handle what no block formatter claims: whitespace, inline text, blank lines, block spacing and the end of the
+        // file. They run first, so that a block formatter that depends on the lines around its block sees their edits too
         var edits = new EditSet();
-        var context = new FormatContext(document, config);
-        foreach (var block in document.Blocks)
+        AddLeafEdits(document, config, layout, ownership, edits);
+        BlankLinePass.Apply(document, layout, ownership, config, edits);
+        BlockSpacingPass.Apply(document, layout, ownership, edits);
+        TrailerPass.Apply(document, layout, ownership, config, edits);
+
+        // Collect the edits of the first formatter that accepts each block, skipping blocks with suppressed rules. The
+        // blocks are visited from the end of the document to its start, so that a formatter that depends on the lines
+        // after its block (a list must not move over a line that would then belong to it) sees the edits that those
+        // blocks propose; the result does not depend on the order in which edits are added
+        var context = new FormatContext(document, config, layout, ownership);
+        for (var i = document.Blocks.Length - 1; i >= 0; i--)
         {
+            var block = document.Blocks[i];
             var formatter = FindFormatter(block);
             if (formatter is null || IsSuppressed(document, block, formatter))
             {
@@ -138,12 +163,6 @@ internal sealed class DocumentFormatter
 
             formatter.Format(context, block, edits);
         }
-
-        // The passes handle what no block formatter claims: whitespace, blank lines, block spacing and the end of the file
-        AddLeafEdits(document, layout, ownership, edits);
-        BlankLinePass.Apply(document, layout, ownership, config, edits);
-        BlockSpacingPass.Apply(document, layout, ownership, edits);
-        TrailerPass.Apply(document, layout, ownership, config, edits);
 
         // The line ending is the configured one, or else the one the file uses most
         var target = config.EndOfLine ?? source.MajorityLineEnding;
@@ -163,6 +182,7 @@ internal sealed class DocumentFormatter
     ///     Adds the whitespace edits for the blocks that no block formatter claims.
     /// </summary>
     /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
     /// <param name="layout">The line arithmetic of the document.</param>
     /// <param name="ownership">Which lines belong to which block.</param>
     /// <param name="edits">Receives the edits.</param>
@@ -170,8 +190,10 @@ internal sealed class DocumentFormatter
     ///     Paragraphs and headings go through the inline structure (hard breaks and protected spans matter).
     ///     Table rows, single-line link reference definitions, thematic breaks and lines that hold only a
     ///     container marker only lose their trailing whitespace. Protected blocks and claimed blocks are skipped.
+    ///     A paragraph is also given to the inline normalizer, when there is one, which edits the emphasis
+    ///     delimiters and bare URLs inside its text (never the whitespace the other edits handle).
     /// </remarks>
-    private void AddLeafEdits(ParsedDocument document, LineLayout layout, LineOwnership ownership, EditSet edits)
+    private void AddLeafEdits(ParsedDocument document, LintMarkConfig config, LineLayout layout, LineOwnership ownership, EditSet edits)
     {
         // Blocks first: each unclaimed, unprotected leaf block is handled by the kind of whitespace it can hold
         foreach (var block in document.Blocks)
@@ -195,6 +217,11 @@ internal sealed class DocumentFormatter
                     if (trailing || tabs)
                     {
                         LeafWhitespace.AddBlockEdits(layout, block, trailing, tabs, edits);
+                    }
+
+                    if (block.Kind == BlockKind.Paragraph)
+                    {
+                        _inline?.AddBlockEdits(document, block, config, edits);
                     }
 
                     break;

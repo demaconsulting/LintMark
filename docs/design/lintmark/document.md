@@ -38,7 +38,8 @@ paragraph or heading and the container prefix of its continuation lines.
 
 - *Type*: In-process .NET static methods.
 - *Role*: Provider.
-- *Contract*: See *DocumentParser Design*. Both are static and have no production caller yet.
+- *Contract*: See *DocumentParser Design*. Both are static; `GetLines` is called by `BlockQuoteFormatter` and
+  `InlineNormalizer`, and `GetContinuationPrefix` by `GetLines`.
 - *Constraints*: Arguments must not be null; the block must be a paragraph or heading whose range lies inside
   the document text (otherwise `ArgumentException`). That the block belongs to the document is not verified.
 

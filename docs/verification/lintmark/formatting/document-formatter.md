@@ -31,6 +31,12 @@ line endings are counted. Suppression is driven by real suppression comments in 
 parallel calls shares one formatter and one document among 64 calls that run with up to 16 threads, and compares
 every result with the result of a single call.
 
+The inline normalizer is optional for the formatter (`new DocumentFormatter(blockFormatters, inlineNormalizer)`). The two
+scenarios about it in `DocumentFormatterTests.cs` use the real `InlineNormalizer` of the `Inline` subsystem together with
+the `ReplacingFormatter` double, so that the claim of a paragraph by a block formatter can be observed; the cases of the
+normalizer itself are verified in its own unit document. The scenario about the format context builds a real parsed
+document, a real `LineLayout`, and a real `LineOwnership` and hands them to the context.
+
 #### Test Environment
 
 N/A - standard test environment.
@@ -74,6 +80,13 @@ N/A - standard test environment.
 - Null arguments are rejected, a null list means no formatters, and later changes of the caller's list are ignored.
 - A format context without a document or configuration, and a format result with a default list, a default edit, a
   null finding, or an undefined line ending, are rejected; valid ones keep their values.
+- A format context keeps the line arithmetic and the line ownership that it is given, and builds both for its document
+  when it is not given any, so that the passes, the block formatters, and the inline normalizer share them.
+- Without an inline normalizer no inline edit is proposed; with one, the paragraphs that no block formatter claims are
+  normalized and reported under the rules of the normalizer, and a paragraph that a block formatter claims, or in which
+  the rule is suppressed, is not.
+- A line that starts with a plus sign after quote and list markers, and a footnote definition marker anywhere in a line,
+  are recognized by the line arithmetic; text that only contains a plus sign is not taken for a grid table border.
 - Parallel calls give the same result as a single call.
 
 #### Test Scenarios
@@ -314,9 +327,20 @@ removed by a pass, because the formatter claimed the lines.
 **A claimed block stays claimed where the rule is suppressed**: The same paragraph in a region that disables the
 formatter's rule is formatted. It is unchanged, including its trailing spaces.
 
+**An inline normalizer rewrites the paragraphs that no block formatter claims**: A paragraph `a _b_` is formatted by a
+document formatter that holds an `InlineNormalizer` and by one that does not. With the normalizer the patched text is
+`a *b*` and a problem for the rule `emphasis` is reported; without it no edit results.
+
+**A claimed or suppressed paragraph is not normalized**: A paragraph that the `ReplacingFormatter` double claims, with a
+double space and underscore emphasis, is formatted by a document formatter that also holds the normalizer. Only the double
+formatter acts on it. A paragraph with underscore emphasis in a region that disables `emphasis` is formatted by the same
+formatter. No edit results.
+
 **The helper types answer for their inputs**: `LineLayout` is asked for line counts, extents (including the line after
-the last, which exists only after a final line feed), blank lines, tab stops,
-and grid-border lookalikes; `InlineMap` for the plain-text, protected, and break offsets of a paragraph with code
+the last, which exists only after a final line feed), blank lines, tab stops, and grid-border lookalikes (a plus sign
+that is followed by more border or by text, after quote and list markers), whether a line starts with a plus sign after
+such prefixes, and whether a line holds a footnote definition marker; `InlineMap` for the plain-text, protected, and
+break offsets of a paragraph with code
 and breaks, of a link, of no inline content, and of a tree built with a shift; `LeafWhitespace` for the tabs of a text
 (also from a stretch that starts in text, where a tab after a code span counts) and for lines that must stay;
 `LineOwnership` for the classes and the last content line of the lines of a mixed document, an indented block that is
@@ -366,6 +390,10 @@ configuration. Each call throws `ArgumentNullException`.
 
 **A format context without a document or configuration is rejected**: A null document and a null configuration each
 throw `ArgumentNullException`. A valid context keeps both values.
+
+**A format context keeps its line arithmetic and ownership or builds them**: A context is built with a layout and an
+ownership of its own document. It keeps exactly those two objects. A context built without them has a layout that counts
+the lines of the document and an ownership.
 
 **A format result with invalid parts is rejected**: A default list of edits, a list that holds a default edit, a default
 list of findings, a null finding, and a line ending that is not defined are each rejected, by a test of its own: the

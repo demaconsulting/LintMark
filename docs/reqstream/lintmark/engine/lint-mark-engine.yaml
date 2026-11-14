@@ -658,6 +658,7 @@ sections:
                   must not depend on how an engine is created.
                 tests:
                   - LintMarkEngine_Run_CheckDefaultFormatters_ReportsEachViolationAndWritesNothing
+                  - LintMarkEngine_Run_CheckListQuoteInlineViolations_ReportsEachRule
 
               - id: LintMark-Engine-LintMarkEngine-DefaultFormattingRulesPreviewed
                 title: >-

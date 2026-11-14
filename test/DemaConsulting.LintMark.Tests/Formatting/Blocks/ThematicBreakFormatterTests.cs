@@ -48,6 +48,21 @@ public class ThematicBreakFormatterTests
     private static readonly LintMarkConfig UnderscoreConfig = LintMarkConfig.Default with { ThematicBreak = ThematicBreakStyle.Underscores };
 
     /// <summary>
+    ///     A configuration that keeps plus sign list markers, so that the break after one is the only thing under test.
+    /// </summary>
+    private static readonly LintMarkConfig PlusConfig = LintMarkConfig.Default with { Bullet = BulletMarker.Plus };
+
+    /// <summary>
+    ///     A configuration that keeps plus sign list markers and asks for asterisk breaks.
+    /// </summary>
+    private static readonly LintMarkConfig PlusAsteriskConfig = PlusConfig with { ThematicBreak = ThematicBreakStyle.Asterisks };
+
+    /// <summary>
+    ///     A configuration that keeps plus sign list markers and asks for underscore breaks.
+    /// </summary>
+    private static readonly LintMarkConfig PlusUnderscoreConfig = PlusConfig with { ThematicBreak = ThematicBreakStyle.Underscores };
+
+    /// <summary>
     ///     Asserts that the formatter alone turns the input into the expected text and that the result is safe and stable.
     /// </summary>
     /// <param name="input">The input.</param>
@@ -316,8 +331,8 @@ public class ThematicBreakFormatterTests
     [InlineData("> + ***\n")]
     public void ThematicBreakFormatter_Format_BreakAfterPlusListMarker_StaysAsWrittenWhenDashesAreWanted(string input)
     {
-        // Act & Assert: the production formatters leave the break alone, and the result renders the same and is stable
-        BlockFormatterAssertions.AssertFormats(input, input);
+        // Act & Assert: the production formatters leave the break alone (the list marker space rule only closes up the gap after the marker), and the result renders the same and is stable
+        BlockFormatterAssertions.AssertFormats(input, input.Replace("+  ", "+ ", StringComparison.Ordinal), PlusConfig);
         AssertFormats(input, input);
     }
 
@@ -331,9 +346,8 @@ public class ThematicBreakFormatterTests
     public void ThematicBreakFormatter_Format_BreakAfterPlusListMarkerWithOtherCharacter_IsConverted(string input, string expected, bool asterisks)
     {
         // Act & Assert: the break becomes the configured characters, safely and stably
-        var config = asterisks ? AsteriskConfig : UnderscoreConfig;
-        BlockFormatterAssertions.AssertFormats(input, expected, config);
-        AssertFormats(input, expected, config);
+        BlockFormatterAssertions.AssertFormats(input, expected, asterisks ? PlusAsteriskConfig : PlusUnderscoreConfig);
+        AssertFormats(input, expected, asterisks ? AsteriskConfig : UnderscoreConfig);
     }
 
     /// <summary>
@@ -345,7 +359,7 @@ public class ThematicBreakFormatterTests
     public void ThematicBreakFormatter_Format_GuardedBreakWithTrailingWhitespace_OnlyLosesTheWhitespace(string input, string expected)
     {
         // Act & Assert: the whitespace goes, the break stays
-        BlockFormatterAssertions.AssertFormats(input, expected);
+        BlockFormatterAssertions.AssertFormats(input, expected, input.Contains('+', StringComparison.Ordinal) ? PlusConfig : null);
         AssertFormats(input, expected);
     }
 

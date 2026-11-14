@@ -1,0 +1,473 @@
+---
+# Software Unit Requirements for the ListFormatter Class
+#
+# The ListFormatter class proposes the changes that bring a list into canonical form: one marker character for the
+# items of a bullet list, numbers that count the configured way, items that start in the same column, nested bullet
+# lists indented as configured, and one space after each marker. A list that cannot be changed without changing its
+# meaning is left as written.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: ListFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-ListFormatter-AcceptsOutermostLists
+                    title: >-
+                      The ListFormatter class shall accept the outermost list of a nest of lists, and no other kind of
+                      block.
+                    justification: |
+                      The document formatter gives each block to the first formatter that accepts it, so a formatter
+                      that accepted another kind of block would take it away from the rule that owns it. A list inside
+                      an item is formatted together with the list that holds it, so it must not be visited twice.
+                    tests:
+                      - ListFormatter_CanFormat_Blocks_AcceptsOnlyOutermostLists
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-RejectsMissingArguments
+                    title: >-
+                      The ListFormatter class shall throw an ArgumentNullException that names the parameter when an
+                      argument is null.
+                    justification: |
+                      Missing arguments are programming errors that must be reported as such.
+                    tests:
+                      - ListFormatter_CanFormat_NullBlock_Throws
+                      - ListFormatter_Format_NullArguments_Throw
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-RejectsOtherBlocks
+                    title: The ListFormatter class shall refuse to format a block that is not an outermost list.
+                    justification: |
+                      A block of another kind has a different shape, and edits computed for it would damage it.
+                    tests:
+                      - ListFormatter_Format_OtherBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-RuleIdsImmutable
+                    title: >-
+                      The ListFormatter class shall list the rules it enforces in a form that its holders cannot
+                      change.
+                    justification: |
+                      The list decides which suppressions affect the formatter, and one instance is shared by every
+                      thread.
+                    tests:
+                      - ListFormatter_RuleIds_Read_ListsTheFourRulesAndIsImmutable
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-MarkerCharacterConverted
+                    title: >-
+                      The ListFormatter class shall write the marker of each item of a bullet list as the configured
+                      marker character, a dash by default.
+                    justification: |
+                      One marker character makes the lists of a project consistent. The marker of an item at any depth
+                      changes, also in a quote, and an item of a task list is written like any other.
+                    tests:
+                      - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
+                      - ListFormatter_Format_ConfiguredBullet_IsUsed
+                      - ListFormatter_Format_TaskAndEmptyItems_AreHandled
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-MarkersChangedInContainers
+                    title: >-
+                      The ListFormatter class shall write the markers and numbers of a list inside a block quote or list
+                      item the same way as those of a list at the top level, when writing them does not change the
+                      column of any text.
+                    justification: |
+                      A marker character, or a number with the same number of digits, moves no text, so it can be
+                      written canonically wherever the list is, even where the columns of the list are not changed.
+                    tests:
+                      - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
+                      - ListFormatter_Format_OrderedNumbers_CountUpFromTheFirst
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-AllItemsConvertedTogether
+                    title: >-
+                      The ListFormatter class shall change the marker of every item of a bullet list or of none.
+                    justification: |
+                      Items with different markers would be different lists, so a list changes as a whole or keeps
+                      the markers it has.
+                    tests:
+                      - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
+                      - ListFormatter_Format_EmptyItem_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-AdjacentListsKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of two bullet lists that stand next to each
+                      other when one marker would merge them into one list.
+                    justification: |
+                      Two lists that differ only by their markers are two lists, and merging them changes how the
+                      document renders.
+                    tests:
+                      - ListFormatter_Format_AdjacentBulletLists_KeepTheirMarkers
+                      - ListFormatter_Format_AdjacentNestedBulletLists_KeepTheirMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-SeparatedListsConverted
+                    title: >-
+                      The ListFormatter class shall change the markers of two bullet lists that another block
+                      separates.
+                    justification: |
+                      A block between two lists keeps them apart whatever their markers are, so both are written with
+                      the configured marker.
+                    tests:
+                      - ListFormatter_Format_BulletListsSeparatedByAComment_AreBothConverted
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ThematicBreakLookalikeKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when the line of a
+                      converted marker would read as a thematic break.
+                    justification: |
+                      A marker followed by text such as dashes, or by more of the marker character, can be a thematic
+                      break instead of an item, so the conversion would change the structure of the document.
+                    tests:
+                      - ListFormatter_Format_ConvertedMarkerLineWouldBeThematicBreak_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ItemBreakTextKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when the text after a
+                      marker is a thematic break of its own.
+                    justification: |
+                      The thematic break rule may write such a break with the character that the converted marker has,
+                      and the whole line would then read as a thematic break instead of an item.
+                    tests:
+                      - ListFormatter_Format_ItemTextIsThematicBreak_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-EmptyItemKeepsMarkers
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when an item of the
+                      list is empty.
+                    justification: |
+                      A marker without text is a different line after a change of its character (a line of only a
+                      dash can end a paragraph above it), so the list keeps the markers it has.
+                    tests:
+                      - ListFormatter_Format_EmptyItem_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-GridBorderLookalikeKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when the text after a
+                      marker has the shape of the border of a grid table and the marker, as written or as it would be
+                      written, is a plus sign.
+                    justification: |
+                      A plus sign followed by dashes, colons, or equal signs can be read as the border of a grid table
+                      instead of an item, so writing it or replacing it would change the structure of the document.
+                      Other marker characters cannot start such a border, so the text does not matter for them.
+                    tests:
+                      - ListFormatter_Format_PlusMarkerAndGridBorderLookalike_LeavesTheMarkers
+                      - ListFormatter_Format_GridBorderLookalikeWithoutPlusMarker_ConvertsTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NumbersIncrementFromFirst
+                    title: >-
+                      The ListFormatter class shall number each item of an ordered list one higher than the item
+                      before it when the `ordered-style` setting is `incrementing`, which is the default.
+                    justification: |
+                      Counting numbers show the position of each item, also in the source text.
+                    tests:
+                      - ListFormatter_Format_OrderedNumbers_CountUpFromTheFirst
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NumbersRepeatFirst
+                    title: >-
+                      The ListFormatter class shall give each item of an ordered list the number of the first item
+                      when the `ordered-style` setting is `one`.
+                    justification: |
+                      Projects that want to insert items without renumbering write every item with the same number.
+                    tests:
+                      - ListFormatter_Format_OneStyle_RepeatsTheFirstNumber
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-FirstNumberKept
+                    title: >-
+                      The ListFormatter class shall keep the number of the first item of an ordered list as written.
+                    justification: |
+                      The first number decides where the list starts counting when it is rendered, so changing it
+                      changes the document.
+                    tests:
+                      - ListFormatter_Format_OrderedNumbers_CountUpFromTheFirst
+                      - ListFormatter_Format_FirstNumberWithLeadingZeros_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-DelimiterKept
+                    title: >-
+                      The ListFormatter class shall keep the delimiter that follows the number of each item of an
+                      ordered list as written.
+                    justification: |
+                      A period and a parenthesis after the number start different lists, so changing the delimiter
+                      could change which items belong together.
+                    tests:
+                      - ListFormatter_Format_OrderedNumbers_CountUpFromTheFirst
+                      - ListFormatter_Format_OneStyle_RepeatsTheFirstNumber
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NumbersKeptWhenItemsCannotMove
+                    title: >-
+                      The ListFormatter class shall keep the numbers of an ordered list as written when a number
+                      would gain or lose a digit and the columns of the list are kept as written, as for a list inside
+                      a block quote.
+                    justification: |
+                      A number that gains a digit pushes the text of its item to the right, and an item whose columns
+                      must stay would then change its meaning.
+                    tests:
+                      - ListFormatter_Format_NumberGainsADigitInAQuote_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-LeadingZerosKept
+                    title: >-
+                      The ListFormatter class shall keep the numbers of an ordered list as written when its first
+                      number has leading zeros.
+                    justification: |
+                      Writing the other numbers without leading zeros, or with them, would not match the first number,
+                      and changing the first number would change where the list starts.
+                    tests:
+                      - ListFormatter_Format_FirstNumberWithLeadingZeros_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NumbersBeyondNineDigitsKept
+                    title: >-
+                      The ListFormatter class shall keep the numbers of an ordered list as written when counting would
+                      give a number of more than nine digits.
+                    justification: |
+                      A list marker has at most nine digits, so a number with ten digits would not be a marker and
+                      the item would stop being part of the list.
+                    tests:
+                      - ListFormatter_Format_NumbersOfNineDigits_AreCountedUp
+                      - ListFormatter_Format_NumberWouldHaveTenDigits_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-WidthChangeMovesContent
+                    title: >-
+                      The ListFormatter class shall move the lines and blocks that belong to an item by as many
+                      columns as the text after its marker moves.
+                    justification: |
+                      Text of an item that stays behind when its marker changes its width would stop belonging to
+                      the item, so the content moves with the marker.
+                    tests:
+                      - ListFormatter_Format_NumberGainsADigit_MovesTheContentOfTheItem
+                      - ListFormatter_Format_NumberLosesADigit_MovesTheContentOfTheItem
+                      - ListFormatter_Format_SpacesAfterMarker_BecomeOne
+                      - ListFormatter_Format_ItemHoldsCodeHtmlQuoteAndTable_MovesEverythingTogether
+                      - ListFormatter_Format_PandocSyntaxInItem_MovesWithTheItem
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ItemContentKept
+                    title: >-
+                      The ListFormatter class shall change nothing in the lines of an item except their indentation,
+                      the marker, and the spaces after the marker.
+                    justification: |
+                      The text of an item, code and tables included, belongs to the author and the other rules.
+                    tests:
+                      - ListFormatter_Format_ItemHoldsCodeHtmlQuoteAndTable_MovesEverythingTogether
+                      - ListFormatter_Format_PandocSyntaxInItem_MovesWithTheItem
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-SpacesAfterMarkerNormalized
+                    title: >-
+                      The ListFormatter class shall write exactly one space after the marker of an item that has two
+                      to four spaces after it.
+                    justification: |
+                      Extra spaces after a marker have no meaning and make the lists of a project inconsistent.
+                    tests:
+                      - ListFormatter_Format_SpacesAfterMarker_BecomeOne
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-IndentedCodeAfterMarkerKept
+                    title: >-
+                      The ListFormatter class shall keep the spaces after the marker of an item when five spaces
+                      make its content indented code.
+                    justification: |
+                      With five spaces the text after the marker is a code block, and removing spaces would change
+                      the block.
+                    tests:
+                      - ListFormatter_Format_FiveSpacesAfterMarker_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ItemsAlignedToFirst
+                    title: >-
+                      The ListFormatter class shall start every item of a list at the column where the first item
+                      starts.
+                    justification: |
+                      Items in different columns look like a mistake, and an item that is indented more can be read as
+                      belonging to the item before it.
+                    tests:
+                      - ListFormatter_Format_ItemColumns_AreAlignedAndTopLevelBulletsStartAtTheMargin
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-TopLevelBulletsStartAtMargin
+                    title: >-
+                      The ListFormatter class shall start the items of a bullet list that is at the top level of
+                      the document at the left margin.
+                    justification: |
+                      An indented list at the top level looks like a mistake, while an ordered list keeps the column
+                      it has, because the numbers vary in width.
+                    tests:
+                      - ListFormatter_Format_ItemColumns_AreAlignedAndTopLevelBulletsStartAtTheMargin
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-BulletInBulletIndented
+                    title: >-
+                      The ListFormatter class shall indent a bullet list inside the item of a bullet list by the
+                      number of spaces that the `list-indent` setting names, two by default.
+                    justification: |
+                      One indentation for nested lists makes the lists of a project consistent.
+                    tests:
+                      - ListFormatter_Format_NestedBullets_AreIndentedAsConfigured
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-OtherNestingOffsetKept
+                    title: >-
+                      The ListFormatter class shall keep the offset from the content of its item of a list that is not
+                      a bullet list in a bullet item.
+                    justification: |
+                      The right offset of an ordered list or of a list in an ordered item depends on the width of
+                      the number, which the `list-indent` setting does not describe.
+                    tests:
+                      - ListFormatter_Format_OtherNesting_KeepsTheOffset
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-LazyLinesKept
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when an item has a line that
+                      continues its text without being indented.
+                    justification: |
+                      Such a line belongs to the item only because of where it is, so moving the item could change
+                      which text belongs to it.
+                    tests:
+                      - ListFormatter_Format_LazyLine_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-TabAfterMarkerKept
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when a tab follows a marker.
+                    justification: |
+                      A tab reaches the next tab stop, so changing the marker can change how wide the tab is and where
+                      the text of the item starts.
+                    tests:
+                      - ListFormatter_Format_TabAfterMarker_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-TabIndentKept
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when a tab indents a line of
+                      an item.
+                    justification: |
+                      A tab reaches the next tab stop, so moving the line can change how wide the tab is and which
+                      item the line belongs to.
+                    tests:
+                      - ListFormatter_Format_TabIndentedLine_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-QuoteListsKeepColumns
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list inside a block quote as written.
+                    justification: |
+                      The indentation inside a quote is part of the quote, so moving it could move the list out of
+                      the quote.
+                    tests:
+                      - ListFormatter_Format_ListInQuote_KeepsItsColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-FootnoteListsKept
+                    title: >-
+                      The ListFormatter class shall keep a list inside a footnote as written.
+                    justification: |
+                      The indentation of a footnote body is part of the footnote, and a rewrite of its list cannot be
+                      shown to keep the meaning of the document.
+                    tests:
+                      - ListFormatter_Format_ListInFootnote_IsLeftAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ColumnsKeptWhenALineWouldJoin
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when moving them would make
+                      a line after the list part of one of its items.
+                    justification: |
+                      A line that follows a list belongs to it when it is indented far enough, so a move of the list
+                      can pull the line into an item.
+                    tests:
+                      - ListFormatter_Format_FollowingLineWouldJoinTheItem_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NestKeptWhenRenderingWouldChange
+                    title: >-
+                      The ListFormatter class shall keep a nest of lists as written when the nest, together with the
+                      lines directly after it, would not render to the same HTML after its changes.
+                    justification: |
+                      Some readings of a list depend on the exact text around it, and a change that cannot be shown to
+                      keep the rendering would damage the document, so the nest stays as the author wrote it.
+                    tests:
+                      - ListFormatter_Format_ListInFootnote_IsLeftAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-MarkersWrittenWhenColumnsKept
+                    title: >-
+                      The ListFormatter class shall still write the marker characters and the numbers that keep their
+                      width in a nest whose columns it keeps as written because changing the columns would change how
+                      the nest renders.
+                    justification: |
+                      A marker character moves no text, so it is safe even where the columns must stay, and leaving it
+                      would make the lists of a project inconsistent.
+                    tests:
+                      - ListFormatter_Format_ColumnChangeWouldChangeTheRendering_StillWritesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-GridTableInItemKept
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when an item holds a grid
+                      table.
+                    justification: |
+                      Whether Pandoc reads the lines of a grid table as a table can depend on their exact position,
+                      so moving them cannot be shown to keep the meaning of the document.
+                    tests:
+                      - ListFormatter_Format_GridTableInItem_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-LooseAndTightKept
+                    title: >-
+                      The ListFormatter class shall keep a loose list loose and a tight list tight.
+                    justification: |
+                      Blank lines between the items decide whether the text of the items is wrapped in paragraphs, so
+                      changing them changes how the list renders.
+                    tests:
+                      - ListFormatter_Format_LooseAndTightLists_StayLooseAndTight
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-SuppressedRuleKeptByIdentifier
+                    title: >-
+                      The ListFormatter class shall propose no change for a list in which a comment of the document
+                      disables one of its rules by the identifier of the rule.
+                    justification: |
+                      An author who switched a rule off for a passage expects the list there to stay as written.
+                    tests:
+                      - ListFormatter_Format_RuleSuppressed_LeavesTheList
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-SuppressedRuleKeptByAlias
+                    title: >-
+                      The ListFormatter class shall propose no change for a list in which a comment of the document
+                      disables one of its rules by the legacy number of the rule.
+                    justification: |
+                      Authors who come from other Markdown tools know the rules by their numbers, and a comment that
+                      did nothing would silently change their text.
+                    tests:
+                      - ListFormatter_Format_RuleSuppressed_LeavesTheList
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ListAfterEnabledAgainFormatted
+                    title: >-
+                      The ListFormatter class shall format a list that follows a comment that enables a rule again.
+                    justification: |
+                      A rule that is switched on again formats the passages after it.
+                    tests:
+                      - ListFormatter_Format_ListAfterEnabledAgain_IsFormatted
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-EditsUnderOwnRule
+                    title: >-
+                      The ListFormatter class shall attribute each change that it proposes to the rule that the change
+                      enforces.
+                    justification: |
+                      The rule of a change decides how it is reported and which suppression comment switches it off.
+                    tests:
+                      - ListFormatter_Format_NonCanonicalList_ReportsEachEditUnderItsRule
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-CanonicalUnchanged
+                    title: The ListFormatter class shall propose no change for a list in canonical form.
+                    justification: |
+                      A canonical list must not be reported or rewritten.
+                    tests:
+                      - ListFormatter_Format_CanonicalList_ProposesNoEdit
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-LineEndingsKept
+                    title: >-
+                      The ListFormatter class shall propose the same changes for a document with CRLF or mixed line
+                      endings as for the same document with LF line endings.
+                    justification: |
+                      The line ending is not part of the text of a list.
+                    tests:
+                      - ListFormatter_Format_LineEndingsAndByteOrderMark_ProposeTheSameEdits
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ByteOrderMarkKept
+                    title: >-
+                      The ListFormatter class shall propose the same changes for a document with a byte order mark as
+                      for the same document without one.
+                    justification: |
+                      The byte order mark is not part of the text of a list.
+                    tests:
+                      - ListFormatter_Format_LineEndingsAndByteOrderMark_ProposeTheSameEdits
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-DeterministicResult
+                    title: >-
+                      The ListFormatter class shall propose the same changes for the same parsed document when one
+                      instance is called from several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel by one shared instance, and a result that depended on timing
+                      could not be trusted.
+                    tests:
+                      - ListFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult

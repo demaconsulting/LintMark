@@ -18,18 +18,18 @@ Internal OTS tool design is out of scope; only integration and usage evidence is
 
 The following OTS items have verification evidence in this section:
 
-- BuildMark (_buildmark.md_) — build-notes documentation tool
-- EditorConfig (_editorconfig.md_) — editor settings (`.editorconfig`) evaluation library
-- FileAssert (_fileassert.md_) — document assertion tool
-- FileSystemGlobbing (_filesystemglobbing.md_) — glob pattern matching library
-- Markdig (_markdig.md_) — Markdown parsing library
-- Pandoc (_pandoc.md_) — Markdown-to-HTML conversion tool
-- ReqStream (_reqstream.md_) — requirements traceability tool
-- ReviewMark (_reviewmark.md_) — file review enforcement tool
-- SarifMark (_sarifmark.md_) — SARIF report conversion tool
-- SonarMark (_sonarmark.md_) — SonarCloud quality report tool
-- SysML2Tools (_sysml2tools.md_) — architecture model validation and diagram rendering tool
-- VersionMark (_versionmark.md_) — tool-version documentation tool
-- WeasyPrint (_weasyprint.md_) — HTML-to-PDF conversion tool
-- xUnit (_xunit.md_) — unit-testing framework
-- YamlDotNet (_yamldotnet.md_) — YAML parsing library
+- BuildMark (*buildmark.md*) — build-notes documentation tool
+- EditorConfig (*editorconfig.md*) — editor settings (`.editorconfig`) evaluation library
+- FileAssert (*fileassert.md*) — document assertion tool
+- FileSystemGlobbing (*filesystemglobbing.md*) — glob pattern matching library
+- Markdig (*markdig.md*) — Markdown parsing library
+- Pandoc (*pandoc.md*) — Markdown-to-HTML conversion tool
+- ReqStream (*reqstream.md*) — requirements traceability tool
+- ReviewMark (*reviewmark.md*) — file review enforcement tool
+- SarifMark (*sarifmark.md*) — SARIF report conversion tool
+- SonarMark (*sonarmark.md*) — SonarCloud quality report tool
+- SysML2Tools (*sysml2tools.md*) — architecture model validation and diagram rendering tool
+- VersionMark (*versionmark.md*) — tool-version documentation tool
+- WeasyPrint (*weasyprint.md*) — HTML-to-PDF conversion tool
+- xUnit (*xunit.md*) — unit-testing framework
+- YamlDotNet (*yamldotnet.md*) — YAML parsing library

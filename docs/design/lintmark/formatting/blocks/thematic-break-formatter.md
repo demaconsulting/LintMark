@@ -45,8 +45,10 @@ Guards (`IsGuarded`) keep the new form from being read differently:
   `- ***` becoming `- ---`, the line would become a thematic break of its own and the list would be lost.
 - *Grid border guard*: a line that starts with a plus sign after any quote and list markers (`+ ***`, a plus sign list
   marker) is left as written when the target is dashes, because `+ ---` looks like the border of a grid table and
-  Pandoc may read the line as part of a table (`LineLayout.LooksLikeGridBorder`). Asterisks and underscores after a plus
-  sign are converted, because `+ ___` is no border.
+  Pandoc may read the line as part of a table. This guard asks the broad question `LineLayout.StartsWithPlusSign`
+  (whatever follows the plus sign), not `LineLayout.LooksLikeGridBorder`, which recognizes only the exact shape of a
+  border as the line is written now: the line becomes a border because of the new dashes, so its present text says
+  nothing. Asterisks and underscores after a plus sign are converted, because `+ ___` is no border.
 - *First line guard*: a dashes break at the start of the first line of the file could open front matter. It is a check
   of its own because the front matter guard below judges a document whose first line is already dashes, while this one
   is for a break that would become that line.
@@ -82,7 +84,8 @@ a `file-format-error` for the file. Nothing is caught here.
 - **LintMarkConfig** and **ThematicBreakStyle** (`Configuration` subsystem) - the `thematic-break` setting.
 - **RuleCatalog** (`Linting` subsystem) - the rule identifiers of the edits.
 - **Markdig** (OTS) - `ThematicBreakBlock`.
-- **LineLayout** and **FrontMatterGuard** (supporting types of `DocumentFormatter`) - line arithmetic and the front
+- **LineLayout** and **FrontMatterGuard** (supporting types of `DocumentFormatter`) - line arithmetic (including
+  `StartsWithPlusSign`) and the front
   matter guard.
 
 ##### Callers

@@ -22,6 +22,7 @@ using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
@@ -558,6 +559,29 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
+    ///     Test that a format context built with its own line arithmetic and ownership keeps them, and builds both when they are not given.
+    /// </summary>
+    [Fact]
+    public void FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt()
+    {
+        // Arrange: a document and its own layout and ownership
+        var document = Parse("a\n");
+        var layout = new LineLayout(document.Source);
+        var ownership = LineOwnership.Build(document, layout, static _ => false);
+
+        // Act: build a context with them and one without
+        var given = new FormatContext(document, LintMarkConfig.Default, layout, ownership);
+        var built = new FormatContext(document, LintMarkConfig.Default);
+
+        // Assert: the given ones are kept and the built ones describe the document
+        Assert.Same(layout, given.Layout);
+        Assert.Same(ownership, given.Ownership);
+        Assert.NotNull(built.Layout);
+        Assert.NotNull(built.Ownership);
+        Assert.Equal(1, built.Layout.LineCount);
+    }
+
+    /// <summary>
     ///     Test that a format context without a document or configuration is rejected.
     /// </summary>
     [Fact]
@@ -620,6 +644,45 @@ public class DocumentFormatterTests
     {
         // Arrange / Act / Assert: the line ending must be a defined value
         Assert.Throws<ArgumentOutOfRangeException>(() => new FormatResult([], (LineEnding)99, []));
+    }
+
+    /// <summary>
+    ///     Test that a formatter given an inline normalizer rewrites the paragraphs no block formatter claims, and one without it does not.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_InlineNormalizerGiven_NormalizesUnclaimedParagraphs()
+    {
+        // Arrange: a paragraph with underscore emphasis and a formatter with and without the normalizer
+        var document = Parse("a _b_\n");
+
+        // Act: format with both
+        var with = new DocumentFormatter(null, new InlineNormalizer()).Format(document, LintMarkConfig.Default);
+        var without = new DocumentFormatter().Format(document, LintMarkConfig.Default);
+
+        // Assert: only the one with the normalizer rewrites the emphasis, and it reports the rule
+        Assert.Equal("a *b*\n", Patch(document, with));
+        Assert.Contains(with.Diagnostics, diagnostic => diagnostic.RuleId == "emphasis");
+        Assert.Empty(without.Edits);
+    }
+
+    /// <summary>
+    ///     Test that the inline normalizer is not applied to a paragraph a block formatter claims, nor to one whose rule is suppressed.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_ClaimedOrSuppressedParagraph_IsNotNormalized()
+    {
+        // Arrange: a claimed paragraph and a paragraph in a region that disables the emphasis rule
+        var formatter = new DocumentFormatter([new ReplacingFormatter("  ", "_")], new InlineNormalizer());
+        var claimed = Parse("a  _b_\n");
+        var suppressed = Parse("<!-- lintmark-disable emphasis -->\n\n_b_\n");
+
+        // Act: format both
+        var claimedResult = formatter.Format(claimed, LintMarkConfig.Default);
+        var suppressedResult = formatter.Format(suppressed, LintMarkConfig.Default);
+
+        // Assert: only the claiming formatter acted on the first, and nothing happened to the second
+        Assert.Equal("a__b_\n", Patch(claimed, claimedResult));
+        Assert.Empty(suppressedResult.Edits);
     }
 
     /// <summary>

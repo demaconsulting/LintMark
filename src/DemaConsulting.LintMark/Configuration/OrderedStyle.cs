@@ -31,6 +31,6 @@ internal enum OrderedStyle
     /// <summary>Items count up (<c>1.</c>, <c>2.</c>, <c>3.</c>).</summary>
     Incrementing,
 
-    /// <summary>Every item uses the number one (<c>1.</c>, <c>1.</c>, <c>1.</c>).</summary>
+    /// <summary>Every item repeats the number of the first item (<c>1.</c>, <c>1.</c>, <c>1.</c>).</summary>
     One
 }

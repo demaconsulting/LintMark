@@ -9,10 +9,12 @@ package LintMark {
     }
 
     attribute def FormatContext {
-        doc /* The inputs shared by every block formatter of one run: the parsed document and the effective configuration of its file. */
+        doc /* The inputs shared by every block formatter of one run: the parsed document, the effective configuration of its file, and the line arithmetic and line ownership map that the document-level passes use. */
 
         item document : ParsedDocument;
         part config : LintMarkConfig;
+        item layout : LineLayout;
+        item ownership : LineOwnership;
     }
 
     // The edits are the attribute type TextEdit; the diagnostics are the Diagnostic unit.
@@ -25,7 +27,7 @@ package LintMark {
     }
 
     part def DocumentFormatter {
-        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit of such a rule is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported (also documents the FormatResult and FormatContext supporting types, the IBlockFormatter contract modeled as an interface definition, and the internal helpers that the passes and the block formatters share). */
+        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, each paragraph no block formatter claims goes to the optional inline normalizer, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit of such a rule is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported (also documents the FormatResult and FormatContext supporting types, the IBlockFormatter contract modeled as an interface definition, and the internal helpers that the passes and the block formatters share). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
@@ -70,6 +72,9 @@ package LintMark {
         dependency DocumentFormatter to IBlockFormatter;
         dependency DocumentFormatter to FormatContext;
 
+        // Each paragraph that no block formatter claims is given to the inline normalizer, when one is
+        // registered, with the effective configuration of the file.
+        dependency DocumentFormatter to InlineNormalizer;
         // The result carries the edits, the line ending and the diagnostics, whose rule identifiers and
         // descriptions come from the rule catalog.
         dependency DocumentFormatter to FormatResult;

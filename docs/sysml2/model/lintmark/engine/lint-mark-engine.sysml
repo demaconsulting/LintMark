@@ -78,7 +78,7 @@ package LintMark {
 
         // A rewrite is computed by the document formatter, applied to the text with the source patcher,
         // and carried as a file change only when it is safe. The shipped tool creates the document
-        // formatter with the three block formatters.
+        // formatter with the five block formatters and the inline normalizer.
         dependency LintMarkEngine to DocumentFormatter;
         dependency LintMarkEngine to FormatResult;
         dependency LintMarkEngine to SourcePatcher;
@@ -86,6 +86,9 @@ package LintMark {
         dependency LintMarkEngine to HeadingFormatter;
         dependency LintMarkEngine to CodeBlockFormatter;
         dependency LintMarkEngine to ThematicBreakFormatter;
+        dependency LintMarkEngine to ListFormatter;
+        dependency LintMarkEngine to BlockQuoteFormatter;
+        dependency LintMarkEngine to InlineNormalizer;
 
         // Every rewrite passes the three safety checks, whose verdicts and status are held in the result.
         dependency LintMarkEngine to HtmlEquivalenceChecker;

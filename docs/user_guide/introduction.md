@@ -13,12 +13,13 @@ markdown files into a preferred format, with optional tweaks via a `.lintmark.ya
 This release selects Markdown files by path, directory, or glob pattern, reads and parses each one, and reports
 the files it cannot read or parse. It finds, reads, and validates the `.lintmark.yaml` configuration (and the
 line ending from `.editorconfig`) that applies to each file, and reports every configuration problem. It checks
-and, with `--fix`, rewrites each file with 14 formatting rules and the line ending rule (whitespace, blank lines,
-headings, code blocks, thematic breaks, and the end of the file; see *Formatting Rules*), and `--diff` previews what
-`--fix` would change. A rewrite is written only when every safety check passes, and it is written atomically. The
-`ignore` patterns of the configuration are applied. The remaining Markdown rules (for example paragraph wrapping,
-lists, tables, links, and the lint-only rules) are planned but not yet implemented, so their settings are validated and
-stored but do not change any file yet. LintMark also provides the standard command-line interface and self-validation.
+and, with `--fix`, rewrites each file with 22 formatting rules and the line ending rule (whitespace, blank lines,
+headings, code blocks, thematic breaks, lists, block quotes, emphasis, bare URLs, and the end of the file; see
+*Formatting Rules*), and `--diff` previews what `--fix` would change. A rewrite is written only when every safety check
+passes, and it is written atomically. The `ignore` patterns of the configuration are applied. The remaining Markdown
+rules (for example paragraph wrapping, tables, links, and the lint-only rules) are planned but not yet implemented, so
+their settings are validated and stored but do not change any file yet. LintMark also provides the standard
+command-line interface and self-validation.
 
 ## Scope
 
@@ -252,8 +253,9 @@ LintMark is configured with an optional `.lintmark.yaml` file. Every setting has
 configuration file only needs to list the settings it changes. This release finds, reads, and validates the
 configuration that applies to each Markdown file and reports every problem in it. The settings that this release
 applies are `end-of-line` (see *Line Endings and .editorconfig*), `final-newline`, `max-blank-lines`, `code-fence`,
-`thematic-break`, `heading-style`, `code-block-style`, and `trailing-whitespace` (see *Formatting Rules*), `ignore` (see
-*Ignore Patterns*), and the `grid-table-invalid` entry of `rules` (see *Grid Table Parse Problems*). The other settings
+`thematic-break`, `heading-style`, `code-block-style`, `trailing-whitespace`, `bullet`, `list-indent`, `ordered-style`,
+`emphasis`, `strong`, and `bare-urls` (see *Formatting Rules*), `ignore` (see *Ignore Patterns*), and the
+`grid-table-invalid` entry of `rules` (see *Grid Table Parse Problems*). The other settings
 are validated and stored, but no linting or formatting rule uses them yet, so a mistake in a configuration is reported
 now rather than when the rules are introduced.
 
@@ -338,9 +340,14 @@ What the settings describe:
 - `wrap` selects how paragraphs are wrapped: `fill` re-wraps only paragraphs that contain a line wider than
   `line-length`, `sentence` starts every sentence on a new line, and `semantic` breaks lines at semantic
   boundaries.
-- `bare-urls` selects whether a bare URL is written as an autolink (`<https://example.com>`) or left as it is.
+- `bare-urls` selects whether a bare URL is written as an autolink (`<https://example.com>`) or left as it is; it
+  applies to `http://`, `https://`, and `ftp://` addresses in paragraphs.
 - `tables` selects compact cells (`| a | b |`) or columns padded to a common width.
-- `ordered-style` selects numbering such as `1. 2. 3.` (`incrementing`) or `1. 1. 1.` (`one`).
+- `ordered-style` selects numbering such as `1. 2. 3.` (`incrementing`) or `1. 1. 1.` (`one`, which repeats the number
+  of the first item).
+- `bullet` selects the marker of bullet list items (`-`, `*`, or `+`), `list-indent` the indentation (`2` or `4`
+  columns) of a bullet list nested in a bullet item, and `emphasis` and `strong` the delimiter (`*` or `_`) of
+  emphasis and strong emphasis.
 - `hard-break` selects trailing spaces or a trailing backslash for a hard line break.
 - `thematic-break` selects `---`, `***`, or `___`.
 - `link-refactor` is an opt-in conversion of inline links to reference links; `threshold` is the width of the
@@ -411,8 +418,10 @@ rules:
   `MD033`, `MD041`, `MD043`, `MD044`, and `MD057`. A configuration that still contains them stays valid, but
   repeating one of them is still a duplicate.
 - Rules that the formatter always applies cannot be switched off, so their identifiers and aliases (for example
-  `line-ending`, `trailing-whitespace`, and `MD009`) are unknown names in `rules`. They are switched off for a passage
-  with a suppression comment (see *Formatting Rules*).
+  `line-ending`, `trailing-whitespace`, `MD009`, `bullet`, and `MD004`) are unknown names in `rules`. LintMark has 55
+  rules: the 22 in the table above can be switched, and the other 33 always apply (`line-ending`, the 22 formatting
+  rules of *Formatting Rules*, the three `safety-*` refusals, and the file and configuration problems). A formatting
+  rule is switched off for a passage with a suppression comment (see *Formatting Rules*).
 - This release evaluates only `grid-table-invalid` (see *Grid Table Parse Problems*). The other toggles are
   validated and stored; no other rule that `rules` can switch runs yet.
 
@@ -630,9 +639,10 @@ Every identifier in the table except `grid-table-invalid` always applies and can
 `grid-table-invalid` off in `rules` hides its report only. The formatting rules are the identifiers of *Formatting
 Rules* (`trailing-whitespace`, `hard-tabs`, `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`,
 `heading-blank-lines`, `fence-blank-lines`, `list-blank-lines`, `table-blank-lines`, `thematic-break`,
-`code-block-style`, `code-fence`, and `final-newline`); each is reported at the line and column that its change starts
-at (for an inserted blank line, the line before which it is inserted), at most once for each rule and line, with the
-description of the rule as the message.
+`code-block-style`, `code-fence`, `final-newline`, `bullet`, `ordered-style`, `list-indent`, `list-marker-space`,
+`blockquote-space`, `emphasis`, `strong`, and `bare-urls`); each is reported at the line and column that its change
+starts at (for an inserted blank line, the line before which it is inserted), at most once for each rule and line, with
+the description of the rule as the message.
 
 The exit code is `0` when no problem was reported and `1` when at least one problem was reported, including any
 configuration problem, or when an argument is invalid. There is no other exit code. A `--fix` run that rewrote every

@@ -401,7 +401,7 @@ public class RuleCatalogTests
 
     /// <summary>
     ///     Test that the formatting rules are the configurable line length and paragraph wrap rules, the line
-    ///     ending rule and the fourteen always-applied whitespace and block rules.
+    ///     ending rule and the twenty-two always-applied whitespace, block and inline rules.
     /// </summary>
     [Fact]
     public void RuleCatalog_Rules_FormattingRules_AreTheConfigurableOnesLineEndingAndTheAlwaysApplied()
@@ -414,8 +414,12 @@ public class RuleCatalogTests
         // Assert: those rules, in ordinal order
         Assert.Equal(
             [
+                "bare-urls",
+                "blockquote-space",
+                "bullet",
                 "code-block-style",
                 "code-fence",
+                "emphasis",
                 "fence-blank-lines",
                 "final-newline",
                 "hard-tabs",
@@ -426,8 +430,12 @@ public class RuleCatalogTests
                 "line-ending",
                 "line-length",
                 "list-blank-lines",
+                "list-indent",
+                "list-marker-space",
                 "max-blank-lines",
+                "ordered-style",
                 "paragraph-wrap",
+                "strong",
                 "table-blank-lines",
                 "thematic-break",
                 "trailing-whitespace"
@@ -459,6 +467,14 @@ public class RuleCatalogTests
             "code-block-style",
             "code-fence",
             "final-newline",
+            "bullet",
+            "ordered-style",
+            "list-indent",
+            "list-marker-space",
+            "blockquote-space",
+            "emphasis",
+            "strong",
+            "bare-urls",
             "safety-html-mismatch",
             "safety-structure-mismatch",
             "safety-not-idempotent",
@@ -501,7 +517,15 @@ public class RuleCatalogTests
             ["thematic-break"] = ["MD035"],
             ["code-block-style"] = ["MD046"],
             ["code-fence"] = ["MD048"],
-            ["final-newline"] = ["MD047"]
+            ["final-newline"] = ["MD047"],
+            ["bullet"] = ["MD004"],
+            ["ordered-style"] = ["MD029"],
+            ["list-indent"] = ["MD005", "MD007"],
+            ["list-marker-space"] = ["MD030"],
+            ["blockquote-space"] = ["MD027"],
+            ["emphasis"] = ["MD049"],
+            ["strong"] = ["MD050"],
+            ["bare-urls"] = ["MD034"]
         };
 
         // Act: collect the aliases of the non-configurable entries
@@ -523,6 +547,15 @@ public class RuleCatalogTests
     [InlineData("MD003", "heading-style")]
     [InlineData("MD021", "heading-style")]
     [InlineData("MD047", "final-newline")]
+    [InlineData("MD004", "bullet")]
+    [InlineData("md029", "ordered-style")]
+    [InlineData("MD005", "list-indent")]
+    [InlineData("MD007", "list-indent")]
+    [InlineData("MD030", "list-marker-space")]
+    [InlineData("MD027", "blockquote-space")]
+    [InlineData("MD049", "emphasis")]
+    [InlineData("MD050", "strong")]
+    [InlineData("md034", "bare-urls")]
     [InlineData("trailing-whitespace", "trailing-whitespace")]
     public void RuleCatalog_TryResolve_FormattingRuleAlias_ResolvesButIsNotConfigurable(string name, string expected)
     {
@@ -535,6 +568,23 @@ public class RuleCatalogTests
         Assert.Equal(expected, id);
         Assert.False(configurable);
         Assert.Null(configurableId);
+    }
+
+    /// <summary>
+    ///     Test that the numbers of the rules that only report a problem later (emphasis, code span and link text spacing) are not registered.
+    /// </summary>
+    [Theory]
+    [InlineData("MD037")]
+    [InlineData("MD038")]
+    [InlineData("MD039")]
+    public void RuleCatalog_TryResolve_RuleNumberOfAPlannedLintOnlyRule_IsNotRegistered(string name)
+    {
+        // Act: resolve the name
+        var resolved = RuleCatalog.TryResolve(name, out var id);
+
+        // Assert: it is unknown until the lint-only rule exists
+        Assert.False(resolved);
+        Assert.Null(id);
     }
 
     /// <summary>
@@ -590,15 +640,15 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 22 configurable rules, 25 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
+    ///     Test that the registry holds 22 configurable rules, 33 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable22NonConfigurable25AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable22NonConfigurable33AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
         Assert.Equal(22, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
-        Assert.Equal(25, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(47, RuleCatalog.Rules.Length);
+        Assert.Equal(33, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
+        Assert.Equal(55, RuleCatalog.Rules.Length);
         Assert.Equal(22, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(22, RuleCatalog.Defaults.Count);
         Assert.Equal(16, RuleCatalog.Aliases.Count);
