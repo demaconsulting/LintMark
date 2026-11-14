@@ -23,6 +23,7 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
+using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Utilities;
 
@@ -93,6 +94,11 @@ internal sealed class DocumentFormatter
     private readonly ParagraphFormatter? _paragraphs;
 
     /// <summary>
+    ///     The refactorer that converts long inline links to reference links, or <see langword="null"/> for none.
+    /// </summary>
+    private readonly LinkRefactorer? _links;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="DocumentFormatter"/> class.
     /// </summary>
     /// <param name="formatters">
@@ -107,11 +113,16 @@ internal sealed class DocumentFormatter
     ///     The formatter that wraps the paragraphs that overflow the line length, or <see langword="null"/> for none
     ///     (then nothing is wrapped and no <c>line-length</c> finding is reported).
     /// </param>
+    /// <param name="links">
+    ///     The refactorer that converts long inline links to reference links when the configuration asks for it, or
+    ///     <see langword="null"/> for none (then no link is converted).
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="formatters"/> is null.</exception>
     public DocumentFormatter(
         IReadOnlyList<IBlockFormatter>? formatters = null,
         InlineNormalizer? inline = null,
-        ParagraphFormatter? paragraphs = null)
+        ParagraphFormatter? paragraphs = null,
+        LinkRefactorer? links = null)
     {
         // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
         ImmutableArray<IBlockFormatter> copy = formatters is null ? [] : ImmutableArray.CreateRange(formatters);
@@ -123,6 +134,7 @@ internal sealed class DocumentFormatter
         _formatters = copy;
         _inline = inline;
         _paragraphs = paragraphs;
+        _links = links;
     }
 
     /// <summary>
@@ -184,9 +196,95 @@ internal sealed class DocumentFormatter
         var result = edits.ToImmutable();
         var reported = ReportEdits(source, result);
 
+        // Long inline links become reference links before anything is wrapped, so that the wrap reads the final text
+        var (refactored, refactorDiagnostics) = RefactorLinks(document, config, result);
+
         // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules produce
-        var (wrapped, wrapDiagnostics) = WrapParagraphs(document, config, layout, result);
-        return new FormatResult(wrapped, target, [.. CheckLineEndings(source, target), .. reported, .. wrapDiagnostics]);
+        var (wrapped, wrapDiagnostics) = WrapParagraphs(document, config, layout, refactored);
+        return new FormatResult(wrapped, target, [.. CheckLineEndings(source, target), .. reported, .. refactorDiagnostics, .. wrapDiagnostics]);
+    }
+
+    /// <summary>
+    ///     Converts the long inline links to reference links on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>
+    ///     The edits against the original text (those of the other rules composed with the conversions, and the new layout of
+    ///     every table whose links were converted) and one formatting finding for each converted link; the edits unchanged and
+    ///     no finding when the feature is off or nothing is converted.
+    /// </returns>
+    /// <remarks>
+    ///     The conversions are decided on the text that the other rules produce (a tab or an emphasis delimiter that they
+    ///     change can change the width of a link) and composed with their edits afterwards (see <see cref="EditRebaser"/>).
+    ///     A table whose cells changed is laid out again, because the layout of a table (aligned or compact) depends on its
+    ///     cells, and the second run must not change it. Every wrap works on the result.
+    /// </remarks>
+    private (ImmutableArray<TextEdit> Edits, ImmutableArray<Diagnostic> Diagnostics) RefactorLinks(
+        ParsedDocument document,
+        LintMarkConfig config,
+        ImmutableArray<TextEdit> edits)
+    {
+        if (_links is null || !LinkRefactorer.IsEnabled(config))
+        {
+            return (edits, []);
+        }
+
+        // The text the other rules produce is the document the links are read from
+        var source = document.Source;
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, edits)));
+        if (current.IsFormatUnsafe)
+        {
+            return (edits, []);
+        }
+
+        var plan = _links.Plan(current, config);
+        if (plan.IsEmpty)
+        {
+            return (edits, []);
+        }
+
+        // Compose the conversions with the other edits, and lay out the tables whose cells changed on the text that results
+        var composed = EditRebaser.Rebase(edits, plan.Edits);
+        if (plan.ChangesTables)
+        {
+            var produced = DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, composed)));
+            if (!produced.IsFormatUnsafe)
+            {
+                composed = EditRebaser.Rebase(composed, FormatTables(produced, config));
+            }
+        }
+
+        var diagnostics = plan.Conversions.Select(conversion =>
+        {
+            var (line, column) = source.PositionOf(EditRebaser.MapOffset(edits, conversion.Offset));
+            return new Diagnostic(RuleCatalog.LinkRefactorRuleId, DiagnosticKind.Formatting, source.Path, line, column, conversion.Message);
+        });
+        return (composed, [.. diagnostics]);
+    }
+
+    /// <summary>
+    ///     Proposes the edits that bring the tables of a document into the layout of the configuration.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <returns>The edits of the table formatters against the text of the document; none for a table that is already laid out.</returns>
+    private ImmutableArray<TextEdit> FormatTables(ParsedDocument document, LintMarkConfig config)
+    {
+        var layout = new LineLayout(document.Source);
+        var context = new FormatContext(document, config, layout, LineOwnership.Build(document, layout, block => FindFormatter(block) is not null));
+        var edits = new EditSet();
+        foreach (var block in document.Blocks.Where(static block => block.Kind == BlockKind.Table))
+        {
+            var formatter = FindFormatter(block);
+            if (formatter is not null && !IsSuppressed(document, block, formatter))
+            {
+                formatter.Format(context, block, edits);
+            }
+        }
+
+        return edits.ToImmutable();
     }
 
     /// <summary>

@@ -23,6 +23,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
+using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Safety;
 
@@ -48,7 +49,8 @@ internal static class BlockFormatterAssertions
         new(
             [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
             new InlineNormalizer(),
-            new ParagraphFormatter());
+            new ParagraphFormatter(),
+            new LinkRefactorer());
 
     /// <summary>
     ///     Parses LF-normalized text as a document named <c>a.md</c>.
@@ -104,11 +106,15 @@ internal static class BlockFormatterAssertions
             Assert.True(diagnostic.Line >= 1 && diagnostic.Column >= 1);
         });
 
-        // The rewrite renders the same, with LF and with CRLF line endings, and keeps its Pandoc structure
-        AssertEquivalent("HTML", HtmlEquivalenceChecker.Check(text, formatted), text, formatted);
+        // The rewrite renders the same, with LF and with CRLF line endings, and keeps its Pandoc structure; the comment that
+        // introduces new link definitions is the one thing a page shows of the link refactoring and is left out of the comparison
+        var visible = effective.LinkRefactor.Enabled
+            ? LinkRefactorer.WithoutAddedMarker(text, formatted, effective.LinkRefactor.DefinitionsMarker)
+            : formatted;
+        AssertEquivalent("HTML", HtmlEquivalenceChecker.Check(text, visible), text, formatted);
         AssertEquivalent(
             "HTML on disk",
-            HtmlEquivalenceChecker.CheckOnDisk(text.Replace("\n", "\r\n", StringComparison.Ordinal), formatted.Replace("\n", "\r\n", StringComparison.Ordinal)),
+            HtmlEquivalenceChecker.CheckOnDisk(text.Replace("\n", "\r\n", StringComparison.Ordinal), visible.Replace("\n", "\r\n", StringComparison.Ordinal)),
             text,
             formatted);
         AssertEquivalent("structure", StructuralTokenChecker.Check(text, formatted), text, formatted);

@@ -309,6 +309,12 @@ internal static class RuleCatalog
     public const string ParagraphWrapRuleId = "paragraph-wrap";
 
     /// <summary>
+    ///     The identifier of the configurable rule that converts long inline links to reference links (MD054, partial). It
+    ///     only acts when the <c>link-refactor</c> setting is enabled.
+    /// </summary>
+    public const string LinkRefactorRuleId = "link-refactor";
+
+    /// <summary>
     ///     The identifier reported when a rewrite would change how the document renders.
     /// </summary>
     public const string HtmlMismatchRuleId = "safety-html-mismatch";
@@ -371,6 +377,7 @@ internal static class RuleCatalog
         // Configurable rules (formatting)
         Configurable(LineLengthRuleId, DiagnosticKind.Formatting, "A line is longer than the configured line length.", true, "MD013"),
         Configurable(ParagraphWrapRuleId, DiagnosticKind.Formatting, "A paragraph is not wrapped per the configured sentence or semantic style.", true),
+        Configurable(LinkRefactorRuleId, DiagnosticKind.Formatting, "An inline link is converted to a reference link (only when the link-refactor setting is enabled).", true, "MD054"),
 
         // Configurable rules (lint only)
         Configurable(HeadingIncrementRuleId, DiagnosticKind.LintOnly, "A heading level skips a level.", true, "MD001"),

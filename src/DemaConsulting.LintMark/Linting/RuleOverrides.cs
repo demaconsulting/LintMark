@@ -135,7 +135,14 @@ internal sealed class RuleOverrides
             rules = rules.SetItem(id, false);
         }
 
-        return config with { Rules = rules };
+        // Naming the opt-in link refactoring on the command line is how a run switches it on: the setting is the feature's
+        // own switch, the rule is only a way to switch it off
+        var enableLinkRefactor = _enabled.Contains(RuleCatalog.LinkRefactorRuleId);
+        return config with
+        {
+            Rules = rules,
+            LinkRefactor = enableLinkRefactor ? config.LinkRefactor with { Enabled = true } : config.LinkRefactor
+        };
     }
 
     /// <summary>

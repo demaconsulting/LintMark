@@ -27,6 +27,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
+using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Reporting;
 using DemaConsulting.LintMark.Safety;
@@ -195,7 +196,8 @@ internal sealed class LintMarkEngine
         _formatter = formatter ?? new DocumentFormatter(
             [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
             new InlineNormalizer(),
-            new ParagraphFormatter());
+            new ParagraphFormatter(),
+            new LinkRefactorer());
         _lintRules = lintRules ?? LintRuleEngine.CreateDefault();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
@@ -627,16 +629,25 @@ internal sealed class LintMarkEngine
         var textChanged = !string.Equals(newLf, source.Text, StringComparison.Ordinal);
         var checks = new List<(SafetyStatus Status, string RuleId, string Sentence, Func<EquivalenceResult> Run)>();
 
-        // The checks on the LF-normalized text are decided in advance when only the line endings change
+        // The one thing the link refactoring writes that the page contains is the comment that introduces the new definitions; it is
+        // left out of the comparison, and everything else is compared as it is
+        var marker = config.LinkRefactor.Enabled ? config.LinkRefactor.DefinitionsMarker : null;
+        string Visible(string original, string rewritten) =>
+            marker is null ? rewritten : LinkRefactorer.WithoutAddedMarker(original, rewritten, marker);
         if (textChanged)
         {
             checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders",
-                () => HtmlEquivalenceChecker.Check(source.Text, newLf)));
+                () => HtmlEquivalenceChecker.Check(source.Text, Visible(source.Text, newLf))));
         }
 
         // The text as it is on disk, with its real line endings, always has to render the same
         checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders because of its line endings",
-            () => HtmlEquivalenceChecker.CheckOnDisk(DecodeContent(bytes, source), DecodeContent(newBytes, source))));
+            () =>
+            {
+                var before = DecodeContent(bytes, source);
+                return HtmlEquivalenceChecker.CheckOnDisk(before, Visible(before, DecodeContent(newBytes, source)));
+            }
+        ));
         if (textChanged)
         {
             checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would change the Pandoc structure",

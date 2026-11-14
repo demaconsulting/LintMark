@@ -69,6 +69,7 @@ public class RuleCatalogTests
             ["MD051"] = "link-fragment",
             ["MD052"] = "link-reference-undefined",
             ["MD053"] = "link-definition-unused",
+            ["MD054"] = "link-refactor",
             ["MD056"] = "table-column-count",
             ["MD059"] = "descriptive-link-text"
         };
@@ -200,8 +201,8 @@ public class RuleCatalogTests
         // Act: take the rule list
         var rules = RuleCatalog.ConfigurableRules;
 
-        // Assert: 26 unique ids in ordinal order, each with a default
-        Assert.Equal(26, rules.Length);
+        // Assert: 27 unique ids in ordinal order, each with a default
+        Assert.Equal(27, rules.Length);
         Assert.Equal(rules.Order(StringComparer.Ordinal), rules);
         Assert.Equal(rules.Length, rules.Distinct(StringComparer.Ordinal).Count());
         Assert.All(rules, rule => Assert.True(RuleCatalog.Defaults.ContainsKey(rule)));
@@ -434,6 +435,7 @@ public class RuleCatalogTests
                 "heading-style",
                 "line-ending",
                 "line-length",
+                "link-refactor",
                 "list-blank-lines",
                 "list-indent",
                 "list-marker-space",
@@ -661,18 +663,18 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 26 configurable rules, 36 non-configurable rules, 9 dropped aliases and 20 configurable aliases.
+    ///     Test that the registry holds 27 configurable rules, 36 non-configurable rules, 9 dropped aliases and 21 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable26NonConfigurable36AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable27NonConfigurable36AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
-        Assert.Equal(26, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
+        Assert.Equal(27, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
         Assert.Equal(36, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(62, RuleCatalog.Rules.Length);
-        Assert.Equal(26, RuleCatalog.ConfigurableRules.Length);
-        Assert.Equal(26, RuleCatalog.Defaults.Count);
-        Assert.Equal(20, RuleCatalog.Aliases.Count);
+        Assert.Equal(63, RuleCatalog.Rules.Length);
+        Assert.Equal(27, RuleCatalog.ConfigurableRules.Length);
+        Assert.Equal(27, RuleCatalog.Defaults.Count);
+        Assert.Equal(21, RuleCatalog.Aliases.Count);
         Assert.Equal(9, RuleCatalog.DroppedAliases.Length);
         Assert.Equal(RuleCatalog.Rules.Where(rule => rule.IsConfigurable).Select(rule => rule.Id), RuleCatalog.ConfigurableRules);
     }
