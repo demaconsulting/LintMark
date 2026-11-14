@@ -293,9 +293,10 @@ ends with a footnote marker, the marker is replaced by the **four-space indent**
 not by the width of the marker; text before the marker is blanked in the same way. A footnote paragraph
 therefore treats a continuation indented by four spaces as not lazy whatever the length of the label.
 
-`GetLines` and `GetContinuationPrefix` have **no production caller yet**: they are verified by unit and
-subsystem tests only. They are kept because the next phase consumes them. Line geometry is a separate
-responsibility from parsing; the design intends it to become its own unit when it is first consumed.
+`GetLines` has two production callers: `BlockQuoteFormatter` (the lines of a paragraph or heading in a quote) and
+`InlineNormalizer` (the content of a paragraph, for the stand-alone proof of its edits). `GetContinuationPrefix` is
+called by `GetLines` only. Line geometry is a separate responsibility from parsing; the design intends it to become its
+own unit when a further consumer needs it.
 
 #### Error Handling
 
@@ -334,5 +335,7 @@ to build their inputs, which is a test-time dependency only.
   rewritten.
 - **DocumentFormatter** and the block formatters of the `Blocks` subsystem — read `IsFormatUnsafe`, the blocks, and the
   suppressions of the parsed document.
+- **BlockQuoteFormatter** and **InlineNormalizer** — call `GetLines` for the leaf blocks they rewrite.
+- **ListFormatter** and **InlineNormalizer** — render text with the shared `Pipeline` to prove their edits.
 - **HtmlEquivalenceChecker** — renders with the shared `Pipeline`.
-- `GetLines` and `GetContinuationPrefix` have no production callers yet (see *Key Methods*).
+- `GetContinuationPrefix` is called by `GetLines` only (see *Key Methods*).

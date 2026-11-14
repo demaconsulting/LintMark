@@ -2021,6 +2021,174 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that the fix option writes bullets, ordered numbers, list columns and quote markers in canonical form,
+    ///     with the configured marker characters.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically()
+    {
+        // Arrange: bullets with other markers, ordered numbers that repeat, wide gaps, an over-indented child and a wide quote
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+        const string input = "* a\n  * b\n\n1. c\n1. d\n\n-   e\n\n>  quote\n";
+
+        // Act: fix with the defaults and with asterisk bullets and every number one
+        var (_, _, byDefault) = FixFile(first, input);
+        var (_, _, configured) = FixFile(second, input, "bullet: asterisk\nordered-style: one\n");
+
+        // Assert: dashes and counting numbers by default, the configured styles otherwise
+        Assert.Equal("- a\n  - b\n\n1. c\n2. d\n\n- e\n\n> quote\n", byDefault);
+        Assert.Equal("* a\n  * b\n\n1. c\n1. d\n\n* e\n\n> quote\n", configured);
+    }
+
+    /// <summary>
+    ///     Test that the fix option indents a nested bullet list by the configured number of spaces.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_NestedBulletIndent_UsesTheConfiguredIndent()
+    {
+        // Arrange: a nested bullet list written with two spaces and one with five
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+        const string input = "- a\n  - b\n\n- c\n     - d\n";
+
+        // Act: fix with the default and with an indent of four
+        var (_, _, byDefault) = FixFile(first, input);
+        var (_, _, indented) = FixFile(second, input, "list-indent: 4\n");
+
+        // Assert: nested bullets are two spaces by default and four when configured
+        Assert.Equal("- a\n  - b\n\n- c\n  - d\n", byDefault);
+        Assert.Equal("- a\n    - b\n\n- c\n    - d\n", indented);
+    }
+
+    /// <summary>
+    ///     Test that the fix option never merges two bullet lists that differ only by their marker, never splits a list,
+    ///     and keeps a nested list nested.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_BulletLists_AreNeverMergedOrSplit()
+    {
+        // Arrange: three lists that are lists of their own only because their markers differ, and a list with a nested list
+        using var directory = new TemporaryDirectory();
+        const string input = "- a\n\n* b\n\n+ c\n\n- d\n  * e\n  * f\n";
+
+        // Act: fix with the defaults
+        var (_, _, text) = FixFile(directory, input);
+
+        // Assert: the three lists keep different markers and the nested list stays inside its item
+        Assert.Equal("- a\n\n* b\n\n+ c\n\n- d\n  - e\n  - f\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option moves every line and block of a list item together with the item.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_ListItemsWithContent_MoveWithTheirItem()
+    {
+        // Arrange: items with a continuation line, a second paragraph, a nested list and fenced code, and a number that gains a digit
+        using var directory = new TemporaryDirectory();
+        const string input =
+            "-   a\n    more\n\n-   b\n\n    second\n\n-   c\n    - d\n\n    ```\n    code\n    ```\n\n" +
+            "1. e\n1. f\n1. g\n1. h\n1. i\n1. j\n1. k\n1. l\n1. m\n1. n\n   tail\n";
+
+        // Act: fix with the defaults
+        var (_, _, text) = FixFile(directory, input);
+
+        // Assert: every moved line stays in its item
+        Assert.Equal(
+            "- a\n  more\n\n- b\n\n  second\n\n- c\n  - d\n\n  ```\n  code\n  ```\n\n" +
+            "1. e\n2. f\n3. g\n4. h\n5. i\n6. j\n7. k\n8. l\n9. m\n10. n\n    tail\n",
+            text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option aligns the items of a list in the same column, and keeps the column of an ordered list.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_ListItemColumns_AreAligned()
+    {
+        // Arrange: top-level bullet items in different columns, and a top-level ordered list in a column
+        using var directory = new TemporaryDirectory();
+        const string input = "  - a\n  - b\n\ntext\n\n- c\n - d\n\ntext\n\n  1. e\n  2. f\n";
+
+        // Act: fix with the defaults
+        var (_, _, text) = FixFile(directory, input);
+
+        // Assert: bullet items start at the margin; the ordered list keeps its column
+        Assert.Equal("- a\n- b\n\ntext\n\n- c\n- d\n\ntext\n\n  1. e\n  2. f\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the fix option writes emphasis, strong emphasis and bare URLs in canonical form and leaves them
+    ///     when the rules are configured that way.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_InlineText_IsWrittenCanonically()
+    {
+        // Arrange: underscore emphasis and a bare URL
+        using var first = new TemporaryDirectory();
+        using var second = new TemporaryDirectory();
+        using var third = new TemporaryDirectory();
+        const string input = "_a_ __b__ http://x.com\n";
+
+        // Act: fix with the defaults, with underscores kept, and with bare URLs left
+        var (_, _, byDefault) = FixFile(first, input);
+        var (_, _, underscores) = FixFile(second, "*a* **b** http://x.com\n", "emphasis: underscore\nstrong: underscore\nbare-urls: leave\n");
+        var (_, _, left) = FixFile(third, input, "bare-urls: leave\n");
+
+        // Assert: each setting is honored
+        Assert.Equal("*a* **b** <http://x.com>\n", byDefault);
+        Assert.Equal("_a_ __b__ http://x.com\n", underscores);
+        Assert.Equal("*a* **b** http://x.com\n", left);
+    }
+
+    /// <summary>
+    ///     Test that a list, quote or inline rule disabled by a comment with its legacy number is neither fixed nor reported.
+    /// </summary>
+    [Theory]
+    [InlineData("MD004", "* a\n")]
+    [InlineData("MD027", ">  a\n")]
+    [InlineData("MD049", "_a_\n")]
+    [InlineData("MD034", "http://x.com\n")]
+    public void LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation(string rule, string block)
+    {
+        // Arrange: a violation inside a region that disables the rule
+        using var directory = new TemporaryDirectory();
+        var content = $"<!-- markdownlint-disable {rule} -->\n\n{block}";
+
+        // Act: fix the file
+        var (exitCode, output, text) = FixFile(directory, content);
+
+        // Assert: nothing is reported or changed
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("bullet", output);
+        Assert.DoesNotContain("blockquote-space", output);
+        Assert.DoesNotContain("emphasis", output);
+        Assert.DoesNotContain("bare-urls", output);
+        Assert.Equal(content, text);
+    }
+
+    /// <summary>
+    ///     Test that rules planned as lint-only are not known by their legacy numbers.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigRules_PlannedLintOnlyRuleByAlias_ReportsUnknownRule()
+    {
+        // Arrange: a configuration that names MD037
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "rules:\n  MD037: false\n");
+        var file = directory.WriteBytes("a.md", Bytes("text\n"));
+
+        // Act: run the tool
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
+
+        // Assert: the rule is reported as unknown
+        Assert.Equal(1, exitCode);
+        Assert.Contains("config-error", output);
+        Assert.Contains("MD037", output);
+    }
+
+    /// <summary>
     ///     Test that the diff option shows what the fix option would change and writes nothing.
     /// </summary>
     [Fact]

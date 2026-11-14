@@ -14,7 +14,8 @@ or must not be read: a reported diagnostic proves that a file was read, and sile
 tests change the current directory and are therefore run sequentially with the other tests that touch process-wide
 state.
 
-The default engine is created with the three block formatters of the `Blocks` subsystem, so it applies every formatting
+The default engine is created with the five block formatters of the `Blocks` subsystem and the inline normalizer of the
+`Inline` subsystem, so it applies every formatting
 rule of the tool to the files it processes. The scenarios that need a change of the text that is independent of those
 rules, or a refusal by a safety check, install test doubles through the engine's
 `formatter` seam: the paragraph formatters from `Formatting/TestBlockFormatters.cs`, which are the replacing

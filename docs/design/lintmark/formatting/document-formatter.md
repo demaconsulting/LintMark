@@ -5,12 +5,13 @@
 #### Purpose
 
 `DocumentFormatter` turns a parsed document into the edits and the line ending that bring it into canonical form,
-without writing anything. It walks the blocks in source order, lets the first block formatter that accepts each block
-propose edits, leaves blocks with suppressed rules alone, applies the rules that concern every document to everything
-that no block formatter claims (trailing whitespace, tabs, blank lines, the blank lines between blocks, and the end of
-the file), reports every edit of those rules as a problem, and decides the line ending of the file. Its supporting types
-`IBlockFormatter`, `FormatContext`, and `FormatResult`, and the internal helpers that the passes and the block formatters
-share, are described in this document.
+without writing anything. It applies the rules that concern every document to everything that no block formatter claims
+(trailing whitespace, tabs, blank lines, the blank lines between blocks, and the end of the file) and gives each
+unclaimed paragraph to the inline normalizer (emphasis, strong emphasis, and bare URLs). It then lets the first block
+formatter that accepts each block propose edits, from the last block to the first, and leaves blocks with suppressed
+rules alone. It reports every edit of an always-applied rule as a problem and decides the line ending of the file. Its
+supporting types `IBlockFormatter`, `FormatContext`, and `FormatResult`, and the internal helpers that the passes and the
+block formatters share, are described in this document.
 
 #### Data Model
 
@@ -29,10 +30,15 @@ worker thread. The block formatters of the tool are in the `Blocks` subsystem (s
 `FormatContext.Config.Rules` for its own rules itself when a rule is configurable; the rules of the tool's formatters are
 always applied and are switched off for a passage only, with suppression comments.
 
-**FormatContext**: A sealed record with the constructor `(ParsedDocument document, LintMarkConfig config)`, which
-rejects a null argument. `Document` is the document the block belongs to (never format-unsafe) and `Config` is the
-effective configuration of the file. Immutable and shared by every formatter of one document. Later phases add the
-data that wrapping and table formatting need.
+**FormatContext**: A sealed record, immutable and shared by every formatter of one document, with the members `Document`
+(the document the block belongs to, never format-unsafe), `Config` (the effective configuration of the file), `Layout`
+(the `LineLayout` of the document), and `Ownership` (the `LineOwnership` map that the document formatter computed, so a
+formatter of a container knows which lines hold code or other protected content and which are claimed). The constructor
+`(ParsedDocument document, LintMarkConfig config, LineLayout layout, LineOwnership ownership)` is the one that
+`DocumentFormatter` uses. The constructor `(ParsedDocument document, LintMarkConfig config)` is kept for callers that
+have no document formatter around them: it creates its own `LineLayout` and a `LineOwnership` in which no block
+formatter has claimed a line. Every constructor rejects a null argument. Later phases add the data that wrapping and
+table formatting need.
 
 **FormatResult**: A sealed record with the constructor `(ImmutableArray<TextEdit> edits, LineEnding lineEnding,
 ImmutableArray<Diagnostic> diagnostics)`, which rejects a default array, a default edit, a null diagnostic, and a
@@ -40,25 +46,35 @@ line ending that is not defined. It holds the ordered, conflict-free edits to th
 the file is written with, and the formatting violations found (the findings that applying the result removes).
 Immutable, including its collections.
 
-**DocumentFormatter**: A sealed class with one field, `_formatters`, an immutable array of the registered
-`IBlockFormatter` instances in priority order, copied from the constructor argument. The constant `LineEndingRuleId`
-is `line-ending`. The production engine creates the formatter with the three block formatters of the `Blocks`
-subsystem (heading, code block, thematic break).
+**DocumentFormatter**: A sealed class with two fields: `_formatters`, an immutable array of the registered
+`IBlockFormatter` instances in priority order, copied from the constructor argument, and `_inline`, the optional
+`InlineNormalizer` (`null` for none, in which case no inline rule is applied). The constant `LineEndingRuleId` is
+`line-ending`. The production engine creates the formatter with the five block formatters of the `Blocks` subsystem
+(heading, code block, thematic break, list, block quote, in this order) and a new `InlineNormalizer`.
 
 **Rules that apply to every document**: These rules are registered in `RuleCatalog` as always-applied formatting rules
 (not configurable, suppressible by comment) and are implemented by the passes below: `trailing-whitespace` (MD009),
 `hard-tabs` (MD010), `max-blank-lines` (MD012), `heading-blank-lines` (MD022), `fence-blank-lines` (MD031),
 `list-blank-lines` (MD032), `table-blank-lines` (MD058), and `final-newline` (MD047). The block formatters enforce
 `heading-style` (MD003, MD021), `heading-space` (MD019), `heading-start-left` (MD023), `thematic-break` (MD035),
-`code-block-style` (MD046), and `code-fence` (MD048), and the whitespace rules on their own lines. MD018 and MD020 are not
-implemented: `#Title` is a paragraph to the parser, and adding the space would change how the document renders.
+`code-block-style` (MD046), `code-fence` (MD048), `bullet` (MD004), `ordered-style` (MD029), `list-indent` (MD005,
+MD007), `list-marker-space` (MD030), and `blockquote-space` (MD027), and the whitespace rules on their own lines. The
+inline normalizer enforces `emphasis` (MD049), `strong` (MD050), and `bare-urls` (MD034). MD018 and MD020 are not
+implemented: `#Title` is a paragraph to the parser, and adding the space would change how the document renders. MD037,
+MD038, and MD039 are not implemented either: removing the spaces they describe changes how the text renders.
 
 **Supporting types** (internal, no unit of their own; shared with the block formatters):
 
 - `LineLayout`: line arithmetic over the LF-normalized text. Lines are numbered from zero, a line ends at its line feed,
-  a text that ends with a line feed has no line after it, blank means empty or only spaces and tabs, a tab stop is the
-  next multiple of four columns, and `LooksLikeGridBorder` recognizes a line that starts like the border of a grid table
-  after quote and list markers.
+  a text that ends with a line feed has no line after it, blank means empty or only spaces and tabs, and a tab stop is the
+  next multiple of four columns. Three members answer questions about plus signs and footnotes. `LooksLikeGridBorder`
+  recognizes the exact shape of the border of a grid table: a plus sign after any quote markers, list markers, and
+  indentation, followed by nothing but dashes, equal signs, colons, plus signs, and blanks, with at least one dash or
+  equal sign (a line that merely starts with a plus sign, such as an item of a plus sign list, is not a border).
+  `StartsWithPlusSign` is the broad question that the thematic break rule needs (does the line start with a plus sign
+  after those prefixes, whatever follows). The static `HasFootnoteDefinitionMarker` finds `[^label]:` anywhere in a
+  line, deliberately wider than the syntax, so that the formatters that change columns (lists and quotes) leave blocks
+  alone that the parser reads inconsistently.
 - `LineOwnership`: which leaf block covers each line and who may edit it. A line of a block that a block formatter
   accepts is *claimed* (also when the block is suppressed): only that formatter edits it. A line of code, HTML, math,
   front matter, a grid table, an unreferenced footnote, a multi-line link reference definition, or a block the tool does
@@ -87,8 +103,8 @@ implemented: `#Title` is a paragraph to the parser, and adding the space would c
   text, as the heading formatter does), so indentation and container prefixes never change. A tab in the whitespace at
   the end of a line is never expanded, whether or not `trailing-whitespace` is suppressed: that whitespace belongs to the
   trailing whitespace rule, and a tab turned into spaces could leave two spaces before the line end, which are a hard
-  break. A line that looks like a grid table border is never edited, because whether the parser reads it as part of a
-  table can depend on the neighboring lines that the same run may change.
+  break. A line that has the exact shape of a grid table border (`LooksLikeGridBorder`) is never edited, because whether
+  the parser reads it as part of a table can depend on the neighboring lines that the same run may change.
 - `FrontMatterGuard`: whether a new `---` line could close front matter opened by the first line of the document.
 - `BlankLinePass`, `BlockSpacingPass`, and `TrailerPass`: the three document-level passes described under *Key Methods*.
 
@@ -105,9 +121,10 @@ ending of the file, so that rewriting leaves the file byte for byte as it was.
 
 #### Key Methods
 
-**Constructor**: Registers the block formatters.
+**Constructor**: Registers the block formatters and the inline normalizer.
 
-- *Parameters*: `IReadOnlyList<IBlockFormatter>? formatters` (default `null`, meaning none).
+- *Parameters*: `IReadOnlyList<IBlockFormatter>? formatters` (default `null`, meaning none) and `InlineNormalizer? inline`
+  (default `null`, meaning no inline rule is applied).
 - *Postconditions*: the list is copied into an immutable array, so a caller cannot change it afterwards.
 - *Errors*: a null element of the list is rejected up front with `ArgumentNullException`.
 
@@ -120,18 +137,32 @@ ending of the file, so that rewriting leaves the file byte for byte as it was.
 
 Algorithm: (1) for a format-unsafe document, return an empty result with the majority line ending; (2) create a
 `LineLayout` and the `LineOwnership` map (a block is claimed when some registered formatter's `CanFormat` accepts it);
-(3) create an `EditSet` and a `FormatContext`; (4) for each block in source order, find the first formatter whose
-`CanFormat` accepts it; when there is none, or when any of the formatter's `RuleIds` is suppressed anywhere inside the
-block (`SuppressionMap.IsSuppressedRange` over the block's range), leave the block verbatim; otherwise call the
-formatter's `Format`, which adds its edits; (5) run the whitespace edits of the unclaimed blocks and the three passes
-(below); (6) resolve the target line ending; (7) check the line endings, convert the edits of the always-applied rules
-into diagnostics, and return the snapshot of the edit set, the target, and the diagnostics.
+(3) create an `EditSet` and run the passes first: the whitespace edits and the inline edits of the unclaimed blocks, then
+the three passes (below); (4) create a `FormatContext` with the layout and the ownership map; (5) visit the blocks in
+**reverse source order**, from the last block to the first: for each block, find the first formatter whose `CanFormat`
+accepts it; when there is none, or when any of the formatter's `RuleIds` is suppressed anywhere inside the block
+(`SuppressionMap.IsSuppressedRange` over the block's range), leave the block verbatim; otherwise call the formatter's
+`Format`, which adds its edits; (6) resolve the target line ending; (7) check the line endings, convert the edits of the
+always-applied rules into diagnostics, and return the snapshot of the edit set, the target, and the diagnostics.
 
-**Whitespace of unclaimed blocks** (private `AddLeafEdits`): for each leaf block that no formatter claims and that is not
-protected, a paragraph or heading goes through `LeafWhitespace` (trailing whitespace unless `trailing-whitespace` is
-suppressed in the block, tabs unless `hard-tabs` is), and the lines of a table, a thematic break, or a single-line link
-reference definition lose their trailing whitespace. Lines that no leaf block covers and that are not blank hold only
-container markers (`>` or a list marker) and lose their trailing whitespace too.
+*Order and the idempotency principle*: the order of the calls never changes the result, because the snapshot orders the
+edits by position. It decides what a formatter can see. The passes run before every block formatter, and the blocks are
+visited from the end of the document to its start (the blocks nested in a container follow it in the list, so they are
+visited before it), so a formatter sees the edits proposed for the blocks after its own and by the passes. A formatter
+that needs to judge the lines after its block (a list that must not move over a line that would then
+belong to it) judges the text as it will be after this run. The rule behind it: a decision must not depend on text that
+another formatter or pass changes in the same run, otherwise the next run would decide differently and the result would
+not be idempotent.
+
+**Whitespace and inline text of unclaimed blocks** (private `AddLeafEdits`): for each leaf block that no formatter claims
+and that is not protected, a paragraph or heading goes through `LeafWhitespace` (trailing whitespace unless
+`trailing-whitespace` is suppressed in the block, tabs unless `hard-tabs` is), and the lines of a table, a thematic
+break, or a single-line link reference definition lose their trailing whitespace. A paragraph (also one inside a list,
+a quote, or a footnote) is then given to `InlineNormalizer.AddBlockEdits` when a normalizer is registered (the
+normalizer keeps emphasis that ends the last paragraph of a footnote as written); the normalizer
+checks the suppression of its three rules itself, and a heading or a table cell never reaches it. Lines that no leaf
+block covers and that are not blank hold only container markers (`>` or a list marker) and lose their trailing
+whitespace too.
 
 **BlankLinePass**: A run is a maximal sequence of blank lines that no leaf block covers. A run longer than
 `config.MaxBlankLines` loses its surplus lines (`max-blank-lines`), and the lines that stay are emptied
@@ -182,8 +213,10 @@ reported here.
 
 **Idempotency**: formatting the result of a formatting run proposes no edit. This holds because ranges never depend on
 whether a line is empty or holds spaces, the guards of the block formatters depend only on kinds that the spacing pass
-separates and never on blank lines inserted in the same run, edits of different rules never overlap, and the claimed lines
-are edited by one author only. The `Engine` subsystem verifies it for every rewrite with the idempotency check.
+separates and never on blank lines inserted in the same run, edits of different rules never overlap, the claimed lines
+are edited by one author only, and a decision of a formatter never depends on text that another formatter or pass
+changes in the same run (see *Order and the idempotency principle* under **Format**). The `Engine` subsystem verifies it
+for every rewrite with the idempotency check.
 
 **Line ending check** (private): Counts the terminators of the other style than the target in the source's
 `LineEndingInfo`. When none, there is no diagnostic. Otherwise one `line-ending` diagnostic of kind `Formatting` is
@@ -194,7 +227,9 @@ terminators never violates the rule.
 **Suppression handling**: Suppression is honored at block granularity. A `disable` region, a `disable-next-line`
 comment, a `prettier-ignore` comment, and the other directive families of the `SuppressionMap` all make a range
 suppressed; the formatter leaves the whole block verbatim when any part of it is suppressed for any rule of its
-formatter. The passes check the range of the block, run, boundary, or trailer that they would edit. Rule names in
+formatter. The passes check the range of the block, run, boundary, or trailer that they would edit, and the inline
+normalizer checks each of its three rules over the range of the paragraph, so a suppressed rule leaves the paragraph
+without that rule's edits only. Rule names in
 suppression comments are resolved through the aliases of the rule catalog by `DocumentParser` (see *DocumentParser
 Design*), so `markdownlint-disable MD009` and `lintmark-disable trailing-whitespace` suppress the same rule, and a
 name that is not a registered rule suppresses nothing registered.
@@ -208,24 +243,27 @@ diagnostic for that file and leaves the file untouched. An edit outside the text
 `SourcePatcher`. The passes are written so that their own edits cannot conflict with each other or with those of the
 block formatters (see the idempotency paragraph above); a conflict would still surface as the exception above. A line
 that does not have the shape the parser promised, and a document that the passes cannot judge safely, produce no edit
-instead of an error. The constructors of `FormatContext` and `FormatResult` reject incomplete values (a null document or
-configuration; a default array, a default edit, a null diagnostic, or an undefined line ending), so such a value can
-never reach a block formatter or the engine.
+instead of an error. The constructors of `FormatContext` and `FormatResult` reject incomplete values (a null document,
+configuration, line arithmetic, or ownership map; a default array, a default edit, a null diagnostic, or an undefined
+line ending), so such a value can never reach a block formatter or the engine.
 
 #### Dependencies
 
 - **ParsedDocument**, **BlockInfo**, **BlockKind**, **SourceDocument**, **LineEnding**, and **SuppressionMap**
   (`Document` subsystem) — the blocks, the majority line ending, the terminator counts, and the suppression queries.
 - **LintMarkConfig** (`Configuration` subsystem) — the line ending, `max-blank-lines`, and `final-newline` settings and
-  the configuration handed to formatters.
+  the configuration handed to formatters and to the inline normalizer.
 - **Diagnostic**, **DiagnosticKind**, and **RuleCatalog** (`Linting` subsystem) — the `line-ending` finding and the
   identifiers and descriptions of the always-applied rules.
 - **EditSet** and **TextEdit** (this subsystem) — the proposed edits.
+- **InlineNormalizer** (`Inline` subsystem) — the edits of emphasis, strong emphasis, and bare URLs in paragraphs.
 - **Markdig** (OTS) — the inline tree and block nodes that `InlineMap` and `LineOwnership` read.
 
 #### Callers
 
 - **LintMarkEngine** — calls `Format` for every file that may be formatted, and again for the formatting step of the
   idempotency check; a test seam of the engine installs block formatters (including broken ones).
-- **HeadingFormatter**, **CodeBlockFormatter**, and **ThematicBreakFormatter** (`Blocks` subsystem) — use the supporting
-  types `LineLayout`, `LineOwnership`, `InlineMap`, `LeafWhitespace`, and `FrontMatterGuard`.
+- **HeadingFormatter**, **CodeBlockFormatter**, **ThematicBreakFormatter**, **ListFormatter**, and
+  **BlockQuoteFormatter** (`Blocks` subsystem) — use the supporting types `LineLayout`, `LineOwnership`, `InlineMap`,
+  `LeafWhitespace`, and `FrontMatterGuard` (the two container formatters reach `LineLayout` and `LineOwnership` through
+  `FormatContext`).

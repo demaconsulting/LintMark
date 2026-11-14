@@ -24,8 +24,9 @@ encoding and line-ending identifiers come from `SourceDocumentException`; the co
 configuration the file may be formatted under, null when it must not be formatted), `_documentParser`
 (`Func<SourceDocument, ParsedDocument>`: the parse step, also used by the safety checks), `_editorConfigFactory`
 (`Func<EditorConfigResolver>`: creates the resolver used by `Run`, by default one that reads the real file system),
-`_formatter` (`DocumentFormatter`, by default one with the three block formatters of the `Blocks` subsystem:
-`HeadingFormatter`, `CodeBlockFormatter`, and `ThematicBreakFormatter`), and `_fileWriter`
+`_formatter` (`DocumentFormatter`, by default one with the five block formatters of the `Blocks` subsystem:
+`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`, in this
+order, and an `InlineNormalizer` of the `Inline` subsystem), and `_fileWriter`
 (`Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>`: path, resolved target captured at the read,
 original bytes, new bytes; by default `AtomicFileWriter`). They are supplied through the internal constructor
 parameters `fileProcessor`, `documentParser`,
@@ -253,8 +254,9 @@ makes the output and the files written deterministic (see the *LintMark* system 
 - **EditorConfigResolver** and **EditorConfigResult** — the line ending from the editor settings.
 - **LintMarkConfig** and **ConfigError** — the effective configuration and the problem entries it carries.
 - **DocumentFormatter**, **FormatResult**, and **SourcePatcher** — the proposed rewrite.
-- **HeadingFormatter**, **CodeBlockFormatter**, and **ThematicBreakFormatter** (`Blocks` subsystem) — the block
-  formatters that the default `DocumentFormatter` is created with.
+- **HeadingFormatter**, **CodeBlockFormatter**, **ThematicBreakFormatter**, **ListFormatter**, and
+  **BlockQuoteFormatter** (`Blocks` subsystem), and **InlineNormalizer** (`Inline` subsystem) — the block formatters
+  and the inline normalizer that the default `DocumentFormatter` is created with.
 - **HtmlEquivalenceChecker**, **StructuralTokenChecker**, **IdempotencyChecker**, **EquivalenceResult**, and
   **SafetyStatus** — the safety checks and their outcome.
 - **AtomicFileWriter** — the write.

@@ -152,6 +152,11 @@ public class DocumentFormatterSupportTests
     [InlineData("- +---+", true)]
     [InlineData("1. +---+", true)]
     [InlineData("> - 10) +---+", true)]
+    [InlineData("+ item", false)]
+    [InlineData("+ a + b", false)]
+    [InlineData("+-", true)]
+    [InlineData("+ ---+", true)]
+    [InlineData("+---+ text", false)]
     [InlineData("text +---+", false)]
     [InlineData("-+---+", false)]
     [InlineData("1.+---+", false)]
@@ -159,6 +164,33 @@ public class DocumentFormatterSupportTests
     [InlineData("", false)]
     public void LineLayout_LooksLikeGridBorder_Line_RecognizesTheStart(string line, bool expected) =>
         Assert.Equal(expected, Layout(line + "\n").LooksLikeGridBorder(0));
+
+    /// <summary>
+    ///     Test that a line that has a plus sign after quote and list markers is recognized whatever follows the plus sign.
+    /// </summary>
+    [Theory]
+    [InlineData("+ item", true)]
+    [InlineData("> + item", true)]
+    [InlineData("- 1. +x", true)]
+    [InlineData("a + b", false)]
+    [InlineData("- item", false)]
+    [InlineData("", false)]
+    public void LineLayout_StartsWithPlusSign_Line_RecognizesAPlusSignAfterPrefixes(string line, bool expected) =>
+        Assert.Equal(expected, Layout(line + "\n").StartsWithPlusSign(0));
+
+    /// <summary>
+    ///     Test that a footnote definition marker is found anywhere in a line.
+    /// </summary>
+    [Theory]
+    [InlineData("[^a]: text", true)]
+    [InlineData("- [^a]: text", true)]
+    [InlineData("> > [^note]:", true)]
+    [InlineData("[^a] text", false)]
+    [InlineData("[^a", false)]
+    [InlineData("[a]: text", false)]
+    [InlineData("", false)]
+    public void LineLayout_HasFootnoteDefinitionMarker_Line_FindsTheMarker(string line, bool expected) =>
+        Assert.Equal(expected, LineLayout.HasFootnoteDefinitionMarker(line));
 
     /// <summary>
     ///     Test that the inline map tells plain text, protected spans and line breaks apart.

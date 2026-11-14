@@ -25,10 +25,13 @@ in a `finally` block, so other tests are not affected.
 - Exactly three configurable rules are off by default, and the 22 defaults cover exactly the 22 configurable rules.
 - Every entry has a description that ends in a period and a unique identifier, the entries are in ordinal order, and
   every identifier is accepted by `Diagnostic`.
-- The formatting rules are the configurable line length and paragraph wrap rules, the line ending rule, and the 14
-  always-applied whitespace, blank-line, heading, code block, thematic break, and final newline rules; the 14 carry 15
-  legacy numbers that resolve to them (not in a configuration), and no other non-configurable entry has an alias.
-- The counts are 22 configurable rules, 25 non-configurable entries, 16 aliases of configurable rules, and 9 dropped
+- The formatting rules are the configurable line length and paragraph wrap rules, the line ending rule, and the 22
+  always-applied whitespace, blank-line, heading, code block, thematic break, final newline, list, block quote, and inline
+  rules; the 22 carry 24 legacy numbers that resolve to them (not in a configuration), and no other non-configurable
+  entry has an alias.
+- The numbers of the rules that are planned to report a problem only (`MD037`, `MD038`, and `MD039`) are not registered
+  and do not resolve.
+- The counts are 22 configurable rules, 33 non-configurable entries, 16 aliases of configurable rules, and 9 dropped
   aliases.
 - Every exposed collection refuses modification, also through a cast to a mutable interface.
 - A null name or identifier throws `ArgumentNullException` that names the parameter.
@@ -64,9 +67,11 @@ identifier `line-length`, the formatting kind, the alias `MD013`, is on by defau
 resolves to itself and its entry is not configurable, and it is absent from the list of configurable rules and from the
 defaults.
 
-**The legacy number of an always-applied rule reaches the rule for suppression only**: `MD021`, `MD047`, and
-`trailing-whitespace` are resolved, and then resolved as configurable. The first resolution gives the canonical rule
-(`heading-style`, `final-newline`, `trailing-whitespace`) and the second returns false with no identifier.
+**The legacy number of an always-applied rule reaches the rule for suppression only**: `MD021`, `MD047`, `MD004`, `md029`,
+`MD005`, `MD007`, `MD030`, `MD027`, `MD049`, `MD050`, `md034`, and `trailing-whitespace` are resolved, and then resolved
+as configurable. The first resolution gives the canonical rule (`heading-style`, `final-newline`, `bullet`,
+`ordered-style`, `list-indent` for both `MD005` and `MD007`, `list-marker-space`, `blockquote-space`, `emphasis`,
+`strong`, `bare-urls`, and `trailing-whitespace`) and the second returns false with no identifier.
 
 **The configurable rules are sorted, unique, and covered by the defaults**: The list of configurable rules holds 22
 identifiers, in ordinal order, without duplicates. Each identifier has a default, and the defaults hold no other
@@ -84,23 +89,25 @@ identifiers and aliases of all entries together contain no duplicate, ignoring l
 **Entries are sorted by identifier**: The identifiers of the entries are in ordinal order.
 
 **The formatting rules are the configurable ones, the line ending, and the always-applied rules**: The entries of the
-formatting kind are, in ordinal order, `code-block-style`, `code-fence`, `fence-blank-lines`, `final-newline`,
-`hard-tabs`, `heading-blank-lines`, `heading-space`, `heading-start-left`, `heading-style`, `line-ending`,
-`line-length`, `list-blank-lines`, `max-blank-lines`, `paragraph-wrap`, `table-blank-lines`, `thematic-break`, and
-`trailing-whitespace`.
+formatting kind are, in ordinal order, `bare-urls`, `blockquote-space`, `bullet`, `code-block-style`, `code-fence`,
+`emphasis`, `fence-blank-lines`, `final-newline`, `hard-tabs`, `heading-blank-lines`, `heading-space`,
+`heading-start-left`, `heading-style`, `line-ending`, `line-length`, `list-blank-lines`, `list-indent`,
+`list-marker-space`, `max-blank-lines`, `ordered-style`, `paragraph-wrap`, `strong`, `table-blank-lines`,
+`thematic-break`, and `trailing-whitespace`.
 
 **The non-configurable entries are the always-applied rules and the failure identifiers**: The entries that are not
-configurable are `line-ending`, the 14 always-applied rules, the three safety identifiers, the six file identifiers, and
+configurable are `line-ending`, the 22 always-applied rules, the three safety identifiers, the six file identifiers, and
 `config-error`. All are enabled.
 
 **Only the always-applied formatting rules have legacy numbers**: The non-configurable entries that have aliases are
-exactly the 14 always-applied rules, with the numbers `MD009`, `MD010`, `MD012`, `MD003` and `MD021`, `MD019`, `MD023`,
-`MD022`, `MD031`, `MD032`, `MD058`, `MD035`, `MD046`, `MD048`, and `MD047`.
+exactly the 22 always-applied rules, with the numbers `MD009`, `MD010`, `MD012`, `MD003` and `MD021`, `MD019`, `MD023`,
+`MD022`, `MD031`, `MD032`, `MD058`, `MD035`, `MD046`, `MD048`, `MD047`, `MD004`, `MD029`, `MD005` and `MD007`, `MD030`,
+`MD027`, `MD049`, `MD050`, and `MD034`.
 
 **Every registered identifier is a valid diagnostic identifier**: A `Diagnostic` is created for each entry using its
 identifier and kind. Each creation succeeds and keeps the identifier.
 
-**The counts of the registry agree**: The entries are 22 configurable and 25 not configurable, 47 in all. There are
+**The counts of the registry agree**: The entries are 22 configurable and 33 not configurable, 55 in all. There are
 22 configurable identifiers, 22 defaults, 16 aliases of configurable rules, and 9 dropped aliases, and the configurable
 entries match the list of configurable identifiers.
 
@@ -123,6 +130,10 @@ none is found by `TryGet`.
 
 **Only canonical identifiers are found by a lookup**: `no-such-rule`, an empty name, the alias `MD013`, and the
 removed number `MD033` are looked up. Each returns false and no entry.
+
+**The numbers of planned lint-only rules are not registered**: `MD037`, `MD038`, and `MD039`, the numbers of rules that
+are planned to report a problem without a fix, are resolved. Each returns false with no identifier, so a suppression
+comment or a configuration that names one of them does not match a rule until the rule exists.
 
 ##### Error handling
 

@@ -16,11 +16,13 @@ number from markdownlint (for example `MD009`) that you can use in a suppression
   identifier and its legacy number are unknown names there. Its *settings* (such as `code-fence`) choose the form that
   it writes. To leave a passage alone, use a suppression comment (see *Suppressing a Rule*).
 - **Content is never changed**: Code (fenced, indented, and inline), HTML, math, front matter, and grid tables keep
-  their content, including whitespace and blank lines. Text that LintMark cannot read with certainty is left as it is,
-  and so is a rewrite that could change what the document means or how it renders: such a conversion is simply not
-  made.
+  their content, including whitespace and blank lines. Links keep their text and destination. Text that LintMark
+  cannot read with certainty is left as it is, and so is a rewrite that could change what the document means or how
+  it renders: such a conversion is simply not made. LintMark renders the document before and after the change and
+  leaves a place unchanged when the result would differ.
 - **Containers**: Blocks inside a quote or list are changed in place, but no blank line is added or removed there,
-  because that could change how a list renders.
+  because that could change how a list renders. A list inside a quote changes only its marker character or number,
+  never its columns.
 
 In the examples below, a dot (`·`) stands for a space and an arrow (`→`) for a tab at the end of a line or inside text,
 so that the whitespace is visible. Write the real characters in a file.
@@ -345,6 +347,244 @@ fence whose info string starts with a brace (Pandoc attributes, such as `{=html}
   ```
   ````
 
+## Lists and Block Quotes
+
+These rules change the markers, numbers, and spacing of lists and block quotes. They change nothing else in an item:
+the text of an item or quote is only touched by the rules for inline text (see *Inline Text*) and by the rules of the
+other sections. In every rule below the following places are left as they are:
+
+- A lazy continuation line (a line of text that continues an item or quote without its indentation or marker).
+- Whitespace that contains a tab: the marker character or number of such a line can change, its spacing does not.
+- The columns of a list in a block quote: only the marker character or number of such a list changes. A list in a
+  footnote definition is not rewritten.
+- Code blocks, HTML, and math.
+
+### bullet (MD004)
+
+Writes the marker of every item of a bullet list with the configured character. All items of a list are converted
+together or not at all. Two lists that are separated only by a blank line, because their marker characters differ,
+stay two lists: a conversion that would merge them into one list is not made. A list is also left alone when the new
+marker would turn one of its items into a thematic break (`+ - -` would become `- - -`).
+
+- **Setting**: `bullet`: `dash` (`-`), `asterisk` (`*`), or `plus` (`+`). The default is `dash`.
+- **Before** (default setting):
+
+  ```text
+  * Apples
+  * Pears
+
+  Some text.
+
+  - Plums
+  - Figs
+
+  + Dates
+  + Nuts
+  ```
+
+- **After**:
+
+  ```text
+  - Apples
+  - Pears
+
+  Some text.
+
+  - Plums
+  - Figs
+
+  + Dates
+  + Nuts
+  ```
+
+  The list `+ Dates` directly follows the list `- Plums`; with the same marker, the two would become one list, so it
+  stays. Change such neighbors by hand, or separate them with a paragraph.
+
+### ordered-style (MD029)
+
+Numbers the items of an ordered list in the configured style. The first number of a list and its delimiter (`.` or
+`)`) are kept, whatever they are.
+
+- **Setting**: `ordered-style`: `incrementing` or `one`. The default is `incrementing`. With `incrementing` each item
+  has the number of the item before it plus one. With `one` every item repeats the number of the first item, so a list
+  that starts with `3)` has `3)` on every item.
+- **Before** (default setting):
+
+  ```text
+  1. one
+  1. two
+  1. three
+
+  3) three
+  3) four
+  7) five
+
+  0. zero
+  5. five
+  ```
+
+- **After**:
+
+  ```text
+  1. one
+  2. two
+  3. three
+
+  3) three
+  4) four
+  5) five
+
+  0. zero
+  1. five
+  ```
+
+  With `ordered-style: one` the same lists keep `1. 1. 1.`, and become `3) 3) 3)` and `0. 0.`.
+
+### list-indent (MD005, MD007)
+
+Aligns the items of a list and sets the indentation of nested bullet lists. The items of one list start in the same
+column; the items of a top-level list start at the left margin; a bullet list inside a bullet item starts the
+configured number of columns to the right of the marker of its parent; and the content of an item that moves (its
+continuation lines and nested blocks) moves with it. Any other nesting, such as a list in an ordered item or an
+ordered list in a bullet item, keeps its offset from the content of its parent item.
+
+- **Setting**: `list-indent`: `2` or `4`. The default is `2`.
+- **Before** (default setting):
+
+  ```text
+  ·- first
+  ·- second
+  ····- nested four
+  ····- nested four again
+
+  - parent
+  ···- nested three
+  ·····with continuation
+  ```
+
+- **After**:
+
+  ```text
+  - first
+  - second
+  ··- nested four
+  ··- nested four again
+
+  - parent
+  ··- nested three
+  ····with continuation
+  ```
+
+### list-marker-space (MD030)
+
+Puts exactly one space between a list marker and the text of the item. An item with five or more spaces after the
+marker is left alone, because its text is an indented code block.
+
+- **Setting**: none.
+- **Before**:
+
+  ```text
+  -···wide item
+  1.···numbered
+  ```
+
+- **After**:
+
+  ```text
+  - wide item
+  1. numbered
+  ```
+
+### blockquote-space (MD027)
+
+Puts exactly one space between the `>` of a block quote and its text. It applies to the paragraph and heading lines of
+a quote. A line with five or more spaces after the marker is left alone, because the spaces indent a code block or
+continue a paragraph.
+
+- **Setting**: none.
+- **Before**:
+
+  ```text
+  >···quoted text
+  >···more quoted text
+  ```
+
+- **After**:
+
+  ```text
+  > quoted text
+  > more quoted text
+  ```
+
+## Inline Text
+
+These rules change the delimiters of emphasis and strong emphasis and wrap bare URLs. They work on the text of a
+paragraph. The text of tables and headings is not normalized, and code spans, link and image destinations, HTML, and
+math keep their content. Emphasis in link text and in an image description is written like any other emphasis
+(`[_a_](url)` becomes `[*a*](url)`). Emphasis or strong emphasis that ends the last paragraph of a footnote is left as
+written; everything else in a footnote is normalized. A paragraph that holds a delimiter that LintMark cannot pair with
+certainty is left whole: unpaired or mixed delimiters (`_one` and `*two_`) and nested emphasis
+(`_outer *inner* outer_`) are examples.
+
+### emphasis (MD049)
+
+Writes emphasis with the configured delimiter. Emphasis inside a word is kept as it is when the configured delimiter
+is the underscore, because underscores inside a word do not form emphasis (`snake*case*word` stays).
+
+- **Setting**: `emphasis`: `asterisk` or `underscore`. The default is `asterisk`.
+- **Before** (default setting):
+
+  ```text
+  This is _emphasis_ and __strong__ text.
+  ```
+
+- **After**:
+
+  ```text
+  This is *emphasis* and **strong** text.
+  ```
+
+  With `emphasis: underscore` and `strong: underscore`, the After text becomes the Before text again. A paragraph with
+  literal underscores inside a word, such as `snake_case_word`, is left whole.
+
+### strong (MD050)
+
+Writes strong emphasis with the configured delimiter. The example of `emphasis` shows both rules, because its line holds
+both kinds of emphasis. Strong emphasis follows the same restrictions as emphasis.
+
+- **Setting**: `strong`: `asterisk` or `underscore`. The default is `asterisk`.
+- **Before** (default setting): `__strong__`
+- **After**: `**strong**`
+
+### bare-urls (MD034)
+
+Wraps a bare URL in angle brackets, which makes it an autolink. Only addresses that start with `http://`, `https://`,
+or `ftp://` are changed. A period, comma, or closing parenthesis directly after the URL stays outside the brackets.
+Addresses that start with `www.`, e-mail addresses, URLs in links, URLs already in angle brackets, and code are not
+changed.
+
+- **Setting**: `bare-urls`: `autolink` or `leave`. The default is `autolink`; `leave` switches the rule off.
+- **Before** (default setting):
+
+  ```text
+  See https://example.com/page. Also (http://example.com/a), or ftp://files.example.com/x, but not
+  www.example.com or user@example.com.
+  ```
+
+- **After**:
+
+  ```text
+  See <https://example.com/page>. Also (<http://example.com/a>), or <ftp://files.example.com/x>, but not
+  www.example.com or user@example.com.
+  ```
+
+### What is not fixed
+
+The legacy rules `MD037` (spaces inside emphasis markers), `MD038` (spaces inside code spans), and `MD039` (spaces
+inside link text) are not fixed, and LintMark does not know these numbers as rule names yet. Removing the spaces would
+change how the text renders (a literal `* text *` would become emphasis, and code and link text would lose
+characters). They are planned as checks that only report a problem, in a later release.
+
 ## Suppressing a Rule
 
 A comment switches a rule off for a part of a file. The rules are named by identifier or by legacy number, in any letter
@@ -389,7 +629,16 @@ Text without a blank line before it.
 | `code-block-style`    | `MD046`          | `code-block-style: fenced`               |
 | `code-fence`          | `MD048`          | `code-fence: backtick`                   |
 | `final-newline`       | `MD047`          | `final-newline: true`                    |
+| `bullet`              | `MD004`          | `bullet: dash`                           |
+| `ordered-style`       | `MD029`          | `ordered-style: incrementing`            |
+| `list-indent`         | `MD005`, `MD007` | `list-indent: 2`                         |
+| `list-marker-space`   | `MD030`          | none                                     |
+| `blockquote-space`    | `MD027`          | none                                     |
+| `emphasis`            | `MD049`          | `emphasis: asterisk`                     |
+| `strong`              | `MD050`          | `strong: asterisk`                       |
+| `bare-urls`           | `MD034`          | `bare-urls: autolink`                    |
 
 The line ending rule `line-ending` is described under *Line Endings and .editorconfig*; it has no legacy number and cannot
-be suppressed. The rules that report problems without rewriting (for example `heading-increment`) are not implemented
-yet.
+be suppressed. The rules that report problems without rewriting (for example `heading-increment`), the rules for
+paragraphs, tables, and links, and the legacy rules `MD037`, `MD038`, and `MD039` (see *What is not fixed*) are not
+implemented yet.

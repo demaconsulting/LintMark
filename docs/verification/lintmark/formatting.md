@@ -4,8 +4,9 @@
 
 The `Formatting` subsystem is verified by integration tests in `FormattingSubsystemTests.cs`. Each test parses a small
 Markdown text with the real `DocumentParser`, runs the real `DocumentFormatter`, and applies the result with the real
-`SourcePatcher`. The scenarios of the formatting rules build the `DocumentFormatter` with the three real block
-formatters of the tool (heading, code block, and thematic break), as the default engine does. The contract scenarios
+`SourcePatcher`. The scenarios of the formatting rules build the `DocumentFormatter` as the default engine does, with the
+five real block formatters of the tool (heading, code block, thematic break, list, and block quote) and the real
+`InlineNormalizer` (the helper `BlockFormatterAssertions.ProductionFormatter()` creates it). The contract scenarios
 build it with test doubles instead. Private helpers format a document and patch it in one step. The doubles exist only
 in the test project, so that the subsystem tests can use rules that are deliberately simple or deliberately broken:
 
@@ -27,8 +28,10 @@ subsystem requirement (a document without line terminators, a tie between the li
 documents.
 
 The rules of the tool that change text (whitespace, blank lines, spacing between blocks, the final newline, headings,
-code blocks, and thematic breaks) are verified in this file with the shipped formatters, each with the small cases that
-show its behavior. The `Blocks` verification adds the corpus of documents and the safety checks for the same rules.
+code blocks, thematic breaks, lists, block quotes, and the delimiters of emphasis and the form of bare URLs) are verified
+in this file with the shipped formatters, each with the small cases that show its behavior. The `Blocks` verification adds
+the corpus of documents and the safety checks for the same rules, and the `Inline` verification adds the cases of the
+inline rules.
 
 ### Test Environment
 
@@ -68,8 +71,18 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
 - Code, HTML, math, front matter, and a fence that is never closed keep their content.
 - A line that looks like the border of a grid table is not changed.
 - No blank line is inserted next to a line that looks like the border of a grid table.
+- A bullet marker is written with the configured character, an ordered list is numbered in the configured style from the
+  number it starts with, the items of a list start in the same column with nested bullets indented as configured and one
+  space after each marker, and one space follows each block quote marker; each change is reported under the rule of its
+  kind (`bullet`, `ordered-style`, `list-indent`, `list-marker-space`, and `blockquote-space`).
+- Two bullet lists that differ only by their marker stay two lists, a list stays one list, and the lines and blocks of a
+  list item move with the item when its columns change.
+- Emphasis and strong emphasis, also inside lists and quotes, are written with the configured delimiter and bare URLs are
+  wrapped in angle brackets
+  unless that is configured otherwise; each change is reported under its rule (`emphasis`, `strong`, and `bare-urls`).
 - Each change is reported as a formatting problem of its rule at the place where the change starts.
-- The canonical document, and the result of formatting a document, produce no edit and no problem.
+- The canonical document, and the result of formatting a document, produce no edit and no problem, also for lists, block
+  quotes, and inline text, and the same text gives the same result on many threads.
 
 ### Test Scenarios
 
@@ -163,12 +176,56 @@ is as written under the tilde style.
 **An indented code block becomes a fenced one**: An indented code block after a heading is formatted. It becomes a
 fenced code block with the same content, separated from the heading by a blank line.
 
+**Bullet markers use the configured character**: Lists with asterisks, dashes, and a nested list are formatted with
+`bullet: dash`, `asterisk`, and `plus`. Every marker, nested ones included, is the configured character, and each change
+is reported under the rule `bullet`.
+
+**Bullet lists are never merged or split**: Two bullet lists that differ only by their marker and a list with a nested
+list are formatted with `bullet: dash`, `asterisk`, and `plus`. The three lists at the margin keep their different
+markers, the nested list follows the configured character, and the four lists at the margin are still four lists with
+the nested list inside the last item.
+
+**Ordered numbers follow the configured style**: Lists numbered `1. 1.`, `5. 5.`, and `1. 2.` are formatted with the
+default `incrementing` style and with `one`. The numbers count up from the first number or repeat it, and each change is
+reported under the rule `ordered-style`.
+
+**List columns and spacing are canonical**: Items indented by two columns, a nested bullet indented by four columns, a
+nested bullet indented by two columns, and items with several spaces after the marker are formatted with `list-indent: 2`
+and `4`. The items start in one column, the nested bullet is indented as configured, one space follows each marker, and
+each change is reported under `list-indent` or `list-marker-space`.
+
+**List items with content stay in their items**: Items with a continuation line, with a second paragraph, with a nested
+list and fenced code, with a tenth number that gains a digit and a continuation line, and bullet items that start in
+column two with continuation lines are formatted. Every continuation line, paragraph, and block moves with its item and
+the number of items is the same afterward.
+
+**Block quote markers are followed by one space**: A quote with two spaces after the marker, a heading in a quote with
+three spaces, and nested quotes with extra spaces are formatted. One space follows each marker, and each change is
+reported under the rule `blockquote-space`.
+
+**Emphasis delimiters use the configured character**: `_a_ __b__` is formatted with the default configuration and
+`*a* **b**` with `underscore` for both settings. The delimiters are asterisks and underscores respectively, and each
+change is reported under `emphasis` or `strong`.
+
+**Emphasis in lists and quotes uses the configured character**: Emphasis in a bullet item, in an ordered item, and in a
+block quote is formatted with the default asterisk and with underscores configured. The delimiter is the configured one
+and each change is reported under `emphasis`.
+
+**Bare URLs are wrapped unless configured otherwise**: A sentence with a bare URL is formatted with the default
+configuration and with `bare-urls: leave`. The URL is wrapped in angle brackets and reported under `bare-urls`, or the
+text is unchanged and nothing is reported.
+
+**Lists, quotes, and inline text are stable after one run**: A document with a list that has wrong markers, emphasis, and
+a URL in its first item, a numbered list with repeated numbers, and a quote with a wide gap and strong emphasis is
+formatted, and the result is formatted again. The first result is the canonical text, and the second run proposes no
+edit.
+
 **Code, HTML, math, front matter, and grid tables keep their content**: A document with front matter, a fenced code
 block, an HTML block, a math block, and a grid table, each with trailing whitespace, tabs, and blank lines, is formatted.
 No edit and no problem result.
 
 **A line that looks like a grid table border is not changed**: Lines that start with a plus sign after a list marker or
-a quote marker, with trailing whitespace, are formatted with the heading, code block, and thematic break formatters. No
+a quote marker, with trailing whitespace, are formatted with the shipped formatters. No
 edit and no problem result.
 
 **A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
@@ -207,3 +264,9 @@ throws `ArgumentException` because the edit lies beyond the end of the text.
 
 **A failure of a block formatter reaches the caller**: A `DocumentFormatter` with a `ThrowingFormatter` formats a
 one-paragraph document. The call throws the `InvalidOperationException` of the formatter with its own message.
+
+#### Robustness
+
+**The same lists and inline text give the same result on many threads**: One shipped formatter is shared by eight threads
+that start together; each formats a document with a list, a quote, and inline text that need rewrites. Every result equals
+the result of a single call.

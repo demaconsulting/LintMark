@@ -169,15 +169,61 @@ internal sealed class LineLayout
     }
 
     /// <summary>
-    ///     Determines whether a line starts with a plus sign after any quote markers and indentation, as the border of a grid table does.
+    ///     Determines whether a line has the shape of the border of a grid table: a plus sign, after any quote markers,
+    ///     list markers and indentation, followed by nothing but dashes, equal signs, colons, plus signs and blanks.
     /// </summary>
     /// <param name="line">The zero-based line.</param>
-    /// <returns><see langword="true"/> when the first character that is not a quote marker or blank is a plus sign.</returns>
+    /// <returns>
+    ///     <see langword="true"/> when the first character that is not a quote marker, list marker or blank is a plus sign, and
+    ///     the rest of the line holds only border characters with at least one dash or equal sign.
+    /// </returns>
     /// <remarks>
     ///     Pandoc reads such a line as part of a grid table, and the structural safety check watches the lines that
-    ///     have the exact shape of a border, so edits that could turn a line into one or move it are avoided.
+    ///     have the exact shape of a border, so edits that could turn a line into one or move it are avoided. A line that
+    ///     merely starts with a plus sign (a list item of a plus sign list) is not one: no table border can hold text.
     /// </remarks>
     public bool LooksLikeGridBorder(int line)
+    {
+        var plus = FindPlusSign(line);
+        if (plus < 0)
+        {
+            return false;
+        }
+
+        var rule = false;
+        for (var position = plus + 1; position < LineEnd(line); position++)
+        {
+            var c = Text[position];
+            if (c is '-' or '=')
+            {
+                rule = true;
+            }
+            else if (c is not (':' or '+' or ' ' or '\t'))
+            {
+                return false;
+            }
+        }
+
+        return rule;
+    }
+
+    /// <summary>
+    ///     Determines whether a line starts with a plus sign after any quote markers, list markers and indentation.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the first character that is not a quote marker, list marker or blank is a plus sign.</returns>
+    /// <remarks>
+    ///     A thematic break that follows a plus sign list marker would make a border of the line once it is written with
+    ///     dashes, whatever the line looks like now, so the thematic break rule asks this broader question.
+    /// </remarks>
+    public bool StartsWithPlusSign(int line) => FindPlusSign(line) >= 0;
+
+    /// <summary>
+    ///     Finds the plus sign that starts a line after any quote markers, list markers and indentation.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns>The offset of the plus sign, or -1 when the line does not start with one.</returns>
+    private int FindPlusSign(int line)
     {
         // Skip the block quote markers, list markers and blanks that can stand before the border
         var end = LineEnd(line);
@@ -207,7 +253,7 @@ internal sealed class LineLayout
                 }
                 else
                 {
-                    return false;
+                    return -1;
                 }
             }
             else
@@ -216,7 +262,7 @@ internal sealed class LineLayout
             }
         }
 
-        return position < end && Text[position] == '+';
+        return position < end && Text[position] == '+' ? position : -1;
     }
 
     /// <summary>
@@ -225,4 +271,43 @@ internal sealed class LineLayout
     /// <param name="column">The zero-based column.</param>
     /// <returns>The column that a tab at <paramref name="column"/> advances to.</returns>
     public static int NextTabStop(int column) => column + (TabWidth - (column % TabWidth));
+
+    /// <summary>
+    ///     Determines whether a line holds the marker of a footnote definition (<c>[^label]:</c>) anywhere.
+    /// </summary>
+    /// <param name="line">The text of the line.</param>
+    /// <returns><see langword="true"/> when a <c>[^</c> is followed by a <c>]</c> and a colon.</returns>
+    /// <remarks>
+    ///     The parser reads a footnote definition inside a block quote or a list item inconsistently (what belongs to its
+    ///     body depends on columns that a rewrite changes), so the formatters that change columns leave such blocks alone.
+    ///     The test is deliberately wider than the syntax: it also finds a marker that only looks like one.
+    /// </remarks>
+    public static bool HasFootnoteDefinitionMarker(ReadOnlySpan<char> line)
+    {
+        var from = 0;
+        while (from < line.Length)
+        {
+            var open = line[from..].IndexOf("[^", StringComparison.Ordinal);
+            if (open < 0)
+            {
+                return false;
+            }
+
+            var close = line[(from + open)..].IndexOf(']');
+            if (close < 0)
+            {
+                return false;
+            }
+
+            var after = from + open + close + 1;
+            if (after < line.Length && line[after] == ':')
+            {
+                return true;
+            }
+
+            from += open + 2;
+        }
+
+        return false;
+    }
 }

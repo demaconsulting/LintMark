@@ -56,8 +56,9 @@ rather than modeled as SysML2 parts. The system is made of the entry point `Prog
 `Linting` (findings and the rule registry), `Formatting` (edits and the document formatter), `Safety` (the checks that
 decide whether a rewrite may be written), and `Reporting` (text and diff output) are the subsystems that make rewriting
 files possible and safe; `AtomicFileWriter` is a unit of the `Engine` subsystem and `TextWidth` a unit of the
-`Utilities` subsystem. `Formatting` contains a nested subsystem, `Blocks`, which holds the block formatters of the tool
-(`HeadingFormatter`, `CodeBlockFormatter`, and `ThematicBreakFormatter`); it is the only nested subsystem.
+`Utilities` subsystem. `Formatting` contains two nested subsystems: `Blocks`, which holds the block formatters of the
+tool (`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`),
+and `Inline`, which holds the inline normalizer (`InlineNormalizer`); they are the only nested subsystems.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -96,6 +97,11 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
         - `HeadingFormatter.cs` - the `HeadingFormatter` unit
         - `CodeBlockFormatter.cs` - the `CodeBlockFormatter` unit
         - `ThematicBreakFormatter.cs` - the `ThematicBreakFormatter` unit
+        - `ListFormatter.cs` - the `ListFormatter` unit, with the supporting types `ListModel.cs` and `ListPlan.cs`
+        - `BlockQuoteFormatter.cs` - the `BlockQuoteFormatter` unit
+      - **Inline/** - the nested `Inline` subsystem (inline rewriting)
+        - `InlineNormalizer.cs` - the `InlineNormalizer` unit, with the supporting types `InlineCandidates.cs` and
+          `ParagraphProof.cs`
     - **Linting/** - findings and rule registry subsystem
       - `Diagnostic.cs`, `DiagnosticKind.cs` - the `Diagnostic` unit
       - `RuleCatalog.cs`, `RuleInfo.cs` - the `RuleCatalog` unit
@@ -144,7 +150,11 @@ is described in the document of the unit that owns it (for example `TextEdit` in
 tree: the `Blocks` subsystem of `Formatting` has the design document `docs/design/lintmark/formatting/blocks.md`, its
 units have `docs/design/lintmark/formatting/blocks/heading-formatter.md` and the like, the source folder
 `src/DemaConsulting.LintMark/Formatting/Blocks/`, and the test files `BlocksSubsystemTests.cs` and
-`HeadingFormatterTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Blocks/`.
+`HeadingFormatterTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Blocks/`. The `Inline` subsystem of
+`Formatting` follows the same pattern: `docs/design/lintmark/formatting/inline.md`, its unit
+`docs/design/lintmark/formatting/inline/inline-normalizer.md`, the source folder
+`src/DemaConsulting.LintMark/Formatting/Inline/`, and the test files `InlineSubsystemTests.cs` and
+`InlineNormalizerTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Inline/`.
 
 OTS items have integration/usage design documentation parallel to system folders:
 
