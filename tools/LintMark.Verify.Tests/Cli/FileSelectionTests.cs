@@ -37,7 +37,7 @@ public class FileSelectionTests
     {
         foreach (var file in new[]
         {
-            "a.md", "sub/s.md", "generated/g.md", "node_modules/n.md", "bin/b.md", "obj/o.md", ".corpus/c.md", "sub/obj/deep.md", "TestResults/t.md"
+            "a.md", "sub/s.md", "generated/g.md", "node_modules/n.md", "bin/b.md", "obj/o.md", ".corpus/c.md", ".corpus/.clones/x/c.md", "sub/obj/deep.md", "TestResults/t.md"
         })
         {
             directory.WriteFile(file, "# T\n");

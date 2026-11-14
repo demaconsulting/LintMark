@@ -52,8 +52,8 @@ internal sealed class VerifyOptions
 
         Arguments:
           <dir-or-glob>              Directories, files or globs; a leading '!' excludes. Folders named generated,
-                                     node_modules, bin, obj, .git, .venv, .corpus, TestResults and .agent-logs
-                                     below the given root are skipped.
+                                     node_modules, bin, obj, .git, .venv, .corpus, .clones, TestResults and
+                                     .agent-logs below the given root are skipped.
 
         Options:
           --config <file>            Base LintMark configuration (YAML) for every run.

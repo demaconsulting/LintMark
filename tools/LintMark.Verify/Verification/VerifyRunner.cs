@@ -103,9 +103,10 @@ internal sealed class VerifyRunner
     /// <param name="files">The files. Must not be null.</param>
     /// <param name="sets">The option sets, at least one. Must not be null.</param>
     /// <param name="baseDirectory">The directory that relative ignore patterns apply to.</param>
+    /// <param name="demaRoot">The full path of the DEMA root when the DEMA repositories are verified (their files are grouped as <c>dema</c>); otherwise <see langword="null"/>.</param>
     /// <returns>The totals and the failures.</returns>
     /// <exception cref="InvalidOperationException">Thrown when an option set is invalid.</exception>
-    public async Task<RunSummary> RunAsync(IReadOnlyList<DiscoveredFile> files, IReadOnlyList<OptionSet> sets, string baseDirectory)
+    public async Task<RunSummary> RunAsync(IReadOnlyList<DiscoveredFile> files, IReadOnlyList<OptionSet> sets, string baseDirectory, string? demaRoot = null)
     {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(sets);
@@ -121,6 +122,8 @@ internal sealed class VerifyRunner
         var findingCounts = new ConcurrentDictionary<OutcomeKind, int>();
         var perSet = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
         var failures = new ConcurrentBag<Outcome>();
+        var groupKinds = new ConcurrentDictionary<CorpusGroup, ConcurrentDictionary<OutcomeKind, int>>();
+        var groupFiles = files.GroupBy(file => CorpusGroup.Of(file.Path, demaRoot)).ToDictionary(static g => g.Key, static g => g.Count());
         var stored = 0;
         var done = 0;
         var abandoned = 0;
@@ -150,6 +153,8 @@ internal sealed class VerifyRunner
 
             // Tally the outcome and keep the evidence of a failure
             kindCounts.AddOrUpdate(outcome.Kind, 1, static (_, count) => count + 1);
+            groupKinds.GetOrAdd(CorpusGroup.Of(file.Path, demaRoot), static _ => new ConcurrentDictionary<OutcomeKind, int>())
+                .AddOrUpdate(outcome.Kind, 1, static (_, count) => count + 1);
             if (outcome.IsFailure)
             {
                 perSet.AddOrUpdate(set.Label, 1, static (_, count) => count + 1);
@@ -180,7 +185,10 @@ internal sealed class VerifyRunner
             perSet.ToDictionary(),
             ordered,
             clock.Elapsed,
-            abandoned);
+            abandoned,
+            [.. groupFiles
+                .OrderBy(static pair => pair.Key.Source, StringComparer.Ordinal)
+                .Select(pair => new GroupSummary(pair.Key, pair.Value, groupKinds.TryGetValue(pair.Key, out var kinds) ? kinds.ToDictionary() : []))]);
     }
 
     /// <summary>

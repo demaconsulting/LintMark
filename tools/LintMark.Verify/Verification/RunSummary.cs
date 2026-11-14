@@ -31,6 +31,7 @@ namespace DemaConsulting.LintMark.Verify.Verification;
 /// <param name="Failures">The failed pairs in path order; at most <see cref="VerifyRunner.MaxStoredFailures"/>.</param>
 /// <param name="Elapsed">The time the run took.</param>
 /// <param name="AbandonedWorkers">The number of timed-out verifications that could not be stopped and may still be running.</param>
+/// <param name="Sources">The results per corpus source (see <see cref="CorpusGroup"/>), in ordinal order of the source.</param>
 internal sealed record RunSummary(
     int Files,
     IReadOnlyList<string> OptionLabels,
@@ -39,8 +40,20 @@ internal sealed record RunSummary(
     IReadOnlyDictionary<string, int> FailuresPerSet,
     IReadOnlyList<Outcome> Failures,
     TimeSpan Elapsed,
-    int AbandonedWorkers)
+    int AbandonedWorkers,
+    IReadOnlyList<GroupSummary> Sources)
 {
+    /// <summary>
+    ///     Gets the results per corpus category, in ordinal order.
+    /// </summary>
+    public IReadOnlyList<GroupSummary> Categories => GroupSummary.ByCategory(Sources);
+
+    /// <summary>
+    ///     Gets a value indicating whether the results are worth showing per category and source: the files come
+    ///     from several groups, or from a corpus or DEMA group.
+    /// </summary>
+    public bool IsGrouped => Sources.Count > 1 || Sources.Any(static s => s.Group.Category != CorpusGroup.Other);
+
     /// <summary>
     ///     Gets the number of (file, option set) pairs verified.
     /// </summary>

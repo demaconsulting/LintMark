@@ -101,7 +101,7 @@ internal static class VerifyApplication
                 options.Jobs,
                 TimeSpan.FromSeconds(options.TimeoutSeconds),
                 error);
-            var summary = await runner.RunAsync(files, sets, baseDirectory);
+            var summary = await runner.RunAsync(files, sets, baseDirectory, options.Dema ? Path.GetFullPath(options.DemaRoot) : null);
 
             // Report
             ConsoleSummary.Write(output, summary, baseDirectory);

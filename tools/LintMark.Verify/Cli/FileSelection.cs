@@ -29,8 +29,8 @@ namespace DemaConsulting.LintMark.Verify.Cli;
 ///     <para>
 ///         Folders that hold generated or third-party content are skipped wherever they occur below the root
 ///         of a directory argument, glob or repository: <c>generated</c>, <c>node_modules</c>, <c>bin</c>,
-///         <c>obj</c>, <c>.git</c>, <c>.venv</c>, <c>.corpus</c>, <c>TestResults</c> and <c>.agent-logs</c>. The
-///         root itself is never judged, so the corpus folder can be named as the argument. Directory links are
+///         <c>obj</c>, <c>.git</c>, <c>.venv</c>, <c>.corpus</c>, <c>.clones</c> (the corpus fetch clones), <c>TestResults</c> and
+///         <c>.agent-logs</c>. The root itself is never judged, so the corpus folder can be named as the argument. Directory links are
 ///         not followed.
 ///     </para>
 ///     <para>
@@ -43,7 +43,7 @@ internal static class FileSelection
     ///     The names of the folders that are never searched (compared ignoring case).
     /// </summary>
     internal static readonly string[] ExcludedFolders =
-        ["generated", "node_modules", "bin", "obj", ".git", ".venv", ".corpus", "TestResults", ".agent-logs"];
+        ["generated", "node_modules", "bin", "obj", ".git", ".venv", ".corpus", ".clones", "TestResults", ".agent-logs"];
 
     /// <summary>
     ///     How deep below the DEMA root a repository is looked for.

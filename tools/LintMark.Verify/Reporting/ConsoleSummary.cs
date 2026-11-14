@@ -58,6 +58,22 @@ internal static class ConsoleSummary
             writer.WriteLine("  " + line);
         }
 
+        // The results per corpus category and source, when the files come from a corpus or several places
+        if (summary.IsGrouped)
+        {
+            writer.WriteLine("By category (files, checks passed, checks failed; failures by type):");
+            foreach (var line in GroupLines(summary.Categories))
+            {
+                writer.WriteLine("  " + line);
+            }
+
+            writer.WriteLine("By source:");
+            foreach (var line in GroupLines(summary.Sources))
+            {
+                writer.WriteLine("  " + line);
+            }
+        }
+
         // The failures per option set matter when there are several
         if (summary.OptionLabels.Count > 1)
         {
@@ -114,6 +130,22 @@ internal static class ConsoleSummary
         if (summary.FindingCounts.Count > 0)
         {
             yield return "Findings by check: " + string.Join(", ", summary.FindingCounts.OrderBy(static pair => pair.Key).Select(static pair => $"{pair.Key.Name()} {pair.Value}"));
+        }
+    }
+
+    /// <summary>
+    ///     Creates the line of each group: the name, the number of files, the passed and failed checks and the failures by type.
+    /// </summary>
+    /// <param name="groups">The groups.</param>
+    /// <returns>The lines.</returns>
+    internal static IEnumerable<string> GroupLines(IReadOnlyList<GroupSummary> groups)
+    {
+        var width = groups.Count == 0 ? 0 : groups.Max(static g => g.Group.Source.Length);
+        foreach (var group in groups)
+        {
+            var types = string.Join(", ", group.FailuresByKind.Select(static pair => $"{pair.Key.Name()} {pair.Value}"));
+            var line = $"{group.Group.Source.PadRight(width)}  {group.Files,6} files  {group.PassCount,7} passed  {group.FailureCount,6} failed";
+            yield return types.Length == 0 ? line : $"{line}  ({types})";
         }
     }
 

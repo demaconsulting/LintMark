@@ -65,6 +65,13 @@ internal static class MarkdownReport
             text.Append($"| {kind.Name()} | {count} |\n");
         }
 
+        // The results per corpus category and source
+        if (summary.IsGrouped)
+        {
+            AppendGroups(text, "Results by category", summary.Categories);
+            AppendGroups(text, "Results by source", summary.Sources);
+        }
+
         // The failures per option set, when there are several
         if (summary.OptionLabels.Count > 1)
         {
@@ -91,6 +98,22 @@ internal static class MarkdownReport
         }
 
         return text.ToString();
+    }
+
+    /// <summary>
+    ///     Appends a table with the results of each group.
+    /// </summary>
+    /// <param name="text">The report.</param>
+    /// <param name="title">The title of the section.</param>
+    /// <param name="groups">The groups.</param>
+    private static void AppendGroups(StringBuilder text, string title, IReadOnlyList<GroupSummary> groups)
+    {
+        text.Append($"\n## {title}\n\n| Group | Files | Checks | Passed | Failed | Failures by type |\n| --- | ---: | ---: | ---: | ---: | --- |\n");
+        foreach (var group in groups)
+        {
+            var types = string.Join(", ", group.FailuresByKind.Select(static pair => $"{pair.Key.Name()} {pair.Value}"));
+            text.Append($"| {Escape(group.Group.Source)} | {group.Files} | {group.Total} | {group.PassCount} | {group.FailureCount} | {types} |\n");
+        }
     }
 
     /// <summary>
