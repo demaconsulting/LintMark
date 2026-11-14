@@ -65,7 +65,7 @@ public class BlocksCorpusTests
     }
 
     /// <summary>
-    ///     Test that this repository's own Markdown files need no change, except for the emphasis delimiter and the line length of the standards the template owns.
+    ///     Test that this repository's own Markdown files need no change, except for the emphasis delimiter, the line length and the table layout of the standards the template owns.
     /// </summary>
     [Fact]
     public void BlocksCorpus_Process_RepositoryMarkdown_ProposesNoChangeAndNoFinding()
@@ -89,11 +89,11 @@ public class BlocksCorpusTests
     }
 
     /// <summary>
-    ///     Determines whether a file result is only about the emphasis delimiter or the line length of a file that the template owns.
+    ///     Determines whether a file result is only about the emphasis delimiter the line length or the table layout of a file that the template owns.
     /// </summary>
     /// <param name="root">The root of the repository.</param>
     /// <param name="result">The result of one file.</param>
-    /// <returns><see langword="true"/> for a file under <c>.github/standards</c> whose only findings are <c>emphasis</c> and <c>line-length</c> findings.</returns>
+    /// <returns><see langword="true"/> for a file under <c>.github/standards</c> whose only findings are <c>emphasis</c>, <c>line-length</c> and <c>table-column-style</c> findings.</returns>
     /// <remarks>
     ///     The standards under <c>.github/standards</c> are copied from the template of the organization and are never edited
     ///     in this repository. They write emphasis with underscores, which the default <c>emphasis</c> style of this tool
@@ -103,7 +103,7 @@ public class BlocksCorpusTests
     private static bool IsTemplateStyleOnly(string root, FileResult result) =>
         Path.GetRelativePath(root, result.Path).Replace('\\', '/').StartsWith(".github/standards/", StringComparison.Ordinal)
         && result.Diagnostics.Length > 0
-        && result.Diagnostics.All(diagnostic => diagnostic.RuleId is RuleCatalog.EmphasisRuleId or RuleCatalog.LineLengthRuleId);
+        && result.Diagnostics.All(diagnostic => diagnostic.RuleId is RuleCatalog.EmphasisRuleId or RuleCatalog.LineLengthRuleId or RuleCatalog.TableColumnStyleRuleId);
 
     /// <summary>
     ///     Test that every Markdown file of the repository formats safely and stably as LF text.

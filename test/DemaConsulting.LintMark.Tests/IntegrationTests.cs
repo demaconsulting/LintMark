@@ -580,7 +580,7 @@ public class IntegrationTests
         var file = directory.WriteFile(
             "all.md",
             "---\ntitle: x\n---\n\n# Title\n\n<!-- lintmark-disable line-length -->\n\nSee [ref] and a footnote[^1].\n\n"
-            + "<!-- lintmark-enable line-length -->\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n[ref]: http://example.com \"T\"\n\n[^1]: Note.\n\n```\nunclosed\n");
+            + "<!-- lintmark-enable line-length -->\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n[ref]: http://example.com \"T\"\n\n[^1]: Note.\n\n```\nunclosed\n");
 
         // Act: run the tool with the file
         var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
@@ -1920,7 +1920,7 @@ public class IntegrationTests
 
         // Assert: every boundary has one blank line
         Assert.Equal(0, exitCode);
-        Assert.Equal("# H\n\ntext\n\n```\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n|---|---|\n| 1 | 2 |\n", text);
+        Assert.Equal("# H\n\ntext\n\n```\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n", text);
     }
 
     /// <summary>

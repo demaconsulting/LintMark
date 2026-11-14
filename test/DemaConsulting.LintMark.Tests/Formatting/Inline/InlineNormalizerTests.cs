@@ -240,7 +240,7 @@ public class InlineNormalizerTests
     [Theory]
     [InlineData("# _a_ http://x.com\n", "# _a_ http://x.com\n")]
     [InlineData("_a_\n===\n", "# _a_\n")]
-    [InlineData("| _a_ | http://x.com |\n|---|---|\n", "| _a_ | http://x.com |\n|---|---|\n")]
+    [InlineData("| _a_ | http://x.com |\n| --- | --- |\n", "| _a_ | http://x.com |\n| --- | --- |\n")]
     public void InlineNormalizer_AddBlockEdits_HeadingsAndTables_AreNotNormalized(string input, string toolExpected)
     {
         // Act & Assert: the normalizer alone changes nothing; the tool writes the setext heading in ATX style and nothing else

@@ -46,7 +46,7 @@ internal static class BlockFormatterAssertions
     /// <returns>The formatter.</returns>
     public static DocumentFormatter ProductionFormatter() =>
         new(
-            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
+            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
             new InlineNormalizer(),
             new ParagraphFormatter());
 

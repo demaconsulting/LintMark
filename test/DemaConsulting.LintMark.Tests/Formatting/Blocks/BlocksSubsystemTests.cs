@@ -45,7 +45,7 @@ public class BlocksSubsystemTests
     /// </summary>
     private const string CleanDocument =
         "# Title\n\nIntro text with trailing space\n\n- one\n- two\n\n## Closed\n\n```\ncode\n```\n\n   ---\n\n# Spaced\n\n"
-        + "```js\ntilde\n```\n\n```\nindented code\n```\n\nSome    tabbed text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+        + "```js\ntilde\n```\n\n```\nindented code\n```\n\nSome    tabbed text\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n";
 
     /// <summary>
     ///     A document that breaks every list and block quote rule at least once.
@@ -63,7 +63,7 @@ public class BlocksSubsystemTests
     private const string CanonicalDocument =
         "---\ntitle: Example\n---\n\n# Title\n\nParagraph with a hard break  \nand a link [text](http://example.com \"title\") and `code`.\n\n"
         + "## Section\n\n- one\n- two\n  - nested\n\n1. first\n2. second\n\n> quote\n>\n> - item in quote\n\n"
-        + "```js\nconst x = 1;  \n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n---\n\n<!-- comment -->\n\n<div>\nraw  \n</div>\n\n"
+        + "```js\nconst x = 1;  \n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n<!-- comment -->\n\n<div>\nraw  \n</div>\n\n"
         + "$$\nx^2\n$$\n\n[ref]: http://example.com\n\nNote[^1].\n\n[^1]: The note.\n";
 
     /// <summary>
@@ -94,7 +94,7 @@ public class BlocksSubsystemTests
 
     /// <summary>
     ///     Test that every violation of the dirty document is reported once per rule and line, at the place of its
-    ///     change and with the description of its rule, and that all fourteen rules that the document breaks are among them.
+    ///     change and with the description of its rule, and that all fifteen rules that the document breaks are among them.
     /// </summary>
     [Fact]
     public void BlocksSubsystem_Format_DocumentBreakingEveryRule_ReportsEveryRuleOnce()
@@ -127,13 +127,14 @@ public class BlocksSubsystemTests
                 ("fence-blank-lines", 19),
                 ("hard-tabs", 19),
                 ("table-blank-lines", 20),
+                ("table-column-style", 21),
                 ("final-newline", 22)
             ],
             reported);
 
-        // Each rule is reported once per line, all fourteen rules appear, and every message is the description of its rule
+        // Each rule is reported once per line, all fifteen rules appear, and every message is the description of its rule
         Assert.Equal(reported.Count, reported.Distinct().Count());
-        Assert.Equal(14, reported.Select(item => item.RuleId).Distinct().Count());
+        Assert.Equal(15, reported.Select(item => item.RuleId).Distinct().Count());
         Assert.All(result.Diagnostics, diagnostic =>
         {
             Assert.True(RuleCatalog.TryGet(diagnostic.RuleId, out var rule));
@@ -401,7 +402,7 @@ public class BlocksSubsystemTests
     [Theory]
     [InlineData("text\n- a\n- b\ntext2\n", "text\n\n- a\n- b\ntext2\n")]
     [InlineData("text\n2. a\n", "text\n2. a\n")]
-    [InlineData("| a |\n|---|\n| 1 |\ntext\n", "| a |\n|---|\n| 1 |\ntext\n")]
+    [InlineData("| a |\n| --- |\n| 1 |\ntext\n", "| a |\n| --- |\n| 1 |\ntext\n")]
     [InlineData("a\n```\nc\n```\nb\n", "a\n\n```\nc\n```\n\nb\n")]
     public void BlocksSubsystem_Format_Spacing_IsAddedOnlyForRealBlockBoundaries(string input, string expected) =>
         BlockFormatterAssertions.AssertFormats(input, expected);
@@ -758,8 +759,8 @@ public class BlocksSubsystemTests
     [InlineData("-\ta\n", "-\ta\n")]
     [InlineData("-     code\n", "-     code\n")]
     [InlineData(
-        "-   a\n\n    ```\n    code\n    ```\n\n    > quote\n\n    | a | b |\n    |---|---|\n",
-        "- a\n\n  ```\n  code\n  ```\n\n  > quote\n\n  | a | b |\n  |---|---|\n")]
+        "-   a\n\n    ```\n    code\n    ```\n\n    > quote\n\n    | a | b |\n    | --- | --- |\n",
+        "- a\n\n  ```\n  code\n  ```\n\n  > quote\n\n  | a | b |\n  | --- | --- |\n")]
     [InlineData("1. a\n   - b\n     1. c\n        text\n", "1. a\n   - b\n     1. c\n        text\n")]
     [InlineData("1. a\n   - b\n", "1. a\n   - b\n")]
     [InlineData("- a\n\n  b\n\n- c\n", "- a\n\n  b\n\n- c\n")]
@@ -783,7 +784,7 @@ public class BlocksSubsystemTests
     [InlineData("- >  quote\n")]
     [InlineData(">  [^n]: note\n")]
     [InlineData(">  $$\n>  x = 1\n>  $$\n")]
-    [InlineData(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n")]
+    [InlineData(">  | a | b |\n>  | --- | --- |\n>  | 1 | 2 |\n")]
     public void BlocksSubsystem_Format_QuoteContent_IsKept(string input) =>
         BlockFormatterAssertions.AssertFormats(input, input);
 

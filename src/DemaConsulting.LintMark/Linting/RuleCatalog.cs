@@ -108,6 +108,31 @@ internal static class RuleCatalog
     public const string TableBlankLinesRuleId = "table-blank-lines";
 
     /// <summary>
+    ///     The identifier of the always-applied rule that puts a pipe at both ends of every line of a table.
+    /// </summary>
+    public const string TablePipeStyleRuleId = "table-pipe-style";
+
+    /// <summary>
+    ///     The identifier of the always-applied rule that writes the cells of a table in the configured layout (compact or aligned).
+    /// </summary>
+    public const string TableColumnStyleRuleId = "table-column-style";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a table that is wider than the line length even when compact.
+    /// </summary>
+    public const string TableTooWideRuleId = "table-too-wide";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a table row with another number of cells than the header.
+    /// </summary>
+    public const string TableColumnCountRuleId = "table-column-count";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a grid table, which is always left as written.
+    /// </summary>
+    public const string TableGridUnformattedRuleId = "table-grid-unformatted";
+
+    /// <summary>
     ///     The identifier of the always-applied rule that writes thematic breaks in the configured style.
     /// </summary>
     public const string ThematicBreakRuleId = "thematic-break";
@@ -260,9 +285,9 @@ internal static class RuleCatalog
         Configurable("link-reversed", DiagnosticKind.LintOnly, "A link is written with the brackets and parentheses reversed.", true, "MD011"),
         Configurable("descriptive-link-text", DiagnosticKind.LintOnly, "A link text is not descriptive.", false, "MD059"),
         Configurable("code-fence-language", DiagnosticKind.LintOnly, "A fenced code block has no language.", true, "MD040"),
-        Configurable("table-too-wide", DiagnosticKind.LintOnly, "A table is wider than the configured line length.", true),
-        Configurable("table-column-count", DiagnosticKind.LintOnly, "A table row has a different number of cells than the header.", true, "MD056"),
-        Configurable("table-grid-unformatted", DiagnosticKind.LintOnly, "A grid table is left as written.", false),
+        Configurable(TableTooWideRuleId, DiagnosticKind.LintOnly, "A table is wider than the configured line length.", true),
+        Configurable(TableColumnCountRuleId, DiagnosticKind.LintOnly, "A table row has a different number of cells than the header.", true, "MD056"),
+        Configurable(TableGridUnformattedRuleId, DiagnosticKind.LintOnly, "A grid table is left as written.", false),
         Configurable("fence-unclosed", DiagnosticKind.LintOnly, "A fenced code block is never closed.", true),
         Configurable(GridTableInvalidRuleId, DiagnosticKind.LintOnly, "A line looks like a grid table border but the table is not valid.", true),
         Configurable("footnote-unused", DiagnosticKind.LintOnly, "A footnote definition is never referenced.", true),
@@ -281,6 +306,8 @@ internal static class RuleCatalog
         Applied(FenceBlankLinesRuleId, "A fenced code block is not surrounded by blank lines.", "MD031"),
         Applied(ListBlankLinesRuleId, "A list is not surrounded by blank lines.", "MD032"),
         Applied(TableBlankLinesRuleId, "A table is not surrounded by blank lines.", "MD058"),
+        Applied(TablePipeStyleRuleId, "A line of a table lacks the pipe at its start or at its end.", "MD055"),
+        Applied(TableColumnStyleRuleId, "A table is not written in the configured compact or aligned layout.", "MD060"),
         Applied(ThematicBreakRuleId, "A thematic break is not written in the configured style.", "MD035"),
         Applied(CodeBlockStyleRuleId, "A code block is not written in the configured style.", "MD046"),
         Applied(CodeFenceRuleId, "A code fence does not use the configured fence character.", "MD048"),

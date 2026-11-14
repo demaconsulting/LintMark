@@ -49,7 +49,7 @@ public class EngineSubsystemTests
         // Arrange: valid Markdown in nested directories plus ignored files
         using var directory = new TemporaryDirectory();
         directory.WriteFile("README.md");
-        directory.WriteFile("docs/a.md", "# A\n\n> quote\n\n1. one\n2. two\n\n| a | b |\n|---|---|\n| 1 | 2 |\n");
+        directory.WriteFile("docs/a.md", "# A\n\n> quote\n\n1. one\n2. two\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n");
         directory.WriteFile("node_modules/x/bad.md");
         directory.WriteBytes("node_modules/x/binary.md", [0xFF, 0xFE, 0x00]);
         directory.WriteFile("notes.txt", "ignored");

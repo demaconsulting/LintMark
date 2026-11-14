@@ -259,7 +259,7 @@ public class IntegrationWrapTests
     }
 
     /// <summary>
-    ///     Test that code, HTML, tables, headings, link reference definitions and front matter that are wider than the line length are never reported.
+    ///     Test that code, HTML, headings, link reference definitions and front matter that are wider than the line length are never reported.
     /// </summary>
     [Fact]
     public void LintMark_CheckFlag_LiteralBlocksWiderThanTheWidth_AreNeverReported()
@@ -271,7 +271,6 @@ public class IntegrationWrapTests
             + "# a heading with many words in it that is long\n\n"
             + "```text\ncode line with many words in it that is long\n```\n\n"
             + "<div>html block with many words in it that is long</div>\n\n"
-            + "| column one is long | column two is long |\n| ------------------ | ------------------ |\n| cell with many words in it | another cell with many words |\n\n"
             + "[ref]: http://example.org/very/long/path/to/something \"a long title here\"\n";
 
         // Act: check the file
@@ -280,6 +279,26 @@ public class IntegrationWrapTests
         // Assert: nothing is reported
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("line-length", output);
+    }
+
+    /// <summary>
+    ///     Test that a table wider than the line length is not a line-length finding but is reported as too wide, which a rewrite cannot fix.
+    /// </summary>
+    [Fact]
+    public void LintMark_CheckFlag_TableWiderThanTheWidth_IsReportedAsTooWideOnly()
+    {
+        // Arrange: a compact table whose lines are wider than the line length of the helper
+        using var directory = new TemporaryDirectory();
+        const string content = "| column one is long | column two is long |\n| --- | --- |\n| cell with many words in it | another cell with many words |\n";
+
+        // Act: check the file
+        var (exitCode, output) = CheckFile(directory, content);
+
+        // Assert: the table is reported once, as too wide
+        Assert.Equal(1, exitCode);
+        Assert.DoesNotContain("line-length", output);
+        Assert.Contains("table-too-wide", output);
+        Assert.DoesNotContain("table-column-style", output);
     }
 
     /// <summary>

@@ -452,7 +452,7 @@ public class FormattingSubsystemTests
         var (_, patched) = FormatShipped("text\n| a | b |\n|---|---|\n| 1 | 2 |\n");
 
         // Assert: the table is separated from the text before it
-        Assert.Equal("text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n", patched);
+        Assert.Equal("text\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n", patched);
     }
 
     /// <summary>

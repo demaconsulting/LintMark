@@ -463,8 +463,8 @@ public class ListFormatterTests
     [Fact]
     public void ListFormatter_Format_ItemHoldsCodeHtmlQuoteAndTable_MovesEverythingTogether() =>
         AssertFormats(
-            "-   item\n\n    ```text\n    code\n\n    more\n    ```\n\n    <div>\n    html\n    </div>\n\n    > quote\n\n    | a | b |\n    |---|---|\n    | 1 | 2 |\n",
-            "- item\n\n  ```text\n  code\n\n  more\n  ```\n\n  <div>\n  html\n  </div>\n\n  > quote\n\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n");
+            "-   item\n\n    ```text\n    code\n\n    more\n    ```\n\n    <div>\n    html\n    </div>\n\n    > quote\n\n    | a | b |\n    | --- | --- |\n    | 1 | 2 |\n",
+            "- item\n\n  ```text\n  code\n\n  more\n  ```\n\n  <div>\n  html\n  </div>\n\n  > quote\n\n  | a | b |\n  | --- | --- |\n  | 1 | 2 |\n");
 
     /// <summary>
     ///     Test that a list whose columns cannot move is not given to a move that would pull a following line into it.

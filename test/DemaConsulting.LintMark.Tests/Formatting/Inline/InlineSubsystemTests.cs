@@ -138,7 +138,7 @@ public class InlineSubsystemTests
     /// </summary>
     [Theory]
     [InlineData("# _a_ http://x.com\n")]
-    [InlineData("| _a_ | http://x.com |\n|---|---|\n| 1 | 2 |\n")]
+    [InlineData("| _a_ | http://x.com |\n| --- | --- |\n| 1 | 2 |\n")]
     public void InlineSubsystem_Format_HeadingsAndTableCells_KeepTheirText(string input) =>
         BlockFormatterAssertions.AssertFormats(input, input);
 

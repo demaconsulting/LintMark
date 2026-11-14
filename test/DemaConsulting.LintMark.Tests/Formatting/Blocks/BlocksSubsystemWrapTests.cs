@@ -172,7 +172,7 @@ public class BlocksSubsystemWrapTests
             "# a heading with many words in it that is long\n\n"
             + "```text\ncode line with many words in it that is long\n```\n\n"
             + "<div>html block with many words in it that is long</div>\n\n"
-            + "| column one is long | column two is long |\n| ------------------ | ------------------ |\n";
+            + "| column one is long | column two is long |\n| --- | --- |\n";
 
         // Act & Assert: nothing changes, nothing is reported
         var (result, formatted) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), input, Narrow());

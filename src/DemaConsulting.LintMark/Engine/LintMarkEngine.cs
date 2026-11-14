@@ -127,6 +127,11 @@ internal sealed class LintMarkEngine
     private readonly DocumentFormatter _formatter;
 
     /// <summary>
+    ///     Runs the lint-only rules; replaceable so tests can install rules, including broken ones.
+    /// </summary>
+    private readonly LintRuleRunner _lintRules;
+
+    /// <summary>
     ///     Replaces the content of a file given the resolved target captured when it was read, the bytes it was
     ///     computed from and the new bytes; replaceable so tests can simulate write failures and files that
     ///     change (or links that are redirected) after they were read.
@@ -168,6 +173,10 @@ internal sealed class LintMarkEngine
     ///     target captured when the file was read, the bytes the rewrite was computed from and the new bytes;
     ///     <see langword="null"/> selects <see cref="AtomicFileWriter"/>.
     /// </param>
+    /// <param name="lintRules">
+    ///     Optional replacement for the runner of the lint-only rules (a test seam); <see langword="null"/> selects
+    ///     <see cref="LintRuleRunner.CreateDefault"/>.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than one.</exception>
     internal LintMarkEngine(
         int maxDegreeOfParallelism,
@@ -175,7 +184,8 @@ internal sealed class LintMarkEngine
         Func<SourceDocument, ParsedDocument>? documentParser = null,
         Func<EditorConfigResolver>? editorConfigFactory = null,
         DocumentFormatter? formatter = null,
-        Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null)
+        Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null,
+        LintRuleRunner? lintRules = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
@@ -183,9 +193,10 @@ internal sealed class LintMarkEngine
         _fileProcessor = fileProcessor ?? ReadAndRewrite;
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
         _formatter = formatter ?? new DocumentFormatter(
-            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
+            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
             new InlineNormalizer(),
             new ParagraphFormatter());
+        _lintRules = lintRules ?? LintRuleRunner.CreateDefault();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 
@@ -500,12 +511,15 @@ internal sealed class LintMarkEngine
             return new FileResult(path, ReportGridFallback(path, document, config, grid));
         }
 
-        // Format, then apply the edits; a formatter that throws or proposes invalid edits fails this file only
+        // Format, then apply the edits; a formatter that throws or proposes invalid edits fails this file only. The lint-only
+        // rules read the document as written, so what they report does not depend on what the formatter changes
         FormatResult format;
+        ImmutableArray<Diagnostic> diagnostics;
         string newLf;
         try
         {
             format = _formatter.Format(document, config);
+            diagnostics = format.Diagnostics.AddRange(_lintRules.Run(document, config));
             newLf = SourcePatcher.Apply(source, format.Edits);
             if (newLf.Contains('\r'))
             {
@@ -521,14 +535,14 @@ internal sealed class LintMarkEngine
         var newBytes = source.ToBytes(newLf, format.LineEnding);
         if (newBytes.AsSpan().SequenceEqual(bytes))
         {
-            return new FileResult(path, format.Diagnostics);
+            return new FileResult(path, diagnostics);
         }
 
         // Every rewrite that changes bytes must pass the safety checks, also one that changes the line endings alone:
         // the Markdown parser renders some text differently for CRLF and LF
         if (CheckSafety(path, source, newLf, bytes, newBytes, config) is { } refusal)
         {
-            return new FileResult(path, format.Diagnostics.Add(refusal.Diagnostic)) { Safety = refusal.Status };
+            return new FileResult(path, diagnostics.Add(refusal.Diagnostic)) { Safety = refusal.Status };
         }
 
         var change = new FileChange(
@@ -539,7 +553,7 @@ internal sealed class LintMarkEngine
             [.. bytes],
             [.. newBytes],
             target);
-        return new FileResult(path, format.Diagnostics) { Change = change };
+        return new FileResult(path, diagnostics) { Change = change };
     }
 
     /// <summary>

@@ -233,7 +233,7 @@ public class BlockQuoteFormatterTests
     /// </summary>
     [Fact]
     public void BlockQuoteFormatter_Format_TableInQuote_KeepsTheSpaces() =>
-        AssertFormats(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n", ">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n");
+        AssertFormats(">  | a | b |\n>  | --- | --- |\n>  | 1 | 2 |\n", ">  | a | b |\n>  | --- | --- |\n>  | 1 | 2 |\n");
 
     /// <summary>
     ///     Test that a list in a quote keeps the spaces after the marker, because they are indentation there.

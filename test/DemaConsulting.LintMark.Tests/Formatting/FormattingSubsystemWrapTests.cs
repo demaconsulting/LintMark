@@ -157,7 +157,7 @@ public class FormattingSubsystemWrapTests
             + "# a heading with many words in it that is long\n\n"
             + "```text\ncode line with many words in it that is long\n```\n\n"
             + "<div>html block with many words in it that is long</div>\n\n"
-            + "| column one is long | column two is long |\n| ------------------ | ------------------ |\n| cell with many words in it | another cell with many words |\n\n"
+            + "| column one is long | column two is long |\n| --- | --- |\n| cell with many words in it | another cell with many words |\n\n"
             + "[ref]: http://example.org/very/long/path/to/something \"a long title here\"\n";
 
         // Act & Assert: nothing is reported and nothing changes

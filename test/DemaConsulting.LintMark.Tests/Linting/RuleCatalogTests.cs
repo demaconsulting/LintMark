@@ -438,6 +438,8 @@ public class RuleCatalogTests
                 "paragraph-wrap",
                 "strong",
                 "table-blank-lines",
+                "table-column-style",
+                "table-pipe-style",
                 "thematic-break",
                 "trailing-whitespace"
             ],
@@ -464,6 +466,8 @@ public class RuleCatalogTests
             "fence-blank-lines",
             "list-blank-lines",
             "table-blank-lines",
+            "table-pipe-style",
+            "table-column-style",
             "thematic-break",
             "code-block-style",
             "code-fence",
@@ -516,6 +520,8 @@ public class RuleCatalogTests
             ["fence-blank-lines"] = ["MD031"],
             ["list-blank-lines"] = ["MD032"],
             ["table-blank-lines"] = ["MD058"],
+            ["table-pipe-style"] = ["MD055"],
+            ["table-column-style"] = ["MD060"],
             ["thematic-break"] = ["MD035"],
             ["code-block-style"] = ["MD046"],
             ["code-fence"] = ["MD048"],
@@ -643,15 +649,15 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 22 configurable rules, 34 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
+    ///     Test that the registry holds 22 configurable rules, 36 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable22NonConfigurable34AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable22NonConfigurable36AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
         Assert.Equal(22, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
-        Assert.Equal(34, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(56, RuleCatalog.Rules.Length);
+        Assert.Equal(36, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
+        Assert.Equal(58, RuleCatalog.Rules.Length);
         Assert.Equal(22, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(22, RuleCatalog.Defaults.Count);
         Assert.Equal(16, RuleCatalog.Aliases.Count);
