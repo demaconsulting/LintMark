@@ -323,6 +323,45 @@ public class ParagraphFormatterTests
     public void ParagraphFormatter_Format_PandocStructuralParagraph_IsKeptAsWritten(string text) => AssertKept(text);
 
     /// <summary>
+    ///     Test that a paragraph with a line that starts a definition, a line block, a fancy list or an example list is kept as
+    ///     written at a width that its lines exceed, and that nothing is reported.
+    /// </summary>
+    [Theory]
+    [InlineData("Apple\n~ A fruit that is red or green and rather sweet to eat.\n")]
+    [InlineData("Banana\n:   A fruit that is yellow and long and curved and sweet.\n")]
+    [InlineData("| The limerick packs laughs anatomical\n| In space that is quite economical.\n|    But the good ones I've seen\n|    So seldom are clean\n")]
+    [InlineData("a. First item that is quite long enough to overflow\nb. Second item that is also long enough to overflow\n")]
+    [InlineData("(@) First example sentence that is long enough to overflow\n(@) Second example sentence that is long enough to overflow\n")]
+    [InlineData("(a) First item that is quite long enough to overflow\n(b) Second item that is also long enough to overflow\n")]
+    [InlineData("#. First item that is quite long enough to overflow\n#. Second item that is also long enough to overflow\n")]
+    [InlineData("i. First item that is quite long enough to overflow\nii. Second item that is also long enough to overflow\n")]
+    public void ParagraphFormatter_Format_DefinitionLineBlockOrFancyListParagraph_IsKeptAsWritten(string text)
+    {
+        // Act & Assert: the paragraph is left as written and unreported by the formatter and byte for byte by the whole tool
+        AssertKept(text, Width(30));
+        Assert.Equal(text, BlockFormatterAssertions.AssertSafeAndStable(text, Width(30)));
+    }
+
+    /// <summary>
+    ///     Test that ordinary text that merely looks a little like a marker is still wrapped.
+    /// </summary>
+    [Theory]
+    [InlineData("ant bat cat dog eel fox gnu\nhen: ink (jam) a.b\n", "ant bat cat dog eel\nfox gnu hen: ink\n(jam) a.b\n")]
+    [InlineData("ant bat cat dog eel fox gnu\nsee:~ ink\n", "ant bat cat dog eel\nfox gnu see:~ ink\n")]
+    public void ParagraphFormatter_Format_TextThatLooksLikeAMarkerInTheMiddle_IsStillWrapped(string text, string expected) =>
+        AssertWrapped(text, expected);
+
+    /// <summary>
+    ///     Test that a wrap never starts a line with a fancy list or example list marker.
+    /// </summary>
+    [Theory]
+    [InlineData("ant bat cat dog eel a. fox gnu\n", "ant bat cat dog\neel a. fox gnu\n")]
+    [InlineData("ant bat cat dog eel (a) fox gnu\n", "ant bat cat dog\neel (a) fox gnu\n")]
+    [InlineData("ant bat cat dog eel (@) fox gnu\n", "ant bat cat dog\neel (@) fox gnu\n")]
+    public void ParagraphFormatter_Format_FancyMarkerAtTheBreak_NeverStartsALine(string text, string expected) =>
+        AssertWrapped(text, expected);
+
+    /// <summary>
     ///     Test that a paragraph inside a footnote definition is kept as written, and nothing is reported.
     /// </summary>
     [Fact]

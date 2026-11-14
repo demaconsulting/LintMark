@@ -58,6 +58,11 @@ internal static partial class BlockSyntaxGuard
     private const int RegexTimeoutMilliseconds = 1000;
 
     /// <summary>
+    ///     A pattern for a roman numeral in one case (at least one letter), as used by a fancy list marker.
+    /// </summary>
+    private const string RomanPattern = @"(?:(?=[ivxlcdm])m{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})|(?=[IVXLCDM])M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))";
+
+    /// <summary>
     ///     Matches a word that is a bullet marker, a thematic break or a setext underline: a plus sign, or only dashes,
     ///     asterisks, underscores or equal signs.
     /// </summary>
@@ -116,12 +121,25 @@ internal static partial class BlockSyntaxGuard
     private static partial Regex PandocWordRegex();
 
     /// <summary>
-    ///     Matches a content line that marks its paragraph as Pandoc structure: a fenced div, a LaTeX command, a display math
-    ///     fence, a raw attribute, a title block line or a grid table border.
+    ///     Matches a word that is the marker of a fancy list or an example list: a letter, a roman numeral, a number
+    ///     or a <c>#</c> or <c>@</c> with a period or a closing parenthesis (and an opening one for the parenthesized
+    ///     forms): <c>a.</c>, <c>a)</c>, <c>(a)</c>, <c>(1)</c>, <c>(@)</c>, <c>(@label)</c>, <c>#.</c>, <c>iv.</c>.
     /// </summary>
     /// <returns>The compiled expression.</returns>
     [GeneratedRegex(
-        @"^(?::::|\\[A-Za-z]|\$\$|\{=|%(?:\s|$)|\+[-=:+ ]*\+$)",
+        @"^(?:(?:#|[A-Za-z]|" + RomanPattern + @")[.)]|\((?:#|@[A-Za-z0-9_:.+-]*|[0-9]+|[A-Za-z]|" + RomanPattern + @")\))$",
+        RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
+    private static partial Regex FancyMarkerWordRegex();
+
+    /// <summary>
+    ///     Matches a content line that marks its paragraph as Pandoc structure: a fenced div, a LaTeX command, a display math
+    ///     fence, a raw attribute, a title block line, a grid table border, a definition list marker (a colon or a tilde
+    ///     and a blank), a line block (a bar and a blank), or a fancy or example list marker followed by a blank.
+    /// </summary>
+    /// <returns>The compiled expression.</returns>
+    [GeneratedRegex(
+        @"^(?::::|\\[A-Za-z]|\$\$|\{=|%(?:\s|$)|\+[-=:+ ]*\+$|[:~](?:[ \t]|$)|\|(?:[ \t]|$)|(?:(?:#|[A-Za-z]|" + RomanPattern + @")[.)]|\((?:#|@[A-Za-z0-9_:.+-]*|[0-9]+|[A-Za-z]|" + RomanPattern + @")\))(?:[ \t]|$))",
         RegexOptions.CultureInvariant,
         matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
     private static partial Regex PandocLineRegex();
@@ -160,7 +178,8 @@ internal static partial class BlockSyntaxGuard
                 || DefinitionRegex().IsMatch(atom)
                 || HtmlBlockRegex().IsMatch(atom)
                 || TableDelimiterRegex().IsMatch(atom)
-                || PandocWordRegex().IsMatch(atom);
+                || PandocWordRegex().IsMatch(atom)
+                || FancyMarkerWordRegex().IsMatch(atom);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -175,7 +194,9 @@ internal static partial class BlockSyntaxGuard
     /// <param name="line">The content of one line of a paragraph, without its container prefix. Must not be null.</param>
     /// <returns>
     ///     <see langword="true"/> when the line, ignoring leading blanks, starts with <c>:::</c>, a backslash and a letter,
-    ///     <c>$$</c>, <c>{=</c>, a percent sign followed by a blank or the end of the line, or is a grid table border.
+    ///     <c>$$</c>, <c>{=</c>, a percent sign followed by a blank or the end of the line, a colon, a tilde or a bar followed
+    ///     by a blank (definition list, line block), or a fancy or example list marker (<c>a.</c>, <c>(a)</c>, <c>(@)</c>,
+    ///     <c>#.</c>, <c>iv)</c>) followed by a blank, or is a grid table border.
     /// </returns>
     /// <remarks>
     ///     A pattern that times out counts as structure, so an undecided line leaves the paragraph alone.
