@@ -864,32 +864,32 @@ Text without a blank line before it.
 
 ## Rules and Settings at a Glance
 
-| Rule identifier       | Alias            | Setting (default)                        |
-| --------------------- | ---------------- | ---------------------------------------- |
-| `trailing-whitespace` | `MD009`          | `trailing-whitespace: strip`             |
-| `hard-tabs`           | `MD010`          | none                                     |
-| `max-blank-lines`     | `MD012`          | `max-blank-lines: 1`                     |
-| `heading-style`       | `MD003`, `MD021` | `heading-style: atx`                     |
-| `heading-space`       | `MD019`          | none                                     |
-| `heading-start-left`  | `MD023`          | none                                     |
-| `heading-blank-lines` | `MD022`          | none                                     |
-| `fence-blank-lines`   | `MD031`          | none                                     |
-| `list-blank-lines`    | `MD032`          | none                                     |
-| `table-blank-lines`   | `MD058`          | none                                     |
-| `thematic-break`      | `MD035`          | `thematic-break: dashes`                 |
-| `code-block-style`    | `MD046`          | `code-block-style: fenced`               |
-| `code-fence`          | `MD048`          | `code-fence: backtick`                   |
-| `final-newline`       | `MD047`          | `final-newline: true`                    |
-| `bullet`              | `MD004`          | `bullet: dash`                           |
-| `ordered-style`       | `MD029`          | `ordered-style: incrementing`            |
-| `list-indent`         | `MD005`, `MD007` | `list-indent: 2`                         |
-| `list-marker-space`   | `MD030`          | none                                     |
-| `blockquote-space`    | `MD027`          | none                                     |
-| `emphasis`            | `MD049`          | `emphasis: asterisk`                     |
-| `strong`              | `MD050`          | `strong: asterisk`                       |
-| `bare-urls`           | `MD034`          | `bare-urls: autolink`                    |
-| `code-span-space`     | `MD038`          | none                                     |
-| `line-length`         | `MD013`          | `line-length: 120`, `wrap: fill`         |
+| Rule identifier | Alias | Setting (default) |
+| --- | --- | --- |
+| `trailing-whitespace` | `MD009` | `trailing-whitespace: strip` |
+| `hard-tabs` | `MD010` | none |
+| `max-blank-lines` | `MD012` | `max-blank-lines: 1` |
+| `heading-style` | `MD003`, `MD021` | `heading-style: atx` |
+| `heading-space` | `MD019` | none |
+| `heading-start-left` | `MD023` | none |
+| `heading-blank-lines` | `MD022` | none |
+| `fence-blank-lines` | `MD031` | none |
+| `list-blank-lines` | `MD032` | none |
+| `table-blank-lines` | `MD058` | none |
+| `thematic-break` | `MD035` | `thematic-break: dashes` |
+| `code-block-style` | `MD046` | `code-block-style: fenced` |
+| `code-fence` | `MD048` | `code-fence: backtick` |
+| `final-newline` | `MD047` | `final-newline: true` |
+| `bullet` | `MD004` | `bullet: dash` |
+| `ordered-style` | `MD029` | `ordered-style: incrementing` |
+| `list-indent` | `MD005`, `MD007` | `list-indent: 2` |
+| `list-marker-space` | `MD030` | none |
+| `blockquote-space` | `MD027` | none |
+| `emphasis` | `MD049` | `emphasis: asterisk` |
+| `strong` | `MD050` | `strong: asterisk` |
+| `bare-urls` | `MD034` | `bare-urls: autolink` |
+| `code-span-space` | `MD038` | none |
+| `line-length` | `MD013` | `line-length: 120`, `wrap: fill` |
 
 `line-length` is the only rule in this table that `rules` can switch off (`line-length: false` or `MD013: false`); the
 other rules are always applied. `wrap: sentence` and `wrap: semantic` are accepted but not applied yet, and

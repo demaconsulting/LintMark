@@ -156,21 +156,21 @@ lintmark --silent --log output.log
 lintmark [options] [paths...]
 ```
 
-| Option                                | Description                                                  |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `paths...`                            | Files, directories, or globs to process; `!pattern` excludes |
-| `--check`                             | Report problems without writing any file (the default)       |
-| `--fix`                               | Rewrite files when every safety check passes                 |
-| `--diff`                              | Print a unified diff of what `--fix` would change            |
-| `--config <file>`                     | Use this configuration file instead of discovering it        |
-| `--no-config`                         | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults    |
-| `-v`, `--version`                     | Display version information                                  |
-| `-?`, `-h`, `--help`                  | Display help message                                         |
-| `--silent`                            | Suppress console output                                      |
-| `--validate`                          | Run self-validation (see Error Handling for exclusions)      |
-| `--results <file>`, `--result <file>` | Write results to `.trx` (TRX) or `.xml` (JUnit XML) file.    |
-| `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
-| `--log <file>`                        | Write output to log file                                     |
+| Option | Description |
+| --- | --- |
+| `paths...` | Files, directories, or globs to process; `!pattern` excludes |
+| `--check` | Report problems without writing any file (the default) |
+| `--fix` | Rewrite files when every safety check passes |
+| `--diff` | Print a unified diff of what `--fix` would change |
+| `--config <file>` | Use this configuration file instead of discovering it |
+| `--no-config` | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults |
+| `-v`, `--version` | Display version information |
+| `-?`, `-h`, `--help` | Display help message |
+| `--silent` | Suppress console output |
+| `--validate` | Run self-validation (see Error Handling for exclusions) |
+| `--results <file>`, `--result <file>` | Write results to `.trx` (TRX) or `.xml` (JUnit XML) file. |
+| `--depth <#>` | Set heading depth for markdown output (default: 1) |
+| `--log <file>` | Write output to log file |
 
 ## Configuration
 
@@ -197,29 +197,29 @@ or formatting rule uses them yet.
 - **Errors**: Problems are reported as `path:line:col: config-error message` with 1-based positions in the
   configuration file, all in one run, and make the exit code `1`.
 
-| Setting               | Allowed values                                        | Default                    |
-| --------------------- | ----------------------------------------------------- | -------------------------- |
-| `line-length`         | whole number from `0` to `100000` (`0` is unlimited)  | `120`                      |
-| `wrap`                | `fill`, `sentence`, `semantic`                        | `fill`                     |
-| `end-of-line`         | `lf`, `crlf`                                          | not set                    |
-| `final-newline`       | `true`, `false`                                       | `true`                     |
-| `heading-style`       | `atx`                                                 | `atx`                      |
-| `bullet`              | `dash`, `asterisk`, `plus`                            | `dash`                     |
-| `list-indent`         | `2`, `4`                                              | `2`                        |
-| `ordered-style`       | `incrementing`, `one`                                 | `incrementing`             |
-| `emphasis`            | `asterisk`, `underscore`                              | `asterisk`                 |
-| `strong`              | `asterisk`, `underscore`                              | `asterisk`                 |
-| `code-fence`          | `backtick`, `tilde`                                   | `backtick`                 |
-| `code-block-style`    | `fenced`                                              | `fenced`                   |
-| `hard-break`          | `spaces`, `backslash`                                 | `spaces`                   |
-| `thematic-break`      | `dashes`, `asterisks`, `underscores`                  | `dashes`                   |
-| `bare-urls`           | `autolink`, `leave`                                   | `autolink`                 |
-| `tables`              | `compact`, `aligned`                                  | `compact`                  |
-| `max-blank-lines`     | whole number from `1` to `100000`                     | `1`                        |
-| `trailing-whitespace` | `strip`                                               | `strip`                    |
-| `link-refactor`       | a mapping of the options listed below                 | see below                  |
-| `rules`               | a mapping of rule names to `true` or `false`          | all on except three        |
-| `ignore`              | a list of glob patterns                               | six built-in patterns      |
+| Setting | Allowed values | Default |
+| --- | --- | --- |
+| `line-length` | whole number from `0` to `100000` (`0` is unlimited) | `120` |
+| `wrap` | `fill`, `sentence`, `semantic` | `fill` |
+| `end-of-line` | `lf`, `crlf` | not set |
+| `final-newline` | `true`, `false` | `true` |
+| `heading-style` | `atx` | `atx` |
+| `bullet` | `dash`, `asterisk`, `plus` | `dash` |
+| `list-indent` | `2`, `4` | `2` |
+| `ordered-style` | `incrementing`, `one` | `incrementing` |
+| `emphasis` | `asterisk`, `underscore` | `asterisk` |
+| `strong` | `asterisk`, `underscore` | `asterisk` |
+| `code-fence` | `backtick`, `tilde` | `backtick` |
+| `code-block-style` | `fenced` | `fenced` |
+| `hard-break` | `spaces`, `backslash` | `spaces` |
+| `thematic-break` | `dashes`, `asterisks`, `underscores` | `dashes` |
+| `bare-urls` | `autolink`, `leave` | `autolink` |
+| `tables` | `compact`, `aligned` | `compact` |
+| `max-blank-lines` | whole number from `1` to `100000` | `1` |
+| `trailing-whitespace` | `strip` | `strip` |
+| `link-refactor` | a mapping of the options listed below | see below |
+| `rules` | a mapping of rule names to `true` or `false` | all on except three |
+| `ignore` | a list of glob patterns | six built-in patterns |
 
 The `link-refactor` options are `enabled` (default `false`), `threshold` (`60`), `in-tables` (`true`),
 `break-link-text` (`false`), `label-max-length` (`40`), and `definitions-marker` (`<!-- Link References -->`).

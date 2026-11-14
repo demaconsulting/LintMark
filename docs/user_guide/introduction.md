@@ -219,11 +219,11 @@ fails one is **refused**: it is never written, the finding is reported with the 
 where the text would first differ, and the other files are not affected. The refusal is reported by `--check` and
 `--diff` as well, so a problem in the formatting is visible before `--fix` is used.
 
-| Rule identifier             | Refused because                                                           |
-| --------------------------- | ------------------------------------------------------------------------- |
-| `safety-html-mismatch`      | The rewrite would render to different HTML (also with other line endings) |
-| `safety-structure-mismatch` | The rewrite would change Pandoc structure that the HTML does not show     |
-| `safety-not-idempotent`     | Formatting the rewritten text again would change it again                 |
+| Rule identifier | Refused because |
+| --- | --- |
+| `safety-html-mismatch` | The rewrite would render to different HTML (also with other line endings) |
+| `safety-structure-mismatch` | The rewrite would change Pandoc structure that the HTML does not show |
+| `safety-not-idempotent` | Formatting the rewritten text again would change it again |
 
 The Pandoc structure that is compared consists of code fences, page break commands, display math delimiters, grid
 table borders, attribute groups, and citations. `safety-structure-mismatch` is also reported when the rewritten text
@@ -236,10 +236,10 @@ docs/guide.md:12:1: safety-html-mismatch The rewrite would change how the docume
 
 Two further problems stop a rewrite and are reported with the file left as it was:
 
-| Rule identifier     | Meaning                                                                          |
-| ------------------- | -------------------------------------------------------------------------------- |
-| `file-format-error` | Formatting the file failed, for example a formatter threw an exception (1:1)     |
-| `file-write-error`  | The rewritten file could not be written (1:1; see *Fixing Files*)                |
+| Rule identifier | Meaning |
+| --- | --- |
+| `file-format-error` | Formatting the file failed, for example a formatter threw an exception (1:1) |
+| `file-write-error` | The rewritten file could not be written (1:1; see *Fixing Files*) |
 
 The refusals and `file-format-error` show a defect in a formatting rule, never a mistake in the document, and are
 worth reporting as a bug, with one exception: a refused conversion of the line endings is caused by the document
@@ -302,40 +302,40 @@ lintmark --no-config docs
 A configuration file is a single YAML document whose root is a mapping of settings. An empty file, a file that
 contains only comments, and a file that contains only `---` all mean "no settings" and give the defaults.
 
-| Setting               | Allowed values                                        | Default                    |
-| --------------------- | ----------------------------------------------------- | -------------------------- |
-| `line-length`         | whole number from `0` to `100000` (`0` is unlimited)  | `120`                      |
-| `wrap`                | `fill`, `sentence`, `semantic`                        | `fill`                     |
-| `end-of-line`         | `lf`, `crlf`                                          | not set                    |
-| `final-newline`       | `true`, `false`                                       | `true`                     |
-| `heading-style`       | `atx`                                                 | `atx`                      |
-| `bullet`              | `dash`, `asterisk`, `plus`                            | `dash`                     |
-| `list-indent`         | `2`, `4`                                              | `2`                        |
-| `ordered-style`       | `incrementing`, `one`                                 | `incrementing`             |
-| `emphasis`            | `asterisk`, `underscore`                              | `asterisk`                 |
-| `strong`              | `asterisk`, `underscore`                              | `asterisk`                 |
-| `code-fence`          | `backtick`, `tilde`                                   | `backtick`                 |
-| `code-block-style`    | `fenced`                                              | `fenced`                   |
-| `hard-break`          | `spaces`, `backslash`                                 | `spaces`                   |
-| `thematic-break`      | `dashes`, `asterisks`, `underscores`                  | `dashes`                   |
-| `bare-urls`           | `autolink`, `leave`                                   | `autolink`                 |
-| `tables`              | `compact`, `aligned`                                  | `compact`                  |
-| `max-blank-lines`     | whole number from `1` to `100000`                     | `1`                        |
-| `trailing-whitespace` | `strip`                                               | `strip`                    |
-| `link-refactor`       | a mapping of the options listed below                 | see below                  |
-| `rules`               | a mapping of rule names to `true` or `false`          | see *Rules*                |
-| `ignore`              | a list of glob patterns                               | see *Ignore Patterns*      |
+| Setting | Allowed values | Default |
+| --- | --- | --- |
+| `line-length` | whole number from `0` to `100000` (`0` is unlimited) | `120` |
+| `wrap` | `fill`, `sentence`, `semantic` | `fill` |
+| `end-of-line` | `lf`, `crlf` | not set |
+| `final-newline` | `true`, `false` | `true` |
+| `heading-style` | `atx` | `atx` |
+| `bullet` | `dash`, `asterisk`, `plus` | `dash` |
+| `list-indent` | `2`, `4` | `2` |
+| `ordered-style` | `incrementing`, `one` | `incrementing` |
+| `emphasis` | `asterisk`, `underscore` | `asterisk` |
+| `strong` | `asterisk`, `underscore` | `asterisk` |
+| `code-fence` | `backtick`, `tilde` | `backtick` |
+| `code-block-style` | `fenced` | `fenced` |
+| `hard-break` | `spaces`, `backslash` | `spaces` |
+| `thematic-break` | `dashes`, `asterisks`, `underscores` | `dashes` |
+| `bare-urls` | `autolink`, `leave` | `autolink` |
+| `tables` | `compact`, `aligned` | `compact` |
+| `max-blank-lines` | whole number from `1` to `100000` | `1` |
+| `trailing-whitespace` | `strip` | `strip` |
+| `link-refactor` | a mapping of the options listed below | see below |
+| `rules` | a mapping of rule names to `true` or `false` | see *Rules* |
+| `ignore` | a list of glob patterns | see *Ignore Patterns* |
 
 The `link-refactor` setting is a mapping with these options; options that are not listed keep their defaults:
 
-| Option               | Allowed values                                    | Default                      |
-| -------------------- | ------------------------------------------------- | ---------------------------- |
-| `enabled`            | `true`, `false`                                   | `false`                      |
-| `threshold`          | whole number from `1` to `100000`                 | `60`                         |
-| `in-tables`          | `true`, `false`                                   | `true`                       |
-| `break-link-text`    | `true`, `false`                                   | `false`                      |
-| `label-max-length`   | whole number from `1` to `100000`                 | `40`                         |
-| `definitions-marker` | a single-line HTML comment (`<!--` to `-->`)      | `<!-- Link References -->`   |
+| Option | Allowed values | Default |
+| --- | --- | --- |
+| `enabled` | `true`, `false` | `false` |
+| `threshold` | whole number from `1` to `100000` | `60` |
+| `in-tables` | `true`, `false` | `true` |
+| `break-link-text` | `true`, `false` | `false` |
+| `label-max-length` | whole number from `1` to `100000` | `40` |
+| `definitions-marker` | a single-line HTML comment (`<!--` to `-->`) | `<!-- Link References -->` |
 
 What the settings describe:
 
@@ -389,30 +389,30 @@ rules:
   descriptive-link-text: true
 ```
 
-| Rule identifier                | Alias   | Default |
-| ------------------------------ | ------- | ------- |
-| `line-length`                  | `MD013` | on      |
-| `paragraph-wrap`               |         | on      |
-| `heading-increment`            | `MD001` | on      |
-| `heading-duplicate`            | `MD024` | on      |
-| `heading-trailing-punctuation` | `MD026` | on      |
-| `emphasis-as-heading`          | `MD036` | on      |
-| `image-alt-text`               | `MD045` | on      |
-| `link-empty`                   | `MD042` | on      |
-| `link-fragment`                | `MD051` | on      |
-| `link-reference-undefined`     | `MD052` | on      |
-| `link-definition-unused`       | `MD053` | on      |
-| `link-reversed`                | `MD011` | on      |
-| `descriptive-link-text`        | `MD059` | off     |
-| `code-fence-language`          | `MD040` | on      |
-| `table-too-wide`               |         | on      |
-| `table-column-count`           | `MD056` | on      |
-| `table-grid-unformatted`       |         | off     |
-| `fence-unclosed`               |         | on      |
-| `grid-table-invalid`           |         | on      |
-| `footnote-unused`              |         | on      |
-| `blockquote-blank-line`        | `MD028` | on      |
-| `dollar-sign-in-shell-code`    | `MD014` | off     |
+| Rule identifier | Alias | Default |
+| --- | --- | --- |
+| `line-length` | `MD013` | on |
+| `paragraph-wrap` | | on |
+| `heading-increment` | `MD001` | on |
+| `heading-duplicate` | `MD024` | on |
+| `heading-trailing-punctuation` | `MD026` | on |
+| `emphasis-as-heading` | `MD036` | on |
+| `image-alt-text` | `MD045` | on |
+| `link-empty` | `MD042` | on |
+| `link-fragment` | `MD051` | on |
+| `link-reference-undefined` | `MD052` | on |
+| `link-definition-unused` | `MD053` | on |
+| `link-reversed` | `MD011` | on |
+| `descriptive-link-text` | `MD059` | off |
+| `code-fence-language` | `MD040` | on |
+| `table-too-wide` | | on |
+| `table-column-count` | `MD056` | on |
+| `table-grid-unformatted` | | off |
+| `fence-unclosed` | | on |
+| `grid-table-invalid` | | on |
+| `footnote-unused` | | on |
+| `blockquote-blank-line` | `MD028` | on |
+| `dollar-sign-in-shell-code` | `MD014` | off |
 
 - An unknown rule name is an error.
 - Naming the same rule twice, whether by identifier and alias or in different letter case, is an error. It is
@@ -623,21 +623,21 @@ and rule identifier. Files are processed in parallel, but the order of the outpu
 unified diff of `--diff` is written to standard output, after the problems (see *Previewing Fixes*). With `--fix`,
 the problems that rewriting removed are not reported.
 
-| Rule identifier             | Meaning                                                                            |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| `file-read-error`           | The file does not exist, cannot be accessed, or cannot be read (1:1)               |
-| `file-encoding-error`       | The file is not valid UTF-8, or starts with a UTF-16 or UTF-32 byte order mark     |
-| `file-line-ending-error`    | The file contains a carriage return that is not part of a CRLF line ending         |
-| `file-parse-error`          | The Markdown parser failed for the file (1:1)                                      |
-| `config-error`              | A configuration file or `.editorconfig` problem (see *Configuration Errors*)       |
-| `line-ending`               | A line ending differs from the one chosen for the file (1:1; fixable)              |
-| formatting rules            | A formatting rule would change the file at this place (fixable; see below)         |
-| `grid-table-invalid`        | A line looks like a grid table border but the table is not valid (never rewritten) |
-| `safety-html-mismatch`      | A rewrite would change how the document renders; the file is not rewritten         |
-| `safety-structure-mismatch` | A rewrite would change Pandoc structure; the file is not rewritten                 |
-| `safety-not-idempotent`     | Formatting would not be stable; the file is not rewritten                          |
-| `file-format-error`         | Formatting the file failed (1:1)                                                   |
-| `file-write-error`          | The rewritten file could not be written (1:1)                                      |
+| Rule identifier | Meaning |
+| --- | --- |
+| `file-read-error` | The file does not exist, cannot be accessed, or cannot be read (1:1) |
+| `file-encoding-error` | The file is not valid UTF-8, or starts with a UTF-16 or UTF-32 byte order mark |
+| `file-line-ending-error` | The file contains a carriage return that is not part of a CRLF line ending |
+| `file-parse-error` | The Markdown parser failed for the file (1:1) |
+| `config-error` | A configuration file or `.editorconfig` problem (see *Configuration Errors*) |
+| `line-ending` | A line ending differs from the one chosen for the file (1:1; fixable) |
+| formatting rules | A formatting rule would change the file at this place (fixable; see below) |
+| `grid-table-invalid` | A line looks like a grid table border but the table is not valid (never rewritten) |
+| `safety-html-mismatch` | A rewrite would change how the document renders; the file is not rewritten |
+| `safety-structure-mismatch` | A rewrite would change Pandoc structure; the file is not rewritten |
+| `safety-not-idempotent` | Formatting would not be stable; the file is not rewritten |
+| `file-format-error` | Formatting the file failed (1:1) |
+| `file-write-error` | The rewritten file could not be written (1:1) |
 
 Every identifier in the table except `grid-table-invalid` always applies and cannot be switched off; switching
 `grid-table-invalid` off in `rules` hides its report only. The formatting rules are the identifiers of *Formatting
@@ -830,21 +830,21 @@ The following command-line options are supported:
 lintmark [options] [paths...]
 ```
 
-| Option                                | Description                                                  |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `paths...`                            | Files, directories, or globs to process; `!pattern` excludes |
-| `--check`                             | Report problems without writing any file (the default)       |
-| `--fix`                               | Rewrite files when every safety check passes                 |
-| `--diff`                              | Print a unified diff of what `--fix` would change            |
-| `--config <file>`                     | Use this configuration file instead of discovering it        |
-| `--no-config`                         | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults    |
-| `-v`, `--version`                     | Display version information                                  |
-| `-?`, `-h`, `--help`                  | Display help message                                         |
-| `--silent`                            | Suppress console output                                      |
-| `--validate`                          | Run self-validation (see Error Handling for exclusions)      |
-| `--results <file>`, `--result <file>` | Write validation results to file (TRX or JUnit format)       |
-| `--depth <#>`                         | Set heading depth for markdown output (default: 1)           |
-| `--log <file>`                        | Write output to log file                                     |
+| Option | Description |
+| --- | --- |
+| `paths...` | Files, directories, or globs to process; `!pattern` excludes |
+| `--check` | Report problems without writing any file (the default) |
+| `--fix` | Rewrite files when every safety check passes |
+| `--diff` | Print a unified diff of what `--fix` would change |
+| `--config <file>` | Use this configuration file instead of discovering it |
+| `--no-config` | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults |
+| `-v`, `--version` | Display version information |
+| `-?`, `-h`, `--help` | Display help message |
+| `--silent` | Suppress console output |
+| `--validate` | Run self-validation (see Error Handling for exclusions) |
+| `--results <file>`, `--result <file>` | Write validation results to file (TRX or JUnit format) |
+| `--depth <#>` | Set heading depth for markdown output (default: 1) |
+| `--log <file>` | Write output to log file |
 
 # Examples
 
