@@ -57,11 +57,10 @@ but not yet implemented):
   cannot fix. `wrap: fill` is the only wrap mode that is applied
 - **Rule Suppression**: `lintmark-disable` and `markdownlint-disable` comments, by identifier or by legacy number, leave
   a passage as it is
-- **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
-  (fences, grid table borders, and so on), and is stable when formatted again; this includes a rewrite that only
-  changes the line endings, because the renderer shows some text differently for CRLF and LF; otherwise the file
-  is refused
-  (`safety-html-mismatch`, `safety-structure-mismatch`, `safety-not-idempotent`) and left as it was
+- **Verified Formatting**: The block formatters prove their own transformations locally, and the repository holds
+  a verification tool (`tools/LintMark.Verify`) that formats a corpus of Markdown files and checks that the result
+  renders to the same HTML, keeps the Pandoc structure, and is stable when formatted again; `--fix` itself writes
+  the formatted result directly
 - **Atomic Writes**: A rewrite replaces the file in one step, keeps its permissions, and never overwrites a file
   that changed after it was read
 - **Line Endings**: The line ending of a file comes from `end-of-line`, else `.editorconfig`, else the file's own
@@ -118,7 +117,7 @@ lintmark "docs/**/*.md" "!docs/generated/**"
 # Report problems only; never modify a file (this is the default)
 lintmark --check docs
 
-# Rewrite files into canonical form when every safety check passes, then report what remains
+# Rewrite files into canonical form, then report what remains
 lintmark --fix docs
 
 # Preview what --fix would change as a unified diff; no file is written
@@ -160,7 +159,7 @@ lintmark [options] [paths...]
 | --- | --- |
 | `paths...` | Files, directories, or globs to process; `!pattern` excludes |
 | `--check` | Report problems without writing any file (the default) |
-| `--fix` | Rewrite files when every safety check passes |
+| `--fix` | Rewrite files into canonical form |
 | `--diff` | Print a unified diff of what `--fix` would change |
 | `--config <file>` | Use this configuration file instead of discovering it |
 | `--no-config` | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults |
@@ -300,9 +299,7 @@ The reported rule identifiers are `file-read-error`, `file-encoding-error`, `fil
 `ordered-style`, `list-indent`, `list-marker-space`, `blockquote-space`, `emphasis`, `strong`, `bare-urls`, and
 `code-span-space`, each reported at the place that `--fix` would change), `line-length` (a paragraph line that is wider
 than the limit; fixable by `--fix` unless the message ends with `and the paragraph cannot be wrapped automatically`),
-`grid-table-invalid`, `safety-html-mismatch`,
-`safety-structure-mismatch`, `safety-not-idempotent`, `file-format-error`, and `file-write-error`. A `safety-*`
-identifier means that a rewrite was refused because it could damage the document; the file is left as it was. A
+`grid-table-invalid`, `file-format-error`, and `file-write-error`. A
 grid table problem (`grid-table-invalid`) is never rewritten, and the formatting rules and `line-ending` are always
 applied, so they are not configurable in `rules` (a comment switches a formatting rule off for a passage; `line-ending`
 is not suppressible). `--diff` reports the findings on standard error, as in check mode, and writes its unified diff to

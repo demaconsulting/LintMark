@@ -16,8 +16,8 @@ line ending from `.editorconfig`) that applies to each file, and reports every c
 and, with `--fix`, rewrites each file with 23 formatting rules and the line ending rule (whitespace, blank lines,
 headings, code blocks, thematic breaks, lists, block quotes, emphasis, bare URLs, code spans, and the end of the file;
 see *Formatting Rules*), and it wraps paragraphs that have a line wider than `line-length` (the `line-length` rule).
-`--diff` previews what `--fix` would change. A rewrite is written only when every safety check
-passes, and it is written atomically. The `ignore` patterns of the configuration are applied. The remaining Markdown
+`--diff` previews what `--fix` would change. A rewrite is written atomically. The `ignore` patterns of the
+configuration are applied. The remaining Markdown
 rules (for example the other wrap modes, tables, links, and the lint-only rules) are planned but not yet implemented, so
 their settings are validated and stored but do not change any file yet. LintMark also provides the standard
 command-line interface and self-validation.
@@ -157,11 +157,11 @@ Use `--fix` to rewrite files into their canonical form:
 lintmark --fix docs
 ```
 
-- A file is rewritten only when the rewrite changes it and every safety check passes (see *Safety Checks*). A file
+- A file is rewritten only when the rewrite changes it. A file
   that is already compliant is not touched at all: its content and its modification time stay as they are.
 - Only what can be fixed is rewritten. A problem that rewriting removes, such as `line-ending` or a formatting rule, is
-  no longer reported after the file was written; problems that remain, and files that were refused, are reported as
-  usual.
+  no longer reported after the file was written; problems that remain, and files that were not rewritten, are reported
+  as usual.
   The exit code is `0` when nothing remains to report and `1` otherwise, so a second `--fix` run over the same
   files reports nothing and changes nothing.
 - A file is never rewritten when its configuration is invalid or its editor settings cannot be read, because the
@@ -202,51 +202,28 @@ described by a note line:
 ```
 
 When the text changes as well, the note is followed by the hunks (`@@ -1,2 +1,2 @@` with three lines of context,
-and `\ No newline at end of file` where it applies). A file that would not be rewritten, including every refused
-file, is not shown.
+and `\ No newline at end of file` where it applies). A file that would not be rewritten is not shown.
 
 `--diff` writes no file. The findings are reported on standard error as in check mode, so the exit code is `1` when
 anything is reported, and the diff itself does not change the exit code. `--diff` can be combined with `--check`,
 which has no further effect, but not with `--fix`.
 
-## Safety Checks
+## Rewrite Problems
 
-A rewrite replaces a file, so LintMark proves that it cannot damage the document before anything is written. Each
-proposed rewrite must pass these checks, in this order, also a rewrite that only changes the line endings (the
-renderer shows some text, such as a code span that spans lines, differently for CRLF and LF, so the HTML of the text
-with its line endings is compared as well). A file that
-fails one is **refused**: it is never written, the finding is reported with the rule identifier below at the line
-where the text would first differ, and the other files are not affected. The refusal is reported by `--check` and
-`--diff` as well, so a problem in the formatting is visible before `--fix` is used.
-
-| Rule identifier | Refused because |
-| --- | --- |
-| `safety-html-mismatch` | The rewrite would render to different HTML (also with other line endings) |
-| `safety-structure-mismatch` | The rewrite would change Pandoc structure that the HTML does not show |
-| `safety-not-idempotent` | Formatting the rewritten text again would change it again |
-
-The Pandoc structure that is compared consists of code fences, page break commands, display math delimiters, grid
-table borders, attribute groups, and citations. `safety-structure-mismatch` is also reported when the rewritten text
-would no longer be read as before, for example because the rewrite creates a line that looks like the border of a
-grid table that is not valid.
-
-```text
-docs/guide.md:12:1: safety-html-mismatch The rewrite would change how the document renders (...); the file is not rewritten
-```
-
-Two further problems stop a rewrite and are reported with the file left as it was:
+A rewrite replaces a file, so a problem that stops it is reported with the file left as it was. A document that the
+parser could only read by dropping grid tables is never rewritten (see *Grid Table Parse Problems*). Two further
+problems stop a rewrite:
 
 | Rule identifier | Meaning |
 | --- | --- |
 | `file-format-error` | Formatting the file failed, for example a formatter threw an exception (1:1) |
 | `file-write-error` | The rewritten file could not be written (1:1; see *Fixing Files*) |
 
-The refusals and `file-format-error` show a defect in a formatting rule, never a mistake in the document, and are
-worth reporting as a bug, with one exception: a refused conversion of the line endings is caused by the document
-itself. The safety diagnostics, `file-format-error`, and `file-write-error` cannot be switched
-off, and are not listed under `rules`. A file whose conversion to another line ending would change how it renders,
-such as a code span that spans lines, is refused too (`safety-html-mismatch` at line 1, column 1) and keeps its
-line endings; the `line-ending` finding stays.
+`file-format-error` shows a defect in a formatting rule, never a mistake in the document, and is worth reporting as a
+bug. `file-format-error` and `file-write-error` cannot be switched off, and are not listed under `rules`.
+
+The formatting of the whole repository's Markdown corpus is verified outside the product by `tools/LintMark.Verify`
+(rendered HTML, Pandoc structure, and stability of a second formatting).
 
 ## Configuration
 
@@ -421,9 +398,9 @@ rules:
   `MD033`, `MD041`, `MD043`, `MD044`, and `MD057`. A configuration that still contains them stays valid, but
   repeating one of them is still a duplicate.
 - Rules that the formatter always applies cannot be switched off, so their identifiers and aliases (for example
-  `line-ending`, `trailing-whitespace`, `MD009`, `bullet`, and `MD004`) are unknown names in `rules`. LintMark has 56
-  rules: the 22 in the table above can be switched, and the other 34 always apply (`line-ending`, the 23 formatting
-  rules of *Formatting Rules*, the three `safety-*` refusals, and the file and configuration problems). A formatting
+  `line-ending`, `trailing-whitespace`, `MD009`, `bullet`, and `MD004`) are unknown names in `rules`. LintMark has 53
+  rules: the 22 in the table above can be switched, and the other 31 always apply (`line-ending`, the 23 formatting
+  rules of *Formatting Rules*, and the file and configuration problems). A formatting
   rule is switched off for a passage with a suppression comment (see *Formatting Rules*).
 - This release evaluates only `line-length` (see *line-length (MD013)* in *Formatting Rules*; `line-length: false` or
   `MD013: false` switches it off) and `grid-table-invalid` (see *Grid Table Parse Problems*). The other toggles are
@@ -633,9 +610,6 @@ the problems that rewriting removed are not reported.
 | `line-ending` | A line ending differs from the one chosen for the file (1:1; fixable) |
 | formatting rules | A formatting rule would change the file at this place (fixable; see below) |
 | `grid-table-invalid` | A line looks like a grid table border but the table is not valid (never rewritten) |
-| `safety-html-mismatch` | A rewrite would change how the document renders; the file is not rewritten |
-| `safety-structure-mismatch` | A rewrite would change Pandoc structure; the file is not rewritten |
-| `safety-not-idempotent` | Formatting would not be stable; the file is not rewritten |
 | `file-format-error` | Formatting the file failed (1:1) |
 | `file-write-error` | The rewritten file could not be written (1:1) |
 
@@ -679,7 +653,7 @@ Options:
   -v, --version              Display version information
   -?, -h, --help             Display this help message
   --check                    Report problems without writing any file (default)
-  --fix                      Rewrite files into canonical form when every safety check passes,
+  --fix                      Rewrite files into canonical form,
                              then report the problems that remain (not with --check or --diff)
   --diff                     Print a unified diff of what --fix would change; writes no file
   --config <file>            Use this configuration file instead of discovering .lintmark.yaml
@@ -834,7 +808,7 @@ lintmark [options] [paths...]
 | --- | --- |
 | `paths...` | Files, directories, or globs to process; `!pattern` excludes |
 | `--check` | Report problems without writing any file (the default) |
-| `--fix` | Rewrite files when every safety check passes |
+| `--fix` | Rewrite files into canonical form |
 | `--diff` | Print a unified diff of what `--fix` would change |
 | `--config <file>` | Use this configuration file instead of discovering it |
 | `--no-config` | Ignore `.lintmark.yaml` and `.editorconfig`; use defaults |

@@ -8,8 +8,8 @@ number from markdownlint (for example `MD009`) that you can use in a suppression
 
 - **Check**: `lintmark docs` reports every place that a rule would change, as `path:line:col: rule-id message`, and
   exits with `1` when it reports anything.
-- **Fix**: `lintmark --fix docs` makes the changes, writes only files that pass every safety check (see *Safety
-  Checks*), and reports what remains. A second run over the same files reports nothing and changes nothing.
+- **Fix**: `lintmark --fix docs` makes the changes, writes the files that change, and reports what remains. A second
+  run over the same files reports nothing and changes nothing.
 - **Diff**: `lintmark --diff docs` first reports the findings, as in check mode, and then prints a unified diff of what
   `--fix` would change. It writes no file, and because it reports the findings, it exits with `1` when there are any.
 - **Always applied**: A formatting rule cannot be switched off in the `rules` setting of the configuration: its
@@ -832,9 +832,9 @@ LintMark neither reports nor changes the following, even where a line is wider t
 
 #### Safety
 
-The wrap is the last step of a fix, after the other rules have written their changes, and it follows the same safety
-rules as every other change (see *Safety Checks* in the introduction): the wrapped text must render to the same HTML
-and must be stable when it is formatted again. When a check fails, the file is refused and left untouched.
+The wrap is the last step of a fix, after the other rules have written their changes. A paragraph is wrapped only
+when the wrapped text renders to the same HTML as before, and a paragraph for which that cannot be proved is left as
+it was.
 
 ## Suppressing a Rule
 
