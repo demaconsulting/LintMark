@@ -66,7 +66,7 @@ public class OptionTests
     [InlineData("")]
     [InlineData("docs|--bogus")]
     [InlineData("docs|--config")]
-    [InlineData("docs|--option|novalue")]
+    [InlineData("docs|--option|missing-equals-sign")]
     [InlineData("docs|--jobs|0")]
     [InlineData("docs|--sample|many")]
     [InlineData("docs|--repo-config|--matrix")]
