@@ -659,6 +659,7 @@ sections:
           - LintMark-Document-WriteBack
         tests:
           - LintMark_FixFlag_BomFile_KeepsBomAndText
+          - LintMark_FixFlag_WrappedParagraphWithCrlfAndBom_KeepsEndingsAndMark
 
       - id: LintMark-System-FixKeepsOtherText
         title: >-
@@ -781,8 +782,10 @@ sections:
           that fixes and then checks.
         children:
           - LintMark-Formatting-FormattingStable
+          - LintMark-Formatting-WrapStable
         tests:
           - LintMark_FixFlag_FormattingRules_SecondRunReportsNothing
+          - LintMark_FixFlag_WrappedParagraphs_SecondRunReportsNothing
 
       - id: LintMark-System-FormattingRulesAlwaysApplied
         title: >-
@@ -813,6 +816,8 @@ sections:
         tests:
           - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
           - LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation
+          - LintMark_FixFlag_LineLengthSuppressedByAlias_LeavesTheParagraph
+          - LintMark_FixFlag_CodeSpanRuleDisabledByAlias_LeavesThePadding
 
       - id: LintMark-System-TrailingWhitespace
         title: >-
@@ -1309,16 +1314,282 @@ sections:
 
       - id: LintMark-System-DisplayWidth
         title: >-
-          The tool shall measure the length of a line of text in terminal display columns, counting wide
-          East Asian characters and emoji as two columns and combining and control characters as none.
+          The tool shall measure the length of a line of a paragraph in terminal display columns when it
+          compares the line with the `line-length` setting, counting wide East Asian characters as two columns
+          and combining marks as none.
         tags: [system]
         justification: |
           Line length limits exist for readers, and readers see columns, not characters. A limit that
-          counted characters would make Japanese, Korean, Chinese, and emoji text look much longer
-          than the limit. The measurement is not observable through the command line yet, because the
-          rules that apply a width limit are added later, so the only evidence available at this
-          level is the Utilities subsystem test.
+          counted characters would report Japanese, Korean, and Chinese text as much longer than it looks
+          and would miss text that is wider on the screen than its number of characters says. The
+          measurement shows in the line length problems that the tool reports and in the paragraphs
+          that it wraps.
         children:
           - LintMark-Utilities-DisplayWidth
         tests:
-          - UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns
+          - LintMark_LineLength_WideCharacters_AreMeasuredInDisplayColumns
+
+      - id: LintMark-System-LineLengthReported
+        title: >-
+          The tool shall report a line of a paragraph that is wider than the `line-length` setting and that holds
+          a place where it can be broken as a `line-length` problem at the first column beyond the width.
+        tags: [system]
+        justification: |
+          Authors who keep their lines short for readers, for version control, or for side-by-side review need
+          to be told which line is too wide and where the width ends, so that they can repair it by hand, switch
+          the rule off for a passage, or run the fix option.
+        children:
+          - LintMark-Formatting-LineLengthReported
+          - LintMark-Engine-OverlongParagraphsHandled
+        tests:
+          - LintMark_CheckFlag_OverlongParagraph_ReportsLineLengthAtTheFirstColumnBeyondTheWidth
+
+      - id: LintMark-System-LineLengthFixed
+        title: >-
+          The tool shall wrap each paragraph that has a line wider than the `line-length` setting when the fix
+          option is given, so that no line of it is wider than the setting except a line that cannot be broken.
+        tags: [system]
+        justification: |
+          Wrapping long paragraphs by hand is tedious work that a tool can do reliably, and a project that
+          limits the length of its lines expects its files to keep to the limit after a fix.
+        children:
+          - LintMark-Formatting-ParagraphsWrapped
+          - LintMark-Engine-OverlongParagraphsHandled
+        tests:
+          - LintMark_FixFlag_OverlongParagraph_IsWrappedWithinTheWidth
+
+      - id: LintMark-System-LineLengthOverflowOnly
+        title: >-
+          The tool shall leave each paragraph in which no line is wider than the `line-length` setting exactly
+          as written.
+        tags: [system]
+        justification: |
+          Authors choose where to break the lines of their paragraphs, and a line that keeps to the limit
+          is not a problem. Joining or moving lines that are short enough would change every paragraph of a
+          project for no reason and would swamp version control with changes that nobody asked for.
+        children:
+          - LintMark-Formatting-LineLengthOverflowOnly
+        tests:
+          - LintMark_FixFlag_ParagraphsWithinTheWidth_StayByteIdentical
+
+      - id: LintMark-System-LineLengthSetting
+        title: >-
+          The tool shall take the width that it allows for a line of a paragraph from the `line-length` setting
+          of its configuration, 120 columns when the configuration gives none.
+        tags: [system]
+        justification: |
+          Projects differ in the width they allow, and a default that suits most of them makes a configuration
+          unnecessary for the common case.
+        children:
+          - LintMark-Formatting-LineLengthSetting
+        tests:
+          - LintMark_LineLengthSetting_ConfiguredWidth_DecidesWhatIsReported
+
+      - id: LintMark-System-LineLengthUnlimited
+        title: >-
+          The tool shall neither report nor change the length of any line of a paragraph when the `line-length`
+          setting of its configuration is 0.
+        tags: [system]
+        justification: |
+          Projects that let their editors wrap the text need a way to switch the limit off, and zero is the
+          value that means no limit.
+        children:
+          - LintMark-Formatting-LineLengthUnlimited
+        tests:
+          - LintMark_LineLengthSetting_Zero_ReportsAndChangesNothing
+
+      - id: LintMark-System-LineLengthRuleSwitch
+        title: >-
+          The tool shall neither report nor change the length of any line of a paragraph when the `rules` setting
+          of its configuration switches the `line-length` rule off, whether it names the rule by its identifier
+          or by its legacy rule number.
+        tags: [system]
+        justification: |
+          The line length rule can be configured like the other rules that a configuration may switch, and
+          authors who know the rule by its number must be able to use it.
+        children:
+          - LintMark-Formatting-LineLengthRuleSwitch
+        tests:
+          - LintMark_ConfigRules_LineLengthOffByAlias_ReportsAndChangesNothing
+
+      - id: LintMark-System-LineLengthUnbreakableKept
+        title: >-
+          The tool shall neither report nor change a line of a paragraph that is wider than the `line-length`
+          setting only because of one link, URL, autolink, code span, or image.
+        tags: [system]
+        justification: |
+          Such an item cannot be broken without changing the document, so a report about it could not be acted
+          on and a rewrite of it would damage it.
+        children:
+          - LintMark-Formatting-LineLengthUnbreakableKept
+        tests:
+          - LintMark_FixFlag_LineWithOneLongUnbreakableItem_IsNotReportedOrChanged
+
+      - id: LintMark-System-LineLengthLiteralTextKept
+        title: >-
+          The tool shall not report a line of code, HTML, a table, a heading, a link reference definition, or
+          front matter as wider than the `line-length` setting.
+        tags: [system]
+        justification: |
+          The lines of these blocks are content or structure that the author cannot break freely, so a report
+          about their width could not be acted on, and the fix option never rewraps them.
+        children:
+          - LintMark-Formatting-LineLengthLiteralTextKept
+        tests:
+          - LintMark_CheckFlag_LiteralBlocksWiderThanTheWidth_AreNeverReported
+
+      - id: LintMark-System-WrapKeepsInlineConstructsWhole
+        title: >-
+          The tool shall keep each link, code span, and inline HTML element of a paragraph whole, on one line,
+          when it wraps the paragraph.
+        tags: [system]
+        justification: |
+          Breaking a line inside a link, a code span, or a tag changes what the document says or how it renders,
+          so a wrap may only break the text between such items.
+        children:
+          - LintMark-Formatting-WrapKeepsInlineConstructsWhole
+        tests:
+          - LintMark_FixFlag_WrappedParagraph_KeepsInlineConstructsWhole
+
+      - id: LintMark-System-WrapKeepsHardBreaks
+        title: >-
+          The tool shall keep each hard line break of a paragraph at the end of the line where it is when it
+          wraps the paragraph.
+        tags: [system]
+        justification: |
+          A hard line break is part of what the author wrote, and moving or dropping it changes how the
+          paragraph renders.
+        children:
+          - LintMark-Formatting-WrapKeepsHardBreaks
+        tests:
+          - LintMark_FixFlag_WrappedParagraph_KeepsHardBreaks
+
+      - id: LintMark-System-WrapKeepsContainerPrefixes
+        title: >-
+          The tool shall write each line of a wrapped paragraph in a list item or a block quote with the
+          indentation or the quote markers that keep the line in the item or the quote.
+        tags: [system]
+        justification: |
+          A line without its prefix would leave the item or the quote, or would join the text of another
+          block, and the document would no longer say what it said before.
+        children:
+          - LintMark-Formatting-WrapKeepsContainerPrefixes
+        tests:
+          - LintMark_FixFlag_WrappedListAndQuoteParagraphs_KeepTheirPrefixes
+
+      - id: LintMark-System-WrapNeverStartsBlockSyntax
+        title: >-
+          The tool shall not start a line of a wrapped paragraph with text that Markdown reads as a list marker,
+          a number marker, or a heading marker.
+        tags: [system]
+        justification: |
+          A line that starts with such text turns a part of the paragraph into a list or a heading, so the
+          wrap would change what the document says.
+        children:
+          - LintMark-Formatting-WrapNeverStartsBlockSyntax
+        tests:
+          - LintMark_FixFlag_WrappedParagraph_NeverStartsALineWithBlockSyntax
+
+      - id: LintMark-System-WrapKeepsPandocParagraphs
+        title: >-
+          The tool shall leave a paragraph that holds a Pandoc structural line, such as a LaTeX command on a
+          line of its own, exactly as written and shall report no line length problem for it.
+        tags: [system]
+        justification: |
+          Pandoc reads such lines as commands, and joining or moving them would change the output of the
+          document.
+        children:
+          - LintMark-Formatting-WrapKeepsPandocParagraphs
+        tests:
+          - LintMark_FixFlag_PandocStructuralParagraph_IsLeftAsWritten
+
+      - id: LintMark-System-WrapKeepsFootnoteParagraphs
+        title: >-
+          The tool shall leave a paragraph inside a footnote definition exactly as written and shall report no
+          line length problem for it.
+        tags: [system]
+        justification: |
+          The parser adds a link back to the reference to the end of a footnote, which makes the effect of a
+          rewrite there uncertain, and leaving the paragraph as written is always safe.
+        children:
+          - LintMark-Formatting-WrapKeepsFootnoteParagraphs
+        tests:
+          - LintMark_FixFlag_FootnoteParagraph_IsLeftAsWritten
+
+      - id: LintMark-System-LineLengthResidualReported
+        title: >-
+          The tool shall report each line of a paragraph that is wider than the `line-length` setting and that it
+          could not shorten as a `line-length` problem that the fix option cannot repair.
+        tags: [system]
+        justification: |
+          A fix that stayed silent about a line that it left too wide would hide the problem from a pipeline
+          that fixes and then checks, so the problem stays reported and the exit status shows it.
+        children:
+          - LintMark-Formatting-LineLengthResidualReported
+          - LintMark-Engine-OverlongParagraphsHandled
+        tests:
+          - LintMark_FixFlag_WrapThatCannotFit_ReportsLineLengthAfterTheFix
+
+      - id: LintMark-System-WrapModesReserved
+        title: >-
+          The tool shall accept the values `sentence` and `semantic` of the `wrap` setting of its configuration
+          and shall not change a paragraph because of them.
+        tags: [system]
+        justification: |
+          Configurations that name the modes that are planned must keep working, and a mode that is not
+          applied must not change the documents of the users who chose it.
+        children:
+          - LintMark-Formatting-WrapModesReserved
+        tests:
+          - LintMark_ConfigWrap_SentenceAndSemantic_AreAcceptedAndChangeNothing
+
+      - id: LintMark-System-CodeSpanSpace
+        title: >-
+          The tool shall treat the one space on each side of a code span that is padded with exactly one space on
+          each side as a `code-span-space` problem that the fix option removes.
+        tags: [system]
+        justification: |
+          One space on each side of a code span is not part of the code, because the parser removes it, so it
+          only makes the spans of a project inconsistent.
+        children:
+          - LintMark-Formatting-CodeSpanSpace
+        tests:
+          - LintMark_FixFlag_PaddedCodeSpan_LosesItsPadding
+          - LintMark_CheckFlag_PaddedCodeSpan_ReportsTheRuleAtTheCodeSpan
+
+      - id: LintMark-System-CodeSpanSpaceBacktickKept
+        title: >-
+          The tool shall keep the padding of a code span whose content starts or ends with a backtick as written.
+        tags: [system]
+        justification: |
+          The padding separates the content from the delimiters, so removing it would end or change the code
+          span.
+        children:
+          - LintMark-Formatting-CodeSpanSpaceBacktickKept
+        tests:
+          - LintMark_FixFlag_CodeSpanWithBacktickAtAnEdge_KeepsItsPadding
+
+      - id: LintMark-System-CodeSpanSpaceUnevenKept
+        title: >-
+          The tool shall keep a code span whose padding is on one side only, or is more than one space on a
+          side, as written.
+        tags: [system]
+        justification: |
+          The parser removes the padding only when one space stands on each side, so any other padding is
+          content of the code span.
+        children:
+          - LintMark-Formatting-CodeSpanSpaceUnevenKept
+        tests:
+          - LintMark_FixFlag_AsymmetricOrDoublePadding_IsKept
+
+      - id: LintMark-System-CodeSpanSpaceBlankKept
+        title: >-
+          The tool shall keep a code span that holds only spaces as written.
+        tags: [system]
+        justification: |
+          The spaces are the whole content of the code span, and removing them would change what the code
+          says.
+        children:
+          - LintMark-Formatting-CodeSpanSpaceBlankKept
+        tests:
+          - LintMark_FixFlag_CodeSpanOfSpaces_IsKept

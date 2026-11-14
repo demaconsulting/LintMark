@@ -4,8 +4,8 @@ This document describes the integration and usage design for the `Markdig` OTS s
 
 ### Purpose
 
-Markdig is the Markdown parsing library used by the `Document` subsystem and, for HTML rendering, by the `Safety`
-subsystem. It turns Markdown text into a
+Markdig is the Markdown parsing library used by the `Document` subsystem, for HTML rendering by the `Safety`
+subsystem, and for the parse of its per-paragraph proof by the `ParagraphFormatter`. It turns Markdown text into a
 syntax tree of block and inline elements with source ranges, which LintMark needs in order to report
 exact positions and to reason about which characters belong to which construct. It is chosen because it
 is a widely used, actively maintained .NET parser with a CommonMark-compliant core and the extensions
@@ -19,8 +19,9 @@ is a widely used, actively maintained .NET parser with a CommonMark-compliant co
 - Block types used for classification: headings, paragraphs, fenced and indented code, HTML blocks (including
   the comment type), thematic breaks, quotes, lists and list items, tables, footnotes, link reference
   definitions, math blocks, and YAML front matter
-- Inline types used to locate content: inline HTML (comments), line breaks, and the inline tree of
-  paragraphs and headings
+- Inline types used to locate content: inline HTML (comments), line breaks (hard and soft), and the inline tree of
+  paragraphs and headings; and, for the words of a wrap, links and images, code spans, automatic links, HTML entities,
+  inline math, footnote links, and the task list marker, with the source span of each
 - Rendering to HTML (`Markdown.ToHtml`) with the shared pipeline, for the safety check (see *HTML rendering* below)
 - Link reference definitions with label, destination, title, and range
 - Footnote definitions with their own range and label span, the group nodes that wrap definitions, and the fact

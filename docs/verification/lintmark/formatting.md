@@ -2,13 +2,16 @@
 
 ### Verification Approach
 
-The `Formatting` subsystem is verified by integration tests in `FormattingSubsystemTests.cs`. Each test parses a small
-Markdown text with the real `DocumentParser`, runs the real `DocumentFormatter`, and applies the result with the real
-`SourcePatcher`. The scenarios of the formatting rules build the `DocumentFormatter` as the default engine does, with the
-five real block formatters of the tool (heading, code block, thematic break, list, and block quote) and the real
-`InlineNormalizer` (the helper `BlockFormatterAssertions.ProductionFormatter()` creates it). The contract scenarios
-build it with test doubles instead. Private helpers format a document and patch it in one step. The doubles exist only
-in the test project, so that the subsystem tests can use rules that are deliberately simple or deliberately broken:
+The `Formatting` subsystem is verified by integration tests in `FormattingSubsystemTests.cs`, in
+`FormattingSubsystemWrapTests.cs` (the paragraph wrap and the code span rule), and by the corpus tests of the paragraph
+wrap in `ParagraphCorpusTests.cs` with its generator `ParagraphDocuments.cs`. Each test parses a small Markdown text
+with the real `DocumentParser`, runs the real `DocumentFormatter`, and applies the result with the real `SourcePatcher`.
+The scenarios of the formatting rules build the `DocumentFormatter` as the default engine does, with the five real block
+formatters of the tool (heading, code block, thematic break, list, and block quote), the real `InlineNormalizer`, and
+the real `ParagraphFormatter` (the helper `BlockFormatterAssertions.ProductionFormatter()` creates them). The contract
+scenarios build it with test doubles instead. Private helpers format a document and patch it in one step. The doubles
+exist only in the test project, so that the subsystem tests can use rules that are deliberately simple or deliberately
+broken:
 
 - `ReplacingFormatter` (from `TestBlockFormatters.cs`) is a simple and correct paragraph formatter that replaces one
   text by another and is registered under the `paragraph-wrap` rule, so suppression comments for that rule apply.
@@ -28,10 +31,38 @@ subsystem requirement (a document without line terminators, a tie between the li
 documents.
 
 The rules of the tool that change text (whitespace, blank lines, spacing between blocks, the final newline, headings,
-code blocks, thematic breaks, lists, block quotes, and the delimiters of emphasis and the form of bare URLs) are verified
-in this file with the shipped formatters, each with the small cases that show its behavior. The `Blocks` verification adds
-the corpus of documents and the safety checks for the same rules, and the `Inline` verification adds the cases of the
-inline rules.
+code blocks, thematic breaks, lists, block quotes, the delimiters of emphasis, the form of bare URLs, the padding of
+code spans, and the line length of paragraphs) are verified in this file with the shipped formatters, each with the
+small cases that show its behavior. The `Blocks` verification adds the corpus of documents and the safety checks for the
+same rules, and the `Inline` verification adds the cases of the inline rules.
+
+The scenarios of the paragraph wrap in `FormattingSubsystemWrapTests.cs` use a line length of 20 columns unless a
+scenario names another, a helper that formats a text with the production formatter and asserts every property of a safe,
+stable rewrite (the expected text, the same page, the same Pandoc structure, no edit when the result is formatted
+again), and a second helper that asserts that a text produces no edit and no finding. The scenarios of the corpus in
+`ParagraphCorpusTests.cs` run that helper over many documents:
+
+- every Markdown file of the repository, as LF text, at the four line lengths 120, 80, 40, and 20 (more than a hundred
+  files, so over four hundred runs); each result is safe, and formatting it again changes nothing;
+- up to 700 generated documents at the same four line lengths. The generator `ParagraphDocuments.cs` is a pure function
+  of its seed, so the documents are the same on every platform. It combines words of every script and width (East Asian
+  characters, emoji, combining marks, zero-width characters), very long words, links with delimiters in their text, code
+  spans, inline HTML, entities, footnote references, Pandoc constructs, hard breaks at any place, the words that
+  Markdown reads as block syntax at the start of a line, and every container prefix (nested lists, quotes, task items)
+  with regular, lazy, and tab-indented continuation lines. The documents that the other rules alone already refuse (for
+  example after an unterminated HTML comment) are left out so that a failure is a failure of the wrap, and the test
+  asserts that they are at most a tenth of the corpus. The test also asserts that the generator reaches the wrap (more
+  than a third of the documents get a `line-length` edit at 40 columns) and the findings that cannot be fixed;
+- up to 350 generated documents in the stored forms of a file: CRLF line endings and mixed line endings, each with a
+  byte order mark. Each form gives exactly the text that the LF form gives;
+- up to 350 generated documents with a tab inserted in the middle of every third line;
+- eight rewrites that a faulty wrapper could produce (a break before a dash, a number marker, a number sign, a fence, or
+  a dashed line, and a break inside inline HTML, a link title, and an image title). The page check of the tool refuses
+  each, which shows that the safety checks would catch a wrapper that ignores its rules, and the real formatter does
+  not produce any of them at a width that tempts it;
+- one composition of edits in which an edit of another rule lies inside a rewritten paragraph. The correct composition
+  gives the text that applying the two lists in sequence gives, and keeping both lists as they are cannot even be
+  applied.
 
 ### Test Environment
 
@@ -77,12 +108,30 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
   kind (`bullet`, `ordered-style`, `list-indent`, `list-marker-space`, and `blockquote-space`).
 - Two bullet lists that differ only by their marker stay two lists, a list stays one list, and the lines and blocks of a
   list item move with the item when its columns change.
-- Emphasis and strong emphasis, also inside lists and quotes, are written with the configured delimiter and bare URLs are
-  wrapped in angle brackets
-  unless that is configured otherwise; each change is reported under its rule (`emphasis`, `strong`, and `bare-urls`).
+- Emphasis and strong emphasis, also inside lists and quotes, are written with the configured delimiter and bare URLs
+  are wrapped in angle brackets unless that is configured otherwise; each change is reported under its rule (`emphasis`,
+  `strong`, and `bare-urls`).
 - Each change is reported as a formatting problem of its rule at the place where the change starts.
 - The canonical document, and the result of formatting a document, produce no edit and no problem, also for lists, block
   quotes, and inline text, and the same text gives the same result on many threads.
+- A paragraph line that is wider than the line length (in display columns) and holds a place to break is reported as a
+  fixable `line-length` problem at the first column beyond the width, and the paragraph is filled up to the width.
+- A paragraph in which no line is wider than the line length is kept byte for byte, ragged lines included; the width
+  comes from the `line-length` setting (120 columns by default), and a width of zero or a switched-off rule reports and
+  changes nothing.
+- A line that is wide only because of one link, URL, link in angle brackets, code span, or image is neither reported nor
+  changed, and code, HTML, tables, headings, link reference definitions, and front matter are never reported or changed.
+- A wrapped paragraph keeps each link, code span, inline HTML, math, footnote reference, entity, Pandoc attribute, and
+  citation on one line, keeps each hard break, keeps the prefix of each list item and quote on every line, and never
+  starts a line with text that Markdown would read as another block.
+- A paragraph with a Pandoc structural line and a paragraph in a footnote are left as written.
+- A line that could not be shortened is reported as a problem that rewriting cannot fix.
+- The wrap modes `sentence` and `semantic` are accepted and change nothing.
+- Formatting a wrapped text proposes nothing more, also when other rules change the text in the same run, and every wrap
+  in the corpus of the repository files, of generated paragraphs at four line lengths, in every stored form of a file,
+  and with tabs is safe (same page, same Pandoc structure) and stable.
+- A code span with exactly one space on each side loses both and is reported as a `code-span-space` problem at the code
+  span; a span with a backtick at an edge, with uneven or wider padding, or with only spaces keeps its text.
 
 ### Test Scenarios
 
@@ -190,9 +239,9 @@ default `incrementing` style and with `one`. The numbers count up from the first
 reported under the rule `ordered-style`.
 
 **List columns and spacing are canonical**: Items indented by two columns, a nested bullet indented by four columns, a
-nested bullet indented by two columns, and items with several spaces after the marker are formatted with `list-indent: 2`
-and `4`. The items start in one column, the nested bullet is indented as configured, one space follows each marker, and
-each change is reported under `list-indent` or `list-marker-space`.
+nested bullet indented by two columns, and items with several spaces after the marker are formatted with
+`list-indent: 2` and `4`. The items start in one column, the nested bullet is indented as configured, one space follows
+each marker, and each change is reported under `list-indent` or `list-marker-space`.
 
 **List items with content stay in their items**: Items with a continuation line, with a second paragraph, with a nested
 list and fenced code, with a tenth number that gains a digit and a continuation line, and bullet items that start in
@@ -215,21 +264,21 @@ and each change is reported under `emphasis`.
 configuration and with `bare-urls: leave`. The URL is wrapped in angle brackets and reported under `bare-urls`, or the
 text is unchanged and nothing is reported.
 
-**Lists, quotes, and inline text are stable after one run**: A document with a list that has wrong markers, emphasis, and
-a URL in its first item, a numbered list with repeated numbers, and a quote with a wide gap and strong emphasis is
+**Lists, quotes, and inline text are stable after one run**: A document with a list that has wrong markers, emphasis,
+and a URL in its first item, a numbered list with repeated numbers, and a quote with a wide gap and strong emphasis is
 formatted, and the result is formatted again. The first result is the canonical text, and the second run proposes no
 edit.
 
 **Code, HTML, math, front matter, and grid tables keep their content**: A document with front matter, a fenced code
-block, an HTML block, a math block, and a grid table, each with trailing whitespace, tabs, and blank lines, is formatted.
-No edit and no problem result.
+block, an HTML block, a math block, and a grid table, each with trailing whitespace, tabs, and blank lines, is
+formatted. No edit and no problem result.
 
 **A line that looks like a grid table border is not changed**: Lines that start with a plus sign after a list marker or
 a quote marker, with trailing whitespace, are formatted with the shipped formatters. No
 edit and no problem result.
 
-**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
-directly after text, is formatted with the same formatters. No blank line is inserted.
+**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list
+marker, directly after text, is formatted with the same formatters. No blank line is inserted.
 
 **Quotes and lists keep their blank lines**: A list item with a fence, a quote with a heading directly followed by text,
 and a list with two blank lines between its items are formatted. No edit results.
@@ -242,6 +291,83 @@ and column where its change starts.
 **A canonical document and a rewritten document need nothing more**: A document that breaks several rules is formatted
 once, and its result and a hand-written canonical document are formatted again. No edit and no problem result for
 either.
+
+**An overlong paragraph is reported at the first column beyond the width**: A heading followed by a blank line and the
+paragraph `aaa bbb ccc ddd eee fff ggg` (27 columns) is formatted with a line length of 20. One finding results, of the
+formatting kind, for the rule `line-length` at line 3, column 21, with the message
+`Line is 27 columns wide; the limit is 20`.
+
+**An overlong paragraph is filled up to the width**: A paragraph of twelve three-letter words is formatted at 20
+columns. Each line holds as many words as fit, so the result is lines of five, five, and two words.
+
+**Paragraphs within the width are kept byte for byte**: A line of 19 columns, a line of exactly 20 columns, a paragraph
+of short ragged lines, and a paragraph of three lines of 11 columns are formatted at 20 columns. Each is unchanged.
+
+**The configured width decides what is reported**: A paragraph of 99 columns and one of 124 columns are formatted with
+the default configuration and with a line length of 40. By default only the second paragraph changes, it is wrapped
+after its 24th word, and one finding is reported at line 3; at 40 columns both change and findings are reported at lines
+1 and 3, and the result is safe and stable.
+
+**A line that is wide only because of one unbreakable item is neither reported nor changed**: A link with a long
+destination, a link in angle brackets with a long address, a code span with blanks inside, and an image, each alone on a
+line and also (for the link) in a list item and (for the address) in a block quote, are formatted at 20 columns. No edit
+and no finding result.
+
+**Literal blocks wider than the width are never reported**: A document with front matter, a heading, a fenced code
+block, an HTML block, a pipe table, and a link reference definition with a title, each line much wider than 20 columns,
+is formatted at 20 columns. No edit and no finding result.
+
+**Inline constructs stay whole when a paragraph is wrapped**: A paragraph that holds a link with blanks in its text, a
+code span with a blank, inline HTML with a blank in an attribute, math with a blank, a footnote reference, a Pandoc
+attribute with a blank, a citation with a blank, and an entity, separated by a four-letter word, is formatted at 20
+columns. Each construct is on one line of the result, the result is safe and stable, and the words of the result are the
+words of the input.
+
+**Hard breaks stay where they are**: A paragraph with a hard break written with two spaces and one with a backslash,
+each after `fff ggg`, are formatted at 20 columns. The break stays at the end of its line, with the first line wrapped
+before `fff`.
+
+**List items and quotes keep their prefixes**: A bullet item, an ordered item with two-digit number `10.`, a nested
+bullet item, a quote, a nested quote, a quote that holds a bullet item, and a quote with a lazy line (a line without the
+marker) are formatted at 20 columns, each with a paragraph that is too wide. Every continuation line has the indentation
+of the content of its item or the markers of its quote; the lazy line of the quote gets the quote marker.
+
+**A wrapped line never starts with block syntax**: Fifteen paragraphs in which a word stands where the break would fall
+are formatted at 20 columns: a bullet dash, a plus sign, an asterisk, `2026.`, `1.`, `1)`, a number sign, a greater-than
+sign, `===`, `---`, three backticks, `[x]:`, `<div>`, a pipe, and `:::`. In every paragraph the break moves before the
+word that precedes the marker, so the marker stays inside its line.
+
+**Paragraphs with Pandoc structure are left as written**: A paragraph with a page break command on its own line, a
+paragraph whose first line is `::: note` followed by a line that is too wide, and a paragraph whose last line is the raw
+attribute `{=html}` are formatted at 20 columns. Each is unchanged.
+
+**A paragraph in a footnote is left as written**: A footnote definition whose paragraph is wider than 20 columns is
+formatted. No edit and no finding result.
+
+**A line that could not be shortened is reported as one that cannot be fixed**: A list item `- aaa bbb ccc ddd` with a
+lazy line `eee fff ggg hhh iii jjj` (23 columns) is formatted at 20 columns. The text is unchanged and one finding
+results, of the lint-only kind, at line 2, column 21; the result is safe and stable.
+
+**The reserved wrap modes change nothing**: A paragraph that is too wide is formatted at 20 columns with the wrap mode
+`sentence` and with `semantic`. No edit and no finding result.
+
+**A wrapped text proposes nothing more**: A bullet list whose items have three spaces after the marker, underscore
+emphasis, and a continuation line, a block quote with three spaces after its marker and a padded code span, and a long
+plain paragraph are formatted at 20 columns, and the result is formatted again. The first run proposes edits, and the
+second proposes no edit and reports nothing, so the wrap and the other rules reach their final form together.
+
+**Padding of a code span is removed and reported**: A paragraph with a code span that has one space after its opening
+backtick and one before its closing backtick is formatted with the default configuration. Both spaces go, one finding of
+the formatting kind results for the rule `code-span-space` at line 1, column 4, and the result is safe and stable.
+
+**A code span with a backtick at an edge keeps its padding**: Spans delimited by two backticks, one whose content starts
+with a backtick and one whose content ends with a backtick, are formatted. No edit and no finding result.
+
+**A code span with uneven or wider padding is kept**: A span with a space on its left only, one with a space on its
+right only, and one with two spaces on each side are formatted. No edit and no finding result.
+
+**A code span of spaces is kept**: A span that holds one space and a span that holds two spaces are formatted. No edit
+and no finding result.
 
 #### Boundary conditions
 
@@ -267,6 +393,34 @@ one-paragraph document. The call throws the `InvalidOperationException` of the f
 
 #### Robustness
 
-**The same lists and inline text give the same result on many threads**: One shipped formatter is shared by eight threads
-that start together; each formats a document with a list, a quote, and inline text that need rewrites. Every result equals
-the result of a single call.
+**The same lists and inline text give the same result on many threads**: One shipped formatter is shared by eight
+threads that start together; each formats a document with a list, a quote, and inline text that need rewrites. Every
+result equals the result of a single call.
+
+**Every Markdown file of the repository wraps safely at four line lengths**: Every Markdown file of the repository, read
+as LF text, is formatted at 120, 80, 40, and 20 columns. Each of the more than four hundred runs passes every assertion
+of the helper: the result renders the same page, keeps its Pandoc structure, and formatting it again changes nothing.
+
+**Generated adversarial paragraphs wrap safely at four line lengths**: Generated documents built from words of every
+script, long words, links, code spans, inline HTML, Pandoc constructs, hard breaks, block syntax words, and container
+prefixes are formatted at 120, 80, 40, and 20 columns, and every result passes every assertion of the helper. At 40
+columns more than a third of the documents get a `line-length` edit, and at least one document reports a line that
+cannot be fixed, so the corpus reaches both outcomes.
+
+**Every stored form of a file gives the same wrapped text**: Generated documents are stored with CRLF line endings and
+with mixed line endings, each after a byte order mark, and formatted at 30 columns from the bytes. The text that the
+edits produce is the text that the LF form gives.
+
+**Generated paragraphs with tabs wrap safely and stably**: The generated documents get a tab in the middle of every
+third line and are formatted at 30 columns. Every result passes every assertion of the helper.
+
+**A wrapper that ignored its rules would be caught by the safety checks**: Eight rewrites that a faulty wrapper could
+make are compared with their original paragraphs: a break before a dash, before `1.`, before a number sign, before three
+backticks, before three dashes (which would make a heading), inside the attribute of inline HTML, inside the title of a
+link, and inside the title of an image. The page check judges each pair as not equivalent, and the real formatter, at
+a width of 11 columns, produces none of the eight texts and gives a safe, stable result.
+
+**Composing without absorbing edits would be caught**: Two underscore delimiters of a paragraph are rewritten by one
+list of edits, and a second list replaces the whole paragraph with a wrapped one. Applying the lists in sequence gives
+the wrapped text with asterisks, and so does applying the composition of the two lists to the original. Putting both
+lists into one edit set instead fails with an invalid-operation error, because the edits overlap.

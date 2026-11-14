@@ -27,7 +27,7 @@ using MarkdigInline = Markdig.Syntax.Inlines.Inline;
 namespace DemaConsulting.LintMark.Formatting.Inline;
 
 /// <summary>
-///     Finds, in the inline tree of one paragraph, the emphasis nodes and bare URLs that the normalizer may
+///     Finds, in the inline tree of one paragraph, the emphasis nodes, bare URLs and code spans that the normalizer may
 ///     rewrite, and the edits that rewrite them.
 /// </summary>
 /// <remarks>
@@ -40,8 +40,10 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         is a candidate when it starts with <c>http://</c>, <c>https://</c> or <c>ftp://</c>, holds no character
 ///         that would end or change an angle-bracket autolink, is not inside another link or the destination of one,
 ///         and stands between
-///         the characters that normally surround a URL in prose. Everything the walk does not recognize is left
-///         alone. The edits replace existing characters (never insert at a position), so they cannot collide
+///         the characters that normally surround a URL in prose. A code span is a candidate when it lies on one line
+///         and is padded with exactly one space on each side (see <see cref="AddCodeSpan"/>); its two edits delete
+///         the padding. Everything the walk does not recognize is left
+///         alone. The edits replace or delete existing characters (never insert at a position), so they cannot collide
 ///         with the insertions of the block spacing rule.
 ///     </para>
 ///     <para>
@@ -63,6 +65,7 @@ internal static class InlineCandidates
     /// <param name="emphasis">The delimiter that emphasis is written with, or <see langword="null"/> when the rule is off.</param>
     /// <param name="strong">The delimiter that strong emphasis is written with, or <see langword="null"/> when the rule is off.</param>
     /// <param name="urls">Whether bare URLs are wrapped in angle brackets.</param>
+    /// <param name="codeSpaces">Whether the padding of code spans is removed.</param>
     /// <returns>The edits, ordered by start offset and without overlaps; empty when there is no candidate.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> or <paramref name="root"/> is null.</exception>
     public static ImmutableArray<TextEdit> Find(
@@ -70,7 +73,8 @@ internal static class InlineCandidates
         ContainerInline root,
         EmphasisMarker? emphasis,
         EmphasisMarker? strong,
-        bool urls)
+        bool urls,
+        bool codeSpaces = false)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(root);
@@ -78,7 +82,7 @@ internal static class InlineCandidates
         // A delimiter character in any literal of the paragraph makes the pairing of the others uncertain
         var found = ImmutableArray.CreateBuilder<TextEdit>();
         var literalDelimiter = HasLiteralDelimiter(root);
-        Visit(text, root, emphasis, strong, urls, literalDelimiter, insideEmphasis: false, insideLink: false, found);
+        Visit(text, root, emphasis, strong, urls, codeSpaces, literalDelimiter, insideEmphasis: false, insideLink: false, found);
 
         // A tree the parser built with the same inline twice proposes the same edit twice; one stands, and edits that overlap
         // without being equal mean the tree cannot be trusted, so none stands
@@ -156,6 +160,7 @@ internal static class InlineCandidates
     /// <param name="emphasis">The emphasis delimiter, or null when the rule is off.</param>
     /// <param name="strong">The strong delimiter, or null when the rule is off.</param>
     /// <param name="urls">Whether bare URLs are wrapped.</param>
+    /// <param name="codeSpaces">Whether the padding of code spans is removed.</param>
     /// <param name="literalDelimiter">Whether a literal of the paragraph holds a delimiter character.</param>
     /// <param name="insideEmphasis">Whether the container lies in an emphasis node written with <c>*</c> or <c>_</c>.</param>
     /// <param name="insideLink">Whether the container lies in the text of a link.</param>
@@ -166,6 +171,7 @@ internal static class InlineCandidates
         EmphasisMarker? emphasis,
         EmphasisMarker? strong,
         bool urls,
+        bool codeSpaces,
         bool literalDelimiter,
         bool insideEmphasis,
         bool insideLink,
@@ -182,7 +188,7 @@ internal static class InlineCandidates
                         AddEmphasis(text, node, emphasis, strong, found);
                     }
 
-                    Visit(text, node, emphasis, strong, urls, literalDelimiter, insideEmphasis || delimiter, insideLink, found);
+                    Visit(text, node, emphasis, strong, urls, codeSpaces, literalDelimiter, insideEmphasis || delimiter, insideLink, found);
                     break;
 
                 case LinkInline link when link.IsAutoLink:
@@ -194,14 +200,68 @@ internal static class InlineCandidates
                     break;
 
                 case LinkInline link:
-                    Visit(text, link, emphasis, strong, urls, literalDelimiter, insideEmphasis, insideLink: true, found);
+                    Visit(text, link, emphasis, strong, urls, codeSpaces, literalDelimiter, insideEmphasis, insideLink: true, found);
+                    break;
+
+                case CodeInline code:
+                    if (codeSpaces)
+                    {
+                        AddCodeSpan(text, code, found);
+                    }
+
                     break;
 
                 case ContainerInline nested:
-                    Visit(text, nested, emphasis, strong, urls, literalDelimiter, insideEmphasis, insideLink, found);
+                    Visit(text, nested, emphasis, strong, urls, codeSpaces, literalDelimiter, insideEmphasis, insideLink, found);
                     break;
             }
         }
+    }
+
+    /// <summary>
+    ///     Adds the edits that remove the padding of a code span, when it is a safe candidate.
+    /// </summary>
+    /// <param name="text">The text of the document.</param>
+    /// <param name="code">The code span.</param>
+    /// <param name="found">Receives the edits.</param>
+    /// <remarks>
+    ///     A code span that starts and ends with one space (and holds something else) renders without them, so the
+    ///     spaces are redundant. A span is a candidate only when it lies on one line, has exactly one space on each side
+    ///     and no more (so asymmetric padding, wider padding and a span of spaces stay as written), and its content does
+    ///     not begin or end with a backtick (the padding is what keeps the content apart from the delimiters).
+    /// </remarks>
+    private static void AddCodeSpan(string text, CodeInline code, ImmutableArray<TextEdit>.Builder found)
+    {
+        // The source must be the delimiters around the content, on one line
+        var count = code.DelimiterCount;
+        var start = code.Span.Start;
+        var end = code.Span.End;
+        if (count < 1 || start < 0 || end >= text.Length || end - start + 1 <= 2 * count)
+        {
+            return;
+        }
+
+        var source = text.AsSpan(start, end - start + 1);
+        if (source[..count].IndexOfAnyExcept('`') >= 0 || source[^count..].IndexOfAnyExcept('`') >= 0)
+        {
+            return;
+        }
+
+        // Exactly one space on each side, something else next to them, no backtick at the edges of the content
+        var raw = source[count..^count];
+        if (raw.Length < 3
+            || raw.Contains('\n')
+            || raw.Contains('\t')
+            || raw[0] != ' '
+            || raw[^1] != ' '
+            || raw[1] is ' ' or '`'
+            || raw[^2] is ' ' or '`')
+        {
+            return;
+        }
+
+        found.Add(new TextEdit(start + count, 1, string.Empty, RuleCatalog.CodeSpanSpaceRuleId));
+        found.Add(new TextEdit(end - count, 1, string.Empty, RuleCatalog.CodeSpanSpaceRuleId));
     }
 
     /// <summary>

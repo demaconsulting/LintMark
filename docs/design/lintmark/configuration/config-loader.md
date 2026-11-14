@@ -34,14 +34,14 @@ so the engine can report them even when no Markdown file is selected; empty in e
 comparer — the discovery caches, keyed by start directory and by configuration file path. Every `Lazy` uses
 `ExecutionAndPublication` thread safety.
 
-**ConfigLoadResult**: A sealed record `(LintMarkConfig? Config, string? SourcePath, ImmutableArray<ConfigError> Errors)`.
-`SourcePath` is the full path of the file the configuration came from, or `null` when the built-in defaults
-apply. Invariant (checked by the constructor, `ArgumentException` on violation): `Config` is set exactly when
-`Errors` is empty, the array is initialized, and a source path is not empty. The constructor stores the errors
-sorted by line, column, and message (ordinal), so the report never depends on discovery order. A load can
-therefore never yield a half-valid configuration. This invariant, the argument checks of the loader and the
-problem type, and the per-directory sharing of results are construction details that no user can observe
-directly; they are verified by tests that are not linked to a requirement.
+**ConfigLoadResult**: A sealed record
+`(LintMarkConfig? Config, string? SourcePath, ImmutableArray<ConfigError> Errors)`. `SourcePath` is the full path of the
+file the configuration came from, or `null` when the built-in defaults apply. Invariant (checked by the constructor,
+`ArgumentException` on violation): `Config` is set exactly when `Errors` is empty, the array is initialized, and a
+source path is not empty. The constructor stores the errors sorted by line, column, and message (ordinal), so the report
+never depends on discovery order. A load can therefore never yield a half-valid configuration. This invariant, the
+argument checks of the loader and the problem type, and the per-directory sharing of results are construction details
+that no user can observe directly; they are verified by tests that are not linked to a requirement.
 
 **ConfigError**: A sealed record `(string Path, int Line, int Column, string Message)`. The path is non-empty,
 line and column are at least one, and the message is non-blank; line breaks in the message are replaced by
@@ -136,14 +136,13 @@ The `link-refactor` mapping accepts `enabled` (boolean), `threshold` (whole numb
 - A key that appears twice is reported at the later occurrence and the message names the line of the first. The
   same applies to the options inside `link-refactor`.
 - Rule names in `rules` are rule ids or legacy aliases such as `MD013`, compared ignoring case and resolved with
-  `RuleCatalog.TryResolveConfigurable`. The canonical id is
-  stored, whatever spelling the file used, and the stored map is built from canonical ids in ordinal order, so
-  reordering the entries never changes the result. Two entries that resolve to the same rule (by id and alias, or by letter
-  case) are a conflict, reported at every occurrence after the first by source position, so the outcome depends
-  only on the content of the file. The alias of a dropped rule (`RuleCatalog.IsDroppedAlias`) is accepted and ignored
-  (not stored) but still takes part in conflict detection. An unknown name is an error; so is the alias of a rule the
-  formatter always applies and the identifier of a rule that is registered but not configurable (such as
-  `line-ending`). The value must be a boolean.
+  `RuleCatalog.TryResolveConfigurable`. The canonical id is stored, whatever spelling the file used, and the stored map
+  is built from canonical ids in ordinal order, so reordering the entries never changes the result. Two entries that
+  resolve to the same rule (by id and alias, or by letter case) are a conflict, reported at every occurrence after the
+  first by source position, so the outcome depends only on the content of the file. The alias of a dropped rule
+  (`RuleCatalog.IsDroppedAlias`) is accepted and ignored (not stored) but still takes part in conflict detection. An
+  unknown name is an error; so is the alias of a rule the formatter always applies and the identifier of a rule that is
+  registered but not configurable (such as `line-ending`). The value must be a boolean.
 - `ignore` must be a list of non-blank, single-line text elements. A backslash in a pattern is converted to a
   slash, exact duplicates are removed keeping the first, and the order is preserved. A configured list replaces
   the default list and is used as given, apart from that normalization. The engine applies the patterns relative to

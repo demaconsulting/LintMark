@@ -4,8 +4,8 @@
 # The DocumentFormatter class walks the blocks of a parsed document, lets the block formatters that accept a block
 # propose changes, applies the rules that concern every document (whitespace, blank lines, spacing between blocks,
 # and the end of the file), gives each paragraph that no block formatter accepts to the inline normalizer, reports
-# each change as a problem, and decides the line ending of the document (with the IBlockFormatter, FormatContext,
-# and FormatResult supporting types).
+# each change as a problem, wraps the paragraphs that are still too wide after the other rules, and decides the line
+# ending of the document (with the IBlockFormatter, FormatContext, and FormatResult supporting types).
 
 sections:
   - title: LintMark Requirements
@@ -27,12 +27,12 @@ sections:
                 title: >-
                   The DocumentFormatter class shall propose no change for a block that no block formatter accepts,
                   except the changes of the rules that apply to every document: trailing whitespace, tabs, runs of
-                  blank lines, blank lines between blocks, and the end of the file, and, for a paragraph, the
-                  emphasis, strong emphasis, and bare URL rules when an inline normalizer was given.
+                  blank lines, blank lines between blocks, and the end of the file, and, for a paragraph, the rules of
+                  the inline normalizer and the wrap that the paragraph formatter proposes when they were given.
                 justification: |
                   Only what a rule asks to change may change. A block of a kind that no block formatter handles
-                  belongs to the author, apart from the whitespace rules that apply to every document and the inline
-                  rules that apply to the text of paragraphs.
+                  belongs to the author, apart from the whitespace rules that apply to every document, the inline
+                  rules that apply to the text of paragraphs, and the wrap of paragraphs that are too wide.
                 tests:
                   - DocumentFormatter_Format_NoFormatters_ProducesNoEdits
                   - DocumentFormatter_Format_BlockNoFormatterAccepts_LeftVerbatim
@@ -847,3 +847,96 @@ sections:
                   only.
                 tests:
                   - FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt
+
+              - id: LintMark-Formatting-DocumentFormatter-ParagraphsWrappedAfterOtherRules
+                title: >-
+                  The DocumentFormatter class shall wrap each paragraph that is wider than the line length on the text
+                  that the other rules produce, and propose the wrap in the same run as the changes of those rules.
+                justification: |
+                  A file that needed one run for the other rules and another for the wrap could not be trusted in a
+                  pipeline that fixes and then checks, and a paragraph that the other rules bring within the width
+                  must not be wrapped.
+                tests:
+                  - DocumentFormatter_Format_OtherRulesChangeTheLines_TheWrapSeesTheirResult
+                  - DocumentFormatter_Format_ListThatMovesAndOverflows_ReachesItsFinalFormInOneRun
+                  - DocumentFormatter_Format_TwoOverflowingParagraphs_AreWrappedAndReportedSeparately
+
+              - id: LintMark-Formatting-DocumentFormatter-OverflowReportedAtItsPosition
+                title: >-
+                  The DocumentFormatter class shall report each paragraph that it wraps as a formatting problem of the
+                  `line-length` rule that states how wide the line is and what the limit is, at the first column beyond
+                  the width, counted in the original document.
+                justification: |
+                  Checking a file is formatting it and listing what would change, and an author who repairs the
+                  problem by hand needs the place in the file that they have, not in a text that the tool produced.
+                tests:
+                  - DocumentFormatter_Format_OverflowingParagraph_IsWrappedAndReportedAtTheFirstColumnBeyondTheWidth
+                  - DocumentFormatter_Format_EditsBeforeTheParagraph_DoNotMoveTheReportedPosition
+
+              - id: LintMark-Formatting-DocumentFormatter-ResidualOverflowReportedLintOnly
+                title: >-
+                  The DocumentFormatter class shall report a line that stays wider than the line length as a problem of
+                  the `line-length` rule that rewriting cannot repair.
+                justification: |
+                  A line that stays too wide must not pass unnoticed, and rewriting must not claim to have repaired it.
+                tests:
+                  - DocumentFormatter_Format_NoGoodBreak_ReportsAFindingThatCannotBeFixed
+                  - DocumentFormatter_Format_LazyLineInListItem_IsReportedAndNotChanged
+
+              - id: LintMark-Formatting-DocumentFormatter-AbsorbedEditsStillReported
+                title: >-
+                  The DocumentFormatter class shall report the problems of the other rules whose changes a wrap
+                  includes.
+                justification: |
+                  A rule that found a problem reports it, whether its change is applied by itself or as part of a
+                  wrap of the lines around it.
+                tests:
+                  - DocumentFormatter_Format_EditAbsorbedByTheWrap_IsStillReported
+
+              - id: LintMark-Formatting-DocumentFormatter-UnstableWrapWithdrawn
+                title: >-
+                  The DocumentFormatter class shall keep a paragraph as written, and report its overflow as one that
+                  rewriting cannot repair, when the other rules would change the paragraph again after the wrap.
+                justification: |
+                  A wrap that other rules undo or change would make the file differ after every run.
+                tests:
+                  - DocumentFormatter_Format_WrapThatOtherRulesWouldChangeAgain_IsWithdrawnAndReported
+
+              - id: LintMark-Formatting-DocumentFormatter-WrapSkippedForUnsafeDocuments
+                title: >-
+                  The DocumentFormatter class shall neither wrap nor report the length of lines for a document that the
+                  Document subsystem flagged as unsafe to rewrite.
+                justification: |
+                  The document cannot be understood reliably, so no wrap can be shown to be safe.
+                tests:
+                  - DocumentFormatter_Format_FormatUnsafeDocument_IsNotWrapped
+
+              - id: LintMark-Formatting-DocumentFormatter-WrapSkippedWhenSettingsOff
+                title: >-
+                  The DocumentFormatter class shall neither wrap nor report the length of lines when the line length is
+                  0, when the `line-length` rule is switched off, or when the wrap mode is not fill.
+                justification: |
+                  Projects that do not want their paragraphs wrapped must get their files back as they went in.
+                tests:
+                  - DocumentFormatter_Format_SettingsThatDisableWrapping_ReportAndChangeNothing
+
+              - id: LintMark-Formatting-DocumentFormatter-ParagraphFormatterOptional
+                title: >-
+                  The DocumentFormatter class shall neither wrap nor report the length of lines when it was created
+                  without a paragraph formatter.
+                justification: |
+                  The rules of the shipped tool are exactly the ones that were registered, and a formatter without a
+                  paragraph formatter applies none of the wrap rules.
+                tests:
+                  - DocumentFormatter_Format_NoParagraphFormatter_NeitherWrapsNorReports
+                  - DocumentFormatter_Constructor_ParagraphFormatterOptional_AcceptsNone
+
+              - id: LintMark-Formatting-DocumentFormatter-DeterministicWrap
+                title: >-
+                  The DocumentFormatter class shall produce the same changes, text, and problems for the same document
+                  when one instance wraps it from several threads at once as when it wraps it one time after another.
+                justification: |
+                  Files are formatted in parallel by one shared instance, and a result that depended on timing could
+                  not be trusted.
+                tests:
+                  - DocumentFormatter_Format_ConcurrentCalls_GiveTheSameResult

@@ -44,9 +44,13 @@ flowchart TD
             ThematicBreakFormatter
             ListFormatter
             BlockQuoteFormatter
+            ParagraphFormatter
         end
         subgraph Inline
             InlineNormalizer
+            AtomTokenizer
+            LineWrapper
+            BlockSyntaxGuard
         end
     end
     subgraph Safety
@@ -83,6 +87,7 @@ flowchart TD
     LintMarkEngine --> ListFormatter
     LintMarkEngine --> BlockQuoteFormatter
     LintMarkEngine --> InlineNormalizer
+    LintMarkEngine --> ParagraphFormatter
     LintMarkEngine --> SourcePatcher
     LintMarkEngine --> HtmlEquivalenceChecker
     LintMarkEngine --> StructuralTokenChecker
@@ -104,6 +109,7 @@ flowchart TD
     DocumentFormatter --> LintMarkConfig
     DocumentFormatter --> DocumentParser
     DocumentFormatter --> InlineNormalizer
+    DocumentFormatter --> ParagraphFormatter
     HeadingFormatter --> EditSet
     CodeBlockFormatter --> EditSet
     ThematicBreakFormatter --> EditSet
@@ -114,10 +120,19 @@ flowchart TD
     ListFormatter --> DocumentParser
     BlockQuoteFormatter --> DocumentParser
     InlineNormalizer --> DocumentParser
+    ParagraphFormatter --> DocumentParser
     CodeBlockFormatter --> LintMarkConfig
     ThematicBreakFormatter --> LintMarkConfig
     ListFormatter --> LintMarkConfig
     InlineNormalizer --> LintMarkConfig
+    ParagraphFormatter --> LintMarkConfig
+    ParagraphFormatter --> AtomTokenizer
+    ParagraphFormatter --> LineWrapper
+    ParagraphFormatter --> BlockSyntaxGuard
+    ParagraphFormatter --> HtmlEquivalenceChecker
+    ParagraphFormatter --> TextWidth
+    LineWrapper --> BlockSyntaxGuard
+    LineWrapper --> TextWidth
     SourcePatcher --> EditSet
     SourcePatcher --> SourceDocument
     HtmlEquivalenceChecker --> DocumentParser
@@ -133,48 +148,54 @@ flowchart TD
 `Program.Run` recursively to exercise the tool during self-testing, and uses `PathHelpers` to
 construct safe temporary file paths.
 
-`LintMarkEngine` asks `FileDiscovery` to turn the positional path arguments of the `Context` into
-a list of Markdown files, each marked as named on the command line or not. It then processes the files in parallel,
-and for each file the configuration comes first: the `ConfigLoader` supplies the `LintMarkConfig` from the
-`.lintmark.yaml` file that applies to the file (or the built-in defaults), and the `EditorConfigResolver` supplies the
-line ending from the `.editorconfig` settings when the configuration gives none. `ConfigLoader` reads the YAML with the
-YamlDotNet library; `EditorConfigResolver` reads the editor settings with the EditorConfig library. The `ignore`
-patterns of the configuration can skip the file, through `FileDiscovery`, before it is read. Otherwise the worker reads
-the file, builds a `SourceDocument` (decoding and line-ending normalization) and passes it to `DocumentParser` from the
-`Document` subsystem, which parses it with the Markdig library and also produces the `SuppressionMap` and
-`ReferenceIndex` of the document. The `DocumentFormatter` of the `Formatting` subsystem turns the parsed document into
-a proposal (text edits and a line ending, collected in an `EditSet`): the five block formatters of the nested `Blocks`
-subsystem (`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and
-`BlockQuoteFormatter`) propose the edits for headings, code blocks, thematic breaks, lists, and block quotes, the
-`InlineNormalizer` of the nested `Inline` subsystem proposes the edits for emphasis, strong emphasis, and bare URLs in
-paragraphs, and the document formatter itself applies the rules that concern every document
-(trailing whitespace, tabs, blank lines, the blank lines between blocks, and the final newline) and reports each of
-those edits as a problem. `SourcePatcher` applies the edits to the text.
-When the text would change, the three checkers of the `Safety` subsystem verify the proposal: the rendered HTML must be
-unchanged (`HtmlEquivalenceChecker`, which renders with Markdig and the pipeline of `DocumentParser`), the Pandoc
-structure must be unchanged (`StructuralTokenChecker`), and formatting the result again must change nothing
-(`IdempotencyChecker`). Only a proposal that passes becomes a change of the file. After all workers have finished, the
-engine writes the changes one after the other with `AtomicFileWriter` when `--fix` is given, and hands every finding,
-as a `Diagnostic` of the `Linting` subsystem, to the `Reporting` subsystem: `TextReporter` writes the findings to
-standard error in a deterministic order and, with `--diff`, `DiffReporter` writes a unified diff of the proposed
-changes to standard output. The `Linting` subsystem also holds the `RuleCatalog`, the registry of rule identifiers that
-`LintMarkConfig` and `ConfigLoader` validate the `rules` setting against.
+`LintMarkEngine` asks `FileDiscovery` to turn the positional path arguments of the `Context` into a list of Markdown
+files, each marked as named on the command line or not. It then processes the files in parallel, and for each file the
+configuration comes first: the `ConfigLoader` supplies the `LintMarkConfig` from the `.lintmark.yaml` file that applies
+to the file (or the built-in defaults), and the `EditorConfigResolver` supplies the line ending from the `.editorconfig`
+settings when the configuration gives none. `ConfigLoader` reads the YAML with the YamlDotNet library;
+`EditorConfigResolver` reads the editor settings with the EditorConfig library. The `ignore` patterns of the
+configuration can skip the file, through `FileDiscovery`, before it is read. Otherwise the worker reads the file, builds
+a `SourceDocument` (decoding and line-ending normalization) and passes it to `DocumentParser` from the `Document`
+subsystem, which parses it with the Markdig library and also produces the `SuppressionMap` and `ReferenceIndex` of the
+document. The `DocumentFormatter` of the `Formatting` subsystem turns the parsed document into a proposal (text edits
+and a line ending, collected in an `EditSet`): the five block formatters of the nested `Blocks` subsystem
+(`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`) propose
+the edits for headings, code blocks, thematic breaks, lists, and block quotes, the `InlineNormalizer` of the nested
+`Inline` subsystem proposes the edits for emphasis, strong emphasis, bare URLs, and code span padding in paragraphs, and
+the document formatter itself applies the rules that concern every document (trailing whitespace, tabs, blank lines, the
+blank lines between blocks, and the final newline) and reports each of those edits as a problem. When all of that is
+done, the document formatter wraps the paragraphs that are still wider than the line length: it reads the text that
+those edits produce, asks the `ParagraphFormatter` of the `Blocks` subsystem about each paragraph (which cuts the
+paragraph into words with the `AtomTokenizer`, fills lines with the `LineWrapper`, and keeps block syntax from starting
+a line with the `BlockSyntaxGuard`, all of the `Inline` subsystem), and composes the wraps with the other edits.
+`SourcePatcher` applies the edits to the text. When the text would change, the three checkers of the `Safety` subsystem
+verify the proposal: the rendered HTML must be unchanged (`HtmlEquivalenceChecker`, which renders with Markdig and the
+pipeline of `DocumentParser`), the Pandoc structure must be unchanged (`StructuralTokenChecker`), and formatting the
+result again must change nothing (`IdempotencyChecker`). Only a proposal that passes becomes a change of the file. After
+all workers have finished, the engine writes the changes one after the other with `AtomicFileWriter` when `--fix` is
+given, and hands every finding, as a `Diagnostic` of the `Linting` subsystem, to the `Reporting` subsystem:
+`TextReporter` writes the findings to standard error in a deterministic order and, with `--diff`, `DiffReporter` writes
+a unified diff of the proposed changes to standard output. The `Linting` subsystem also holds the `RuleCatalog`, the
+registry of rule identifiers that `LintMarkConfig` and `ConfigLoader` validate the `rules` setting against.
 
 The diagram shows calls. `SuppressionMap` and `ReferenceIndex` also read the `BlockInfo` and `BlockKind` types declared
 with `DocumentParser`, a cycle of types only (see *Document Design*). `ConfigLoader`, `LintMarkConfig`,
 `DocumentFormatter`, `SourcePatcher`, and `DiffReporter` also use the `LineEnding` type (and `DiffReporter` the
 `LineEndingInfo` type) of the `Document` subsystem, which is not drawn, and the block formatters and the document
 formatter also read `RuleCatalog` for the identifiers of their rules and the settings types of `Configuration`, and the
-inline normalizer likewise. `ListFormatter` and `InlineNormalizer` also render text with the pipeline of `DocumentParser`
-to prove their edits, a use of the shared `Pipeline` that the diagram does not draw. At
+inline normalizer likewise. `ListFormatter`, `InlineNormalizer`, and `ParagraphFormatter` also render text with the
+pipeline of `DocumentParser` to prove their edits (the paragraph formatter through `HtmlEquivalenceChecker` and its own
+parse), a use of the shared `Pipeline` that the diagram does not draw. At
 subsystem level, `Configuration` consumes `Linting` (the `RuleCatalog`), and `Document` consumes it too, because
 `DocumentParser` resolves the rule names of suppression comments through the catalog; a later phase will add lint rules
 to `Linting` that consume `LintMarkConfig`, which makes the two subsystems depend on each other while the unit level
-stays acyclic (see *Linting Design*). The lint rules, and the formatters for paragraph wrapping and tables, do not exist
-yet: the tool currently applies the whitespace, blank-line, heading, code block, thematic break, list, block quote,
-emphasis, strong emphasis, bare URL, final newline, and line-ending rules and verifies every rewrite, and the settings
-that no rule uses yet (`line-length`, `wrap`, `hard-break`, `tables`, `link-refactor`, and the `rules` entries other than
-the one for grid tables) do not yet change its behavior.
+stays acyclic (see *Linting Design*). The lint rules and the formatter for tables do not exist yet: the tool currently
+applies the whitespace, blank-line, heading, code block, thematic break, list, block quote, emphasis, strong emphasis,
+bare URL, code span padding, final newline, and line-ending rules, wraps paragraphs that are wider than the line length
+(the `line-length` rule in its `fill` mode, which the `line-length` and `wrap` settings and the `line-length` entry of
+`rules` control; the values `sentence` and `semantic` of `wrap` are accepted and not applied), and verifies every
+rewrite. The settings that no rule uses yet (`hard-break`, `tables`, `link-refactor`, the `paragraph-wrap` rule, and the
+`rules` entries other than those for grid tables and `line-length`) do not yet change its behavior.
 
 ## External Interfaces
 
@@ -242,7 +263,10 @@ the one for grid tables) do not yet change its behavior.
   `hard-tabs`, `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`, `heading-blank-lines`,
   `fence-blank-lines`, `list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`,
   `bullet`, `ordered-style`, `list-indent`, `list-marker-space`, `blockquote-space`, `emphasis`, `strong`, `bare-urls`,
-  and `final-newline`, each at the place that rewriting would change), `grid-table-invalid` (at the first border
+  `code-span-space`, and `final-newline`, each at the place that rewriting would change), `line-length` (at the first
+  column beyond the line length of a paragraph that rewriting wraps, which `--fix` removes, and, with the message
+  extended by `and the paragraph cannot be wrapped automatically`, of a paragraph with a line that could be broken
+  that the tool cannot wrap, which stays after `--fix`), `grid-table-invalid` (at the first border
   character of a line that looks like
   a grid table border but is not part of a valid table; the file is then never rewritten), `safety-html-mismatch`,
   `safety-structure-mismatch`, and `safety-not-idempotent` (a rewrite was refused by a safety check; reported where
@@ -429,10 +453,13 @@ flowchart TD
       neither formatted nor rewritten.
    6. **Format and patch**: `DocumentFormatter.Format` returns the edits and the target line ending (the
       configuration's `end-of-line`, else the editor setting, else the majority line ending of the file) and the
-      formatting diagnostics (`line-ending`, and the always-applied formatting rules at the place of each edit);
-      `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
+      formatting diagnostics (`line-ending`, the always-applied formatting rules at the place of each edit, and
+      `line-length` for the paragraphs that are wrapped or cannot be wrapped); the paragraphs that are still too wide
+      after all other edits are wrapped last, on the text that those edits produce, and the wraps are composed with
+      them; `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
       text with the byte order mark and the target line ending restored. Bytes that equal the file mean no change.
-   7. **Safety checks**: for every rewrite that changes bytes, the HTML check of the text as it is on disk runs, and when
+   7. **Safety checks**: for every rewrite that changes bytes, the HTML check of the text as it is on disk runs, and
+      when
       the text changed, the HTML, structure, reparse, and idempotency checks of the LF-normalized text run as well; the
       first that fails refuses the rewrite and becomes a diagnostic. A rewrite of the line endings alone is checked
       too, because the rendering of some text depends on the line endings. A rewrite that passed becomes the change of
@@ -444,9 +471,9 @@ flowchart TD
    the other files; the
    `line-ending` finding of a file that was written is dropped.
 8. The engine combines the diagnostics with the distinct configuration problems (those of the files and the initial
-   problems of an explicit `--config` file) and `TextReporter` converts each path to its display form, sorts all lines by
-   display path, line, column, rule identifier, and message, and writes each one through `context.WriteError` from the
-   calling thread. With `--diff`, `DiffReporter` then writes the unified diff of the proposed changes through
+   problems of an explicit `--config` file) and `TextReporter` converts each path to its display form, sorts all lines
+   by display path, line, column, rule identifier, and message, and writes each one through `context.WriteError` from
+   the calling thread. With `--diff`, `DiffReporter` then writes the unified diff of the proposed changes through
    `context.WriteLine`. Every diagnostic makes the exit code 1.
 9. `Program.Main` returns `context.ExitCode` (0 if no errors were reported, 1 otherwise).
 
@@ -461,15 +488,14 @@ flowchart TD
   - Workers never touch `Context`, never write output, and never write a file; diagnostics and configuration problems
     are emitted sequentially after all workers have finished, in one merged deterministic order (display path, line,
     column, rule identifier, message). A diagnostic shared by many files is reported once.
-  - The state shared by workers is immutable or built for sharing: the Markdown pipeline built once by
-    `DocumentParser`, the immutable `LintMarkConfig` instances, the `DocumentFormatter` with its immutable formatter
-    list and its stateless `InlineNormalizer`, and the two configuration caches. The
-    `ConfigLoader` caches (per start directory and per configuration file) and the `EditorConfigResolver`
-    cache (per directory) are `ConcurrentDictionary` instances of `Lazy` values with
-    `ExecutionAndPublication` thread safety, so concurrent workers share one computation and always
-    receive the same immutable result; results are pure functions of the file-system content and do not
-    depend on scheduling. All per-file objects (`SourceDocument`, syntax tree, `SuppressionMap`,
-    `ReferenceIndex`, `EditSet`) belong to one worker.
+  - The state shared by workers is immutable or built for sharing: the Markdown pipeline built once by `DocumentParser`,
+    the immutable `LintMarkConfig` instances, the `DocumentFormatter` with its immutable formatter list, its stateless
+    `InlineNormalizer`, and its stateless `ParagraphFormatter`, and the two configuration caches. The `ConfigLoader`
+    caches (per start directory and per configuration file) and the `EditorConfigResolver` cache (per directory) are
+    `ConcurrentDictionary` instances of `Lazy` values with `ExecutionAndPublication` thread safety, so concurrent
+    workers share one computation and always receive the same immutable result; results are pure functions of the
+    file-system content and do not depend on scheduling. All per-file objects (`SourceDocument`, syntax tree,
+    `SuppressionMap`, `ReferenceIndex`, `EditSet`) belong to one worker.
   - Configuration content is read once per run: edits to `.lintmark.yaml` or `.editorconfig` made while the run
     is in progress are not seen.
   - `Context` serializes `WriteLine`, `WriteError`, `Dispose` and the read of `ExitCode` with a
@@ -516,5 +542,8 @@ flowchart TD
   formatting rules, and `heading-style`, `code-block-style`, and `trailing-whitespace`, which accept one value each, are
   what the formatting rules apply; the formatting rules themselves are
   always applied and are not entries of `rules`, so they are switched off for a passage with suppression comments only.
-  The remaining settings are validated and stored, and change behavior as the lint rules and block formatters that read
-  them are added.
+  The one exception is `line-length`: the settings `line-length` and `wrap`, and the `rules` entry `line-length`
+  (alias `MD013`), decide whether and how paragraphs are wrapped (only the `wrap` value `fill` is applied; a
+  `line-length` of 0 means unlimited and nothing is wrapped or reported; `sentence` and `semantic` are accepted and not
+  applied). The remaining settings are validated and stored, and change behavior as the lint rules and block formatters
+  that read them are added.

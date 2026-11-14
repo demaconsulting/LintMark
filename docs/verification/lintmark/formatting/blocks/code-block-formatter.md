@@ -3,16 +3,16 @@
 ##### Verification Approach
 
 `CodeBlockFormatter` is verified with unit tests in `CodeBlockFormatterTests.cs`. The real `DocumentParser`,
-`SourceDocument`, `LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double. A helper of
-the test project (`BlockFormatterAssertions`) applies the formatter alone, without the document passes, patches the
+`SourceDocument`, `LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double. A helper
+of the test project (`BlockFormatterAssertions`) applies the formatter alone, without the document passes, patches the
 text, and asserts that the result is the expected text, that it renders to the same HTML as the input, that it keeps its
 Pandoc structure, and that the formatter has nothing more to do with the result. Most scenarios are theories with
 several inputs, and the fence character is varied through the configuration. Suppression is driven by real suppression
 comments. The test for concurrent use parses one document once and shares it, with one formatter instance, among eight
 threads that start together at a barrier; each thread formats it many times into its own edit set, and every result is
 compared with the result of a single call. Two tests build a damaged block by hand (the reported end of a fenced block
-moved to a content line, and an indented block that reaches an unindented line) to reach the guards for lines that are not
-what the parser reported.
+moved to a content line, and an indented block that reaches an unindented line) to reach the guards for lines that are
+not what the parser reported.
 
 ##### Test Environment
 
@@ -56,10 +56,10 @@ backticks, or two backticks, is formatted. The new fence has one more backtick t
 **Fence lines lose trailing whitespace, content lines keep it**: A fence with trailing spaces on both fence lines and on
 a content line is formatted. Only the fence lines change.
 
-**A fence in a container is converted in place**: Tilde fences in a list item, a quote, an ordered list item with an info
-string, and a list in a quote are formatted, and so are a top-level fence indented by one to three columns, fences in a
-quote or list with trailing whitespace, and a fence whose closing fence is longer than the opening one around content
-that looks like a fence. Each is converted, its prefix and indentation stay, and the fence lines lose trailing
+**A fence in a container is converted in place**: Tilde fences in a list item, a quote, an ordered list item with an
+info string, and a list in a quote are formatted, and so are a top-level fence indented by one to three columns, fences
+in a quote or list with trailing whitespace, and a fence whose closing fence is longer than the opening one around
+content that looks like a fence. Each is converted, its prefix and indentation stay, and the fence lines lose trailing
 whitespace.
 
 **An indented block becomes a fenced block**: Indented blocks of one and several lines, with a tab, with a blank line
@@ -71,19 +71,20 @@ between two lines of code (one or two spaces, a space, a tab) becomes an empty l
 paragraph is formatted. The fence ends after the last line of code and the blank lines follow it.
 
 **A wide whitespace-only line that ends an indented block stays in the fence**: An indented block that ends with a line
-of six or five spaces, or of a tab and two spaces, with or without blank lines and text after it, and one with such lines
-before an exactly four columns wide line, is formatted. What is left of the wide line after four columns is the last
-line of the fenced block (an exactly four columns wide line is dropped), and the result renders the same, with the
+of six or five spaces, or of a tab and two spaces, with or without blank lines and text after it, and one with such
+lines before an exactly four columns wide line, is formatted. What is left of the wide line after four columns is the
+last line of the fenced block (an exactly four columns wide line is dropped), and the result renders the same, with the
 production formatters and with the formatter alone.
 
-**An indented block that holds fence lookalikes gets a longer fence**: An indented block whose lines start with three and
-four backticks is formatted. The new fence is longer than any of them.
+**An indented block that holds fence lookalikes gets a longer fence**: An indented block whose lines start with three
+and four backticks is formatted. The new fence is longer than any of them.
 
 **An indented block follows the configured fence character**: An indented block is formatted with `code-fence: tilde`.
 It becomes a tilde fence.
 
 **Each edit is attributed to its rule**: A tilde fence with trailing whitespace is formatted and the edits are credited
-to `code-fence` and `trailing-whitespace`; an indented block is formatted and its edit is credited to `code-block-style`.
+to `code-fence` and `trailing-whitespace`; an indented block is formatted and its edit is credited to
+`code-block-style`.
 
 ###### Boundary conditions
 
@@ -93,7 +94,8 @@ formatted with the default configuration. It is unchanged.
 **A braced info string keeps its fence character**: Tilde fences with a braced attribute list or a raw format, and a
 backtick fence with a braced info string under the tilde configuration, are formatted. They are unchanged.
 
-**An indented block in a list item stays indented**: An indented code block in a list item is formatted. It is unchanged.
+**An indented block in a list item stays indented**: An indented code block in a list item is formatted. It is
+unchanged.
 
 **A dashes line in an indented block can keep it indented**: An indented block with a dashes line after a first line of
 dashes is formatted. It stays indented, because the fenced form would close front matter that the document never had. An
@@ -108,12 +110,12 @@ blank lines, or a dashes line are formatted. Their content is unchanged.
 moved to a content line, one whose reported end is its opening line, and an indented block that reaches an unindented
 line are formatted. No edit results.
 
-**A suppressed rule leaves the block alone**: A comment that disables `code-fence`, `MD048`, `MD046`, `MD009`, or all rules
-precedes a block that breaks that rule. The block is unchanged.
+**A suppressed rule leaves the block alone**: A comment that disables `code-fence`, `MD048`, `MD046`, `MD009`, or all
+rules precedes a block that breaks that rule. The block is unchanged.
 
-**CRLF line endings and a byte order mark do not change the edits**: A document parsed from bytes with CRLF line endings,
-one with mixed line endings, and one with a byte order mark give the same edits as the LF text (separate tests for the
-line endings and for the mark), and the formatted bytes keep the endings and the mark.
+**CRLF line endings and a byte order mark do not change the edits**: A document parsed from bytes with CRLF line
+endings, one with mixed line endings, and one with a byte order mark give the same edits as the LF text (separate tests
+for the line endings and for the mark), and the formatted bytes keep the endings and the mark.
 
 ###### Error handling
 
@@ -126,5 +128,6 @@ argument, throw `ArgumentNullException`.
 **The rule list is immutable**: The `RuleIds` property lists the three code block rules, and a cast to a mutable type
 cannot change it.
 
-**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight threads
-that start together; each formats it many times into its own edit set. Every result equals the result of a single call.
+**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight
+threads that start together; each formats it many times into its own edit set. Every result equals the result of a
+single call.

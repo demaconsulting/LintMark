@@ -41,7 +41,8 @@ package LintMark {
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineFixTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineFormattingTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineIgnoreTests.cs");
+                "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineIgnoreTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Engine/LintMarkEngineWrapTests.cs");
             designFiles = ("docs/design/lintmark/engine/lint-mark-engine.md");
             verificationFiles = ("docs/verification/lintmark/engine/lint-mark-engine.md");
             requirementFiles = ("docs/reqstream/lintmark/engine/lint-mark-engine.yaml");
@@ -78,7 +79,9 @@ package LintMark {
 
         // A rewrite is computed by the document formatter, applied to the text with the source patcher,
         // and carried as a file change only when it is safe. The shipped tool creates the document
-        // formatter with the five block formatters and the inline normalizer.
+        // formatter with the five block formatters, the inline normalizer, and the paragraph formatter, so
+        // that a paragraph with a line wider than the line length is reported when checking and wrapped when
+        // fixing.
         dependency LintMarkEngine to DocumentFormatter;
         dependency LintMarkEngine to FormatResult;
         dependency LintMarkEngine to SourcePatcher;
@@ -89,6 +92,7 @@ package LintMark {
         dependency LintMarkEngine to ListFormatter;
         dependency LintMarkEngine to BlockQuoteFormatter;
         dependency LintMarkEngine to InlineNormalizer;
+        dependency LintMarkEngine to ParagraphFormatter;
 
         // Every rewrite passes the three safety checks, whose verdicts and status are held in the result.
         dependency LintMarkEngine to HtmlEquivalenceChecker;

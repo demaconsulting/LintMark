@@ -20,7 +20,9 @@ rule that rewriting fixes and `LintOnly` otherwise; `Aliases` lists the legacy a
 `IsConfigurable` says whether the `rules` setting of a configuration can switch the rule on or off.
 
 **Configurable rules**: 22 rules, the ones the `rules` setting accepts. Their ids, aliases, and default states were
-moved unchanged from the table that the configuration unit held before the registry existed.
+moved unchanged from the table that the configuration unit held before the registry existed. `line-length` is enforced
+by the second stage of the document formatter (the `fill` wrap of paragraphs, see *ParagraphFormatter Design*) and can
+be switched off here; `paragraph-wrap` is registered and configurable and no unit enforces it yet.
 
 | Rule id | Kind | Alias | Default |
 | --- | --- | --- | --- |
@@ -51,13 +53,13 @@ moved unchanged from the table that the configuration unit held before the regis
 `MD041`, `MD043`, `MD044`, and `MD057`. A dropped alias is recognized (so a legacy configuration file is still
 accepted) but never resolves to a rule and is never stored.
 
-**Always-applied formatting rules**: Rules of kind formatting that the formatter applies to every document: the 22
-rules below and `line-ending` (listed with the other identifiers that the tool emits). They are enabled, not
-configurable, and may be suppressed for a passage with a comment, except `line-ending`, which has no partial form. The 22
-rules carry 24 legacy rule-number aliases (`heading-style` and `list-indent` have two each). The aliases resolve through
-`TryResolve`, so a suppression comment may use them, but a configuration that names the identifier or the alias in
-`rules` is still rejected as an unknown rule, because `TryResolveConfigurable` does not accept them. The description of
-each rule is the message of the diagnostic that the formatter reports for it.
+**Always-applied formatting rules**: Rules of kind formatting that the formatter applies to every document: the 23 rules
+below and `line-ending` (listed with the other identifiers that the tool emits). They are enabled, not configurable, and
+may be suppressed for a passage with a comment, except `line-ending`, which has no partial form. The 23 rules carry 25
+legacy rule-number aliases (`heading-style` and `list-indent` have two each). The aliases resolve through `TryResolve`,
+so a suppression comment may use them, but a configuration that names the identifier or the alias in `rules` is still
+rejected as an unknown rule, because `TryResolveConfigurable` does not accept them. The description of each rule is the
+message of the diagnostic that the formatter reports for it.
 
 | Rule id | Alias | Description |
 | --- | --- | --- |
@@ -83,18 +85,22 @@ each rule is the message of the diagnostic that the formatter reports for it.
 | `emphasis` | `MD049` | Emphasis is not written with the configured delimiter |
 | `strong` | `MD050` | Strong emphasis is not written with the configured delimiter |
 | `bare-urls` | `MD034` | A bare URL is not wrapped in angle brackets |
+| `code-span-space` | `MD038` | A code span has a space after its opening backtick and before its closing backtick |
 
 The description of `list-indent` is shortened in this table to fit the page; the registry holds "The items of a list are
-not aligned or a nested bullet list is not indented as configured".
+not aligned or a nested bullet list is not indented as configured". The description of `code-span-space` is shortened
+too; the registry holds "A code span has a space after its opening backtick and before its closing backtick that it does
+not need".
 
 The aliases `MD018` and `MD020` are not registered: the text they describe (`#Title`, `##Title##`) is a paragraph to
-the parser, and no safe rewrite exists. The aliases `MD037`, `MD038`, and `MD039` (spaces inside emphasis markers, code
-spans, and link text) are not registered either: the rewrite is not safe, because the text renders differently without
-the space, so no fixer exists; they are planned as lint-only rules.
+the parser, and no safe rewrite exists. The aliases `MD037` and `MD039` (spaces inside emphasis markers and link text)
+are not registered either: the rewrite is not safe, because the text renders differently without the space, so no
+fixer exists. The alias `MD038` is registered, for the rule `code-span-space`, which removes only the padding that the
+renderer ignores anyway (one space on each side of a code span).
 
 **Other non-configurable identifiers**: Registered so that the registry is complete, enabled, without aliases, and not
-configurable. A configuration that names one of them is rejected as an unknown rule. Together with the 22 always-applied
-rules above they make 33 non-configurable entries.
+configurable. A configuration that names one of them is rejected as an unknown rule. Together with the 23 always-applied
+rules above they make 34 non-configurable entries, and with the 22 configurable rules 56 registered rules.
 
 | Rule id | Kind | Reported when |
 | --- | --- | --- |
@@ -112,9 +118,10 @@ rules above they make 33 non-configurable entries.
 
 The description of each of the three safety identifiers in the registry ends with "so the file is not rewritten".
 
-The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, the identifiers of the 22
-always-applied rules such as `TrailingWhitespaceRuleId`, `FinalNewlineRuleId`, `BulletRuleId`, `ListIndentRuleId`, and
-`BareUrlsRuleId`, `HtmlMismatchRuleId`,
+The identifiers that other units emit are exposed as constants (`LineEndingRuleId`, the identifiers of the 23
+always-applied rules such as `TrailingWhitespaceRuleId`, `FinalNewlineRuleId`, `BulletRuleId`, `ListIndentRuleId`,
+`BareUrlsRuleId`, and `CodeSpanSpaceRuleId`, `LineLengthRuleId` (the configurable rule that the paragraph formatter
+attributes its edits to), `HtmlMismatchRuleId`,
 `StructureMismatchRuleId`, `NotIdempotentRuleId`, `GridTableInvalidRuleId`, `FileReadErrorRuleId`,
 `FileEncodingErrorRuleId`, `FileLineEndingErrorRuleId`, `FileParseErrorRuleId`, `FileFormatErrorRuleId`,
 `FileWriteErrorRuleId`, and `ConfigErrorRuleId`).
@@ -188,7 +195,8 @@ identifier).
   that a `rules` map must hold exactly.
 - **ConfigParser** (the `ConfigLoader` unit) — validates the names in the `rules` setting with `TryResolveConfigurable`
   and `IsDroppedAlias`.
-- **DocumentFormatter**, the block formatters of the `Blocks` subsystem, the **InlineNormalizer** of the `Inline`
+- **DocumentFormatter**, the block formatters of the `Blocks` subsystem, the **ParagraphFormatter** of the `Blocks`
+  subsystem, the **InlineNormalizer** of the `Inline`
   subsystem, and **LintMarkEngine** — use the identifier
   constants for the diagnostics and edits they create; the document formatter also reads the description of a rule to
   report an edit.

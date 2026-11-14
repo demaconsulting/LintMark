@@ -27,23 +27,26 @@ using Markdig.Syntax;
 namespace DemaConsulting.LintMark.Formatting.Inline;
 
 /// <summary>
-///     Writes the emphasis, strong emphasis and bare URLs of a paragraph in the canonical form: the configured
-///     delimiter character, and URLs wrapped in angle brackets.
+///     Writes the emphasis, strong emphasis, bare URLs and code spans of a paragraph in the canonical form: the configured
+///     delimiter character, URLs wrapped in angle brackets, and code spans without redundant padding.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Three rules are handled: <c>emphasis</c> (<c>_x_</c> and <c>*x*</c> are the same emphasis; the
+///         Four rules are handled: <c>emphasis</c> (<c>_x_</c> and <c>*x*</c> are the same emphasis; the
 ///         <c>emphasis</c> setting decides which is written), <c>strong</c> (the same for <c>__x__</c> and
-///         <c>**x**</c>) and <c>bare-urls</c> (a bare <c>http://</c>, <c>https://</c> or <c>ftp://</c> URL becomes
-///         <c>&lt;url&gt;</c>; the setting <c>leave</c> switches the rule off). Only paragraphs are handled: headings
+///         <c>**x**</c>), <c>bare-urls</c> (a bare <c>http://</c>, <c>https://</c> or <c>ftp://</c> URL becomes
+///         <c>&lt;url&gt;</c>; the setting <c>leave</c> switches the rule off) and <c>code-span-space</c> (a code span
+///         padded with one space on each side loses both spaces, unless its content begins or ends with a backtick;
+///         the rule has no setting). Only paragraphs are handled: headings
 ///         and table cells keep their text as written, and so do <c>www.</c> addresses, e-mail addresses and
 ///         <c>mailto:</c> links, which render differently when they are wrapped.
 ///     </para>
 ///     <para>
 ///         The normalizer is not a block formatter (it claims no lines): <see cref="DocumentFormatter"/> asks it
 ///         for each paragraph that no block formatter claims, so the whitespace rules keep their lines. Its edits
-///         replace characters inside the text (a delimiter, the first and the last character of a URL), never
-///         whitespace and never insert at a position, so they cannot conflict with the edits of those rules.
+///         replace characters inside the text (a delimiter, the first and the last character of a URL) or delete the
+///         padding inside a code span, never the whitespace at the ends of a line and never insert at a position, so they
+///         cannot conflict with the edits of those rules.
 ///     </para>
 ///     <para>
 ///         Candidates come from the inline syntax tree with strict guards (see <see cref="InlineCandidates"/>). The
@@ -83,7 +86,8 @@ internal sealed class InlineNormalizer
     [
         RuleCatalog.EmphasisRuleId,
         RuleCatalog.StrongRuleId,
-        RuleCatalog.BareUrlsRuleId
+        RuleCatalog.BareUrlsRuleId,
+        RuleCatalog.CodeSpanSpaceRuleId
     ];
 
     /// <summary>
@@ -116,7 +120,8 @@ internal sealed class InlineNormalizer
         var emphasis = IsSuppressed(document, block, RuleCatalog.EmphasisRuleId) ? (EmphasisMarker?)null : config.Emphasis;
         var strong = IsSuppressed(document, block, RuleCatalog.StrongRuleId) ? (EmphasisMarker?)null : config.Strong;
         var urls = config.BareUrls == BareUrlStyle.Autolink && !IsSuppressed(document, block, RuleCatalog.BareUrlsRuleId);
-        if (emphasis is null && strong is null && !urls)
+        var codeSpaces = !IsSuppressed(document, block, RuleCatalog.CodeSpanSpaceRuleId);
+        if (emphasis is null && strong is null && !urls && !codeSpaces)
         {
             return;
         }
@@ -128,7 +133,7 @@ internal sealed class InlineNormalizer
             return;
         }
 
-        var candidates = InlineCandidates.Find(text, inline, emphasis, strong, urls);
+        var candidates = InlineCandidates.Find(text, inline, emphasis, strong, urls, codeSpaces);
         if (candidates.IsEmpty)
         {
             return;

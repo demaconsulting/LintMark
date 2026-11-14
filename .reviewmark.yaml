@@ -68,6 +68,7 @@ reviews:
       - "docs/verification/introduction.md"
       - "docs/verification/lintmark.md"
       - "test/**/IntegrationTests.cs"
+      - "test/**/IntegrationWrapTests.cs"
       - "test/**/TemporaryDirectory.cs"
       - "test/**/AssemblyInfo.cs"
       - "test/**/Runner.cs"
@@ -343,6 +344,7 @@ reviews:
       - "test/**/Engine/LintMarkEngineFixTests.cs"
       - "test/**/Engine/LintMarkEngineFormattingTests.cs"
       - "test/**/Engine/LintMarkEngineIgnoreTests.cs"
+      - "test/**/Engine/LintMarkEngineWrapTests.cs"
 
   - id: LintMark-Engine-AtomicFileWriter
     title: Review that LintMark Engine AtomicFileWriter Implementation is Correct
@@ -369,6 +371,7 @@ reviews:
       - "docs/design/lintmark/formatting.md"
       - "docs/verification/lintmark/formatting.md"
       - "test/**/Formatting/FormattingSubsystemTests.cs"
+      - "test/**/Formatting/FormattingSubsystemWrapTests.cs"
       - "test/**/Formatting/TestBlockFormatters.cs"
 
   - id: LintMark-Formatting-EditSet
@@ -384,7 +387,9 @@ reviews:
       - "docs/verification/lintmark/formatting/edit-set.md"
       - "src/**/Formatting/EditSet.cs"
       - "src/**/Formatting/TextEdit.cs"
+      - "src/**/Formatting/EditRebaser.cs"
       - "test/**/Formatting/EditSetTests.cs"
+      - "test/**/Formatting/EditRebaserTests.cs"
 
   - id: LintMark-Formatting-SourcePatcher
     title: Review that LintMark Formatting SourcePatcher Implementation is Correct
@@ -426,6 +431,7 @@ reviews:
       - "test/**/Formatting/DocumentFormatterTests.cs"
       - "test/**/Formatting/DocumentFormatterPassTests.cs"
       - "test/**/Formatting/DocumentFormatterSupportTests.cs"
+      - "test/**/Formatting/DocumentFormatterWrapTests.cs"
       - "test/**/Formatting/TestBlockFormatters.cs"
 
   - id: LintMark-Formatting-Blocks
@@ -440,9 +446,12 @@ reviews:
       - "docs/design/lintmark/formatting/blocks.md"
       - "docs/verification/lintmark/formatting/blocks.md"
       - "test/**/Formatting/Blocks/BlocksSubsystemTests.cs"
+      - "test/**/Formatting/Blocks/BlocksSubsystemWrapTests.cs"
       - "test/**/Formatting/Blocks/BlocksCorpusTests.cs"
       - "test/**/Formatting/Blocks/ListQuoteInlineCorpusTests.cs"
       - "test/**/Formatting/Blocks/ListQuoteInlineDocuments.cs"
+      - "test/**/Formatting/Blocks/ParagraphCorpusTests.cs"
+      - "test/**/Formatting/Blocks/ParagraphDocuments.cs"
       - "test/**/Formatting/Blocks/BlockFormatterAssertions.cs"
 
   - id: LintMark-Formatting-Blocks-HeadingFormatter
@@ -527,6 +536,23 @@ reviews:
       - "src/**/Formatting/Blocks/BlockQuoteFormatter.cs"
       - "test/**/Formatting/Blocks/BlockQuoteFormatterTests.cs"
 
+  - id: LintMark-Formatting-Blocks-ParagraphFormatter
+    title: Review that LintMark Formatting Blocks ParagraphFormatter Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/blocks.md
+      - docs/reqstream/lintmark/formatting/blocks.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/blocks/paragraph-formatter.yaml"
+      - "docs/design/lintmark/formatting/blocks/paragraph-formatter.md"
+      - "docs/verification/lintmark/formatting/blocks/paragraph-formatter.md"
+      - "src/**/Formatting/Blocks/ParagraphFormatter.cs"
+      - "src/**/Formatting/Blocks/ParagraphOutcome.cs"
+      - "test/**/Formatting/Blocks/ParagraphFormatterTests.cs"
+
   - id: LintMark-Formatting-Inline
     title: Review that LintMark Formatting Inline Satisfies Subsystem Requirements
     context:
@@ -539,6 +565,7 @@ reviews:
       - "docs/design/lintmark/formatting/inline.md"
       - "docs/verification/lintmark/formatting/inline.md"
       - "test/**/Formatting/Inline/InlineSubsystemTests.cs"
+      - "test/**/Formatting/Inline/InlineSubsystemWrapTests.cs"
 
   - id: LintMark-Formatting-Inline-InlineNormalizer
     title: Review that LintMark Formatting Inline InlineNormalizer Implementation is Correct
@@ -559,6 +586,58 @@ reviews:
       - "test/**/Formatting/Inline/InlineNormalizerTests.cs"
       - "test/**/Formatting/Inline/InlineCandidatesTests.cs"
       - "test/**/Formatting/Inline/ParagraphProofTests.cs"
+
+  - id: LintMark-Formatting-Inline-AtomTokenizer
+    title: Review that LintMark Formatting Inline AtomTokenizer Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/inline.md
+      - docs/reqstream/lintmark/formatting/inline.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/inline/atom-tokenizer.yaml"
+      - "docs/design/lintmark/formatting/inline/atom-tokenizer.md"
+      - "docs/verification/lintmark/formatting/inline/atom-tokenizer.md"
+      - "src/**/Formatting/Inline/AtomTokenizer.cs"
+      - "src/**/Formatting/Inline/TokenizedParagraph.cs"
+      - "src/**/Formatting/Inline/ParagraphSegment.cs"
+      - "src/**/Formatting/Inline/HardBreakKind.cs"
+      - "test/**/Formatting/Inline/AtomTokenizerTests.cs"
+
+  - id: LintMark-Formatting-Inline-LineWrapper
+    title: Review that LintMark Formatting Inline LineWrapper Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/inline.md
+      - docs/reqstream/lintmark/formatting/inline.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/inline/line-wrapper.yaml"
+      - "docs/design/lintmark/formatting/inline/line-wrapper.md"
+      - "docs/verification/lintmark/formatting/inline/line-wrapper.md"
+      - "src/**/Formatting/Inline/LineWrapper.cs"
+      - "src/**/Formatting/Inline/WrappedLines.cs"
+      - "test/**/Formatting/Inline/LineWrapperTests.cs"
+
+  - id: LintMark-Formatting-Inline-BlockSyntaxGuard
+    title: Review that LintMark Formatting Inline BlockSyntaxGuard Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+      - docs/design/lintmark/formatting.md
+      - docs/reqstream/lintmark/formatting.yaml
+      - docs/design/lintmark/formatting/inline.md
+      - docs/reqstream/lintmark/formatting/inline.yaml
+    paths:
+      - "docs/reqstream/lintmark/formatting/inline/block-syntax-guard.yaml"
+      - "docs/design/lintmark/formatting/inline/block-syntax-guard.md"
+      - "docs/verification/lintmark/formatting/inline/block-syntax-guard.md"
+      - "src/**/Formatting/Inline/BlockSyntaxGuard.cs"
+      - "test/**/Formatting/Inline/BlockSyntaxGuardTests.cs"
 
   # LintMark - Linting
   - id: LintMark-Linting

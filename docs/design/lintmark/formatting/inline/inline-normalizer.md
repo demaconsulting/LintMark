@@ -4,10 +4,11 @@
 
 ##### Purpose
 
-`InlineNormalizer` proposes the edits that write the emphasis, strong emphasis, and bare URLs of a paragraph in the
-canonical form: emphasis and strong emphasis with the configured delimiter character (`*` by default), and a bare
-`http://`, `https://`, or `ftp://` URL wrapped in angle brackets. It enforces the rules `emphasis`, `strong`, and
-`bare-urls`. It never changes what a paragraph renders to: it proposes only the shapes that are safe to rewrite and
+`InlineNormalizer` proposes the edits that write the emphasis, strong emphasis, bare URLs, and code spans of a paragraph
+in the canonical form: emphasis and strong emphasis with the configured delimiter character (`*` by default), a bare
+`http://`, `https://`, or `ftp://` URL wrapped in angle brackets, and a code span without the redundant space on each
+side. It enforces the rules `emphasis`, `strong`, `bare-urls`, and `code-span-space`. It never changes what a paragraph
+renders to: it proposes only the shapes that are safe to rewrite and
 proves each proposal by rendering. Its supporting types `InlineCandidates` (the walk of the inline tree and its guards)
 and `ParagraphProof` (the stand-alone rendering check) have no unit of their own and are described in this document.
 
@@ -18,14 +19,17 @@ and `ParagraphProof` (the stand-alone rendering check) have no unit of their own
 - `_prove`: a `bool`, set by the constructor argument `proveParagraphs` (default `true`), that says whether the edits of
   a paragraph are proved before they are kept. The shipped tool always proves; `false` exists so that a test can show
   that the guards alone are not enough.
-- `RuleIds`: an immutable array of `emphasis`, `strong`, and `bare-urls`, in this order. The normalizer is not an
-  `IBlockFormatter`, so `DocumentFormatter` does not read this list; the normalizer checks the suppressions itself.
+- `RuleIds`: an immutable array of `emphasis`, `strong`, `bare-urls`, and `code-span-space`, in this order. The
+  normalizer is not an `IBlockFormatter`, so `DocumentFormatter` does not read this list; the normalizer checks the
+  suppressions itself.
 
-The normalizer claims no lines. `DocumentFormatter` asks it for each paragraph that no block formatter claims and that is
-not protected (paragraphs in lists, block quotes, and footnotes included, headings and table cells excluded), so the
+The normalizer claims no lines. `DocumentFormatter` asks it for each paragraph that no block formatter claims and that
+is not protected (paragraphs in lists, block quotes, and footnotes included, headings and table cells excluded), so the
 whitespace rules keep their lines. Its edits replace characters inside the text of a line (a delimiter run, the first or
-the last character of a URL); they never touch whitespace and are never zero-length insertions, so they cannot conflict
-with the whitespace edits of the passes or with the blank lines that the block spacing pass inserts.
+the last character of a URL) or delete the one-character padding inside a code span; they never touch the whitespace at
+the end of a line and are never zero-length insertions, so they cannot conflict with the whitespace edits of the passes
+or with the blank lines that the block spacing pass inserts. Edits may therefore be deletions (an edit with an empty
+replacement); the document formatter and the composition of the two formatting stages treat them like any other edit.
 
 **InlineCandidates** is a static class. Its `Find` method returns the edits of one paragraph as an immutable array,
 without overlaps and in start order. It holds the list of schemes (`http://`, `https://`, `ftp://`).
@@ -34,8 +38,8 @@ without overlaps and in start order. It holds the list of schemes (`http://`, `h
 paragraph unchanged.
 
 Invariants: every edit carries the identifier of the rule that it enforces (`emphasis` for a single delimiter, `strong`
-for a double one, `bare-urls` for a URL); the edits of one paragraph never overlap; a paragraph either gets all of its
-edits or none of them.
+for a double one, `bare-urls` for a URL, `code-span-space` for the padding of a code span); the edits of one paragraph
+never overlap; a paragraph either gets all of its edits or none of them.
 
 ##### Key Methods
 
@@ -53,25 +57,26 @@ edits or none of them.
 
 Algorithm: (1) a block whose node has no inline content adds nothing. (2) The rule states are fixed: `emphasis` is off
 when it is suppressed anywhere in the paragraph (`SuppressionMap.IsSuppressedRange`), otherwise the target is
-`config.Emphasis`; `strong` likewise with `config.Strong`; `bare-urls` is on when `config.BareUrls` is `autolink` and the
-rule is not suppressed (the value `leave` switches it off). When all three are off the paragraph is left alone. (3) When
-the document defines link references and the text of the paragraph holds a `[`, the paragraph is left alone: a rewritten
-label could stop matching its definition, which the stand-alone proof cannot see. (4) `InlineCandidates.Find` returns the
-edits; none means nothing to do. (5) Unless proving is off, `ParagraphProof.Holds` must accept the edits. (6) The edits
-are added to the `EditSet`.
+`config.Emphasis`; `strong` likewise with `config.Strong`; `bare-urls` is on when `config.BareUrls` is `autolink` and
+the rule is not suppressed (the value `leave` switches it off); `code-span-space` is on unless it is suppressed (it has
+no setting). A suppression by the alias `MD038` counts, because the suppression map resolves rule names through the rule
+catalog. When all four are off the paragraph is left alone. (3) When the document defines link references and the text
+of the paragraph holds a `[`, the paragraph is left alone: a rewritten label could stop matching its definition, which
+the stand-alone proof cannot see. (4) `InlineCandidates.Find` returns the edits; none means nothing to do. (5) Unless
+proving is off, `ParagraphProof.Holds` must accept the edits. (6) The edits are added to the `EditSet`.
 
 **InlineCandidates.Find**: Finds the edits of one paragraph.
 
 - *Parameters*: `string text` (the LF-normalized text of the document), `ContainerInline root` (the inline content of
-  the paragraph), the target of emphasis and of strong emphasis (`EmphasisMarker?`, `null` when the rule is off), and
-  `bool urls`.
+  the paragraph), the target of emphasis and of strong emphasis (`EmphasisMarker?`, `null` when the rule is off),
+  `bool urls`, and `bool codeSpaces` (optional, default `false`: whether the padding of code spans is removed).
 - *Returns*: the edits, without overlaps and ordered by start offset; empty when there is no safe candidate.
 - *Errors*: `ArgumentNullException` for a null text or root.
 
 Algorithm: the inline tree is walked once, keeping track of whether the walk is inside an emphasis node written with `*`
 or `_` and whether it is inside the text of a link. A scan that precedes the walk looks for a literal `*` or `_` in any
 literal inline of the paragraph, except in the text of automatic links, which is part of the link. The paragraph then
-contributes **emphasis candidates** and **URL candidates**.
+contributes **emphasis candidates**, **URL candidates**, and **code span candidates**.
 
 An emphasis node is a candidate when all of these hold:
 
@@ -90,20 +95,28 @@ An emphasis node is a candidate when all of these hold:
 The edits replace the delimiter run at each end by a run of the target character of the same length (two edits per
 node).
 
-A URL is a candidate when it is an autolink that the parser found in the text (a bare URL), is not inside the text of
-a link, is not the destination of a link (the text before it is not `](`, which also covers a destination that the parser
+A URL is a candidate when it is an autolink that the parser found in the text (a bare URL), is not inside the text of a
+link, is not the destination of a link (the text before it is not `](`, which also covers a destination that the parser
 reads as a task list marker, `[x]`, `[X]`, or `[ ]`, followed by a URL in parentheses in a list item), its source starts
 with `http://`, `https://`, or `ftp://` and holds none of a blank, `<`, `>`, `|`, a line feed, or a tab, and it stands
 where prose puts a URL: after a blank (a line start included) or `(`, and before a blank, the end of the text, or one of
 `.`, `,`, `;`, `:`, `!`, `?`, `)`. The parser reads only a lower-case scheme as a bare URL, so an address such as
 `HTTP://X.COM/a` is no candidate and stays as written. A pair of parentheses inside the URL is part of it
-(`http://x.com/a_(b)` is wrapped as a whole). The edits replace the first
-character `c` of the URL by `<c` and the last character `d` by `d>`. URLs that start with `www.`, e-mail addresses,
-`mailto:` links, and URLs in headings, table cells, link text, code, and HTML stay as written, because wrapping them
-renders differently or is not a bare URL.
+(`http://x.com/a_(b)` is wrapped as a whole). The edits replace the first character `c` of the URL by `<c` and the last
+character `d` by `d>`. URLs that start with `www.`, e-mail addresses, `mailto:` links, and URLs in headings, table
+cells, link text, code, and HTML stay as written, because wrapping them renders differently or is not a bare URL.
 
-The result is made distinct (an inline tree that holds the same node twice proposes the same edit twice, and one stands),
-and when edits remain that overlap without being equal the tree cannot be trusted and the result is empty.
+A code span is a candidate when the source of the span, between its opening and closing backtick run, lies on one line,
+holds no tab, starts with exactly one space and ends with exactly one space, has a character other than a space next to
+each of them (so a span of spaces is no candidate), and has no backtick next to either space (the padding is what keeps
+the content apart from the delimiters). The edits are two deletions of one character, the space after the opening run
+and the space before the closing run, attributed to `code-span-space`. Asymmetric padding, padding of more than one
+space, a span of spaces, content that starts or ends with a backtick, a span that crosses a line break, and spans in
+headings and table cells (which the normalizer never sees) stay as written. The renderer removes one space on each side
+of such a span, so the deletion does not change the page, which the proof confirms.
+
+The result is made distinct (an inline tree that holds the same node twice proposes the same edit twice, and one
+stands), and when edits remain that overlap without being equal the tree cannot be trusted and the result is empty.
 
 **ParagraphProof.Holds**: Proves that edits leave a paragraph's rendering unchanged.
 
@@ -125,7 +138,8 @@ insufficient (adjacent delimiter runs that pair differently once one of them is 
 construct that swallows an inserted `>`). The proof is a local copy of the safety property; it does not replace the
 file-level checks of the `Engine` subsystem, which still run on every rewrite. A paragraph whose proof fails is left as
 written, and fails it again in the next run, so formatting stays idempotent. After a conversion no candidate remains,
-because the delimiter now equals the target and a URL in angle brackets is no bare URL.
+because the delimiter now equals the target, a URL in angle brackets is no bare URL, and a code span without padding is
+no candidate.
 
 Known limits: a paragraph that the proof or a guard refuses is left as written even though a human could convert it (a
 hostile document that uses quirks of the parser, a paragraph with a literal `*` or `_`, and a paragraph with a `[` in a
@@ -134,7 +148,9 @@ kept as written and nothing is reported (the parser appends a link back to the r
 paragraph, so the emphasis has a neighbor that is neither text nor a code span, a line break, or a link, and the check
 of the neighbors refuses it). The proof stands behind every edit that does get through. URLs and emphasis anywhere else
 in a footnote, a second paragraph included, are converted. `***text***` is left as written, and so is an emphasis that
-would have to become an underscore inside a word.
+would have to become an underscore inside a word. A code span with uneven or wider padding, one of only spaces, one
+that begins or ends with a backtick, and one that spans lines keep their padding; the spaces inside emphasis markers
+and link text (MD037 and MD039) are not handled at all.
 
 ##### Error Handling
 
@@ -150,13 +166,14 @@ and `LintMarkEngine` turns it into a `file-format-error` for the file. Nothing i
   data of the parsed document (`Document` subsystem) - the paragraph, its lines (`GetLines`), the pipeline that the
   proof renders with, the suppression ranges, and the link reference definitions.
 - **LintMarkConfig**, **EmphasisMarker**, and **BareUrlStyle** (`Configuration` subsystem) - the `emphasis`, `strong`,
-  and `bare-urls` settings.
+  and `bare-urls` settings (`code-span-space` has none).
 - **RuleCatalog** (`Linting` subsystem) - the rule identifiers of the edits.
-- **Markdig** (OTS) - the inline tree (`EmphasisInline`, `LinkInline`, `LiteralInline`, and the other inlines) and the
-  HTML rendering of the proof.
+- **Markdig** (OTS) - the inline tree (`EmphasisInline`, `LinkInline`, `CodeInline`, `LiteralInline`, and the other
+  inlines) and the HTML rendering of the proof.
 
 ##### Callers
 
 - **DocumentFormatter** - calls `AddBlockEdits` for each unclaimed, unprotected paragraph while it collects the edits
-  of the unclaimed blocks.
+  of the unclaimed blocks, and again for each paragraph that a wrap rewrote when it settles the wraps (a wrap is
+  withdrawn when the normalizer would then propose an edit).
 - **LintMarkEngine** - creates the instance that the production `DocumentFormatter` is configured with.

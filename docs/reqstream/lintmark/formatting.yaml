@@ -7,10 +7,12 @@
 #   decides which line ending the document should have
 # - Subsystem requirements describe what the formatting step guarantees to the safety checks and to the engine
 # - The rules that change text (whitespace, blank lines, headings, code blocks, thematic breaks, lists, block quotes,
-#   emphasis, bare URLs, and the end of the file) are part of this subsystem: the DocumentFormatter unit applies the
-#   rules that concern every document, the Blocks subsystem applies the rules of single kinds of blocks, and the
-#   Inline subsystem applies the rules of the text inside paragraphs; the tests of the contract of the formatter
-#   itself use rules that exist only in the tests
+#   emphasis, bare URLs, code span padding, the length of the lines of paragraphs, and the end of the file) are part
+#   of this subsystem: the DocumentFormatter unit applies the rules that concern every document and composes the wrap
+#   of paragraphs with the other rules, the Blocks subsystem applies the rules of single kinds of blocks (including
+#   the wrap of paragraphs), and the Inline subsystem applies the rules of the text inside paragraphs and cuts
+#   paragraphs into the words that a wrap may move; the tests of the contract of the formatter itself use rules that
+#   exist only in the tests
 
 sections:
   - title: LintMark Requirements
@@ -74,6 +76,18 @@ sections:
               - LintMark-Formatting-Inline-OtherRulesStillApplied
               - LintMark-Formatting-DocumentFormatter-FormatContextExposesLayoutAndOwnership
               - LintMark-Formatting-DocumentFormatter-FormatContextBuildsLayoutAndOwnership
+              - LintMark-Formatting-DocumentFormatter-DeterministicWrap
+              - LintMark-Formatting-Blocks-DeterministicWrap
+              - LintMark-Formatting-EditSet-EditsRebasedOntoOriginal
+              - LintMark-Formatting-EditSet-RebaseAbsorbsEditsInsideReplacedRange
+              - LintMark-Formatting-EditSet-RebaseExtendsEditsInsideOutput
+              - LintMark-Formatting-EditSet-RebaseMergesEditsInOneOutput
+              - LintMark-Formatting-EditSet-RebaseKeepsTouchingEdits
+              - LintMark-Formatting-EditSet-RebaseMergesTouchingInsertions
+              - LintMark-Formatting-EditSet-RebaseDropsNoOps
+              - LintMark-Formatting-EditSet-RebaseRejectsInvalidLists
+              - LintMark-Formatting-EditSet-OffsetsMappedToOriginal
+              - LintMark-Formatting-EditSet-RebaseIsDeterministic
             tests:
               - FormattingSubsystem_Format_TwoFormatters_AppliesBothEditsInOrder
               - FormattingSubsystem_Format_ParallelCallsOnListsAndInlineText_GiveTheSameResult
@@ -176,6 +190,8 @@ sections:
               - LintMark-Formatting-Blocks-SuppressedBlocksKept
               - LintMark-Formatting-DocumentFormatter-InlineSuppressedRuleKept
               - LintMark-Formatting-Inline-SuppressedRulesKept
+              - LintMark-Formatting-Blocks-SuppressedParagraphsKept
+              - LintMark-Formatting-Inline-CodeSpanSpaceSuppressed
             tests:
               - FormattingSubsystem_Format_SuppressedBlock_LeftVerbatim
 
@@ -201,6 +217,7 @@ sections:
             children:
               - LintMark-Formatting-DocumentFormatter-FormatUnsafeNoEdit
               - LintMark-Formatting-DocumentFormatter-FormatUnsafeNoProblem
+              - LintMark-Formatting-DocumentFormatter-WrapSkippedForUnsafeDocuments
             tests:
               - FormattingSubsystem_Format_FormatUnsafeDocument_ProducesNothing
 
@@ -553,6 +570,7 @@ sections:
               - LintMark-Formatting-DocumentFormatter-OneViolationPerRulePerLine
               - LintMark-Formatting-Blocks-EditsAttributedToRules
               - LintMark-Formatting-DocumentFormatter-InlineEditsReported
+              - LintMark-Formatting-DocumentFormatter-AbsorbedEditsStillReported
             tests:
               - FormattingSubsystem_Format_Violations_AreReportedPerRuleAtTheirPlace
 
@@ -736,3 +754,286 @@ sections:
               - LintMark-Formatting-Inline-BareUrlsLeft
             tests:
               - FormattingSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise
+
+          - id: LintMark-Formatting-LineLengthReported
+            title: >-
+              The Formatting subsystem shall report a line of a paragraph that is wider than the line length of the
+              configuration and that holds a place where it can be broken as a problem of the `line-length` rule that
+              rewriting repairs, at the first column beyond the width.
+            justification: |
+              Checking a file is formatting it and listing what would change, so a paragraph that the rewrite
+              would wrap is a problem that the check reports, at the place where the line becomes too wide.
+            children:
+              - LintMark-Formatting-DocumentFormatter-OverflowReportedAtItsPosition
+            tests:
+              - FormattingSubsystem_Format_OverlongParagraph_ReportsLineLengthAtTheFirstColumnBeyondTheWidth
+
+          - id: LintMark-Formatting-ParagraphsWrapped
+            title: >-
+              The Formatting subsystem shall fill each paragraph that has a line wider than the line length of the
+              configuration with as many words on each line as fit within the width.
+            justification: |
+              Long lines are hard to read, to review side by side, and to compare in version control. Filling the
+              lines up to the width is the one result that does not depend on how the author broke the lines, so
+              it is the same for every author.
+            children:
+              - LintMark-Formatting-DocumentFormatter-ParagraphsWrappedAfterOtherRules
+              - LintMark-Formatting-DocumentFormatter-ParagraphFormatterOptional
+              - LintMark-Formatting-Blocks-ParagraphFormatterProvided
+              - LintMark-Formatting-Blocks-ParagraphsWrapped
+              - LintMark-Formatting-Inline-AtomTokenizerProvided
+              - LintMark-Formatting-Inline-LineWrapperProvided
+              - LintMark-Formatting-Inline-BlockSyntaxGuardProvided
+            tests:
+              - FormattingSubsystem_Format_OverlongParagraph_IsFilledUpToTheWidth
+              - ParagraphCorpus_Format_RepositoryMarkdownAtFourWidths_AreSafeAndAFixedPointAfterOneRun
+              - ParagraphCorpus_Format_RandomParagraphsAtFourWidths_AreSafeAndStable
+
+          - id: LintMark-Formatting-WrapStable
+            title: >-
+              The Formatting subsystem shall propose no further change and report no problem that rewriting repairs
+              for the text that a wrap produced, also when other rules changed the text in the same run.
+            justification: |
+              A wrap that needed to be repeated, or that other rules undid, could not be trusted in a pipeline
+              that fixes and then checks.
+            children:
+              - LintMark-Formatting-DocumentFormatter-UnstableWrapWithdrawn
+              - LintMark-Formatting-Inline-LineWrapper-WrappedTextIsFixedPoint
+            tests:
+              - FormattingSubsystem_Format_WrappedParagraphs_ProposeNothingMoreWhenFormattedAgain
+              - ParagraphCorpus_Format_RandomParagraphsInEveryStoredForm_GiveTheSameText
+
+          - id: LintMark-Formatting-LineLengthOverflowOnly
+            title: >-
+              The Formatting subsystem shall leave each paragraph in which no line is wider than the line length of
+              the configuration exactly as written.
+            justification: |
+              The author chose where to break the lines of such a paragraph, and a line that keeps to the limit is
+              not a problem. Moving it would change every paragraph of a project for no reason.
+            children:
+              - LintMark-Formatting-Blocks-ParagraphsWithinTheWidthKept
+            tests:
+              - FormattingSubsystem_Format_ParagraphsWithinTheWidth_StayByteIdentical
+
+          - id: LintMark-Formatting-LineLengthSetting
+            title: >-
+              The Formatting subsystem shall take the width that it allows for a line of a paragraph from the line
+              length of the configuration, which is 120 columns by default.
+            justification: |
+              Projects differ in the width they allow, and a default that suits most of them makes a
+              configuration unnecessary for the common case.
+            tests:
+              - FormattingSubsystem_Format_ConfiguredWidth_DecidesWhatIsReported
+
+          - id: LintMark-Formatting-LineLengthUnlimited
+            title: >-
+              The Formatting subsystem shall neither report nor change the length of any line of a paragraph when the
+              line length of the configuration is 0.
+            justification: |
+              Projects that let their editors wrap the text need a way to switch the limit off, and zero is the
+              value that means no limit.
+            children:
+              - LintMark-Formatting-DocumentFormatter-WrapSkippedWhenSettingsOff
+              - LintMark-Formatting-Blocks-ParagraphFormatter-SettingsDisableWrapping
+            tests:
+              - FormattingSubsystem_Format_WidthZero_ReportsAndChangesNothing
+
+          - id: LintMark-Formatting-LineLengthRuleSwitch
+            title: >-
+              The Formatting subsystem shall neither report nor change the length of any line of a paragraph when the
+              configuration switches the `line-length` rule off.
+            justification: |
+              The line length rule can be switched off like the other rules that a configuration may switch, and
+              the files must then come out as they went in.
+            children:
+              - LintMark-Formatting-DocumentFormatter-WrapSkippedWhenSettingsOff
+              - LintMark-Formatting-Blocks-ParagraphFormatter-SettingsDisableWrapping
+            tests:
+              - FormattingSubsystem_Format_LineLengthRuleOff_ReportsAndChangesNothing
+
+          - id: LintMark-Formatting-LineLengthUnbreakableKept
+            title: >-
+              The Formatting subsystem shall neither report nor change a line of a paragraph that is wider than the
+              line length of the configuration only because of one link, URL, autolink, code span, or image.
+            justification: |
+              Such an item cannot be broken without changing the document, so a report about it could not be acted
+              on and a rewrite of it would damage it.
+            children:
+              - LintMark-Formatting-Blocks-ParagraphFormatter-UnbreakableLineKept
+            tests:
+              - FormattingSubsystem_Format_LineWithOneLongUnbreakableItem_IsNotReportedOrChanged
+
+          - id: LintMark-Formatting-LineLengthLiteralTextKept
+            title: >-
+              The Formatting subsystem shall neither report nor change a line of code, HTML, a table, a heading, a
+              link reference definition, or front matter that is wider than the line length of the configuration.
+            justification: |
+              The lines of these blocks are content or structure that the author cannot break freely, so wrapping
+              them would change the document.
+            children:
+              - LintMark-Formatting-Blocks-LiteralBlocksKept
+            tests:
+              - FormattingSubsystem_Format_LiteralBlocksWiderThanTheWidth_AreNeverReported
+
+          - id: LintMark-Formatting-WrapKeepsInlineConstructsWhole
+            title: >-
+              The Formatting subsystem shall keep each link, code span, inline HTML element, inline math, footnote
+              reference, character reference, Pandoc attribute group, and Pandoc citation of a paragraph whole, on one
+              line, when it wraps the paragraph.
+            justification: |
+              Breaking a line inside one of these items changes what the document says or how it renders, so a
+              wrap may only break the text between such items.
+            children:
+              - LintMark-Formatting-Inline-WrapKeepsInlineConstructsWhole
+              - LintMark-Formatting-Blocks-ParagraphFormatter-InlineConstructsKept
+              - LintMark-Formatting-Inline-AtomTokenizer-MathWhole
+              - LintMark-Formatting-Inline-AtomTokenizer-EntitiesAndFootnoteRefsWhole
+              - LintMark-Formatting-Inline-AtomTokenizer-PandocAtomsWhole
+            tests:
+              - FormattingSubsystem_Format_WrappedParagraph_KeepsInlineConstructsWhole
+
+          - id: LintMark-Formatting-WrapKeepsHardBreaks
+            title: >-
+              The Formatting subsystem shall keep each hard line break of a paragraph, written with spaces or with a
+              backslash, at the end of the line where it is when it wraps the paragraph.
+            justification: |
+              A hard line break is part of what the author wrote, and moving or dropping it changes how the
+              paragraph renders.
+            children:
+              - LintMark-Formatting-Blocks-HardBreaksKept
+              - LintMark-Formatting-Inline-WrapKeepsHardBreaks
+            tests:
+              - FormattingSubsystem_Format_WrappedParagraph_KeepsHardBreaks
+
+          - id: LintMark-Formatting-WrapKeepsContainerPrefixes
+            title: >-
+              The Formatting subsystem shall write each line of a wrapped paragraph in a list item or a block quote
+              with the indentation or the quote markers that keep the line in the item or the quote.
+            justification: |
+              A line without its prefix would leave the item or the quote, or would join the text of another
+              block, and the document would no longer say what it said before.
+            children:
+              - LintMark-Formatting-Blocks-ListPrefixKept
+              - LintMark-Formatting-Blocks-QuotePrefixKept
+              - LintMark-Formatting-Blocks-LazyQuoteLinesPrefixed
+            tests:
+              - FormattingSubsystem_Format_WrappedListAndQuoteParagraphs_KeepTheirPrefixes
+
+          - id: LintMark-Formatting-WrapNeverStartsBlockSyntax
+            title: >-
+              The Formatting subsystem shall not start a line of a wrapped paragraph with text that Markdown reads as
+              a list marker, a number marker, a heading marker, a quote marker, a thematic break or setext underline,
+              a code fence, a link definition, an HTML block, a table row, or a Pandoc fenced div.
+            justification: |
+              A line that starts with such text turns a part of the paragraph into another block, so the wrap
+              would change what the document says.
+            children:
+              - LintMark-Formatting-Inline-WrapNeverStartsBlockSyntax
+              - LintMark-Formatting-Blocks-ParagraphFormatter-BlockSyntaxKeptOffLineStarts
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-QuoteGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-FencesGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-DefinitionsGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-HtmlBlocksGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-ThematicAndSetextGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-TableRowsGuarded
+              - LintMark-Formatting-Inline-BlockSyntaxGuard-PandocConstructsGuarded
+            tests:
+              - FormattingSubsystem_Format_WrappedParagraph_NeverStartsALineWithBlockSyntax
+
+          - id: LintMark-Formatting-WrapKeepsPandocParagraphs
+            title: >-
+              The Formatting subsystem shall leave a paragraph that holds a Pandoc structural line exactly as written
+              and shall report no line length problem for it.
+            justification: |
+              Pandoc reads such lines as commands or fences, and joining or moving them would change the output of
+              the document.
+            children:
+              - LintMark-Formatting-Blocks-PandocParagraphsKept
+            tests:
+              - FormattingSubsystem_Format_PandocStructuralParagraph_IsLeftAsWritten
+
+          - id: LintMark-Formatting-WrapKeepsFootnoteParagraphs
+            title: >-
+              The Formatting subsystem shall leave a paragraph inside a footnote definition exactly as written and
+              shall report no line length problem for it.
+            justification: |
+              The parser adds a link back to the reference to the end of a footnote, which makes the effect of a
+              rewrite there uncertain, and leaving the paragraph as written is always safe.
+            children:
+              - LintMark-Formatting-Blocks-FootnoteParagraphsKept
+            tests:
+              - FormattingSubsystem_Format_FootnoteParagraph_IsLeftAsWritten
+
+          - id: LintMark-Formatting-LineLengthResidualReported
+            title: >-
+              The Formatting subsystem shall report each line of a paragraph that is wider than the line length of the
+              configuration and that it could not shorten as a problem of the `line-length` rule that rewriting cannot
+              repair.
+            justification: |
+              A line that stays too wide must not pass unnoticed, and rewriting must not claim to have repaired it.
+            children:
+              - LintMark-Formatting-DocumentFormatter-ResidualOverflowReportedLintOnly
+              - LintMark-Formatting-Blocks-ResidualOverflowReported
+              - LintMark-Formatting-Blocks-LazyListLinesKept
+            tests:
+              - FormattingSubsystem_Format_WrapThatCannotFit_ReportsLineLengthThatCannotBeFixed
+
+          - id: LintMark-Formatting-WrapModesReserved
+            title: >-
+              The Formatting subsystem shall neither report nor change the length of any line of a paragraph when the
+              configuration asks for the `sentence` or the `semantic` wrap mode.
+            justification: |
+              Configurations that name the modes that are planned must keep working, and a mode that is not applied
+              must not change the documents of the users who chose it.
+            children:
+              - LintMark-Formatting-DocumentFormatter-WrapSkippedWhenSettingsOff
+              - LintMark-Formatting-Blocks-ParagraphFormatter-SettingsDisableWrapping
+            tests:
+              - FormattingSubsystem_Format_ReservedWrapModes_AreAcceptedAndChangeNothing
+
+          - id: LintMark-Formatting-CodeSpanSpace
+            title: >-
+              The Formatting subsystem shall report a code span that is padded with exactly one space on each side as
+              a problem of the `code-span-space` rule that rewriting repairs by removing that padding.
+            justification: |
+              One space on each side of a code span is not part of the code, because the parser removes it, so it
+              only makes the spans of a project inconsistent.
+            children:
+              - LintMark-Formatting-Inline-CodeSpanSpace
+              - LintMark-Formatting-Inline-CodeSpanSpaceInContainers
+            tests:
+              - FormattingSubsystem_Format_PaddedCodeSpan_LosesItsPadding
+
+          - id: LintMark-Formatting-CodeSpanSpaceBacktickKept
+            title: >-
+              The Formatting subsystem shall keep the padding of a code span whose content starts or ends with a
+              backtick as written.
+            justification: |
+              The padding separates the content from the delimiters, so removing it would end or change the code
+              span.
+            children:
+              - LintMark-Formatting-Inline-CodeSpanSpaceBacktickKept
+            tests:
+              - FormattingSubsystem_Format_CodeSpanWithBacktickAtAnEdge_KeepsItsPadding
+
+          - id: LintMark-Formatting-CodeSpanSpaceUnevenKept
+            title: >-
+              The Formatting subsystem shall keep a code span whose padding is on one side only, or is more than one
+              space on a side, as written.
+            justification: |
+              The parser removes the padding only when one space stands on each side, so any other padding is
+              content of the code span.
+            children:
+              - LintMark-Formatting-Inline-CodeSpanSpaceUnevenKept
+            tests:
+              - FormattingSubsystem_Format_AsymmetricOrDoublePadding_IsKept
+
+          - id: LintMark-Formatting-CodeSpanSpaceBlankKept
+            title: >-
+              The Formatting subsystem shall keep a code span that holds only spaces as written.
+            justification: |
+              The spaces are the whole content of the code span, and removing them would change what the code says.
+            children:
+              - LintMark-Formatting-Inline-CodeSpanSpaceBlankKept
+            tests:
+              - FormattingSubsystem_Format_CodeSpanOfSpaces_IsKept

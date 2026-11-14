@@ -26,7 +26,8 @@ configuration the file may be formatted under, null when it must not be formatte
 (`Func<EditorConfigResolver>`: creates the resolver used by `Run`, by default one that reads the real file system),
 `_formatter` (`DocumentFormatter`, by default one with the five block formatters of the `Blocks` subsystem:
 `HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`, in this
-order, and an `InlineNormalizer` of the `Inline` subsystem), and `_fileWriter`
+order, an `InlineNormalizer` of the `Inline` subsystem, and a `ParagraphFormatter` of the `Blocks` subsystem, which
+wraps the paragraphs that are wider than the line length), and `_fileWriter`
 (`Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>`: path, resolved target captured at the read,
 original bytes, new bytes; by default `AtomicFileWriter`). They are supplied through the internal constructor
 parameters `fileProcessor`, `documentParser`,
@@ -80,9 +81,12 @@ concurrently.
 - **`safety-html-mismatch`**, **`safety-structure-mismatch`**, and **`safety-not-idempotent`** at the first line where
   the original and the proposed text differ: a sentence naming the check, the description of the first difference, and
   `the file is not rewritten`.
-- **Formatting findings** (from `DocumentFormatter`): `line-ending` at 1:1, and each always-applied formatting rule
+- **Formatting findings** (from `DocumentFormatter`): `line-ending` at 1:1, each always-applied formatting rule
   (`trailing-whitespace`, `heading-blank-lines`, and the others of the rule catalog) at the place that its edit changes,
-  with the description of the rule as the message.
+  with the description of the rule as the message, and `line-length` at the first column beyond the line length of a
+  paragraph that is wrapped (`Line is N columns wide; the limit is L`). A `line-length` finding of a paragraph that
+  could not be wrapped has the kind lint only, so it is not a formatting finding: the message is extended by the words
+  `and the paragraph cannot be wrapped automatically`, and it is reported also after a rewrite.
 - **`config-error`** at the position of the problem in the configuration file, with the message of the `ConfigError`
   (see *ConfigLoader Design*), or at 1:1 of the Markdown file with the message `Cannot read .editorconfig settings:
   {detail}` (see *EditorConfigResolver Design*).
@@ -175,12 +179,12 @@ Steps: (1) a document with a `GridFallback` is never formatted: the result carri
 diagnostic, and no change; (2) format with `DocumentFormatter`, apply the edits with `SourcePatcher`, and reject a
 result that contains a carriage return; any exception of this step is a `file-format-error`; (3) convert the text to
 bytes with the target line ending (`SourceDocument.ToBytes`) and, when the bytes equal the file, return the formatting
-diagnostics with no change; (4) run the safety checks for every rewrite that changes bytes: when the text itself changed,
-the checks on the LF-normalized text run first, and the rendering of the texts as they are on disk (the original bytes and
-the proposed bytes, decoded without the byte order mark, so with the real line endings) always runs, also when only the
-line endings change, because the parser renders some text differently for CRLF and LF; a refusal returns the formatting
-diagnostics plus the safety diagnostic and the `SafetyStatus`, with no change; (5) otherwise return the formatting
-diagnostics and a `FileChange` that carries the resolved target.
+diagnostics with no change; (4) run the safety checks for every rewrite that changes bytes: when the text itself
+changed, the checks on the LF-normalized text run first, and the rendering of the texts as they are on disk (the
+original bytes and the proposed bytes, decoded without the byte order mark, so with the real line endings) always runs,
+also when only the line endings change, because the parser renders some text differently for CRLF and LF; a refusal
+returns the formatting diagnostics plus the safety diagnostic and the `SafetyStatus`, with no change; (5) otherwise
+return the formatting diagnostics and a `FileChange` that carries the resolved target.
 
 **ReportGridFallback** (private): Creates the `grid-table-invalid` diagnostic at the offending position, unless the rule
 is switched off in the configuration or suppressed at that offset. Switching the report off never lets the file be
@@ -254,9 +258,10 @@ makes the output and the files written deterministic (see the *LintMark* system 
 - **EditorConfigResolver** and **EditorConfigResult** — the line ending from the editor settings.
 - **LintMarkConfig** and **ConfigError** — the effective configuration and the problem entries it carries.
 - **DocumentFormatter**, **FormatResult**, and **SourcePatcher** — the proposed rewrite.
-- **HeadingFormatter**, **CodeBlockFormatter**, **ThematicBreakFormatter**, **ListFormatter**, and
-  **BlockQuoteFormatter** (`Blocks` subsystem), and **InlineNormalizer** (`Inline` subsystem) — the block formatters
-  and the inline normalizer that the default `DocumentFormatter` is created with.
+- **HeadingFormatter**, **CodeBlockFormatter**, **ThematicBreakFormatter**, **ListFormatter**,
+  **BlockQuoteFormatter**, and **ParagraphFormatter** (`Blocks` subsystem), and **InlineNormalizer** (`Inline`
+  subsystem) — the block formatters, the paragraph formatter, and the inline normalizer that the default
+  `DocumentFormatter` is created with.
 - **HtmlEquivalenceChecker**, **StructuralTokenChecker**, **IdempotencyChecker**, **EquivalenceResult**, and
   **SafetyStatus** — the safety checks and their outcome.
 - **AtomicFileWriter** — the write.

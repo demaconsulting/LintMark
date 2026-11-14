@@ -145,7 +145,8 @@ compensate for; the compensation is described in the unit designs.
 effective configuration and consumed by `DocumentFormatter`, which writes the file with it (see *DocumentFormatter
 Design*). The settings `final-newline` and `max-blank-lines` are read by the document-level passes of
 `DocumentFormatter`, `code-fence`, `thematic-break`, `bullet`, `ordered-style`, and `list-indent` by the block
-formatters of the `Blocks` subsystem (see *Blocks Design*), and `emphasis`, `strong`, and `bare-urls` by the inline
+formatters of the `Blocks` subsystem (see *Blocks Design*), `line-length` and `wrap` by the paragraph formatter of the
+same subsystem (see *ParagraphFormatter Design*), and `emphasis`, `strong`, and `bare-urls` by the inline
 normalizer of the `Inline` subsystem (see *Inline Design*). The `ignore` setting is applied by the engine (see
 *LintMarkEngine Design*). Two consequences of a
 configuration problem follow from this:

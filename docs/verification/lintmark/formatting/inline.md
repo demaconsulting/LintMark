@@ -2,25 +2,32 @@
 
 #### Verification Approach
 
-The `Inline` subsystem is verified by integration tests in `InlineSubsystemTests.cs`. It has one unit, the
-`InlineNormalizer`, which is not a block formatter: the `DocumentFormatter` calls it for the paragraphs that no block
-formatter claims. The tests therefore use the production composition of the tool, built by the helper
-`BlockFormatterAssertions.ProductionFormatter()` (the five block formatters, the `InlineNormalizer`, and the document
-passes), together with the real `DocumentParser`, `EditSet`, and `SourcePatcher`. No unit is replaced by a double.
+The `Inline` subsystem is verified by integration tests in `InlineSubsystemTests.cs` (the inline rules) and
+`InlineSubsystemWrapTests.cs` (the wrap and the code span rule). It has four units: the `InlineNormalizer`, which is not
+a block formatter (the `DocumentFormatter` calls it for the paragraphs that no block formatter claims), and the three
+supporting units of the paragraph wrap, `AtomTokenizer`, `LineWrapper`, and `BlockSyntaxGuard`, which the
+`ParagraphFormatter` of the `Blocks` subsystem calls. The tests therefore use the production composition of the tool,
+built by the helper `BlockFormatterAssertions.ProductionFormatter()` (the five block formatters, the `InlineNormalizer`,
+the `ParagraphFormatter`, and the document passes), together with the real `DocumentParser`, `EditSet`, and
+`SourcePatcher`. No unit is replaced by a double.
 
 The helper `BlockFormatterAssertions` formats a text and asserts every property that a rewrite of the tool must have,
-and the tests never relax an assertion to make a case pass. Besides the expected text, it asserts that the result renders
-to the same HTML (`HtmlEquivalenceChecker`), keeps its Pandoc structure (`StructuralTokenChecker`), is stable when
-formatted again (`IdempotencyChecker` and a direct second run), has ordered edits inside the text, reports a problem exactly
-when the text changed, and is the same when the formatter is called from several threads. These checkers are the ones that
-the `Engine` subsystem runs before it writes a file; the tests use them as oracles, and they are verified in the `Safety`
-subsystem.
+and the tests never relax an assertion to make a case pass. Besides the expected text, it asserts that the result
+renders to the same HTML (`HtmlEquivalenceChecker`), keeps its Pandoc structure (`StructuralTokenChecker`), is stable
+when formatted again (`IdempotencyChecker` and a direct second run), has ordered edits inside the text, reports a
+problem exactly when the text changed, and is the same when the formatter is called from several threads. These checkers
+are the ones that the `Engine` subsystem runs before it writes a file; the tests use them as oracles, and they are
+verified in the `Safety` subsystem.
 
 The subsystem tests cover the behavior that crosses the unit boundary: which paragraphs are normalized, which text keeps
-its form, and the effect of the three settings (`emphasis`, `strong`, and `bare-urls`). The branches of the normalizer
-(each guard, the per-paragraph proof, suppression, and rejected arguments) are verified by the unit tests and are
-described in the unit document. The corpus of generated paragraphs, which also contains the test that shows that the
-proof of a paragraph is needed, is part of the `Blocks` verification (`ListQuoteInlineCorpusTests.cs`).
+its form, and the effect of the three settings (`emphasis`, `strong`, and `bare-urls`). The wrap tests of the subsystem
+format overlong paragraphs at a line length of 20 columns through the production formatter and show what the three
+supporting units decide together: which constructs stay whole, where a line may break, which words never start a line,
+and where a hard break stays. The code span tests show the removal of the padding in the production composition. The
+branches of each unit (each guard, the per-paragraph proof, suppression, the refusals of the tokenizer, and rejected
+arguments) are verified by the unit tests and are described in the unit documents. The corpus of generated paragraphs,
+which also contains the test that shows that the proof of a paragraph is needed, is part of the `Blocks` verification
+(`ListQuoteInlineCorpusTests.cs`), and the corpus of the paragraph wrap is part of the `Formatting` verification.
 
 #### Test Environment
 
@@ -33,12 +40,12 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
   when underscores are configured; emphasis inside a word keeps its asterisks.
 - A bare URL (`http`, `https`, or `ftp`) is wrapped in angle brackets by default and stays as written when that is
   configured.
-- Code spans, link destinations, inline HTML, math, `www.` addresses, e-mail addresses, headings, and table cells keep their
-  text; emphasis in link text is written like other emphasis.
-- A URL that is not bare (in angle brackets, link text, a link destination, attached to a quotation mark, or written with
-  an upper-case scheme) stays as written.
-- Paragraphs inside lists, block quotes, and footnotes are normalized like any other paragraph, except emphasis that ends
-  the last paragraph of a footnote, which stays as written.
+- Code spans, link destinations, inline HTML, math, `www.` addresses, e-mail addresses, headings, and table cells keep
+  their text; emphasis in link text is written like other emphasis.
+- A URL that is not bare (in angle brackets, link text, a link destination, attached to a quotation mark, or written
+  with an upper-case scheme) stays as written.
+- Paragraphs inside lists, block quotes, and footnotes are normalized like any other paragraph, except emphasis that
+  ends the last paragraph of a footnote, which stays as written.
 - A rule that a comment disables is not applied to the paragraph, by identifier or by alias, and a rule that it does not
   disable is.
 - A paragraph that cannot be shown to render the same after the rewrite stays as written (nested emphasis, a literal
@@ -46,6 +53,15 @@ N/A - standard test environment. The tests use only in-memory text and bytes; no
   file is still normalized.
 - Every rewrite renders to the same HTML, keeps its Pandoc structure, and is stable when formatted again.
 - The same text gives the same result on many threads.
+- When a paragraph is wrapped, a link, an image, a code span, inline HTML, math, a footnote reference, an entity, a
+  Pandoc attribute, and a citation stay on one line, and a link whose text continues on the next line is joined into one
+  line of text and kept whole.
+- No wrapped line starts with a word that Markdown reads as a list marker, a number marker, or a heading marker.
+- A hard break written with a backslash stays at the end of its line, and a word that ends in a backslash is never
+  separated from the word after it.
+- A code span with exactly one space on each side loses both, also in list items and quotes, and a span with a backtick
+  at an edge, with uneven or wider padding, or with only spaces keeps its text; a suppression of the rule, by identifier
+  or by alias, keeps the padding.
 
 #### Test Scenarios
 
@@ -73,9 +89,35 @@ end are formatted. Each is rewritten.
 disables `emphasis`, `MD050`, `bare-urls`, or `MD034`, is formatted. The rule that the comment names, by identifier or
 by alias, is not applied.
 
-**A rule that is not suppressed is still applied**: A paragraph with emphasis, strong emphasis, or a URL, below a comment
-that disables a different rule (`emphasis`, `MD050`, or `bare-urls`), is formatted. The rules that the comment does not
-name are applied.
+**A rule that is not suppressed is still applied**: A paragraph with emphasis, strong emphasis, or a URL, below a
+comment that disables a different rule (`emphasis`, `MD050`, or `bare-urls`), is formatted. The rules that the comment
+does not name are applied.
+
+**Inline constructs stay whole when a paragraph is wrapped**: The paragraph `aaa [bb cc dd](ee) fff` followed by a code
+span `gg hh ii`, the word `jjj`, inline HTML `<span a="b c">kk</span>`, and `lll` is formatted at 20 columns. The link,
+the code span, and the inline HTML each stay on one line with their blanks, the paragraph is wrapped, and the result
+passes every assertion of the helper.
+
+**A link whose text continues on the next line is joined and kept whole**: The paragraph
+`aaa bbb ccc ddd eee [fff`, a line break, and `ggg](hhh) iii jjj` is formatted at 20 columns. The line break inside the
+link text becomes a space, and the result is `aaa bbb ccc ddd eee`, `[fff ggg](hhh) iii`, and `jjj` on three lines.
+
+**A wrapped line never starts with block syntax**: Paragraphs in which a lone dash, a number with a period (`2026.`), or
+a number sign stands where the line would break are formatted at 20 columns. In each, the line breaks before the word
+that precedes the marker, so the marker stays inside its line (`aaa bbb ccc ddd` and `eee - fff ggg`, and likewise for
+the others).
+
+**A hard break written with a backslash stays, and no break follows a final backslash**: The paragraph
+`aaa bbb ccc ddd eee fff ggg`, a backslash, a line break, and `hhh iii` is formatted at 20 columns. The backslash stays
+at the end of `fff ggg`, and the first line is wrapped after `eee`. A paragraph with the word `C:\temp\` (it ends in a
+backslash) is formatted at 20 columns, and no line of the result ends in a backslash, because the word moves together
+with the word after it.
+
+**Padding of a code span is removed**: A code span with one space after its opening backtick and one before its closing
+backtick is formatted. Both spaces go.
+
+**Padding of a code span is removed in lists and quotes**: A bullet item with a nested bullet item, each with a padded
+code span, and a block quote with a padded code span are formatted. Each span loses its padding and the markers stay.
 
 ##### Boundary conditions
 
@@ -102,16 +144,27 @@ URL in double quotes, and `HTTP://X.COM/a` are formatted. The text is unchanged.
 **Headings and table cells keep their text**: A heading and a pipe table with emphasis and a URL in the text and the
 cells are formatted. They are unchanged.
 
-**Emphasis ending a footnote keeps its text**: A footnote whose only paragraph is emphasis, and one that ends with strong
-emphasis, are formatted. The text is unchanged.
+**Emphasis ending a footnote keeps its text**: A footnote whose only paragraph is emphasis, and one that ends with
+strong emphasis, are formatted. The text is unchanged.
 
-**A paragraph that may render differently is left alone**: A paragraph with an unclosed declaration (`<!x`) before a URL,
-and a plain paragraph with underscore emphasis after it, are formatted. The first paragraph is exactly as written and the
-second paragraph is rewritten.
+**A paragraph that may render differently is left alone**: A paragraph with an unclosed declaration (`<!x`) before a
+URL, and a plain paragraph with underscore emphasis after it, are formatted. The first paragraph is exactly as written
+and the second paragraph is rewritten.
 
 **Paragraphs that cannot be shown safe are kept**: A paragraph with emphasis inside emphasis, a paragraph with emphasis
 and a literal underscore (`snake_case`), and a paragraph with a bracket in a document that defines a link reference are
 formatted. Each paragraph is unchanged.
+
+**A code span with a backtick at an edge keeps its padding**: A span delimited by two backticks whose content starts
+with a backtick, with one space of padding on each side, is formatted. The text is unchanged.
+
+**A code span with uneven or wider padding keeps its text**: A span with a space on its left only, and a span with two
+spaces on each side, are formatted. Both are unchanged.
+
+**A code span of spaces keeps its text**: A span that holds only three spaces is formatted. The text is unchanged.
+
+**A suppressed code span rule keeps the padding**: A padded code span below a comment that disables `code-span-space`,
+and one below a comment that disables `MD038`, are formatted. Each is unchanged.
 
 ##### Robustness
 

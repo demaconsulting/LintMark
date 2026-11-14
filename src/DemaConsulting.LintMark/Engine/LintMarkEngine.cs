@@ -184,7 +184,8 @@ internal sealed class LintMarkEngine
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
         _formatter = formatter ?? new DocumentFormatter(
             [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
-            new InlineNormalizer());
+            new InlineNormalizer(),
+            new ParagraphFormatter());
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 

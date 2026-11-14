@@ -154,3 +154,5 @@ returned as a result that is not equivalent with the description `The rendered o
 - **LintMarkEngine** — runs `Check` first, on the original and the proposed LF-normalized text of a file whose text
   would change, and `CheckOnDisk` on the original and the proposed bytes, decoded, of every file whose bytes would
   change, also when only the line endings change.
+- **ParagraphFormatter** (`Blocks` subsystem) — calls `Check` on the stand-alone paragraph as written and as wrapped,
+  and on the paragraph with its list or quote prefixes, as the proof of a wrap.

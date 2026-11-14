@@ -94,16 +94,16 @@ public class InlineNormalizerTests
     }
 
     /// <summary>
-    ///     Test that the normalizer lists the three rules it enforces and that the list cannot be changed.
+    ///     Test that the normalizer lists the four rules it enforces and that the list cannot be changed.
     /// </summary>
     [Fact]
-    public void InlineNormalizer_RuleIds_Read_ListsTheThreeRulesAndIsImmutable()
+    public void InlineNormalizer_RuleIds_Read_ListsTheFourRulesAndIsImmutable()
     {
         // Act: read the rule ids
         var ruleIds = Normalizer.RuleIds;
 
-        // Assert: the three rules, each registered, in an immutable array
-        Assert.Equal(["emphasis", "strong", "bare-urls"], ruleIds);
+        // Assert: the four rules, each registered, in an immutable array
+        Assert.Equal(["emphasis", "strong", "bare-urls", "code-span-space"], ruleIds);
         Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
         ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
     }
@@ -535,5 +535,148 @@ public class InlineNormalizerTests
         // Assert: the text is untouched
         Assert.Equal("_a_ http://x.com\n", formatted);
         Assert.Empty(result.Edits);
+    }
+
+    /// <summary>
+    ///     Test that one space on each side of a code span is removed, also in a list item and a quote, and with several backticks.
+    /// </summary>
+    [Theory]
+    [InlineData("a ` x ` b\n", "a `x` b\n")]
+    [InlineData("a `` x y `` b\n", "a ``x y`` b\n")]
+    [InlineData("` x `\n", "`x`\n")]
+    [InlineData("a ` x ` and ` y ` b\n", "a `x` and `y` b\n")]
+    [InlineData("- a ` x ` b\n", "- a `x` b\n")]
+    [InlineData("> a ` x ` b\n", "> a `x` b\n")]
+    [InlineData("a [` x `](u) b\n", "a [`x`](u) b\n")]
+    [InlineData("a *` x `* b\n", "a *`x`* b\n")]
+    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_LosesItsPadding(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that the padding of a code span whose content begins or ends with a backtick is kept, because it separates the content from the delimiters.
+    /// </summary>
+    [Theory]
+    [InlineData("a `` `x `` b\n")]
+    [InlineData("a `` x` `` b\n")]
+    [InlineData("a `` `x` `` b\n")]
+    public void InlineNormalizer_AddBlockEdits_CodeSpanWithBacktickAtAnEdge_KeepsItsPadding(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a code span with padding on one side only, or with more than one space, is kept as written.
+    /// </summary>
+    [Theory]
+    [InlineData("a ` x` b\n")]
+    [InlineData("a `x ` b\n")]
+    [InlineData("a `  x  ` b\n")]
+    [InlineData("a `  x ` b\n")]
+    [InlineData("a ` x  ` b\n")]
+    public void InlineNormalizer_AddBlockEdits_AsymmetricOrMultiplePadding_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a code span that holds only spaces is kept as written.
+    /// </summary>
+    [Theory]
+    [InlineData("a ` ` b\n")]
+    [InlineData("a `  ` b\n")]
+    [InlineData("a `   ` b\n")]
+    public void InlineNormalizer_AddBlockEdits_CodeSpanOfSpaces_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a code span that continues on the next line and one with a tab are kept as written.
+    /// </summary>
+    [Theory]
+    [InlineData("a ` x\ny ` b\n")]
+    [InlineData("a ` x\ty ` b\n")]
+    public void InlineNormalizer_AddBlockEdits_CodeSpanAcrossLinesOrWithTab_IsKept(string input)
+    {
+        // Act & Assert: only the normalizer is checked, because the whitespace rules would expand the tab
+        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter([], Normalizer), input);
+        Assert.Equal(input, formatted);
+        Assert.Empty(result.Edits);
+    }
+
+    /// <summary>
+    ///     Test that the code spans of headings and table cells are kept as written.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_CodeSpansInHeadingsAndTables_AreKept()
+    {
+        // Act & Assert: only the normalizer is checked
+        const string input = "# a ` x ` b\n\n| a |\n| --- |\n| ` x ` |\n";
+        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter([], Normalizer), input);
+        Assert.Equal(input, formatted);
+        Assert.Empty(result.Edits);
+    }
+
+    /// <summary>
+    ///     Test that the edits that remove the padding are deletions of one space, credited to the code span rule.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_ProposesTwoDeletionsOfOneSpace()
+    {
+        // Arrange: a paragraph with a padded code span
+        var document = BlockFormatterAssertions.Parse("a ` x ` b\n");
+        var edits = new EditSet();
+
+        // Act: add the edits
+        Normalizer.AddBlockEdits(document, BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph), LintMarkConfig.Default, edits);
+
+        // Assert: one space after the opening backtick and one before the closing one
+        Assert.Equal(
+            [new TextEdit(3, 1, string.Empty, "code-span-space"), new TextEdit(5, 1, string.Empty, "code-span-space")],
+            edits.ToImmutable());
+    }
+
+    /// <summary>
+    ///     Test that the code span rule is not applied to a paragraph in which it is suppressed, by identifier or by alias, and that the other rules still are.
+    /// </summary>
+    [Theory]
+    [InlineData("lintmark-disable code-span-space")]
+    [InlineData("markdownlint-disable MD038")]
+    public void InlineNormalizer_AddBlockEdits_CodeSpanRuleSuppressed_KeepsTheCodeSpanAndAppliesTheOthers(string directive)
+    {
+        // Arrange: a paragraph with a padded code span and emphasis, inside a region that disables the rule
+        var input = $"<!-- {directive} -->\n\n_a_ ` x `\n";
+        var formatter = new DocumentFormatter([], Normalizer);
+
+        // Act: format
+        var (result, formatted) = BlockFormatterAssertions.Apply(formatter, input);
+
+        // Assert: the emphasis changes and the code span keeps its padding
+        Assert.Equal($"<!-- {directive} -->\n\n*a* ` x `\n", formatted);
+        Assert.DoesNotContain(result.Edits, edit => edit.RuleId == "code-span-space");
+    }
+
+    /// <summary>
+    ///     Test that the code span rule works when every other inline rule is switched off, and that the rules do not hide each other.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_OtherInlineRulesOff_StillRemovesCodeSpanPadding()
+    {
+        // Arrange: the emphasis and strong rules suppressed by comments, the URL rule configured off
+        const string input = "<!-- lintmark-disable emphasis -->\n<!-- lintmark-disable strong -->\n\n_a_ ` x `\n";
+        var config = LintMarkConfig.Default with { BareUrls = BareUrlStyle.Leave };
+
+        // Act: format
+        var formatted = BlockFormatterAssertions.Apply(new DocumentFormatter([], Normalizer), input, config).Formatted;
+
+        // Assert: only the padding goes
+        Assert.Equal("<!-- lintmark-disable emphasis -->\n<!-- lintmark-disable strong -->\n\n_a_ `x`\n", formatted);
+    }
+
+    /// <summary>
+    ///     Test that removing the padding twice proposes nothing the second time, and that the result renders as before.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_IsStableAndRendersTheSame()
+    {
+        // Act: format a paragraph with a mixture of paddings
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable("a ` x ` `` `y `` `  z  ` ` w`\n");
+
+        // Assert: only the one padded on both sides with one space changes
+        Assert.Equal("a `x` `` `y `` `  z  ` ` w`\n", formatted);
     }
 }

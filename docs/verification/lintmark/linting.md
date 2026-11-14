@@ -35,6 +35,8 @@ process-wide state.
 - The always-applied rules, by identifier and by legacy number, and the identifiers of failures are reported as unknown
   rules when a configuration names them; the always-applied formatting rules are registered as fixable formatting rules
   with a description and their legacy numbers.
+- The code span rule is registered as a fixable formatting rule with the legacy number `MD038`, which resolves to it
+  and which a configuration rejects as an unknown rule.
 
 ### Test Scenarios
 
@@ -70,6 +72,10 @@ errors, and the canonical rule `line-length` is switched off.
 looked up and the number `MD009` is resolved. The entry has the formatting kind, a description, and the alias `MD009`,
 is not configurable, and the number resolves to the identifier.
 
+**The code span rule is registered as fixable and known by its number**: The entry of `code-span-space` is looked up
+and the number `MD038` is resolved. The entry has the formatting kind, carries the alias `MD038`, and is not
+configurable, and the number resolves to the identifier.
+
 #### Boundary conditions
 
 **The number of a removed rule is accepted and changes nothing**: A configuration with `MD033: false` is parsed. It
@@ -86,5 +92,9 @@ the message `Unknown rule` followed by the quoted name, so the protection of the
 switched off in a configuration.
 
 **An always-applied formatting rule cannot be configured by name or by number**: Configurations that name
-`trailing-whitespace` and `MD009` are parsed. Neither produces a configuration, and each gives exactly one error with the
-message `Unknown rule` followed by the quoted name.
+`trailing-whitespace` and `MD009` are parsed. Neither produces a configuration, and each gives exactly one error with
+the message `Unknown rule` followed by the quoted name.
+
+**The number of the code span rule cannot be configured**: A configuration with `MD038: false` under `rules` is parsed.
+It produces no configuration and exactly one error, `Unknown rule 'MD038'`, because the rule is always applied and can
+only be disabled by a suppression comment.

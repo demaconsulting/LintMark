@@ -4,7 +4,8 @@
 # PURPOSE:
 # - Define requirements for the LintMark Inline subsystem, which is part of the Formatting subsystem
 # - The Inline subsystem holds the normalizer for the text inside paragraphs: the delimiter characters of emphasis
-#   and strong emphasis, and bare URLs
+#   and strong emphasis, bare URLs, and the padding of code spans. It also holds the units that cut a paragraph into
+#   the words that a wrap may move, fill lines with them, and keep block syntax away from the start of a line
 # - Subsystem requirements describe what the inline rules guarantee together, with the real parser and the document
 #   formatter that drives them
 
@@ -276,3 +277,190 @@ sections:
                   - LintMark-Formatting-Inline-InlineNormalizer-DeterministicResult
                 tests:
                   - InlineSubsystem_Format_ManyThreads_GiveTheSameResult
+
+              - id: LintMark-Formatting-Inline-AtomTokenizerProvided
+                title: >-
+                  The Inline subsystem shall provide a tokenizer that cuts the text of a paragraph into the words that
+                  a wrap may move, keeping inline constructs whole.
+                justification: |
+                  A wrap may only break a line between words, and a link, a code span, or a tag with blanks inside it
+                  is one word. The decision where a word ends belongs in one place that every wrap consults.
+                children:
+                  - LintMark-Formatting-Inline-AtomTokenizer-RejectsMissingArguments
+                  - LintMark-Formatting-Inline-AtomTokenizer-WordsSeparatedAtWhitespace
+                  - LintMark-Formatting-Inline-AtomTokenizer-EscapedCharactersKept
+                  - LintMark-Formatting-Inline-AtomTokenizer-WideCharactersAreOrdinaryWords
+                  - LintMark-Formatting-Inline-AtomTokenizer-NoBreakAfterTaskMarker
+                  - LintMark-Formatting-Inline-AtomTokenizer-BreakOpportunitiesCounted
+                  - LintMark-Formatting-Inline-AtomTokenizer-InconsistentSpansRefused
+                  - LintMark-Formatting-Inline-AtomTokenizer-ContainerPrefixesExcluded
+                  - LintMark-Formatting-Inline-AtomTokenizer-ResultImmutable
+                  - LintMark-Formatting-Inline-AtomTokenizer-SupportingTypesValidated
+                  - LintMark-Formatting-Inline-AtomTokenizer-DeterministicResult
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_KeepsInlineConstructsWhole
+                  - InlineSubsystem_Format_LinkTextOverTwoLines_IsJoinedAndKeptWhole
+
+              - id: LintMark-Formatting-Inline-LineWrapperProvided
+                title: >-
+                  The Inline subsystem shall provide a line wrapper that fills lines with the words of a paragraph up
+                  to a width that it measures in display columns.
+                justification: |
+                  Filling lines is the same work for every paragraph, and the readers of a document see columns, not
+                  characters. One wrapper that every paragraph shares gives every paragraph the same result.
+                children:
+                  - LintMark-Formatting-Inline-LineWrapper-RejectsInvalidArguments
+                  - LintMark-Formatting-Inline-LineWrapper-GreedyFill
+                  - LintMark-Formatting-Inline-LineWrapper-ExactFitStays
+                  - LintMark-Formatting-Inline-LineWrapper-OverWideAtomOwnLine
+                  - LintMark-Formatting-Inline-LineWrapper-WidthInColumns
+                  - LintMark-Formatting-Inline-LineWrapper-GuardForcedOverflowReported
+                  - LintMark-Formatting-Inline-LineWrapper-SegmentFirstLineWidth
+                  - LintMark-Formatting-Inline-LineWrapper-NoWhitespaceAtLineEnds
+                  - LintMark-Formatting-Inline-LineWrapper-ResultImmutable
+                  - LintMark-Formatting-Inline-LineWrapper-DeterministicResult
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_NeverStartsABlockSyntaxLine
+                  - InlineSubsystem_Format_LinkTextOverTwoLines_IsJoinedAndKeptWhole
+
+              - id: LintMark-Formatting-Inline-BlockSyntaxGuardProvided
+                title: >-
+                  The Inline subsystem shall provide a guard that tells which words would start another block at the
+                  start of a line.
+                justification: |
+                  A wrap that put such a word at the start of a line would turn a part of a paragraph into a list, a
+                  heading, or another block. The knowledge of which words do that belongs in one place that every
+                  wrap consults.
+                children:
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-RejectsMissingArguments
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-NumbersThatAreNotMarkersNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-InlineHtmlNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-OrdinaryTextNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-PandocStructuralLinesDetected
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-DeterministicAnswers
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_NeverStartsABlockSyntaxLine
+
+              - id: LintMark-Formatting-Inline-WrapKeepsInlineConstructsWhole
+                title: >-
+                  The Inline subsystem shall keep each link, code span, and inline HTML element of a paragraph whole,
+                  on one line, when the paragraph is wrapped, also a link whose text continues on the next line.
+                justification: |
+                  Breaking a line inside a link, a code span, or a tag changes what the document says or how it
+                  renders, so a wrap may only break the text between such items.
+                children:
+                  - LintMark-Formatting-Inline-AtomTokenizer-LinksAndImagesWhole
+                  - LintMark-Formatting-Inline-AtomTokenizer-CodeSpansWhole
+                  - LintMark-Formatting-Inline-AtomTokenizer-AngleBracketLinksAndBareUrlsWhole
+                  - LintMark-Formatting-Inline-AtomTokenizer-InlineHtmlWhole
+                  - LintMark-Formatting-Inline-AtomTokenizer-MultiLineCodeSpanJoined
+                  - LintMark-Formatting-Inline-AtomTokenizer-MultiLineLinkTextJoined
+                  - LintMark-Formatting-Inline-AtomTokenizer-UnstableCodeSpanRefused
+                  - LintMark-Formatting-Inline-AtomTokenizer-UnsafeMultiLineConstructRefused
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_KeepsInlineConstructsWhole
+                  - InlineSubsystem_Format_LinkTextOverTwoLines_IsJoinedAndKeptWhole
+
+              - id: LintMark-Formatting-Inline-WrapNeverStartsBlockSyntax
+                title: >-
+                  The Inline subsystem shall not start a line of a wrapped paragraph with text that Markdown reads as
+                  a list marker, a number marker, or a heading marker.
+                justification: |
+                  A line that starts with such text turns a part of the paragraph into a list or a heading, so the
+                  wrap would change what the document says.
+                children:
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-BulletMarkersGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-NumberMarkersGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-HeadingMarkersGuarded
+                  - LintMark-Formatting-Inline-LineWrapper-GuardMovesBreakEarlier
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_NeverStartsABlockSyntaxLine
+
+              - id: LintMark-Formatting-Inline-WrapKeepsHardBreaks
+                title: >-
+                  The Inline subsystem shall wrap the parts of a paragraph between hard line breaks on their own, so
+                  that each hard break stays where it is and no wrap creates a new one.
+                justification: |
+                  A hard line break is part of what the author wrote, and a backslash at the end of a line is a hard
+                  break, so a wrap must neither move a break nor make one by accident.
+                children:
+                  - LintMark-Formatting-Inline-AtomTokenizer-HardBreaksSegment
+                  - LintMark-Formatting-Inline-AtomTokenizer-NoBreakAfterBackslash
+                tests:
+                  - InlineSubsystem_Format_WrappedParagraph_KeepsHardBreaksAndNeverBreaksAfterABackslash
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpace
+                title: >-
+                  The Inline subsystem shall write a code span of a paragraph that stands on one line, holds no tab, and
+                  is padded with exactly one space on each side without that padding.
+                justification: |
+                  One space on each side of a code span is not part of the code, because the parser removes it, so it
+                  only makes the spans of a project inconsistent. A code span that continues on another line, holds a
+                  tab, or stands in a heading or a table cell is not a paragraph code span of this kind and is not
+                  changed.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceRemoved
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceEditsAreDeletions
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceIndependentOfOtherRules
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceStableAndRendersTheSame
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceAcrossLinesOrTabKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceHeadingsAndTablesKept
+                tests:
+                  - InlineSubsystem_Format_PaddedCodeSpan_LosesItsPadding
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpaceBacktickKept
+                title: >-
+                  The Inline subsystem shall keep the padding of a code span whose content starts or ends with a
+                  backtick as written.
+                justification: |
+                  The padding separates the content from the delimiters, so removing it would end or change the code
+                  span.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceBacktickKept
+                tests:
+                  - InlineSubsystem_Format_CodeSpanWithBacktickAtAnEdge_KeepsItsPadding
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpaceUnevenKept
+                title: >-
+                  The Inline subsystem shall keep a code span whose padding is on one side only, or is more than one
+                  space on a side, as written.
+                justification: |
+                  The parser removes the padding only when one space stands on each side, so any other padding is
+                  content of the code span.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceUnevenKept
+                tests:
+                  - InlineSubsystem_Format_AsymmetricOrDoublePadding_IsKept
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpaceBlankKept
+                title: >-
+                  The Inline subsystem shall keep a code span that holds only spaces as written.
+                justification: |
+                  The spaces are the whole content of the code span, and removing them would change what the code
+                  says.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceBlankKept
+                tests:
+                  - InlineSubsystem_Format_CodeSpanOfSpaces_IsKept
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpaceSuppressed
+                title: >-
+                  The Inline subsystem shall keep the padding of a code span as written in a paragraph in which a
+                  suppression comment disables the `code-span-space` rule, whether the comment names the rule by its
+                  identifier or by its legacy rule number.
+                justification: |
+                  An author who switched a rule off for a passage expects the passage to stay as written.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceSuppressedRuleSkipped
+                tests:
+                  - InlineSubsystem_Format_CodeSpanRuleSuppressed_KeepsThePadding
+
+              - id: LintMark-Formatting-Inline-CodeSpanSpaceInContainers
+                title: >-
+                  The Inline subsystem shall remove the padding of a padded code span in a paragraph inside a list
+                  item or a block quote the same way as in a paragraph at the top level.
+                justification: |
+                  Much of the text of a document is in lists and quotes, and the style of its code spans must not
+                  depend on where the text is.
+                tests:
+                  - InlineSubsystem_Format_PaddedCodeSpanInListAndQuote_LosesItsPadding

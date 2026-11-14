@@ -3,15 +3,15 @@
 ##### Verification Approach
 
 `ThematicBreakFormatter` is verified with unit tests in `ThematicBreakFormatterTests.cs`. The real `DocumentParser`,
-`SourceDocument`, `LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double. A helper of
-the test project (`BlockFormatterAssertions`) applies the formatter alone, without the document passes, patches the
+`SourceDocument`, `LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double. A helper
+of the test project (`BlockFormatterAssertions`) applies the formatter alone, without the document passes, patches the
 text, and asserts that the result is the expected text, that it renders to the same HTML as the input, that it keeps its
-Pandoc structure, and that the formatter has nothing more to do with the result. Most scenarios are theories with several
-inputs, and the break style is varied through the configuration. Suppression is driven by real suppression comments. One
-test builds a document by hand (`with`) whose block list lacks the break, to reach a branch that the parser cannot
-produce. The test for concurrent use parses one document once and shares it, with one formatter instance, among eight
-threads that start together at a barrier; each thread formats it many times into its own edit set, and every result is
-compared with the result of a single call.
+Pandoc structure, and that the formatter has nothing more to do with the result. Most scenarios are theories with
+several inputs, and the break style is varied through the configuration. Suppression is driven by real suppression
+comments. One test builds a document by hand (`with`) whose block list lacks the break, to reach a branch that the
+parser cannot produce. The test for concurrent use parses one document once and shares it, with one formatter instance,
+among eight threads that start together at a barrier; each thread formats it many times into its own edit set, and every
+result is compared with the result of a single call.
 
 ##### Test Environment
 
@@ -20,10 +20,10 @@ N/A - standard test environment.
 ##### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- A thematic break is accepted and nothing else, in particular not a setext underline; null arguments and a block that is
-  not a break are rejected; the list of rules is immutable.
-- Every written form of a break becomes three characters of the configured style, the indentation and the container prefix
-  stay, and trailing whitespace is removed.
+- A thematic break is accepted and nothing else, in particular not a setext underline; null arguments and a block that
+  is not a break are rejected; the list of rules is immutable.
+- Every written form of a break becomes three characters of the configured style, the indentation and the container
+  prefix stay, and trailing whitespace is removed.
 - A break is left as written where the conversion would underline text, start or close front matter, join a list marker
   of the same character, or look like a grid table border after a plus sign; trailing whitespace is still removed there.
 - Each edit is attributed to the rule that it enforces, and a canonical break produces no edit.
@@ -80,11 +80,11 @@ never had.
 the asterisk configuration are formatted. Each is unchanged, because the converted line would be a thematic break of its
 own and the list would be lost; `- ***` with the underscore configuration is converted.
 
-**A break after a plus sign list marker stays as written when dashes are wanted**: `+ ***`, `+ * * *`, `+ ___`, `> + ***`
-are formatted with the default thematic break style, with the production formatters (with `bullet: plus`, so that the list
-formatter keeps the marker; it only closes up an extra gap after it) and with the formatter alone. Each is
-unchanged, because `+ ---` looks like the border of a grid table, and the result renders the same and is stable. With the
-asterisk configuration `+ * * *` becomes `+ ***`, and with the underscore configuration `+ ***` and `+ - - -` become
+**A break after a plus sign list marker stays as written when dashes are wanted**: `+ ***`, `+ * * *`, `+ ___`,
+`> + ***` are formatted with the default thematic break style, with the production formatters (with `bullet: plus`, so
+that the list formatter keeps the marker; it only closes up an extra gap after it) and with the formatter alone. Each is
+unchanged, because `+ ---` looks like the border of a grid table, and the result renders the same and is stable. With
+the asterisk configuration `+ * * *` becomes `+ ***`, and with the underscore configuration `+ ***` and `+ - - -` become
 `+ ___`; the production formatters are given `bullet: plus` for these inputs too.
 
 **A break that is missing from the block list has no previous sibling (defensive, no requirement)**: A break directly
@@ -96,8 +96,8 @@ above is not taken for a sibling, and the break is converted.
 is reported. A break after a comment that enables the rule again is formatted.
 
 **CRLF line endings, mixed line endings, and a byte order mark do not change the edits**: A document parsed from bytes
-with CRLF line endings or mixed line endings, and one with a byte order mark, give the same edits as the LF text (separate
-tests for the line endings and for the mark), and the formatted bytes keep the endings and the mark.
+with CRLF line endings or mixed line endings, and one with a byte order mark, give the same edits as the LF text
+(separate tests for the line endings and for the mark), and the formatted bytes keep the endings and the mark.
 
 ###### Error handling
 
@@ -110,5 +110,6 @@ underline, a list item, and fenced content that looks like a break are not accep
 **The rule list is immutable**: The `RuleIds` property lists `thematic-break` and `trailing-whitespace`, and a cast to a
 mutable type cannot change it.
 
-**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight threads
-that start together; each formats it many times into its own edit set. Every result equals the result of a single call.
+**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight
+threads that start together; each formats it many times into its own edit set. Every result equals the result of a
+single call.

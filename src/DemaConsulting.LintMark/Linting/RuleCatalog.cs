@@ -168,6 +168,16 @@ internal static class RuleCatalog
     public const string BareUrlsRuleId = "bare-urls";
 
     /// <summary>
+    ///     The identifier of the always-applied rule that removes the spaces that pad a code span on both sides.
+    /// </summary>
+    public const string CodeSpanSpaceRuleId = "code-span-space";
+
+    /// <summary>
+    ///     The identifier of the configurable rule that wraps paragraphs that are wider than the line length.
+    /// </summary>
+    public const string LineLengthRuleId = "line-length";
+
+    /// <summary>
     ///     The identifier reported when a rewrite would change how the document renders.
     /// </summary>
     public const string HtmlMismatchRuleId = "safety-html-mismatch";
@@ -228,7 +238,7 @@ internal static class RuleCatalog
     private static readonly RuleInfo[] Table =
     [
         // Configurable rules (formatting)
-        Configurable("line-length", DiagnosticKind.Formatting, "A line is longer than the configured line length.", true, "MD013"),
+        Configurable(LineLengthRuleId, DiagnosticKind.Formatting, "A line is longer than the configured line length.", true, "MD013"),
         Configurable("paragraph-wrap", DiagnosticKind.Formatting, "A paragraph is not wrapped the way the configuration asks for.", true),
 
         // Configurable rules (lint only)
@@ -277,6 +287,7 @@ internal static class RuleCatalog
         Applied(EmphasisRuleId, "Emphasis is not written with the configured delimiter.", "MD049"),
         Applied(StrongRuleId, "Strong emphasis is not written with the configured delimiter.", "MD050"),
         Applied(BareUrlsRuleId, "A bare URL is not wrapped in angle brackets.", "MD034"),
+        Applied(CodeSpanSpaceRuleId, "A code span has a space after its opening backtick and before its closing backtick that it does not need.", "MD038"),
 
         // Safety refusals
         Fixed(HtmlMismatchRuleId, DiagnosticKind.LintOnly, "A rewrite would change how the document renders, so the file is not rewritten."),

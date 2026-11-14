@@ -14,7 +14,8 @@ number from markdownlint (for example `MD009`) that you can use in a suppression
   `--fix` would change. It writes no file, and because it reports the findings, it exits with `1` when there are any.
 - **Always applied**: A formatting rule cannot be switched off in the `rules` setting of the configuration: its
   identifier and its legacy number are unknown names there. Its *settings* (such as `code-fence`) choose the form that
-  it writes. To leave a passage alone, use a suppression comment (see *Suppressing a Rule*).
+  it writes. To leave a passage alone, use a suppression comment (see *Suppressing a Rule*). The one exception is
+  `line-length` (`MD013`), which you can also switch off in `rules` (see *line-length (MD013)*).
 - **Content is never changed**: Code (fenced, indented, and inline), HTML, math, front matter, and grid tables keep
   their content, including whitespace and blank lines. Links keep their text and destination. Text that LintMark
   cannot read with certainty is left as it is, and so is a rewrite that could change what the document means or how
@@ -60,8 +61,8 @@ the other yet.
 
 Replaces each tab in the text of a paragraph or heading by spaces up to the next tab stop of four columns. A tab in
 the indentation of a line, in code (also inline code), in a table, in a link destination or title, at the end of a line
-(the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block that
-LintMark does not rewrite stays as it is.
+(the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block
+that LintMark does not rewrite stays as it is.
 
 - **Setting**: none; the tab stops are four columns wide.
 - **Before**: `a→b` and `abc→d`
@@ -518,7 +519,8 @@ continue a paragraph.
 
 ## Inline Text
 
-These rules change the delimiters of emphasis and strong emphasis and wrap bare URLs. They work on the text of a
+These rules change the delimiters of emphasis and strong emphasis, wrap bare URLs, and remove needless spaces inside
+code spans. They work on the text of a
 paragraph. The text of tables and headings is not normalized, and code spans, link and image destinations, HTML, and
 math keep their content. Emphasis in link text and in an image description is written like any other emphasis
 (`[_a_](url)` becomes `[*a*](url)`). Emphasis or strong emphasis that ends the last paragraph of a footnote is left as
@@ -578,12 +580,261 @@ changed.
   www.example.com or user@example.com.
   ```
 
+### code-span-space (MD038)
+
+Removes the one space on each side of a code span that is padded with exactly one space on each side. The padding is
+not part of the code, and a renderer removes it anyway, so removing it does not change how the text renders.
+
+- **Setting**: none. The rule is always applied, and it is not listed in `rules`. A suppression comment switches it
+  off for a passage (`code-span-space` or `MD038`).
+- **Before**:
+
+  ```text
+  Use ` code ` and ` padded ` here, but `  two  ` and ` one` and `` ` tick `` and `   ` stay.
+  ```
+
+- **After**:
+
+  ```text
+  Use `code` and `padded` here, but `  two  ` and ` one` and `` ` tick `` and `   ` stay.
+  ```
+
+- **Reported**: As `code-span-space` at the opening backtick of the first padded code span of a line, with the message
+  `A code span has a space after its opening backtick and before its closing backtick that it does not need.`
+
+The padding is needed, and so it is kept, in these cases:
+
+- The content of the code span starts or ends with a backtick (the third kept span of the example): the space
+  separates the content from the delimiter.
+- The padding is on one side only, or is wider than one space (the first two kept spans of the example): removing a
+  space would change the content.
+- The code span consists of spaces only (the last span of the example).
+- The code span continues over more than one line, or it is in a heading or in a table cell. The text of headings and
+  tables is not normalized.
+
 ### What is not fixed
 
-The legacy rules `MD037` (spaces inside emphasis markers), `MD038` (spaces inside code spans), and `MD039` (spaces
-inside link text) are not fixed, and LintMark does not know these numbers as rule names yet. Removing the spaces would
-change how the text renders (a literal `* text *` would become emphasis, and code and link text would lose
-characters). They are planned as checks that only report a problem, in a later release.
+The legacy rules `MD037` (spaces inside emphasis markers) and `MD039` (spaces inside link text) are not fixed, and
+LintMark does not know these numbers as rule names yet. Removing the spaces would change how the text renders (a
+literal `* text *` would become emphasis, and link text would lose characters). They are planned as checks that only
+report a problem, in a later release.
+
+## Paragraphs
+
+### line-length (MD013)
+
+Wraps a paragraph that has a line wider than the limit. The rule fills only what overflows: a paragraph is rewrapped
+only when at least one of its lines is wider than `line-length`, and a paragraph that fits is never touched, however
+its lines are broken. The wrapped paragraph keeps the same words in the same order, and every line that LintMark writes
+is as full as the limit allows. Paragraphs in list items and in block quotes are wrapped too, and each continuation
+line gets the prefix that keeps it inside the item or the quote.
+
+- **Settings**: `line-length` is the width in display columns; the default is `120`, and `0` means unlimited, which
+  switches the rule off. `wrap` selects the method; `fill` (the default) is the only method that LintMark applies.
+  `wrap: sentence` and `wrap: semantic` are accepted and validated, but they are not applied yet: nothing is wrapped or
+  reported because of them.
+- **Switching it off**: Besides `line-length: 0`, the `rules` setting switches this rule off by its identifier or its
+  legacy number (`line-length: false` or `MD013: false`; see *Rules*). A suppression comment (`line-length` or `MD013`)
+  leaves a passage alone.
+
+#### How the width is measured
+
+The width of a line is its number of display columns, not its number of characters. A letter, a digit, and a
+punctuation mark take one column; a CJK character and most emoji take two columns; a combining mark takes none. The
+prefix of a list item or a block quote (the marker and the space after it) belongs to the line and counts, and trailing
+spaces do not.
+
+#### What is reported
+
+A line of a paragraph that is wider than the limit, and that has at least one place at which it can be broken, is
+reported as `line-length`, at the line and the first character that is beyond the limit. Only the first such line of a
+paragraph is reported, with its width:
+
+```text
+guide.md:1:51: line-length Line is 103 columns wide; the limit is 50
+```
+
+A violation that `--fix` can repair is fixable. `--check` and `--diff` report it and write nothing, and `--fix` wraps
+the paragraph and no longer reports it.
+
+#### What is fixed
+
+- **Paragraphs**: A paragraph is filled greedily: as many words as fit go on each line, and a word that is wider than
+  the limit stands alone on its line.
+- **Prefixes**: The prefix of a list item or a block quote is kept, and it is added to every line that LintMark writes.
+- **Hard line breaks**: A hard line break (two or more spaces, or a backslash, at the end of a line) stays where it is,
+  and the text between two hard breaks is wrapped on its own.
+- **Inline constructs**: A link, an image, a code span, inline HTML, a bare URL or autolink, a math expression, a
+  footnote reference, and a Pandoc attribute or citation are never split. When one does not fit, it moves whole to the
+  next line.
+- **Block syntax**: No line that LintMark writes starts with text that a reader would take for another block: a list
+  marker (`-`, `+`, `*`), a number marker (`1.`, `2026.`), a heading (`#`), a quote (`>`), a fence, a table, a
+  definition, an HTML block, or a Pandoc construct. The word before it moves to the next line with it, so that the
+  guarded word is never at the start.
+
+A long paragraph:
+
+- **Before** (`line-length: 50`):
+
+  ```text
+  LintMark rewraps a paragraph only when a line is wider than the limit, and it keeps the words in order.
+  ```
+
+- **After**:
+
+  ```text
+  LintMark rewraps a paragraph only when a line is
+  wider than the limit, and it keeps the words in
+  order.
+  ```
+
+A list item keeps the indentation of its text:
+
+- **Before**:
+
+  ```text
+  - A list item that is too long for the limit is wrapped, and its continuation lines line up with its text.
+  - A short item.
+  ```
+
+- **After**:
+
+  ```text
+  - A list item that is too long for the limit is
+    wrapped, and its continuation lines line up with
+    its text.
+  - A short item.
+  ```
+
+A block quote keeps its marker on every line:
+
+- **Before**:
+
+  ```text
+  > A quoted paragraph that is too long for the limit keeps the quote marker on every line that it writes.
+  ```
+
+- **After**:
+
+  ```text
+  > A quoted paragraph that is too long for the
+  > limit keeps the quote marker on every line that
+  > it writes.
+  ```
+
+A link that does not fit moves whole to the next line. It is never split, so the line with the link stays wider than
+the limit, and it is not reported again:
+
+- **Before**:
+
+  ```text
+  Read the [LintMark user guide](https://example.com/lintmark/docs/user_guide/introduction.md) for the details.
+  ```
+
+- **After**:
+
+  ```text
+  Read the
+  [LintMark user guide](https://example.com/lintmark/docs/user_guide/introduction.md)
+  for the details.
+  ```
+
+A word that would be read as block syntax at the start of a line is kept with the word before it. In the first
+paragraph, `2026.` would start a line (and look like an ordered list item); in the second, `-` would:
+
+- **Before**:
+
+  ```text
+  The conference was held in the capital city in 2026. It was a great event for everyone who came.
+
+  The new release removes the old option and adds it - a change that users asked for.
+  ```
+
+- **After**:
+
+  ```text
+  The conference was held in the capital city
+  in 2026. It was a great event for everyone who
+  came.
+
+  The new release removes the old option and adds
+  it - a change that users asked for.
+  ```
+
+The width is measured in display columns, so a line with CJK characters or emoji is wrapped earlier than the same
+number of Latin letters. Each of the 15 emoji below takes two columns:
+
+- **Before**:
+
+  ```text
+  日本語 のテキスト は一文字 が二桁 の幅に なります。 日本語 のテキスト は一文字 が二桁 の幅に なります。
+
+  The party 🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉 started and everyone had a good time at it.
+  ```
+
+- **After**:
+
+  ```text
+  日本語 のテキスト は一文字 が二桁 の幅に
+  なります。 日本語 のテキスト は一文字 が二桁
+  の幅に なります。
+
+  The party 🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉 started
+  and everyone had a good time at it.
+  ```
+
+A paragraph that fits is not changed, even when its lines are short or uneven:
+
+```text
+A short paragraph that fits
+is never touched, even when it
+is wrapped in an odd way.
+```
+
+#### What is reported but not fixed
+
+LintMark reports some overflow that it cannot repair. The message then ends with `and the paragraph cannot be wrapped
+automatically`, `--fix` leaves the paragraph as written, and the finding stays after the fix:
+
+```text
+lazy.md:1:51: line-length Line is 69 columns wide; the limit is 50 and the paragraph cannot be wrapped automatically
+```
+
+This happens when:
+
+- A line of a list item is a lazy continuation line, one that continues the item without the indentation of its text.
+  The paragraph is kept as written. In this example, the second line of the item is a lazy continuation line:
+
+  ```text
+  - A list item whose lines are too long for the limit of fifty columns
+  continues here without the indentation of the item and is also too long.
+  ```
+
+- A line after a hard break would have to start with text that is read as block syntax.
+- A guarded word cannot be moved without making the line wider than the limit.
+- A wrap would be rejected by the checks that LintMark makes on its own result, for example because another rule would
+  change the wrapped text again. The paragraph stays as written.
+
+#### What is exempt
+
+LintMark neither reports nor changes the following, even where a line is wider than the limit:
+
+- A line that has no place to break, because it holds a single link, URL, autolink, code span, image, or word.
+- Code (fenced and indented), HTML, math, tables, headings, link reference definitions, and front matter.
+- A paragraph in a footnote definition.
+- A paragraph that holds a Pandoc structural line: a line that starts with `:::`, `$$`, `{=`, a backslash command, a
+  `%` line, or the border of a grid table.
+- A paragraph that holds a tab.
+- A paragraph in which one of the rules that decide how its text is written is suppressed by a comment: `line-length`,
+  `trailing-whitespace`, `hard-tabs`, `emphasis`, `strong`, `bare-urls`, `code-span-space`, `list-indent`,
+  `list-marker-space`, or `blockquote-space` (or the legacy numbers of them). Use a `line-length` or `MD013` comment
+  to keep one paragraph as it is.
+
+#### Safety
+
+The wrap is the last step of a fix, after the other rules have written their changes, and it follows the same safety
+rules as every other change (see *Safety Checks* in the introduction): the wrapped text must render to the same HTML
+and must be stable when it is formatted again. When a check fails, the file is refused and left untouched.
 
 ## Suppressing a Rule
 
@@ -637,8 +888,14 @@ Text without a blank line before it.
 | `emphasis`            | `MD049`          | `emphasis: asterisk`                     |
 | `strong`              | `MD050`          | `strong: asterisk`                       |
 | `bare-urls`           | `MD034`          | `bare-urls: autolink`                    |
+| `code-span-space`     | `MD038`          | none                                     |
+| `line-length`         | `MD013`          | `line-length: 120`, `wrap: fill`         |
 
-The line ending rule `line-ending` is described under *Line Endings and .editorconfig*; it has no legacy number and cannot
-be suppressed. The rules that report problems without rewriting (for example `heading-increment`), the rules for
-paragraphs, tables, and links, and the legacy rules `MD037`, `MD038`, and `MD039` (see *What is not fixed*) are not
-implemented yet.
+`line-length` is the only rule in this table that `rules` can switch off (`line-length: false` or `MD013: false`); the
+other rules are always applied. `wrap: sentence` and `wrap: semantic` are accepted but not applied yet, and
+`line-length: 0` means that there is no limit.
+
+The line ending rule `line-ending` is described under *Line Endings and .editorconfig*; it has no legacy number and
+cannot be suppressed. The rules that report problems without rewriting (for example `heading-increment`), the rules for
+tables and links, the rule `paragraph-wrap` (the `sentence` and `semantic` modes of `wrap`), and the legacy rules
+`MD037` and `MD039` (see *What is not fixed*) are not implemented yet.

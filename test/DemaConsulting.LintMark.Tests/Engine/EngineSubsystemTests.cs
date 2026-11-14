@@ -741,4 +741,30 @@ public class EngineSubsystemTests
         Assert.StartsWith("a.md:2:1: grid-table-invalid ", Assert.Single(lines), StringComparison.Ordinal);
         Assert.Equal("para\r\n+---+---+\r\n"u8.ToArray(), File.ReadAllBytes(path));
     }
+
+    /// <summary>
+    ///     Test that the engine reports a paragraph that is too wide when it only checks and wraps it when it fixes, through the real formatting units.
+    /// </summary>
+    [Fact]
+    public void EngineSubsystem_Run_OverlongParagraph_IsReportedWhenCheckingAndWrappedWhenFixing()
+    {
+        // Arrange: a file with a paragraph that is too wide for the configured width, and another that cannot be wrapped
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "line-length: 20\n");
+        var shortened = directory.WriteBytes("wrap.md", "ant bat cat dog eel fox gnu\n"u8.ToArray());
+        directory.WriteBytes("lazy.md", "- ant bat cat dog\neel fox gnu hen ink jam\n"u8.ToArray());
+
+        // Act: check, then fix
+        var checkResult = LintMarkEngineTests.Execute(directory, new LintMarkEngine(2), ".");
+        var fixResult = LintMarkEngineTests.Execute(directory, new LintMarkEngine(2), "--fix", ".");
+
+        // Assert: both are reported when checking; the fix wraps the first and keeps reporting the second
+        Assert.Equal(1, checkResult.ExitCode);
+        Assert.Equal(
+            ["lazy.md:2:21: line-length", "wrap.md:1:21: line-length"],
+            checkResult.Lines.Select(line => string.Join(' ', line.Split(' ').Take(2))));
+        Assert.Equal("ant bat cat dog eel\nfox gnu\n", System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(shortened)));
+        Assert.Equal(1, fixResult.ExitCode);
+        Assert.Equal("lazy.md:2:21:", Assert.Single(fixResult.Lines).Split(' ')[0]);
+    }
 }

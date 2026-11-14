@@ -79,7 +79,7 @@ sections:
                   Removed rules must stay recognizable so that an old entry is neither an error nor a rule.
                 tests:
                   - RuleCatalog_TryResolve_DroppedAlias_ReturnsFalseAndIsDropped
-                  - RuleCatalog_Rules_Configurable22NonConfigurable33AndDropped9_CountsMatch
+                  - RuleCatalog_Rules_Configurable22NonConfigurable34AndDropped9_CountsMatch
 
               - id: LintMark-Linting-RuleCatalog-Defaults
                 title: >-
@@ -188,3 +188,13 @@ sections:
                   - RuleCatalog_TryResolveConfigurable_Null_Throws
                   - RuleCatalog_TryGet_Null_Throws
                   - RuleCatalog_IsDroppedAlias_Null_Throws
+
+              - id: LintMark-Linting-RuleCatalog-CodeSpanSpaceRegistered
+                title: >-
+                  The RuleCatalog class shall register the `code-span-space` rule as a formatting rule that the tool
+                  always applies, with the legacy rule number MD038.
+                justification: |
+                  Reports, suppression comments, and the documentation of the rules all name the rule that removes the
+                  padding of code spans, and authors who come from other tools know it by its number.
+                tests:
+                  - RuleCatalog_Rules_CodeSpanSpace_IsAnAlwaysAppliedFormattingRuleWithTheNumberMd038

@@ -2,19 +2,19 @@
 
 ##### Verification Approach
 
-`HeadingFormatter` is verified with unit tests in `HeadingFormatterTests.cs`. The real `DocumentParser`, `SourceDocument`,
-`LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double, because the formatter is
-only meaningful for the blocks that the real parser produces. A helper of the test project
+`HeadingFormatter` is verified with unit tests in `HeadingFormatterTests.cs`. The real `DocumentParser`,
+`SourceDocument`, `LintMarkConfig`, `EditSet`, and `SourcePatcher` are used; nothing is replaced by a double, because
+the formatter is only meaningful for the blocks that the real parser produces. A helper of the test project
 (`BlockFormatterAssertions`) applies the formatter alone, without the document passes, to every block it accepts,
 patches the text, and asserts that the result is the expected text, that it renders to the same HTML as the input, that
 it keeps its Pandoc structure, and that the formatter has nothing more to do with the result. Most scenarios are
 theories with several inputs. Suppression is driven by real suppression comments (by identifier, by legacy number, and
 for all rules). Two tests damage the inline spans of a parsed heading in place (a span that does not fit the line) to
 reach the guard that real input only reaches through a parser defect. The test for concurrent use parses one document
-once, shares it and one formatter instance among eight threads that start together at a barrier, lets each thread
-format it many times into its own edit set, and compares every result with the result of a single call. The test for
-line endings compares the edits that the formatter proposes for the LF text with those for the same text read from
-bytes with CRLF line endings and a byte order mark, and with mixed line endings.
+once, shares it and one formatter instance among eight threads that start together at a barrier, lets each thread format
+it many times into its own edit set, and compares every result with the result of a single call. The test for line
+endings compares the edits that the formatter proposes for the LF text with those for the same text read from bytes with
+CRLF line endings and a byte order mark, and with mixed line endings.
 
 ##### Test Environment
 
@@ -85,8 +85,8 @@ and the hard break, and only its whitespace is cleaned.
 **A setext heading inside a quote or list stays setext**: A setext heading in a quote and in a list item, and one of
 several lines in a quote, are formatted. Each keeps its form, and trailing whitespace goes.
 
-**Trailing whitespace behind a backslash in a setext heading is kept**: A setext text line that ends with a backslash and
-spaces is formatted. It keeps the spaces, because removing them would make a hard break.
+**Trailing whitespace behind a backslash in a setext heading is kept**: A setext text line that ends with a backslash
+and spaces is formatted. It keeps the spaces, because removing them would make a hard break.
 
 **A setext heading whose text would read differently stays setext**: Texts that end with `#`, with an escaped `#`, or
 with a backslash, and texts that start with a grid table border, a fenced div, a LaTeX command, or display math are
@@ -108,11 +108,11 @@ closing sequence is removed.
 
 **An empty heading keeps its marker only**: `#` followed by spaces or a tab is formatted. The number signs remain alone.
 
-**A heading in a container keeps its prefix**: Headings in a quote, a list item, and an ordered list item, some closed or
-with extra blanks, are formatted. The prefix and indentation of the container stay and the heading is cleaned.
+**A heading in a container keeps its prefix**: Headings in a quote, a list item, and an ordered list item, some closed
+or with extra blanks, are formatted. The prefix and indentation of the container stay and the heading is cleaned.
 
-**A tab in literal text of a heading is kept**: A tab in a code span and in a link destination of a heading is formatted.
-It stays.
+**A tab in literal text of a heading is kept**: A tab in a code span and in a link destination of a heading is
+formatted. It stays.
 
 **Text without a space after the number signs is not a heading**: `#Title`, `##Title##`, and `#hashtag and text` are
 formatted. Nothing changes, because they are paragraphs.
@@ -122,8 +122,8 @@ formatted. Nothing changes, because they are paragraphs.
 later comment that enables the rule again lets the next heading be formatted.
 
 **CRLF line endings and a byte order mark do not change the edits**: A document parsed from bytes with CRLF line endings
-gives the same edits as the LF text, and so does one with a byte order mark and one with mixed line endings. The formatted
-bytes keep the line endings and the mark.
+gives the same edits as the LF text, and so does one with a byte order mark and one with mixed line endings. The
+formatted bytes keep the line endings and the mark.
 
 ###### Error handling
 
@@ -135,5 +135,6 @@ argument, throw `ArgumentNullException`.
 **The rule list is immutable**: The `RuleIds` property lists the five heading rules, and a cast to a mutable type cannot
 change it.
 
-**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight threads
-that start together; each formats it many times into its own edit set. Every result equals the result of a single call.
+**One shared instance gives one result on many threads**: One formatter and one parsed document are used by eight
+threads that start together; each formats it many times into its own edit set. Every result equals the result of a
+single call.

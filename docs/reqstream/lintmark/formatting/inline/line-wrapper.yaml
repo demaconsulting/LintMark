@@ -1,0 +1,130 @@
+---
+# Software Unit Requirements for the LineWrapper Class
+#
+# The LineWrapper class fills lines with the words of a paragraph up to a width that it measures in display columns
+# (with the WrappedLines supporting type). It never cuts a word, and it keeps words that would start another block away
+# from the start of a line.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            sections:
+              - title: LineWrapper Requirements
+                requirements:
+                  - id: LintMark-Formatting-Inline-LineWrapper-RejectsInvalidArguments
+                    title: >-
+                      The LineWrapper class shall throw an exception that names the parameter when the words are
+                      missing, empty, or null, or when a width is less than one.
+                    justification: |
+                      Invalid arguments are programming errors that must be reported as such.
+                    tests:
+                      - LineWrapper_Wrap_InvalidArguments_Throw
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-GreedyFill
+                    title: >-
+                      The LineWrapper class shall put each word on the current line as long as the line stays within
+                      the width, and start a new line with the first word that does not fit.
+                    justification: |
+                      Filling each line as far as it goes is the one result that does not depend on how the author
+                      broke the lines, so it is the same for every author.
+                    tests:
+                      - LineWrapper_Wrap_AtomsThatDoNotFit_GoToTheNextLine
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-ExactFitStays
+                    title: >-
+                      The LineWrapper class shall keep a line that is exactly as wide as the width on one line.
+                    justification: |
+                      A line that keeps to the limit is not too wide, and breaking it would shorten lines that the
+                      limit allows.
+                    tests:
+                      - LineWrapper_Wrap_LineExactlyAsWideAsTheWidth_Stays
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-OverWideAtomOwnLine
+                    title: >-
+                      The LineWrapper class shall put a word that is wider than the width on a line of its own,
+                      without cutting it.
+                    justification: |
+                      A word such as a long link cannot be broken, and a line of its own is the best that a wrap can
+                      do for it.
+                    tests:
+                      - LineWrapper_Wrap_AtomWiderThanTheWidth_StandsAloneOnItsLine
+                      - LineWrapper_Wrap_OnlyWideAtoms_GetOneLineEach
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-WidthInColumns
+                    title: >-
+                      The LineWrapper class shall measure the width of a line in display columns, counting wide East
+                      Asian characters and emoji as two columns and combining marks as none.
+                    justification: |
+                      Readers see columns, not characters, so a limit that counted characters would break lines that
+                      fit on the screen and keep lines that do not.
+                    tests:
+                      - LineWrapper_Wrap_WideAndCombiningCharacters_AreCountedInColumns
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-GuardMovesBreakEarlier
+                    title: >-
+                      The LineWrapper class shall move a break that would put a word that starts block syntax at the
+                      start of a line to an earlier word, when the line still fits.
+                    justification: |
+                      A line that starts with such a word turns a part of the paragraph into another block, so the
+                      break goes where the words stay within the paragraph.
+                    tests:
+                      - LineWrapper_Wrap_BreakBeforeGuardedAtom_MovesEarlier
+                      - LineWrapper_Wrap_BlockSyntaxAtTheBreak_IsKeptOffTheLineStart
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-GuardForcedOverflowReported
+                    title: >-
+                      The LineWrapper class shall report that a line stays wider than the width when no break keeps a
+                      word that starts block syntax from the start of a line.
+                    justification: |
+                      A line that stays too wide must not pass unnoticed, and the caller must be able to tell it from
+                      a line that is a single word.
+                    tests:
+                      - LineWrapper_Wrap_NoBreakAvailable_KeepsTheAtomOverWidthAndReportsIt
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-SegmentFirstLineWidth
+                    title: >-
+                      The LineWrapper class shall apply a separate width to the first line.
+                    justification: |
+                      The first line of a part of a paragraph can have less room than the other lines, so it needs
+                      a width of its own.
+                    tests:
+                      - LineWrapper_Wrap_FirstWidthSmallerThanTheRest_AppliesToTheFirstLineOnly
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-NoWhitespaceAtLineEnds
+                    title: >-
+                      The LineWrapper class shall write no line that starts or ends with a blank.
+                    justification: |
+                      Trailing blanks are a problem of their own, and leading blanks would change the indentation of
+                      the paragraph.
+                    tests:
+                      - LineWrapper_Wrap_Lines_HaveNoLeadingOrTrailingWhitespace
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-WrappedTextIsFixedPoint
+                    title: >-
+                      The LineWrapper class shall give the same lines when it is given the words of lines that it
+                      wrapped before.
+                    justification: |
+                      A wrap that needed to be repeated, or that undid itself, could not be trusted in a pipeline that
+                      fixes and then checks.
+                    tests:
+                      - LineWrapper_Wrap_WrappedLines_AreAFixedPoint
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-ResultImmutable
+                    title: >-
+                      The LineWrapper class shall return its lines in a form that its holders cannot change.
+                    justification: |
+                      A result that anyone could modify could be changed by one consumer under another.
+                    tests:
+                      - LineWrapper_Wrap_Result_IsImmutable
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-DeterministicResult
+                    title: >-
+                      The LineWrapper class shall return the same lines for the same words when it is called from
+                      several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel, and a result that depended on timing could not be trusted.
+                    tests:
+                      - LineWrapper_Wrap_ConcurrentCalls_GiveTheSameLines

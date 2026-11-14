@@ -5,8 +5,8 @@
 ##### Purpose
 
 `HeadingFormatter` proposes the edits that write each heading in the canonical form: an ATX heading (`# Title`) with
-exactly one space after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs in
-the text. It enforces the rules `heading-style`, `heading-space`, and `heading-start-left`, and the rules
+exactly one space after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs
+in the text. It enforces the rules `heading-style`, `heading-space`, and `heading-start-left`, and the rules
 `trailing-whitespace` and `hard-tabs` on the lines of the headings that it handles.
 
 ##### Data Model
@@ -38,28 +38,28 @@ enforces.
 - *Preconditions*: no argument is null and the block is a heading.
 - *Postconditions*: `edits` holds the edits that make the heading canonical; a canonical heading adds none.
 
-Algorithm for an ATX heading (`FormatAtx`): the line is taken from the source, and the parts are located from the
-number signs: the indentation, the opening number signs, the blanks after them, the content, an optional closing
-sequence, and the trailing whitespace. The line is left alone when the opening number signs are not followed by a blank
-or the end of the line, or when the indentation of a top-level heading is not spaces only. Otherwise: (1) the
-indentation of a top-level heading is removed (`heading-start-left`); a heading in a quote or list keeps its prefix;
-(2) a closing sequence is a run of number signs at the end that is preceded by a blank or fills the whole content, and
-it is removed together with the blanks before it (`heading-style`); a run that follows another character (`C#`) or an
-escape (`\#`) is text; (3) the blanks after the opening number signs become exactly one space, and an empty heading keeps
-its number signs only (`heading-space`); (4) trailing whitespace is removed (`trailing-whitespace`), also behind a
-final backslash (the backslash then ends the content of an ATX heading, so it can never turn into a hard break);
-(5) tabs in the text between the first character of the content and the closing sequence (or the trailing whitespace)
-are replaced by spaces up to the next tab stop of four columns (`hard-tabs`), counted from the column that the text has
-in the canonical line (the container prefix, the number signs, and one space), so a tab after
-the number signs never moves the tab stops of the text. The plain-text parts are found through `LeafWhitespace` and
-`InlineMap`, so a tab inside a code span or other literal text stays. The tabs are collected before any edit is added,
-because the parser's inline spans of an ATX heading are only usable after they are matched to the line: when a tab
-follows the opening number signs, Markdig reports the spans of the inlines too small by a constant (the line offset of the
-heading), and a heading that is not on the first line would then have its spans point into the blanks after the marker.
-`TryBuildMap` takes the shift from the first inline, moves every span by it, and accepts the result only when the end of
-the last inline lands on the end of the content; otherwise the whole heading, not only its tabs, is left as it is (an
-edit for the blanks alone would leave the tabs for the next run and the result would not be stable). A heading without a
-tab in its text needs no spans and is never affected.
+Algorithm for an ATX heading (`FormatAtx`): the line is taken from the source, and the parts are located from the number
+signs: the indentation, the opening number signs, the blanks after them, the content, an optional closing sequence, and
+the trailing whitespace. The line is left alone when the opening number signs are not followed by a blank or the end of
+the line, or when the indentation of a top-level heading is not spaces only. Otherwise: (1) the indentation of a
+top-level heading is removed (`heading-start-left`); a heading in a quote or list keeps its prefix; (2) a closing
+sequence is a run of number signs at the end that is preceded by a blank or fills the whole content, and it is removed
+together with the blanks before it (`heading-style`); a run that follows another character (`C#`) or an escape (`\#`) is
+text; (3) the blanks after the opening number signs become exactly one space, and an empty heading keeps its number
+signs only (`heading-space`); (4) trailing whitespace is removed (`trailing-whitespace`), also behind a final backslash
+(the backslash then ends the content of an ATX heading, so it can never turn into a hard break); (5) tabs in the text
+between the first character of the content and the closing sequence (or the trailing whitespace) are replaced by spaces
+up to the next tab stop of four columns (`hard-tabs`), counted from the column that the text has in the canonical line
+(the container prefix, the number signs, and one space), so a tab after the number signs never moves the tab stops of
+the text. The plain-text parts are found through `LeafWhitespace` and `InlineMap`, so a tab inside a code span or other
+literal text stays. The tabs are collected before any edit is added, because the parser's inline spans of an ATX heading
+are only usable after they are matched to the line: when a tab follows the opening number signs, Markdig reports the
+spans of the inlines too small by a constant (the line offset of the heading), and a heading that is not on the first
+line would then have its spans point into the blanks after the marker. `TryBuildMap` takes the shift from the first
+inline, moves every span by it, and accepts the result only when the end of the last inline lands on the end of the
+content; otherwise the whole heading, not only its tabs, is left as it is (an edit for the blanks alone would leave the
+tabs for the next run and the result would not be stable). A heading without a tab in its text needs no spans and is
+never affected.
 
 Algorithm for a setext heading (`FormatSetext`): the underline is verified from the source (a run of `=` or `-` that
 ends the line, preceded by blanks and quote markers only). A setext heading becomes an ATX heading of the same level in

@@ -2,7 +2,8 @@
 # Software Unit Requirements for the EditSet Class
 #
 # The EditSet class (with the TextEdit record) collects the changes that rules propose for one document and
-# hands them out as an ordered, conflict-free list.
+# hands them out as an ordered, conflict-free list. The EditRebaser class composes two such lists, the second computed
+# for the text that the first produced, into one list for the original text.
 
 sections:
   - title: LintMark Requirements
@@ -138,3 +139,104 @@ sections:
                 tests:
                   - EditSet_Count_AfterAdds_CountsEdits
                   - EditSet_IsEmpty_NewSet_IsTrue
+
+              - id: LintMark-Formatting-EditSet-EditsRebasedOntoOriginal
+                title: >-
+                  The EditRebaser class shall compose changes that were computed for the text that other changes
+                  produced into changes for the original text that give the same result.
+                justification: |
+                  A wrap is computed for the text that the other rules produce, and the caller needs one list of
+                  changes for the original document, so the composed list must give exactly the text that applying
+                  the two lists one after the other gives.
+                tests:
+                  - EditRebaser_Rebase_EditsOutsideEachOther_AreTranslated
+                  - EditRebaser_Rebase_OneListEmpty_ReturnsTheOtherUnchanged
+                  - EditRebaser_Rebase_RandomEdits_EqualApplyingTheListsInSequence
+
+              - id: LintMark-Formatting-EditSet-RebaseAbsorbsEditsInsideReplacedRange
+                title: >-
+                  The EditRebaser class shall absorb a change of the first list whose result lies inside a range that
+                  the second list replaces into the change that replaces the range.
+                justification: |
+                  The replaced text overwrites what the first change wrote, so keeping both changes would conflict.
+                tests:
+                  - EditRebaser_Rebase_FirstEditInsideReplacedRange_IsAbsorbed
+
+              - id: LintMark-Formatting-EditSet-RebaseExtendsEditsInsideOutput
+                title: >-
+                  The EditRebaser class shall extend a change of the second list that starts or ends inside text that
+                  the first list wrote to all of that text.
+                justification: |
+                  The text that the first change wrote does not exist in the original, so a change to a part of it
+                  can only be expressed as a change of the whole original range.
+                tests:
+                  - EditRebaser_Rebase_SecondEditInsideFirstOutput_IsExtendedToItsEnds
+
+              - id: LintMark-Formatting-EditSet-RebaseMergesEditsInOneOutput
+                title: >-
+                  The EditRebaser class shall merge the changes of the second list that fall in the text that one
+                  change of the first list wrote into one change.
+                justification: |
+                  Two changes to the same original range would conflict, and one change that holds both results does
+                  not.
+                tests:
+                  - EditRebaser_Rebase_TwoSecondEditsInOneFirstOutput_AreMerged
+
+              - id: LintMark-Formatting-EditSet-RebaseKeepsTouchingEdits
+                title: >-
+                  The EditRebaser class shall keep a deletion of the first list that only touches a range that the
+                  second list replaces as a separate change.
+                justification: |
+                  A deletion removes text and writes none, so a change next to it does not overlap it, and merging
+                  them would change what each of them says.
+                tests:
+                  - EditRebaser_Rebase_DeletionTouchingTheReplacedRange_StaysOutside
+
+              - id: LintMark-Formatting-EditSet-RebaseMergesTouchingInsertions
+                title: >-
+                  The EditRebaser class shall merge an insertion of the second list that touches or lies inside an
+                  insertion of the first list with it.
+                justification: |
+                  Two insertions at one position have no defined order, so they must become one insertion.
+                tests:
+                  - EditRebaser_Rebase_InsertionTouchingAnInsertion_IsMergedWithIt
+
+              - id: LintMark-Formatting-EditSet-RebaseDropsNoOps
+                title: >-
+                  The EditRebaser class shall drop a change that replaces nothing with nothing.
+                justification: |
+                  Such a change does not change the text, and it must not get in the way of an insertion at its place.
+                tests:
+                  - EditRebaser_Rebase_EditThatChangesNothing_IsDropped
+
+              - id: LintMark-Formatting-EditSet-RebaseRejectsInvalidLists
+                title: >-
+                  The EditRebaser class shall throw an ArgumentException that names the parameter when a list of
+                  changes is missing, holds a missing change, is not in order, or has conflicts, and when an offset is
+                  negative.
+                justification: |
+                  Lists that are not ordered and conflict-free are programming errors that must be reported as such,
+                  because the composition would give a wrong text from them.
+                tests:
+                  - EditRebaser_Rebase_InvalidLists_Throw
+                  - EditRebaser_MapOffset_InvalidArguments_Throw
+
+              - id: LintMark-Formatting-EditSet-OffsetsMappedToOriginal
+                title: >-
+                  The EditRebaser class shall map a position in the text that changes produced back to the position in
+                  the original text, and a position inside written text to the start of the range that it replaced.
+                justification: |
+                  A problem is reported at a place in the original document, while a wrap is found in the text that the
+                  other rules produce.
+                tests:
+                  - EditRebaser_MapOffset_OffsetsOfTheOutput_MapBackToTheOriginal
+                  - EditRebaser_MapOffset_AfterADeletion_MapsBehindTheDeletedCharacters
+
+              - id: LintMark-Formatting-EditSet-RebaseIsDeterministic
+                title: >-
+                  The EditRebaser class shall return the same changes for the same lists when it is called from several
+                  threads at once as when it is called one after another.
+                justification: |
+                  Files are formatted in parallel, and a result that depended on timing could not be trusted.
+                tests:
+                  - EditRebaser_Rebase_ConcurrentCalls_GiveTheSameEdits

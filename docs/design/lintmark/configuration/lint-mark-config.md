@@ -128,7 +128,8 @@ every value within its range, refused values, and collections that holders and s
 refusal is raised as an exception from the initializer, which is a design decision described above. Deriving a copy
 that differs in chosen settings (a `with` expression) is how the engine fills in the line ending that the editor
 settings give, without changing a shared instance; equality by content lets two configurations be compared by value.
-The `Ignore` setting is consumed by the engine and the `EndOfLine` setting by `DocumentFormatter`.
+The `Ignore` setting is consumed by the engine, the `EndOfLine` setting by `DocumentFormatter`, and the `LineLength` and
+`Wrap` settings, with the `line-length` entry of `Rules`, by `ParagraphFormatter`.
 
 #### Key Methods
 

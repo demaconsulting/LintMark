@@ -131,9 +131,11 @@ sections:
               that the formatter applies must be in the registry that they consult.
             children:
               - LintMark-Linting-RuleCatalog-AlwaysAppliedFormattingRules
+              - LintMark-Linting-RuleCatalog-CodeSpanSpaceRegistered
             tests:
               - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
               - LintingSubsystem_RuleRegistry_EveryEmittedRuleId_IsRegistered
+              - LintingSubsystem_RuleRegistry_CodeSpanSpaceRule_IsRegisteredFixableByNumberAndNotConfigurable
 
           - id: LintMark-Linting-FormattingRulesNotConfigurable
             title: >-

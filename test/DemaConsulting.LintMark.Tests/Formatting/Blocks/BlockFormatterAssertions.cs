@@ -40,13 +40,15 @@ namespace DemaConsulting.LintMark.Tests;
 internal static class BlockFormatterAssertions
 {
     /// <summary>
-    ///     Creates the formatter the shipped tool uses: the five block formatters, the inline normalizer and the document passes.
+    ///     Creates the formatter the shipped tool uses: the five block formatters, the inline normalizer, the paragraph
+    ///     formatter and the document passes.
     /// </summary>
     /// <returns>The formatter.</returns>
     public static DocumentFormatter ProductionFormatter() =>
         new(
             [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
-            new InlineNormalizer());
+            new InlineNormalizer(),
+            new ParagraphFormatter());
 
     /// <summary>
     ///     Parses LF-normalized text as a document named <c>a.md</c>.
@@ -91,13 +93,14 @@ internal static class BlockFormatterAssertions
         var effective = config ?? LintMarkConfig.Default;
         var (result, formatted) = Apply(used, text, effective);
 
-        // The edits are ordered, in range and report a violation exactly when they change something
+        // The edits are ordered, in range and report a violation exactly when they change something; the only finding
+        // that a rewrite does not remove is a line that cannot be wrapped
         Assert.Equal(result.Edits.OrderBy(edit => edit.Start).ThenBy(edit => edit.Length), result.Edits);
         Assert.All(result.Edits, edit => Assert.True(edit.End <= text.Length));
-        Assert.Equal(!string.Equals(text, formatted, StringComparison.Ordinal), result.Diagnostics.Length > 0);
+        Assert.Equal(!string.Equals(text, formatted, StringComparison.Ordinal), result.Diagnostics.Any(static diagnostic => diagnostic.Kind == DiagnosticKind.Formatting));
         Assert.All(result.Diagnostics, diagnostic =>
         {
-            Assert.Equal(DiagnosticKind.Formatting, diagnostic.Kind);
+            Assert.True(diagnostic.Kind == DiagnosticKind.Formatting || (diagnostic.Kind == DiagnosticKind.LintOnly && diagnostic.RuleId == RuleCatalog.LineLengthRuleId));
             Assert.True(diagnostic.Line >= 1 && diagnostic.Column >= 1);
         });
 
@@ -110,11 +113,12 @@ internal static class BlockFormatterAssertions
             formatted);
         AssertEquivalent("structure", StructuralTokenChecker.Check(text, formatted), text, formatted);
 
-        // Formatting the result again changes nothing and reports nothing
+        // Formatting the result again changes nothing and reports nothing that a rewrite could fix
         AssertEquivalent("idempotency", IdempotencyChecker.Check(formatted, again => Apply(used, again, effective).Formatted), text, formatted);
         var second = Apply(used, formatted, effective);
         Assert.Empty(second.Result.Edits);
-        Assert.Empty(second.Result.Diagnostics);
+        Assert.DoesNotContain(second.Result.Diagnostics, static diagnostic => diagnostic.Kind == DiagnosticKind.Formatting);
+        Assert.All(second.Result.Diagnostics, static diagnostic => Assert.Equal(RuleCatalog.LineLengthRuleId, diagnostic.RuleId));
         Assert.True(
             Parse(text).IsFormatUnsafe == Parse(formatted).IsFormatUnsafe,
             $"The rewrite changed whether the document is read with grid tables.\n--- before ---\n{text}\n--- after ---\n{formatted}");
@@ -411,7 +415,7 @@ internal static class BlockFormatterAssertions
     {
         var (result, formatted) = Apply(ProductionFormatter(), text, config);
         Assert.Empty(result.Edits);
-        Assert.Empty(result.Diagnostics);
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Kind == DiagnosticKind.Formatting);
         Assert.Equal(text, formatted);
     }
 

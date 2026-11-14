@@ -8,7 +8,8 @@ The `Utilities` subsystem provides shared utility functions for the LintMark. It
 supplies reusable, independently testable helpers consumed by other subsystems. Its first responsibility is safe
 file-path manipulation, protecting callers from path-traversal vulnerabilities when constructing paths from
 caller-supplied inputs (`PathHelpers`). Its second is measuring how many terminal columns a text occupies, which the
-line wrapping and table layout of later phases need (`TextWidth`). The `Utilities` subsystem contains two units:
+line wrapping of the `Formatting` subsystem and the table layout of a later phase need (`TextWidth`). The `Utilities`
+subsystem contains two units:
 `PathHelpers` and `TextWidth`.
 
 ### Interfaces
@@ -46,6 +47,7 @@ codebase originate from the `SelfTest` subsystem (`Validation`), which uses it t
 log and result file paths inside temporary directories created during self-validation test
 execution.
 
-`TextWidth.Of` is likewise pure and stateless over an immutable table of wide character ranges. It has no production
-caller yet: the line wrapper and the table formatter that are added later are its consumers. It exists now
-because the width model is independent of any formatter and can be verified alone.
+`TextWidth.Of` is likewise pure and stateless over an immutable table of wide character ranges. Its consumers are the
+paragraph formatter and the line wrapper of the `Formatting` subsystem, which measure lines and atoms in display
+columns; the table formatter that is added later will be another. It is independent of any formatter, so the width model
+is verified alone.

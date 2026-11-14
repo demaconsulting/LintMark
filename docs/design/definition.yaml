@@ -47,8 +47,12 @@ input-files:
   - docs/design/lintmark/formatting/blocks/thematic-break-formatter.md
   - docs/design/lintmark/formatting/blocks/list-formatter.md
   - docs/design/lintmark/formatting/blocks/block-quote-formatter.md
+  - docs/design/lintmark/formatting/blocks/paragraph-formatter.md
   - docs/design/lintmark/formatting/inline.md
   - docs/design/lintmark/formatting/inline/inline-normalizer.md
+  - docs/design/lintmark/formatting/inline/atom-tokenizer.md
+  - docs/design/lintmark/formatting/inline/line-wrapper.md
+  - docs/design/lintmark/formatting/inline/block-syntax-guard.md
   - docs/design/lintmark/safety.md
   - docs/design/lintmark/safety/equivalence-result.md
   - docs/design/lintmark/safety/html-equivalence-checker.md

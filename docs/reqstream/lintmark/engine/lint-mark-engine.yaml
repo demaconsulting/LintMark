@@ -684,3 +684,34 @@ sections:
                   - LintMarkEngine_Run_FixRuleSuppressedByAlias_LeavesTheViolation
                   - LintMarkEngine_Run_FixInvalidGridTableDocument_IsNeverRewrittenByTheDefaultFormatters
                   - LintMarkEngine_Process_DefaultFormatters_ChangeHasFormattedBytesAndFindings
+
+              - id: LintMark-Engine-LintMarkEngine-ParagraphsWrappedWhenFixing
+                title: >-
+                  The LintMarkEngine class shall wrap, for every file that it processes with the fix option, each
+                  paragraph that is wider than the line length of the configuration, and report nothing for it.
+                justification: |
+                  The tool exists to repair the formatting of Markdown files, and what the shipped tool applies must
+                  not depend on how an engine is created.
+                tests:
+                  - LintMarkEngine_Run_FixOverlongParagraph_WrapsTheParagraphAndReportsNothing
+
+              - id: LintMark-Engine-LintMarkEngine-LineLengthReportedWhenChecking
+                title: >-
+                  The LintMarkEngine class shall report, for every file that it processes without the fix option, each
+                  paragraph line that is wider than the line length of the configuration as a problem at the first
+                  column beyond the width, and write nothing.
+                justification: |
+                  The tool exists to check the formatting of Markdown files, and what the shipped tool reports must not
+                  depend on how an engine is created.
+                tests:
+                  - LintMarkEngine_Run_CheckOverlongParagraph_ReportsLineLengthAndWritesNothing
+
+              - id: LintMark-Engine-LintMarkEngine-LineLengthStillReportedAfterFix
+                title: >-
+                  The LintMarkEngine class shall keep reporting, after it fixed a file, a line that the wrap could not
+                  shorten as a problem that remains.
+                justification: |
+                  A fix that stayed silent about a line that it left too wide would hide the problem from a pipeline
+                  that fixes and then checks, and the exit status must show it.
+                tests:
+                  - LintMarkEngine_Run_FixParagraphThatCannotBeWrapped_ReportsItAsRemaining

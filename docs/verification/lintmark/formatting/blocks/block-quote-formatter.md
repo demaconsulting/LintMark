@@ -29,12 +29,12 @@ N/A - standard test environment.
 - Two to four spaces after a quote marker become one space on the paragraph, heading, and alert lines of a quote, also
   after the markers of nested quotes.
 - A line with five or more spaces after the marker keeps its text.
-- A line with a tab in its prefix (after the first marker, after a nested marker, or on a later line) keeps its text, and
-  the other lines of the quote are still collapsed.
-- A line without a marker for its quote (a lazy line, also in a nested quote) keeps its text, and the marked lines of the
-  same quote are still collapsed.
-- Fenced code, indented code, HTML, math, setext headings, and tables each keep their text when they have spaces after the
-  marker.
+- A line with a tab in its prefix (after the first marker, after a nested marker, or on a later line) keeps its text,
+  and the other lines of the quote are still collapsed.
+- A line without a marker for its quote (a lazy line, also in a nested quote) keeps its text, and the marked lines of
+  the same quote are still collapsed.
+- Fenced code, indented code, HTML, math, setext headings, and tables each keep their text when they have spaces after
+  the marker.
 - A list and a footnote in a quote keep their text when they have spaces after the marker, because the spaces are
   indentation there.
 - A quote inside a list item, also where the list is inside a quote, is left as written.
@@ -56,25 +56,25 @@ follows each marker.
 **The markers of nested quotes are written with one space each**: `>  >  a`, `>  > a`, `> >   a`, and `>  >  >  a` are
 formatted. Each marker is followed by one space.
 
-**Heading and alert lines are normalized**: A heading with a wide gap, a heading followed by a text line with a wide gap,
-and an alert line (`[!NOTE]`) with its text line are formatted. One space follows each marker.
+**Heading and alert lines are normalized**: A heading with a wide gap, a heading followed by a text line with a wide
+gap, and an alert line (`[!NOTE]`) with its text line are formatted. One space follows each marker.
 
-**Every edit is attributed to the quote rule**: A quote with two wide gaps is formatted by the quote formatter alone. Two
-edits result, both credited to `blockquote-space`.
+**Every edit is attributed to the quote rule**: A quote with two wide gaps is formatted by the quote formatter alone.
+Two edits result, both credited to `blockquote-space`.
 
 ###### Boundary conditions
 
 **Five spaces are left alone**: A paragraph line with five spaces after the marker and a quote that holds only indented
 code are formatted. Each is unchanged, in every line ending.
 
-**A tab in the prefix is left alone**: A tab after the marker, a tab on the second line of a quote, a tab after the marker
-of a nested quote with and without a wide gap before it, and a quote whose first line has a wide gap and whose second line
-has a tab are formatted. The lines with a tab are as written; the wide gap of the first line of the last quote is
-collapsed.
+**A tab in the prefix is left alone**: A tab after the marker, a tab on the second line of a quote, a tab after the
+marker of a nested quote with and without a wide gap before it, and a quote whose first line has a wide gap and whose
+second line has a tab are formatted. The lines with a tab are as written; the wide gap of the first line of the last
+quote is collapsed.
 
-**A lazy line is left alone**: A lazy line after a quoted line, a paragraph in a quote with two wide gaps and a lazy line,
-and a nested quote whose second line has one marker only are formatted. The lazy lines are as written and the marked lines
-that have a wide gap are collapsed.
+**A lazy line is left alone**: A lazy line after a quoted line, a paragraph in a quote with two wide gaps and a lazy
+line, and a nested quote whose second line has one marker only are formatted. The lazy lines are as written and the
+marked lines that have a wide gap are collapsed.
 
 **Code in a quote keeps its text**: A fenced code block and indented code in a quote, with a wide gap after the marker,
 are formatted. The text is unchanged.
@@ -88,7 +88,8 @@ unchanged.
 **A setext heading in a quote keeps its text**: A setext heading with a wide gap after the marker is formatted. The text
 is unchanged.
 
-**A table in a quote keeps its text**: A pipe table with a wide gap after the marker is formatted. The text is unchanged.
+**A table in a quote keeps its text**: A pipe table with a wide gap after the marker is formatted. The text is
+unchanged.
 
 **A list in a quote keeps its text**: A bullet list and an ordered list with a wide gap, and a list with an indented
 continuation line, in a quote are formatted. The text is unchanged.
@@ -99,9 +100,9 @@ unchanged.
 **A quote in a list item is left alone**: An item that holds a quote with a wide gap, and a quote in an item of a list
 that is itself in a quote, are formatted. The text is unchanged.
 
-**A canonical quote gets no edit**: Quotes with several lines, nested markers, a heading, a marker-only line, and an alert
-are formatted by the quote formatter alone and by the whole tool. The quote formatter proposes no edit and the tool reports
-no problem.
+**A canonical quote gets no edit**: Quotes with several lines, nested markers, a heading, a marker-only line, and an
+alert are formatted by the quote formatter alone and by the whole tool. The quote formatter proposes no edit and the
+tool reports no problem.
 
 **A marker-only line is left to the whitespace rule**: A quote with a line that holds only the marker and spaces between
 two wide lines is formatted. The quote formatter alone collapses the gaps of the two paragraph lines and leaves the
@@ -111,8 +112,8 @@ marker-only line with its spaces; the whole tool then removes the spaces of that
 heading is read from LF text, from CRLF text, from text with mixed line endings, and from bytes with a byte order mark.
 The edits are the same for each.
 
-**A suppressed rule leaves the quote alone**: A quote with a wide gap follows a comment that disables `blockquote-space`,
-`MD027`, or all rules. The quote is unchanged, and no edit and no problem result.
+**A suppressed rule leaves the quote alone**: A quote with a wide gap follows a comment that disables
+`blockquote-space`, `MD027`, or all rules. The quote is unchanged, and no edit and no problem result.
 
 ###### Robustness
 

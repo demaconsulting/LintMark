@@ -5,10 +5,11 @@
 #### Overview
 
 The `Blocks` subsystem is part of the `Formatting` subsystem. It holds the block formatters of the tool: one for
-headings, one for code blocks, one for thematic breaks, one for lists, and one for block quotes. A block formatter
-proposes the edits that bring one kind of block into canonical form and nothing else; it never applies an edit, never
-writes a file, and never touches the content of code. The subsystem contains five units: `HeadingFormatter`,
-`CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`.
+headings, one for code blocks, one for thematic breaks, one for lists, and one for block quotes, and the paragraph
+formatter that wraps paragraphs. A block formatter proposes the edits that bring one kind of block into canonical form
+and nothing else; it never applies an edit, never writes a file, and never touches the content of code. The subsystem
+contains six units: `HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`,
+`BlockQuoteFormatter`, and `ParagraphFormatter`.
 
 - `HeadingFormatter` writes headings as ATX headings with one space after the number signs, no closing number signs, no
   indentation, no trailing whitespace, and no tabs in the text. It enforces `heading-style`, `heading-space`, and
@@ -24,11 +25,18 @@ writes a file, and never touches the content of code. The subsystem contains fiv
   types `ListModel` and `ListPlan` have no unit of their own and are described in *ListFormatter Design*.
 - `BlockQuoteFormatter` writes one space after each quote marker on the paragraph and heading lines of a quote. It
   enforces `blockquote-space`.
+- `ParagraphFormatter` wraps a paragraph that has a line wider than the `line-length` setting, filling its lines up to
+  the width, and leaves every paragraph that does not overflow exactly as written. It enforces `line-length` in its
+  `fill` mode. It is not an `IBlockFormatter`: it claims no lines, and `DocumentFormatter` calls it in a second stage on
+  the text that all other rules produce. It uses the `AtomTokenizer`, `LineWrapper`, and `BlockSyntaxGuard` of the
+  `Inline` subsystem, and its supporting type `ParagraphOutcome` is described in *ParagraphFormatter Design*.
 
-The units share no state and do not call each other. They use the line arithmetic and the whitespace helpers that
+The five block formatters share no state and do not call each other, and the paragraph formatter shares none with them.
+They use the line arithmetic and the whitespace helpers that
 `DocumentFormatter` owns (`LineLayout`, `LineOwnership`, `InlineMap`, `LeafWhitespace`, and `FrontMatterGuard`; see
 *DocumentFormatter Design*), so that the passes of the document formatter and the block formatters treat whitespace and
-tab stops in the same way. The two container formatters reach `LineLayout` and `LineOwnership` through `FormatContext`.
+tab stops in the same way. The two container formatters and the paragraph formatter reach `LineLayout` and
+`LineOwnership` through `FormatContext`.
 
 #### Interfaces
 
@@ -42,11 +50,26 @@ tab stops in the same way. The two container formatters reach `LineLayout` and `
 - *Constraints*: Throws `ArgumentNullException` for a null argument and `ArgumentException` for a block that `CanFormat`
   rejects. Every formatter is stateless, so one instance serves every worker thread.
 
+**ParagraphFormatter.Format**: Decides what to do about the too-wide lines of one paragraph.
+
+- *Type*: In-process .NET instance method on an internal sealed class.
+- *Role*: Provider (to `DocumentFormatter`, which calls it in its second stage).
+- *Contract*: Takes the `FormatContext` and a paragraph `BlockInfo` and returns a `ParagraphOutcome`: an optional edit
+  attributed to `line-length` that rewrites the whole paragraph, the offset and width of the first line that is too wide
+  and could be broken, and whether such a line stays too wide. The text it is given is the text that the other rules
+  produce, so its edit and offset refer to that text. `RuleIds` lists the rules whose suppression keeps a paragraph as
+  written; `IsEnabled` tells whether the settings ask for wrapping (`wrap` is `fill`, `line-length` is not 0, and the
+  rule is on).
+- *Constraints*: Throws `ArgumentNullException` for a null argument and `ArgumentException` for a block that is not a
+  paragraph. Pure and stateless, so one instance serves every worker thread.
+
 The subsystem consumes the `Document` subsystem (`ParsedDocument`, `BlockInfo`, `BlockKind`, `SourceDocument`, and
-`DocumentParser` for the lines of a leaf block and the Markdown pipeline), the `Configuration` subsystem
-(`LintMarkConfig` and the settings `code-fence`, `thematic-break`, `bullet`, `ordered-style`, and `list-indent`), and the
-`Linting` subsystem (`RuleCatalog` identifiers). It is consumed by the `Engine` subsystem, which creates the production
-`DocumentFormatter` with the five formatters.
+`DocumentParser` for the lines of a leaf block, the continuation prefix, and the Markdown pipeline), the `Configuration`
+subsystem (`LintMarkConfig` and the settings `code-fence`, `thematic-break`, `bullet`, `ordered-style`, `list-indent`,
+`line-length`, and `wrap`), the `Linting` subsystem (`RuleCatalog` identifiers), the `Inline` subsystem (the words, the
+fill, and the guard of the paragraph formatter), the `Safety` subsystem (`HtmlEquivalenceChecker`, for the proof of a
+wrap), and the `Utilities` subsystem (`TextWidth`). It is consumed by the `Engine` subsystem, which creates the
+production `DocumentFormatter` with the five formatters and the paragraph formatter.
 
 #### Design
 
@@ -75,7 +98,12 @@ whitespace), and each unit declines a conversion whose result could be read diff
   when the proof fails again it is left as written (see *ListFormatter Design*);
 - a block quote changes only the spaces after the quote markers of paragraph and ATX heading lines whose enclosing
   blocks are all quotes, and a quote with a footnote definition marker is left as written (see *BlockQuoteFormatter
-  Design*).
+  Design*);
+- a paragraph is wrapped only when a line of it is wider than the line length and can be broken, only when the tokenizer
+  understands every construct in it, and only when the wrapped paragraph is proved to render the same, on its own and
+  inside its list or quote; a paragraph in a footnote, with a tab, with Pandoc structure, or with a suppressed rule is
+  left as written, and a lazy continuation line of a list item, a block syntax line start after a hard break, and a
+  refused proof leave the paragraph as written and report the overflow (see *ParagraphFormatter Design*).
 
 Edits of one formatter never overlap, because they cover disjoint parts of a line (the indentation, the number signs,
 the space after them, a closing sequence, and the trailing whitespace of a heading, for example). A formatter never adds
@@ -84,30 +112,38 @@ there. The list formatter replaces existing characters only (the marker, the dig
 indentation of a line), and the quote formatter replaces the run of spaces after a marker.
 
 The first three formatters claim their blocks. `DocumentFormatter` gives each block to the first formatter whose
-`CanFormat` accepts it and then keeps its own passes away from the lines of that block, also when a rule of the formatter
-is suppressed there. The two container formatters claim nothing: `ListFormatter` accepts the outermost list of a nest and
-`BlockQuoteFormatter` the outermost quote, and each handles everything inside itself, so a nested list or quote is never
-visited twice, but the lines of the paragraphs, headings, code, and other leaf blocks inside them stay with the passes
-and with the formatters of those blocks (a fenced code block inside a list item is still the business of
+`CanFormat` accepts it and then keeps its own passes away from the lines of that block, also when a rule of the
+formatter is suppressed there. The two container formatters claim nothing: `ListFormatter` accepts the outermost list of
+a nest and `BlockQuoteFormatter` the outermost quote, and each handles everything inside itself, so a nested list or
+quote is never visited twice, but the lines of the paragraphs, headings, code, and other leaf blocks inside them stay
+with the passes and with the formatters of those blocks (a fenced code block inside a list item is still the business of
 `CodeBlockFormatter`). The lines of a list item are edited only in their leading whitespace and around the marker, so
 the whitespace edits of the passes at the end of a line and in the text cannot collide with them. A block that no
 formatter accepts (an unclosed fence, a paragraph, a table) is handled by the passes. The formatters never rewrite lazy
 continuation lines: a list item with a lazy line keeps its columns, and a lazy line of a quote keeps its text, so no
-guard that adds explicit prefixes is needed in this subsystem.
+guard that adds explicit prefixes is needed in those five. The paragraph formatter is the one unit that writes prefixes:
+it gives every line of a wrapped paragraph the continuation prefix of its container, so a lazy quote line gets its quote
+marker, whereas a paragraph with a lazy line inside a list item is never wrapped (see *ParagraphFormatter Design*). It
+claims nothing and runs in the second stage of `DocumentFormatter`, on the text that the passes and the five formatters
+have produced, so the formatters above see the paragraph text as written and the paragraph formatter sees their result.
 
 Because `DocumentFormatter` visits the blocks from the last to the first, a container formatter sees the edits that the
-passes and the formatters of the blocks after it (and of the blocks nested inside it) have proposed. `ListFormatter` uses
-this: a decision must not depend on text that another formatter or pass changes in the same run, so its safety proof
-renders the lines after the list with those edits applied (see *DocumentFormatter Design*).
+passes and the formatters of the blocks after it (and of the blocks nested inside it) have proposed. `ListFormatter`
+uses this: a decision must not depend on text that another formatter or pass changes in the same run, so its safety
+proof renders the lines after the list with those edits applied (see *DocumentFormatter Design*).
 
 Verification of the subsystem relies on three checkers of the `Safety` subsystem at test time: the HTML equivalence
-check, the structural token check, and the idempotency check run over every document that the tests format, and a
-corpus of the Markdown files of the repository and of generated hostile documents (see the verification design). They
-are collaborators of the tests only; the production formatters do not call them, because the `Engine` subsystem applies
-the same checks to every rewrite. The corpus tests that format generated paragraphs (the random inline text tests and
-the test of the unproved normalizer in `ListQuoteInlineCorpusTests`) verify the `Inline` subsystem; they stay in the
-class of this subsystem because they share its generator and assertions (see the verification design).
+check, the structural token check, and the idempotency check run over every document that the tests format, and a corpus
+of the Markdown files of the repository and of generated hostile documents (see the verification design). They are
+collaborators of the tests only, with one exception: the paragraph formatter calls the HTML equivalence check for its
+own per-paragraph proof of a wrap. The other production formatters do not call the checkers, and the `Engine` subsystem
+applies the same checks to every rewrite. The corpus tests that format generated paragraphs (the random inline text
+tests and the test of the unproved normalizer in `ListQuoteInlineCorpusTests`) verify the `Inline` subsystem and stay in
+the class of this subsystem because they share its generator and assertions; the paragraph corpus tests format the
+Markdown files of the repository and random paragraphs at several line lengths and verify the wrap (see the verification
+design).
 
 Thread safety: the units are stateless and immutable (the list formatter creates its `ListPlan` for one call and uses it
-on one thread). The shared helper types are immutable per document, so one parsed
+on one thread; the paragraph formatter holds only an immutable rule list and its proof function). The shared helper
+types are immutable per document, so one parsed
 document may be formatted by several threads at once, each with its own `EditSet`.

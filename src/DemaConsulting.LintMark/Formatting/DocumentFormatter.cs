@@ -21,8 +21,10 @@
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
+using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Formatting;
 
@@ -86,6 +88,11 @@ internal sealed class DocumentFormatter
     private readonly InlineNormalizer? _inline;
 
     /// <summary>
+    ///     The formatter that wraps paragraphs that overflow the line length, or <see langword="null"/> for none.
+    /// </summary>
+    private readonly ParagraphFormatter? _paragraphs;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="DocumentFormatter"/> class.
     /// </summary>
     /// <param name="formatters">
@@ -96,8 +103,15 @@ internal sealed class DocumentFormatter
     ///     The inline normalizer that is asked for each paragraph that no block formatter claims, or
     ///     <see langword="null"/> for none (then no inline rule is applied).
     /// </param>
+    /// <param name="paragraphs">
+    ///     The formatter that wraps the paragraphs that overflow the line length, or <see langword="null"/> for none
+    ///     (then nothing is wrapped and no <c>line-length</c> finding is reported).
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="formatters"/> is null.</exception>
-    public DocumentFormatter(IReadOnlyList<IBlockFormatter>? formatters = null, InlineNormalizer? inline = null)
+    public DocumentFormatter(
+        IReadOnlyList<IBlockFormatter>? formatters = null,
+        InlineNormalizer? inline = null,
+        ParagraphFormatter? paragraphs = null)
     {
         // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
         ImmutableArray<IBlockFormatter> copy = formatters is null ? [] : ImmutableArray.CreateRange(formatters);
@@ -108,6 +122,7 @@ internal sealed class DocumentFormatter
 
         _formatters = copy;
         _inline = inline;
+        _paragraphs = paragraphs;
     }
 
     /// <summary>
@@ -167,7 +182,233 @@ internal sealed class DocumentFormatter
         // The line ending is the configured one, or else the one the file uses most
         var target = config.EndOfLine ?? source.MajorityLineEnding;
         var result = edits.ToImmutable();
-        return new FormatResult(result, target, [.. CheckLineEndings(source, target), .. ReportEdits(source, result)]);
+        var reported = ReportEdits(source, result);
+
+        // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules produce
+        var (wrapped, wrapDiagnostics) = WrapParagraphs(document, config, layout, result);
+        return new FormatResult(wrapped, target, [.. CheckLineEndings(source, target), .. reported, .. wrapDiagnostics]);
+    }
+
+    /// <summary>
+    ///     Wraps the paragraphs that are wider than the line length, on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>
+    ///     The edits against the original text (those of the other rules, with the ones that a wrap replaces absorbed, and the
+    ///     wraps) and the <c>line-length</c> findings; the edits unchanged and no finding when nothing is wrapped or reported.
+    /// </returns>
+    /// <remarks>
+    ///     The other rules (a list that moves, a quote that loses a space, emphasis that changes its delimiter) change the
+    ///     lines that a wrap reads, and their edits overlap the lines it rewrites. The wrap therefore reads the text that
+    ///     those edits produce, and its edits are composed with theirs afterwards (see <see cref="EditRebaser"/>), so the
+    ///     result is the same as running the rules one after the other. The text is parsed again only when some line of it
+    ///     is wider than the line length.
+    /// </remarks>
+    private (ImmutableArray<TextEdit> Edits, ImmutableArray<Diagnostic> Diagnostics) WrapParagraphs(
+        ParsedDocument document,
+        LintMarkConfig config,
+        LineLayout layout,
+        ImmutableArray<TextEdit> edits)
+    {
+        // Wrapping needs the formatter, the settings that ask for it, and some line that is wider than the line length
+        if (_paragraphs is null || !ParagraphFormatter.IsEnabled(config))
+        {
+            return (edits, []);
+        }
+
+        var source = document.Source;
+        var produced = SourcePatcher.Apply(source, edits);
+        if (!HasLineWiderThan(produced, config.LineLength))
+        {
+            return (edits, []);
+        }
+
+        // The text the other rules produce is the document the paragraphs are read from
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, produced));
+        if (current.IsFormatUnsafe)
+        {
+            return (edits, []);
+        }
+
+        var currentLayout = edits.IsEmpty ? layout : new LineLayout(current.Source);
+        var context = new FormatContext(current, config, currentLayout, LineOwnership.Build(current, currentLayout, static _ => false));
+        var outcomes = current.Blocks
+            .Where(static block => block.Kind == BlockKind.Paragraph)
+            .Select(block => _paragraphs.Format(context, block))
+            .Where(static outcome => outcome.OverflowOffset >= 0)
+            .ToList();
+
+        // A wrap that the rules would change again is not a result a second run could leave alone, so it is not made
+        outcomes = SettleWraps(current, config, outcomes);
+
+        // The wraps that stand are composed with the edits of the other rules; every paragraph with a line that is too wide is reported
+        var wraps = new EditSet();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        foreach (var outcome in outcomes)
+        {
+            if (outcome.Edit is { } wrap)
+            {
+                wraps.Add(wrap);
+            }
+
+            AddLineLengthDiagnostics(source, edits, config.LineLength, outcome, diagnostics);
+        }
+
+        return (EditRebaser.Rebase(edits, wraps.ToImmutable()), diagnostics.ToImmutable());
+    }
+
+    /// <summary>
+    ///     Withdraws the wraps after which the rules that edit paragraph text would propose a change.
+    /// </summary>
+    /// <param name="current">The document the paragraphs were read from (the text the other rules produce).</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="outcomes">What the paragraph formatter decided for each paragraph with a line that is too wide, in document order.</param>
+    /// <returns>
+    ///     The outcomes, in which every paragraph whose wrap would be changed again is kept as written and reported as one
+    ///     that cannot be wrapped automatically.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         Wrapping moves words to the start and end of lines, and a rule may treat a word differently there (the
+    ///         inline normalizer decides about a bare URL by the character before it, which is a quote marker at the start of
+    ///         a line and a blank elsewhere). The text with every wrap applied is read again, and the paragraphs that were
+    ///         wrapped are given to the inline normalizer and to the paragraph formatter once more; a paragraph that either
+    ///         would still change was not rewritten to a form that is stable, so its wrap is withdrawn. The wraps are
+    ///         independent of each other, so withdrawing one does not affect another.
+    ///     </para>
+    ///     <para>
+    ///         When the wrapped text can no longer be read as a document that may be formatted, every wrap is withdrawn.
+    ///     </para>
+    /// </remarks>
+    private List<ParagraphOutcome> SettleWraps(ParsedDocument current, LintMarkConfig config, List<ParagraphOutcome> outcomes)
+    {
+        var wrapped = outcomes.Where(static outcome => outcome.Edit is not null).ToList();
+        if (wrapped.Count == 0)
+        {
+            return outcomes;
+        }
+
+        // Read the text with every wrap applied
+        var edits = wrapped.Select(static outcome => outcome.Edit!.Value).ToImmutableArray();
+        var settled = DocumentParser.Parse(SourceDocument.FromText(current.Source.Path, SourcePatcher.Apply(current.Source, edits)));
+        var withdrawn = new HashSet<ParagraphOutcome>(ReferenceEqualityComparer.Instance);
+        if (settled.IsFormatUnsafe)
+        {
+            withdrawn.UnionWith(wrapped);
+        }
+        else
+        {
+            var layout = new LineLayout(settled.Source);
+            var context = new FormatContext(settled, config, layout, LineOwnership.Build(settled, layout, static _ => false));
+            var shift = 0;
+            foreach (var outcome in wrapped)
+            {
+                var edit = outcome.Edit!.Value;
+                var start = edit.Start + shift;
+                shift += edit.Replacement.Length - edit.Length;
+                if (!WrapIsStable(settled, context, config, start))
+                {
+                    withdrawn.Add(outcome);
+                }
+            }
+        }
+
+        return [.. outcomes.Select(outcome => withdrawn.Contains(outcome)
+            ? new ParagraphOutcome(null, outcome.OverflowOffset, outcome.OverflowWidth, hasResidualOverflow: true)
+            : outcome)];
+    }
+
+    /// <summary>
+    ///     Determines whether the paragraph that starts at an offset of the wrapped text is one that no rule would change again.
+    /// </summary>
+    /// <param name="settled">The document read from the wrapped text.</param>
+    /// <param name="context">The context of that document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="start">The offset where the wrapped paragraph starts.</param>
+    /// <returns>
+    ///     <see langword="true"/> when a paragraph starts there and neither the inline normalizer nor the paragraph formatter
+    ///     proposes an edit for it.
+    /// </returns>
+    private bool WrapIsStable(ParsedDocument settled, FormatContext context, LintMarkConfig config, int start)
+    {
+        var block = settled.Blocks.FirstOrDefault(candidate => candidate.Kind == BlockKind.Paragraph && candidate.Start == start);
+        if (block is null)
+        {
+            return false;
+        }
+
+        var more = new EditSet();
+        _inline?.AddBlockEdits(settled, block, config, more);
+        return more.IsEmpty && _paragraphs!.Format(context, block).Edit is null;
+    }
+
+    /// <summary>
+    ///     Adds the <c>line-length</c> findings of one paragraph.
+    /// </summary>
+    /// <param name="source">The original document, for the path and the positions.</param>
+    /// <param name="edits">The edits of the other rules, to translate the offset of the produced text to the original.</param>
+    /// <param name="limit">The line length.</param>
+    /// <param name="outcome">What the paragraph formatter found out about the paragraph.</param>
+    /// <param name="diagnostics">Receives the findings.</param>
+    /// <remarks>
+    ///     A wrap is a formatting violation that rewriting removes; a line that could be broken and stays too wide is
+    ///     reported as a problem that rewriting cannot fix, in addition when a wrap is proposed.
+    /// </remarks>
+    private static void AddLineLengthDiagnostics(
+        SourceDocument source,
+        ImmutableArray<TextEdit> edits,
+        int limit,
+        ParagraphOutcome outcome,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var (line, column) = source.PositionOf(EditRebaser.MapOffset(edits, outcome.OverflowOffset));
+        var message = $"Line is {outcome.OverflowWidth} columns wide; the limit is {limit}";
+        if (outcome.Edit is not null)
+        {
+            diagnostics.Add(new Diagnostic(RuleCatalog.LineLengthRuleId, DiagnosticKind.Formatting, source.Path, line, column, message));
+        }
+
+        if (outcome.HasResidualOverflow)
+        {
+            diagnostics.Add(new Diagnostic(
+                RuleCatalog.LineLengthRuleId,
+                DiagnosticKind.LintOnly,
+                source.Path,
+                line,
+                column,
+                message + " and the paragraph cannot be wrapped automatically"));
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether some line of a text is wider than the line length.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="limit">The line length; at least 1.</param>
+    /// <returns><see langword="true"/> when a line, without its trailing blanks, is wider than <paramref name="limit"/> display columns.</returns>
+    /// <remarks>
+    ///     A prefilter: a line of printable ASCII is as wide as it is long, and a line of at most half the limit cannot be
+    ///     too wide (no character is wider than two columns per character), so most lines are not measured.
+    /// </remarks>
+    private static bool HasLineWiderThan(string text, int limit)
+    {
+        var remaining = text.AsSpan();
+        while (!remaining.IsEmpty)
+        {
+            var end = remaining.IndexOf('\n');
+            var line = (end < 0 ? remaining : remaining[..end]).TrimEnd(" \t");
+            if (line.Length * 2 > limit && (line.IndexOfAnyExceptInRange(' ', '~') >= 0 ? TextWidth.Of(line.ToString()) : line.Length) > limit)
+            {
+                return true;
+            }
+
+            remaining = end < 0 ? default : remaining[(end + 1)..];
+        }
+
+        return false;
     }
 
     /// <summary>

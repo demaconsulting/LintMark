@@ -27,7 +27,7 @@ package LintMark {
     }
 
     part def DocumentFormatter {
-        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, each paragraph no block formatter claims goes to the optional inline normalizer, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit of such a rule is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported (also documents the FormatResult and FormatContext supporting types, the IBlockFormatter contract modeled as an interface definition, and the internal helpers that the passes and the block formatters share). */
+        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, each paragraph no block formatter claims goes to the optional inline normalizer, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit of such a rule is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported; when an optional paragraph formatter is registered and the settings ask for wrapping, the paragraphs that still have a line wider than the line length are wrapped last, on the text that all the other rules produce, a wrap after which the inline normalizer or the paragraph formatter would propose another edit is withdrawn and reported as a problem that cannot be fixed, and the wraps are composed with the edits of the other rules and reported at their original positions (also documents the FormatResult and FormatContext supporting types, the IBlockFormatter contract modeled as an interface definition, and the internal helpers that the passes and the block formatters share). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
@@ -47,6 +47,7 @@ package LintMark {
                 "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterPassTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterSupportTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterWrapTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Formatting/TestBlockFormatters.cs");
             designFiles = ("docs/design/lintmark/formatting/document-formatter.md");
             verificationFiles = ("docs/verification/lintmark/formatting/document-formatter.md");
@@ -75,6 +76,19 @@ package LintMark {
         // Each paragraph that no block formatter claims is given to the inline normalizer, when one is
         // registered, with the effective configuration of the file.
         dependency DocumentFormatter to InlineNormalizer;
+
+        // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules
+        // produce: the text is produced with the source patcher and read again with the document parser (as a
+        // new source document), each paragraph goes to the paragraph formatter, which says whether the
+        // settings ask for wrapping and returns the outcome of each paragraph, a cheap prefilter measures the
+        // lines in display columns, and the wraps are composed with the edits of the other rules and mapped
+        // back to the original text by the edit rebaser.
+        dependency DocumentFormatter to ParagraphFormatter;
+        dependency DocumentFormatter to ParagraphOutcome;
+        dependency DocumentFormatter to EditRebaser;
+        dependency DocumentFormatter to SourcePatcher;
+        dependency DocumentFormatter to DocumentParser;
+        dependency DocumentFormatter to TextWidth;
         // The result carries the edits, the line ending and the diagnostics, whose rule identifiers and
         // descriptions come from the rule catalog.
         dependency DocumentFormatter to FormatResult;

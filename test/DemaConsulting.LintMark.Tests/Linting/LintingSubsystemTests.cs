@@ -240,4 +240,24 @@ public class LintingSubsystemTests
         var failureError = Assert.Single(failure.Errors);
         Assert.Equal((2, 3, "Unknown rule 'config-error'"), (failureError.Line, failureError.Column, failureError.Message));
     }
+
+    /// <summary>
+    ///     Test that the code span rule is registered as a fixable formatting rule with the legacy number MD038, and that a configuration rejects it.
+    /// </summary>
+    [Fact]
+    public void LintingSubsystem_RuleRegistry_CodeSpanSpaceRule_IsRegisteredFixableByNumberAndNotConfigurable()
+    {
+        // Act: look the rule up by both names, and parse a configuration that names the number
+        Assert.True(RuleCatalog.TryGet("code-span-space", out var rule));
+        Assert.True(RuleCatalog.TryResolve("MD038", out var resolved));
+        var byAlias = Parse("rules:\n  MD038: false\n");
+
+        // Assert: a fixable formatting rule with the number, known but not configurable
+        Assert.Equal(DiagnosticKind.Formatting, rule.Kind);
+        Assert.Contains("MD038", rule.Aliases);
+        Assert.False(rule.IsConfigurable);
+        Assert.Equal("code-span-space", resolved);
+        Assert.Null(byAlias.Config);
+        Assert.Equal("Unknown rule 'MD038'", Assert.Single(byAlias.Errors).Message);
+    }
 }

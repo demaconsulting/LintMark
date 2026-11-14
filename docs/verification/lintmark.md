@@ -17,8 +17,8 @@ prints each path relative to the current directory of the tool process, so the a
 path that lies inside the temporary directory. The scenarios about the effect of a configuration file therefore
 check whether a configuration problem is reported, where, in what form, and with what exit status. The settings that
 change what the tool does to a file are the line ending (`end-of-line`), `final-newline`, `max-blank-lines`,
-`code-fence`, `thematic-break`, `bullet`, `ordered-style`, `list-indent`, `emphasis`, `strong`, and `bare-urls`, so the
-scenarios that name them in a configuration file or in editor settings check
+`code-fence`, `thematic-break`, `bullet`, `ordered-style`, `list-indent`, `emphasis`, `strong`, `bare-urls`, and
+`line-length`, so the scenarios that name them in a configuration file or in editor settings check
 the effect on the bytes of the rewritten file.
 
 The scenarios about the `--fix` and `--diff` options write a file with known bytes, run the tool, and then read
@@ -30,6 +30,15 @@ selects the form), and compare the report and the bytes of the file afterward. R
 cause cannot be reached through the command line, because no rule of the tool is faulty; the Engine subsystem
 tests with deliberately faulty rules verify them, and the system scenarios show the refusals that do not depend on
 a rule.
+
+The scenarios about the line length rule, the paragraph wrap, and the code span rule are in `IntegrationWrapTests.cs`
+and run the same way. A helper writes the Markdown file into a temporary directory (as UTF-8 without a byte order mark
+unless a scenario needs one), writes a `.lintmark.yaml` with `line-length: 20` unless the scenario gives another
+configuration or none, runs the tool with `--fix` or `--check`, and returns the exit code, the combined output, and the
+text of the file afterward; the check helper also asserts that the bytes of the file did not change. A limit of 20
+columns keeps the paragraphs short enough to show every kind of wrap. The scenarios assert the exact text of the file
+after the run, and where a finding is reported they assert its path, line, column, rule, and message, matched on the
+relative path only, because the temporary directory may be reached through a link on some systems.
 
 `Runner.Run` merges stdout and stderr into a single combined output string. Per-stream assertions
 (e.g., "standard error is empty") are not possible at this level; all assertions are made
@@ -91,7 +100,27 @@ a file without permissions, such as when the tests run as a privileged user.
   validation, and `--config` combined with `--no-config` is rejected with exit code 1.
 - A selected file that matches an `ignore` pattern of its configuration is skipped, unless it is named on the
   command line.
-- The width of a line is measured in display columns (verified at the Utilities subsystem level).
+- The width of a line is measured in display columns: a line of wide characters is reported and wrapped although it has
+  fewer characters than the limit, and a line of combining marks is not although it has more.
+- A paragraph line that is wider than `line-length` (120 by default) and holds a place to break is reported as a
+  `line-length` problem at the first column beyond the width, `--fix` wraps the paragraph so that no line is wider than
+  the limit except lines that cannot be broken, and every paragraph with no such line stays byte for byte as written; a
+  limit of 0, or the rule switched off by its name or by `MD013`, reports and changes nothing, and a suppression comment
+  with `MD013` does the same for its region.
+- A line that is wide only because of one link, URL, link in angle brackets, code span, or image is neither reported nor
+  changed, and code, HTML, tables, headings, link reference definitions, and front matter are never reported.
+- A wrapped paragraph keeps each link, code span, inline HTML, math, footnote reference, entity, Pandoc attribute, and
+  citation on one line, keeps each hard break, carries the prefix of its list item or quote on every line, and never
+  starts a line with text that is read as a list marker, number marker, heading, quote, fence, table, HTML block,
+  definition, or Pandoc construct.
+- A paragraph with a Pandoc structural line and a paragraph in a footnote are left as written, a line that could not be
+  shortened is still reported after `--fix` with exit code 1, and `wrap: sentence` and `wrap: semantic` are accepted and
+  change nothing.
+- A wrapped file keeps its line endings and its byte order mark, and a second `--fix` run over wrapped files changes
+  nothing and reports nothing.
+- One space on each side of a code span is removed by `--fix` and reported under `code-span-space` at the span by
+  `--check`; a code span with a backtick at an edge, with padding on one side or more than one space, or with only
+  spaces keeps its text, and a suppression comment with `MD038` leaves the padding.
 - Each Markdown file is processed with the nearest `.lintmark.yaml` file up to the repository root: an invalid
   nearer file is reported, an invalid farther file is never read, and a file above a `.git` directory is never used.
 - `--config` makes the named file govern every file instead of discovery, and a missing named file is reported
@@ -331,17 +360,118 @@ the width that its marker changed and stays in its item.
 is one column right of the first, and an ordered list that starts in column two is passed with `--fix`. The bullet items
 start at the margin and the ordered list keeps its column.
 
-**Fix writes emphasis, strong emphasis, and bare URLs in the canonical form**: A file with underscore emphasis, underscore
-strong emphasis, and a bare URL is passed with `--fix` without a configuration and with `bare-urls: leave`, and a file
-with asterisk delimiters and a bare URL is passed with `emphasis: underscore`, `strong: underscore`, and
-`bare-urls: leave`. By default the delimiters are asterisks and the URL is in angle brackets; with `bare-urls: leave` the
-delimiters are asterisks and the URL is as written; with underscores configured the delimiters are underscores and the
-URL is as written.
+**Fix writes emphasis, strong emphasis, and bare URLs in the canonical form**: A file with underscore emphasis,
+underscore strong emphasis, and a bare URL is passed with `--fix` without a configuration and with `bare-urls: leave`,
+and a file with asterisk delimiters and a bare URL is passed with `emphasis: underscore`, `strong: underscore`, and
+`bare-urls: leave`. By default the delimiters are asterisks and the URL is in angle brackets; with `bare-urls: leave`
+the delimiters are asterisks and the URL is as written; with underscores configured the delimiters are underscores and
+the URL is as written.
 
 **A list, quote, or inline rule disabled by its legacy number is neither fixed nor reported**: A bullet, a quote with a
-wide gap, underscore emphasis, and a bare URL, each in a file after a comment that disables `MD004`, `MD027`, `MD049`, or
-`MD034`, are passed with `--fix`. The exit code is 0, no rule of the lists, quotes, or inline text is reported, and the
-bytes are the same.
+wide gap, underscore emphasis, and a bare URL, each in a file after a comment that disables `MD004`, `MD027`, `MD049`,
+or `MD034`, are passed with `--fix`. The exit code is 0, no rule of the lists, quotes, or inline text is reported, and
+the bytes are the same.
+
+**An overlong paragraph is reported at the first column beyond the width**: A configuration with `line-length: 20` and a
+file with the paragraph `aaa bbb ccc ddd eee fff ggg` (27 columns) are passed with `--check`. The exit code is 1, the
+output contains `a.md:1:21: line-length Line is 27 columns wide; the limit is 20`, and the file's bytes are unchanged.
+
+**Fix wraps an overlong paragraph within the width**: The same configuration and file are passed with `--fix`. The exit
+code is 0, the output holds no `line-length` line, and the file holds `aaa bbb ccc ddd eee` and `fff ggg` on two lines.
+
+**Paragraphs within the width stay byte for byte as written**: A file with the three lines `a`, `bbb ccc`, and `d e f`
+as one paragraph, and a paragraph of one line of exactly 20 columns, is passed with `--fix` and a limit of 20. The exit
+code is 0, nothing is reported, and the file has the same bytes.
+
+**The width comes from the line-length setting and is 120 by default**: A paragraph of twenty four-letter words (99
+columns) is checked without a configuration and with `line-length: 80`. Without a configuration the exit code is 0 and
+nothing is reported; with 80 columns the exit code is 1 and the output contains
+`a.md:1:81: line-length Line is 99 columns wide; the limit is 80`.
+
+**A line length of zero reports and changes nothing**: A paragraph of eighty words is checked with `line-length: 0`. The
+exit code is 0 and nothing is reported.
+
+**The line length rule can be switched off by its name or by its legacy number**: A configuration with `line-length: 20`
+and `line-length: false` under `rules`, and another with `MD013: false`, are used to fix the paragraph that is 27
+columns wide. The exit code is 0, nothing is reported, and the file is unchanged.
+
+**A line that is wide only because of one unbreakable item is not reported or changed**: A link with a long destination,
+a link in angle brackets with a long address, a code span with blanks inside, and an image with a long address, each
+alone on its line, are passed with `--fix` and a limit of 20. The exit code is 0, nothing is reported, and the text is
+the same.
+
+**Literal blocks wider than the width are never reported**: A file with front matter, a heading, a fenced code block, an
+HTML block, a pipe table, and a link reference definition with a title, every line much wider than 20 columns, is passed
+with `--check` and a limit of 20. The exit code is 0 and nothing is reported.
+
+**A wrapped paragraph keeps its inline constructs whole**: The paragraph `aaa`, a link with the text `bb cc dd`, `fff`,
+a code span with the text `gg hh ii`, `jjj`, inline HTML `<span a="b c">kk</span>`, and `lll` is passed with `--fix` and
+a limit of 20. The link, the code span, and the inline HTML each stand on one line of the result, and no line is longer
+than 30 characters.
+
+**A wrapped paragraph keeps its hard breaks**: Paragraphs in which `aaa bbb ccc ddd eee fff ggg` ends with a hard break
+written with two spaces, and in another file with a backslash, followed by `hhh iii`, are passed with `--fix` and a
+limit of 20. The first line is wrapped after `eee`, and the break stays at the end of `fff ggg` in each file.
+
+**A wrapped list item or quote keeps its prefixes**: A bullet item with a nested bullet item, a quote, and a quote with
+a lazy line, each with a paragraph that is too wide, are passed with `--fix` and a limit of 20. The continuation lines
+of the bullet items are indented to the content of their items, and every line of the quotes, the lazy line included,
+starts with the quote marker.
+
+**A wrapped line never starts with block syntax**: Paragraphs in which a lone dash, `2026.`, a lone plus sign, or a lone
+number sign stands after `eee` are passed with `--fix` and a limit of 20. The paragraph is wrapped before `eee`, so the
+marker stays inside its line.
+
+**A paragraph with a Pandoc structural line is left as written**: A paragraph whose second line is a LaTeX page break
+command is passed with `--fix` and a limit of 20. The exit code is 0, nothing is reported, and the file is
+unchanged.
+
+**A paragraph in a footnote is left as written**: A footnote definition whose paragraph is wider than 20 columns is
+passed with `--fix`. The exit code is 0, nothing is reported, and the file is unchanged.
+
+**A line that could not be shortened is still reported after the fix**: A list item `- aaa bbb ccc ddd` followed by a
+trailing space, then a lazy line `eee fff ggg hhh iii jjj` (23 columns), is passed with `--fix` and a limit of 20. The
+trailing space is removed, the lazy line is as written, the exit code is 1, and the output contains
+`a.md:2:21: line-length Line is 23 columns wide; the limit is 20 and the paragraph cannot be wrapped automatically` and
+no `trailing-whitespace` line.
+
+**The sentence and semantic wrap modes are accepted and change nothing**: A configuration with `line-length: 20` and
+`wrap: sentence`, and another with `wrap: semantic`, are used to fix a paragraph of two sentences that is too wide. The
+exit code is 0, there is no `config-error`, and the file is unchanged.
+
+**A second fix run over wrapped files changes nothing**: A file with a bullet list written with three spaces after the
+marker and underscore emphasis, a quote with three spaces after the marker and a padded code span, and a long paragraph
+is fixed with a limit of 20. A second `--fix` run exits with 0, reports no `line-length` problem, and leaves the bytes
+as the first run left them.
+
+**A line length rule disabled by its legacy number is neither fixed nor reported**: A file whose first comment disables
+`MD013` and whose next paragraph is 27 columns wide is passed with `--fix` and a limit of 20. The exit code is 0,
+nothing is reported, and the file is unchanged.
+
+**A wrapped file keeps its CRLF line endings and its byte order mark**: A file that starts with a byte order mark and
+holds the quote `> aaa bbb ccc ddd eee fff ggg` with a CRLF line ending is passed with `--fix` and a limit of 20. The
+file holds the mark, the two quote lines `> aaa bbb ccc ddd` and `> eee fff ggg`, and a CRLF line ending after each.
+
+**Fix removes the padding of a code span**: A file with the sentence `a`, a code span of the letter `x` with one space
+of padding on each side, and `b` is passed with `--fix` and no configuration. The exit code is 0 and the code span has
+no padding.
+
+**Check reports a padded code span under its rule at the code span**: The same file is passed with `--check`. The exit
+code is 1 and the output contains `a.md:1:4: code-span-space`, the position of the opening backtick.
+
+**A code span with a backtick at an edge keeps its padding**: Spans delimited by two backticks, one whose content starts
+with a backtick and one whose content ends with one, each padded with one space on both sides, are passed with `--fix`.
+The exit code is 0, no `code-span-space` is reported, and the text is the same.
+
+**A code span with uneven or wider padding is kept**: A span with a space on its left only, one with a space on its
+right only, and one with two spaces on each side are passed with `--fix`. The exit code is 0 and the text is the same.
+
+**A code span of spaces is kept**: Spans that hold one, two, and three spaces and nothing else are passed with `--fix`.
+The exit code is 0 and the text is the same.
+
+**The code span rule disabled by its legacy number is neither fixed nor reported**: A padded code span after a comment
+that disables `MD038` is passed with `--fix` and no configuration. The exit code is 0, no `code-span-space` is reported,
+and the file is unchanged.
 
 **Ignore patterns skip the matching files of a glob**: A configuration ignores `drafts/**` and both `drafts/bad.md`
 and `kept/bad.md` are undecodable; an absolute glob that selects every Markdown file gives exit code 1, a
@@ -489,8 +619,14 @@ output contains `a.md:1:1: safety-html-mismatch`, and the file's bytes are uncha
 
 ### Display width
 
-**Display width of a mixed-script line is measured in columns**: No command-line behavior depends on the width of a
-line yet, because the rules that apply a width limit come later. The requirement is therefore verified at the
-Utilities subsystem level: a line with accented, combining, East Asian, and emoji characters is measured, and the
-width counts display columns and not UTF-16 code units; a line padded to a fixed number of columns measures exactly
-that number of columns.
+**Display width of a line is measured in columns**: A paragraph of 63 characters that need 123 columns (four groups of
+fifteen East Asian characters, joined by spaces), and a second paragraph of 167 characters that need 87 columns (eight
+words of ten letters `e` with a combining accent, joined by spaces), are checked without a configuration, so the limit
+is 120 columns. The exit code is 1, the output contains
+`a.md:1:62: line-length Line is 123 columns wide; the limit is 120`, and the output has no line for line 3. The same
+text is then passed with `--fix`: the wide paragraph is wrapped after its third group, so its first line holds three
+groups and its second line holds one, and the paragraph of combining marks is unchanged. The width counts display
+columns and not UTF-16 code units, a wide character counts two columns, and a combining mark counts none.
+
+The measure itself is also verified at the Utilities subsystem level: a line with accented, combining, East Asian, and
+emoji characters is measured, and a line padded to a fixed number of columns measures exactly that number of columns.

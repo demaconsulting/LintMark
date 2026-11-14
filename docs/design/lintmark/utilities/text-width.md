@@ -6,7 +6,8 @@
 
 `TextWidth` measures how many terminal columns a text occupies. Line wrapping and table layout must agree with what a
 reader sees, and the number of UTF-16 code units is a poor measure: East Asian characters and emoji take two columns,
-and combining marks, joiners, and variation selectors take none.
+and combining marks, joiners, and variation selectors take none. The paragraph wrapping of the `Formatting` subsystem
+uses it today (the `line-length` rule counts display columns); table layout will use it too.
 
 #### Data Model
 
@@ -95,5 +96,8 @@ not an error and counts as one narrow character.
 
 #### Callers
 
-N/A - no production caller yet; the line wrapping and table formatting of later phases will use it. It is verified
-by unit and subsystem tests only.
+- **ParagraphFormatter** (`Blocks` subsystem) - measures the lines of a paragraph, the container prefixes, and the
+  overflow position.
+- **LineWrapper** (`Inline` subsystem) - measures every atom to fill lines up to the width.
+
+The table formatting of a later phase will use it too. It is verified by unit and subsystem tests.

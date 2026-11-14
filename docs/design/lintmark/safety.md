@@ -33,8 +33,8 @@ unit.
 
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
-- *Contract*: As `HtmlEquivalenceChecker.Check`, but the texts may contain carriage returns and are rendered as they are,
-  so that a difference that only the line endings cause is reported.
+- *Contract*: As `HtmlEquivalenceChecker.Check`, but the texts may contain carriage returns and are rendered as they
+  are, so that a difference that only the line endings cause is reported.
 - *Constraints*: Throws `ArgumentNullException` for a null text. Fails closed and is safe for concurrent use.
 
 **StructuralTokenChecker.Check**: Compares the Pandoc structural tokens of two texts.
@@ -42,8 +42,8 @@ unit.
 - *Type*: In-process .NET static method.
 - *Role*: Provider.
 - *Contract*: Takes the same two texts and returns an `EquivalenceResult`: equivalent when the sequence of structural
-  lines and the occurrence counts of attribute groups and citations are equal, otherwise a result that names the first token
-  that differs.
+  lines and the occurrence counts of attribute groups and citations are equal, otherwise a result that names the first
+  token that differs.
 - *Constraints*: As `HtmlEquivalenceChecker.Check`.
 
 **IdempotencyChecker.Check**: Checks that formatting is a fixed point.

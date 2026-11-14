@@ -14,14 +14,14 @@ or must not be read: a reported diagnostic proves that a file was read, and sile
 tests change the current directory and are therefore run sequentially with the other tests that touch process-wide
 state.
 
-The default engine is created with the five block formatters of the `Blocks` subsystem and the inline normalizer of the
-`Inline` subsystem, so it applies every formatting
-rule of the tool to the files it processes. The scenarios that need a change of the text that is independent of those
-rules, or a refusal by a safety check, install test doubles through the engine's
-`formatter` seam: the paragraph formatters from `Formatting/TestBlockFormatters.cs`, which are the replacing
-formatter (collapses a double space) and the broken formatter that drops a hard break (so that the rendering
-would change). Editor settings that cannot be read are provoked through the `editorConfigFactory` seam with a
-resolver built from two throwing delegates. Everything else is real, including the file system.
+The default engine is created with the five block formatters of the `Blocks` subsystem, the paragraph formatter of the
+same subsystem, and the inline normalizer of the `Inline` subsystem, so it applies every formatting rule of the tool to
+the files it processes, the paragraph wrap included. The scenarios that need a change of the text that is independent of
+those rules, or a refusal by a safety check, install test doubles through the engine's `formatter` seam: the paragraph
+formatters from `Formatting/TestBlockFormatters.cs`, which are the replacing formatter (collapses a double space) and
+the broken formatter that drops a hard break (so that the rendering would change). Editor settings that cannot be read
+are provoked through the `editorConfigFactory` seam with a resolver built from two throwing delegates. Everything else
+is real, including the file system.
 
 The configuration scenarios use the real `ConfigLoader`, `LintMarkConfig`, and `EditorConfigResolver` that the
 engine creates itself (so the real editorconfig library too), and drive them through the same helper: the
@@ -74,6 +74,9 @@ directory and are removed with it.
   rule, and writes nothing.
 - The default engine previews the change that the fix option would make to such a file, and writes nothing.
 - The default engine repairs such a file with `--fix` and finds nothing in the repaired file.
+- The default engine reports a paragraph line that is wider than the configured `line-length` and has a place to break
+  as a `line-length` problem when checking, wraps the paragraph when fixing, and keeps reporting a line that it could
+  not wrap after the fix, with exit code 1.
 - A rewrite that a safety check refuses is reported as a safety diagnostic and the file is left byte for byte as it
   was; this includes a conversion of the line endings that would change how the document renders.
 - A document with an invalid grid table is reported as `grid-table-invalid` at the offending line and is never
@@ -176,6 +179,12 @@ for byte as it was.
 engine. The first check reports `heading-space`, `heading-blank-lines`, and `trailing-whitespace` and exits with 1,
 the fix leaves the file with the canonical heading, a blank line, and the paragraph without trailing spaces, and the
 last check reports nothing.
+
+**An overlong paragraph is reported when checking and wrapped when fixing**: A configuration with `line-length: 20`, a
+file `wrap.md` with the paragraph `aaa bbb ccc ddd eee fff ggg`, and a file `lazy.md` with a list item whose lazy
+continuation line `eee fff ggg hhh iii jjj` is 23 columns wide are processed by the default engine with two workers. The
+check reports `lazy.md:2:21: line-length` and `wrap.md:1:21: line-length` in path order and exits with 1. The fix then
+rewrites `wrap.md` to `aaa bbb ccc ddd eee` and `fff ggg` on two lines, reports only `lazy.md:2:21:`, and exits with 1.
 
 #### Boundary conditions
 

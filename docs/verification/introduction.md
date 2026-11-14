@@ -39,18 +39,23 @@ This document covers the verification design for the following software items:
     - **Diagnostic** — one finding with its position and rule identifier
     - **RuleCatalog** — registry of rule identifiers, aliases, and defaults
   - **Formatting** subsystem
-    - **EditSet** — validated, ordered collection of text edits
+    - **EditSet** — validated, ordered collection of text edits, and the composition of edit lists
     - **SourcePatcher** — application of an edit set to the source text
-    - **DocumentFormatter** — block formatter orchestration, the rules that apply to every document, and line ending
-      decision
+    - **DocumentFormatter** — block formatter orchestration, the rules that apply to every document, line ending
+      decision, and the second stage that wraps paragraphs
     - **Blocks** subsystem
       - **HeadingFormatter** — canonical ATX headings
       - **CodeBlockFormatter** — canonical fenced code blocks
       - **ThematicBreakFormatter** — canonical thematic breaks
       - **ListFormatter** — canonical list markers, numbers, columns, and spacing
       - **BlockQuoteFormatter** — canonical spacing after block quote markers
+      - **ParagraphFormatter** — filling of paragraphs that are wider than the line length
     - **Inline** subsystem
-      - **InlineNormalizer** — canonical emphasis and strong emphasis delimiters and wrapped bare URLs
+      - **InlineNormalizer** — canonical emphasis and strong emphasis delimiters, wrapped bare URLs, and code spans
+        without padding
+      - **AtomTokenizer** — division of a paragraph into words and inline constructs that may not be split
+      - **LineWrapper** — greedy fill of words into lines of a display width
+      - **BlockSyntaxGuard** — words that must not start a line
   - **Safety** subsystem
     - **HtmlEquivalenceChecker** — comparison of the rendered HTML of two texts
     - **StructuralTokenChecker** — comparison of structural tokens of two texts
@@ -104,8 +109,10 @@ test/
 │   ├── Formatting/                 — Formatting subsystem and unit tests, with test block formatters
 │   │   ├── Blocks/                 — Blocks subsystem, corpus, and block formatter unit tests, including
 │   │   │                             ListFormatterTests, BlockQuoteFormatterTests, ListQuoteInlineCorpusTests, and its
-│   │   │                             generator ListQuoteInlineDocuments
-│   │   └── Inline/                 — InlineSubsystemTests and InlineNormalizerTests
+│   │   │                             generator ListQuoteInlineDocuments, and ParagraphFormatterTests,
+│   │   │                             ParagraphCorpusTests, and its generator ParagraphDocuments
+│   │   └── Inline/                 — InlineSubsystemTests, InlineNormalizerTests, AtomTokenizerTests,
+│   │                                 LineWrapperTests, and BlockSyntaxGuardTests
 │   ├── Linting/                    — Linting subsystem and unit tests
 │   ├── Reporting/                  — Reporting subsystem and unit tests, with a patch applier
 │   ├── Safety/                     — Safety subsystem and unit tests

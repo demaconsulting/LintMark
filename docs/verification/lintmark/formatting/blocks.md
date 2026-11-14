@@ -2,20 +2,22 @@
 
 #### Verification Approach
 
-The `Blocks` subsystem is verified by integration tests in `BlocksSubsystemTests.cs` and two corpus test classes,
-`BlocksCorpusTests.cs` and `ListQuoteInlineCorpusTests.cs` (with its generator `ListQuoteInlineDocuments.cs`). All of them
-use the production composition: the real `DocumentParser`, the real `DocumentFormatter` created with `HeadingFormatter`,
-`CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter` and with the `InlineNormalizer`
-of the `Inline` subsystem, and the real `SourcePatcher`. No unit is replaced by a double. A shared helper,
-`BlockFormatterAssertions` (the file `BlockFormatterAssertions.cs`), formats a
-text and asserts every property that a rewrite of the tool must have, and the tests never relax an assertion to make a
-case pass:
+The `Blocks` subsystem is verified by integration tests in `BlocksSubsystemTests.cs` and `BlocksSubsystemWrapTests.cs`
+and two corpus test classes, `BlocksCorpusTests.cs` and `ListQuoteInlineCorpusTests.cs` (with its generator
+`ListQuoteInlineDocuments.cs`). All of them use the production composition: the real `DocumentParser`, the real
+`DocumentFormatter` created with `HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`,
+and `BlockQuoteFormatter`, with the `InlineNormalizer` of the `Inline` subsystem and with the `ParagraphFormatter`, and
+the real `SourcePatcher`. No unit is replaced by a double. A shared helper, `BlockFormatterAssertions` (the file
+`BlockFormatterAssertions.cs`), formats a text and asserts every property that a rewrite of the tool must have, and the
+tests never relax an assertion to make a case pass:
 
 - the formatted text is the expected text;
-- it renders to the same HTML, both as LF text and as the CRLF text that would be written to disk (`HtmlEquivalenceChecker`);
+- it renders to the same HTML, both as LF text and as the CRLF text that would be written to disk
+  (`HtmlEquivalenceChecker`);
 - it keeps its Pandoc structure (`StructuralTokenChecker`) and its grid table reading;
-- formatting it again proposes no edit and reports no problem (`IdempotencyChecker` and a direct second run);
-- the edits are ordered and inside the text, and a problem is reported exactly when the text changed;
+- formatting it again proposes no edit and reports no fixable problem (`IdempotencyChecker` and a direct second run);
+- the edits are ordered and inside the text, a formatting problem is reported exactly when the text changed, and the
+  only other problem that may be reported is a lint-only `line-length` problem for a line that could not be wrapped;
 - the same result is computed when the formatter is called from several threads (the corpus tests skip this check with
   `checkParallel: false` to save time on thousands of documents; the tests of concurrent use cover it).
 
@@ -26,37 +28,44 @@ tests and are verified in the `Safety` subsystem.
 documents: a document that breaks every whitespace, blank-line, heading, code block, thematic break, and final newline
 rule that the subsystem and the passes enforce (14 rules), its canonical form, nested containers, Pandoc constructs,
 front matter, HTML, hard breaks, tabs, indented code in many forms, tilde fences, thematic breaks, setext headings,
-spacing, suppression comments, and the configured settings. It also covers the canonical forms of lists and block quotes,
-a second document that breaks every list and quote rule (`bullet`, `ordered-style`, `list-indent`, `list-marker-space`,
-and `blockquote-space`) with the violation of each rule on its line, that lists are never merged or split, that the
-structure of a list and the content of a quote are kept, that a second run changes nothing, and that a list or quote rule
-that is suppressed by identifier or by alias leaves the block alone. The test of concurrent use parses the document once
-and shares it, with one formatter, among eight threads that start together at a barrier; it runs for the document that
-breaks the whitespace and heading rules and for the one that breaks the list and quote rules. The tests of line
-endings and of the byte order mark compare the edits and violations for the LF text with those for the same text read
-from CRLF, mixed, and BOM bytes, in addition to the bytes that are written back. One test moves an inline span of a parsed
-heading so that it no longer fits its line, to reach the guard that real input only reaches through a parser defect.
-`BlocksCorpusTests` runs the same assertion helper over every Markdown file of the repository as
-LF, CRLF, and mixed-ending text with a byte order mark, over generated nested documents (several thousand container
-chains, with and without trailing whitespace), and over seeded random hostile documents of seven families (with and
-without injected tabs and trailing whitespace). The repository's own files are asserted to need no edit and to give no
-problem, which documents that the repository follows its own style. There is one documented carve-out: the standards
-under `.github/standards` are owned by the template of the organization and are never edited in this repository. They
-write emphasis with underscores, so a file there may have a finding of the `emphasis` rule only; every other finding, and
-every finding in any other file, fails the test.
+spacing, suppression comments, and the configured settings. It also covers the canonical forms of lists and block
+quotes, a second document that breaks every list and quote rule (`bullet`, `ordered-style`, `list-indent`,
+`list-marker-space`, and `blockquote-space`) with the violation of each rule on its line, that lists are never merged or
+split, that the structure of a list and the content of a quote are kept, that a second run changes nothing, and that a
+list or quote rule that is suppressed by identifier or by alias leaves the block alone. The test of concurrent use
+parses the document once and shares it, with one formatter, among eight threads that start together at a barrier; it
+runs for the document that breaks the whitespace and heading rules and for the one that breaks the list and quote rules.
+The tests of line endings and of the byte order mark compare the edits and violations for the LF text with those for the
+same text read from CRLF, mixed, and BOM bytes, in addition to the bytes that are written back. One test moves an inline
+span of a parsed heading so that it no longer fits its line, to reach the guard that real input only reaches through a
+parser defect. `BlocksCorpusTests` runs the same assertion helper over every Markdown file of the repository as LF,
+CRLF, and mixed-ending text with a byte order mark, over generated nested documents (several thousand container chains,
+with and without trailing whitespace), and over seeded random hostile documents of seven families (with and without
+injected tabs and trailing whitespace). The repository's own files are asserted to need no edit and to give no problem,
+which documents that the repository follows its own style. There is one documented carve-out: the standards under
+`.github/standards` are owned by the template of the organization and are never edited in this repository. They write
+emphasis with underscores, and their lines are wrapped for another tool, which lets a line run past the limit when its
+last word crosses it, so a file there may have a finding of the `emphasis` rule or of the `line-length` rule only; every
+other finding, and every finding in any other file, fails the test.
+
+`BlocksSubsystemWrapTests` covers the paragraph wrap of the production formatter on hand-written documents at a line
+length of 20 columns: a paragraph that is wrapped, one that stays as written, hard breaks, list and quote prefixes, a
+lazy line of a quote and of a list item, Pandoc and footnote paragraphs, the suppression of each rule that edits a
+paragraph, a break that cannot be made, literal blocks, and a wrap on many threads. The corpus of the wrap itself
+(`ParagraphCorpusTests.cs`) is described with the `Formatting` verification.
 
 `ListQuoteInlineCorpusTests` runs the same assertion helper over seeded generated documents (the generator is a pure
-function of its seed, so the documents are the same on every platform): 4,000 nests of lists with mixed markers, numbers,
-spacing, indentation, lazy lines, blank lines, code, and quotes; 2,500 block quotes with every spacing after their
-markers (paragraphs, headings, lists, code, tables, alerts, and nested quotes); and 6,000 paragraphs over an alphabet of
-delimiters, backticks, brackets, angle brackets, URLs, and punctuation. Each document is formatted as LF text and as the
-same text stored with CRLF line endings and with mixed line endings, both with a byte order mark; every stored form must
-give the same text as the LF text, the CRLF form must render the same HTML on disk, and the LF result must render the
-same HTML and be stable. The tests also assert that a large share of the generated documents changes, so that the corpus
-exercises the rules, and they vary the list settings (marker, indent, and numbering) and the inline settings (underscore
-delimiters, and URLs left as written). One test shows that the per-paragraph proof of the inline normalizer is needed: it
-formats the generated paragraphs with a normalizer that does not prove its paragraphs and counts the results that render
-differently (at least one), and counts none with the normal normalizer.
+function of its seed, so the documents are the same on every platform): 4,000 nests of lists with mixed markers,
+numbers, spacing, indentation, lazy lines, blank lines, code, and quotes; 2,500 block quotes with every spacing after
+their markers (paragraphs, headings, lists, code, tables, alerts, and nested quotes); and 6,000 paragraphs over an
+alphabet of delimiters, backticks, brackets, angle brackets, URLs, and punctuation. Each document is formatted as LF
+text and as the same text stored with CRLF line endings and with mixed line endings, both with a byte order mark; every
+stored form must give the same text as the LF text, the CRLF form must render the same HTML on disk, and the LF result
+must render the same HTML and be stable. The tests also assert that a large share of the generated documents changes, so
+that the corpus exercises the rules, and they vary the list settings (marker, indent, and numbering) and the inline
+settings (underscore delimiters, and URLs left as written). One test shows that the per-paragraph proof of the inline
+normalizer is needed: it formats the generated paragraphs with a normalizer that does not prove its paragraphs and
+counts the results that render differently (at least one), and counts none with the normal normalizer.
 
 #### Test Environment
 
@@ -72,11 +81,12 @@ N/A - standard test environment, with these collaborators of the tests, none of 
 - `InlineNormalizer` (`Inline` subsystem), which every test formatter holds, and whose test-only constructor argument
   `proveParagraphs` is set to `false` by the one test that shows that the proof of a paragraph is needed.
 
-The corpus tests that run the `InlineNormalizer` over generated paragraphs (`ListQuoteInlineCorpus_Format_RandomInlineText*`
-and `ListQuoteInlineCorpus_Format_WithoutParagraphProof_SomeParagraphRendersDifferently`) verify the `Inline` subsystem
-and the `InlineNormalizer` unit. They are kept in this subsystem's class because they share the generator and the
-assertions of the list and quote corpus, and the review set of the `Blocks` subsystem holds that file; the `Inline`
-verification documents refer to them.
+The corpus tests that run the `InlineNormalizer` over generated paragraphs
+(`ListQuoteInlineCorpus_Format_RandomInlineText*` and
+`ListQuoteInlineCorpus_Format_WithoutParagraphProof_SomeParagraphRendersDifferently`) verify the `Inline` subsystem and
+the `InlineNormalizer` unit. They are kept in this subsystem's class because they share the generator and the assertions
+of the list and quote corpus, and the review set of the `Blocks` subsystem holds that file; the `Inline` verification
+documents refer to them.
 
 #### Acceptance Criteria
 
@@ -87,10 +97,10 @@ verification documents refer to them.
 - Every rewrite renders to the same HTML, keeps its Pandoc structure, and is stable when formatted again.
 - Quote and list structure survives every change, code and HTML content is never changed, and a fence that is never
   closed stays as written.
-- Lists are written in the canonical form (one marker character, counting numbers, aligned items, nested bullets indented
-  as configured, and one space after each marker), block quote markers are followed by one space, two lists are never
-  merged and a list is never split, and the structure that depends on columns (lazy lines, tabs, indented code, and the
-  content of a quote) is kept.
+- Lists are written in the canonical form (one marker character, counting numbers, aligned items, nested bullets
+  indented as configured, and one space after each marker), block quote markers are followed by one space, two lists are
+  never merged and a list is never split, and the structure that depends on columns (lazy lines, tabs, indented code,
+  and the content of a quote) is kept.
 - Emphasis, strong emphasis, and bare URLs in paragraphs are written canonically, and a list or quote rule that a
   suppression comment disables, by identifier or by alias, leaves its block alone.
 - A document with CRLF line endings, mixed line endings, or a byte order mark gets the same edits and violations as the
@@ -100,10 +110,22 @@ verification documents refer to them.
   written.
 - A block in a region where a rule of its formatter is disabled stays as written, by either directive family, the blocks
   after the region are formatted, and a next-line directive keeps its place directly above its block.
-- The configured settings select the fence character, the break style, the maximum of blank lines, and the final newline.
+- The configured settings select the fence character, the break style, the maximum of blank lines, and the final
+  newline.
 - The same parsed document gives the same result on many threads that start together.
 - Every Markdown file of the repository, and every generated document, passes the assertions of the helper; the files of
-  the repository need no change, except for the emphasis delimiter of the standards that the template owns.
+  the repository need no change, except for the emphasis delimiter and the line length of the standards that the
+  template owns.
+- A paragraph with a line wider than the line length and a place to break is filled up to the width, and a paragraph
+  with no such line is kept exactly as written, ragged lines included.
+- A wrapped paragraph keeps its hard breaks, its list indentation, and its quote markers, and a lazy line of a quote
+  gets the quote marker; a lazy line of a list item keeps the paragraph as written and is reported as a problem that
+  rewriting cannot fix.
+- A paragraph with a Pandoc structural line, a paragraph in a footnote, and a paragraph in which any rule that edits it
+  is suppressed are kept as written, and nothing is reported for them.
+- A line that cannot be shortened because block syntax would start the next line is reported as a problem that rewriting
+  cannot fix, and code, HTML, tables, and headings that are wider than the line length are kept as written.
+- Wrapping the same document on many threads gives the same text.
 
 #### Test Scenarios
 
@@ -130,9 +152,9 @@ its rule, and the result is the canonical text.
 configured form.
 
 **Headings keep their meaning in the details**: Blanks after the number signs become one space, `#Title` stays, the
-indentation of a heading outside a container goes and inside one stays (extra spaces between a list marker and a
-heading become one space, by the list marker rule), trailing whitespace goes but not behind a final backslash of a setext
-line, and a tab after the number signs of a heading on a later line is handled with stable results.
+indentation of a heading outside a container goes and inside one stays (extra spaces between a list marker and a heading
+become one space, by the list marker rule), trailing whitespace goes but not behind a final backslash of a setext line,
+and a tab after the number signs of a heading on a later line is handled with stable results.
 
 **Trailing whitespace goes from the lines of the blocks**: The trailing whitespace of a heading, of the two fence lines
 of a code block (not of the code between them), and of a break, also one whose characters stay as written, is removed.
@@ -158,18 +180,61 @@ block is unchanged, and no edit and no problem result.
 repeated numbers, a quote with wide gaps, and an item with a second paragraph is formatted, and the result is formatted
 again, also as it is stored with other line endings. The second run proposes no edit.
 
+**An overlong paragraph is filled up to the line length**: The paragraph `aaa bbb ccc ddd eee fff ggg` is formatted
+with a line length of 20 columns. The result is `aaa bbb ccc ddd eee` and `fff ggg` on two lines.
+
+**A paragraph within the line length is kept exactly**: The three lines `a`, `bbb ccc`, and `d e f` are formatted at 20
+columns. The text is unchanged, so the ragged lines are not joined.
+
+**Hard breaks stay where they are**: `aaa bbb ccc ddd eee fff ggg` followed by two spaces and a line break and
+`hhh iii` is formatted at 20 columns. The result keeps the two spaces at the end of `fff ggg` and the line break, with
+the wrap before `fff`.
+
+**A list item keeps the indentation of its content**: An ordered list whose first item is `aaa bbb ccc ddd eee fff ggg`
+with a continuation line `hhh`, and a second item `x`, is formatted at 20 columns. The first item is refilled as
+`1. aaa bbb ccc ddd` and `eee fff ggg hhh` (indented to the content column), with the second item unchanged.
+
+**A quote keeps its markers**: A paragraph inside two nested quotes is formatted at 20 columns. The continuation line
+starts with both markers.
+
+**A lazy quote line gets the quote marker**: A quote whose first line is `> aaa bbb ccc ddd` and whose next line has no
+marker (`eee fff ggg hhh iii jjj`) is formatted at 20 columns. The paragraph is refilled in three lines, and each has
+the marker.
+
 ##### Boundary conditions
 
+**A lazy list line keeps the paragraph and is reported**: A list item `- aaa bbb ccc ddd` followed by a lazy line
+`eee fff ggg hhh iii jjj` is formatted at 20 columns. The text is unchanged and one problem is reported, of the kind
+that rewriting cannot fix.
+
+**A paragraph with a Pandoc structural line is kept as written**: A paragraph with a LaTeX page break command on
+a line of its own is formatted at 20 columns. The text is unchanged and nothing is reported.
+
+**A paragraph in a footnote is kept as written**: A footnote definition whose paragraph is wider than 20 columns is
+formatted. The text is unchanged and nothing is reported.
+
+**A suppressed rule keeps the paragraph as written**: A paragraph that is too wide, below a comment that disables
+`line-length`, `emphasis`, `code-span-space`, or `list-indent`, is formatted at 20 columns. Each is unchanged and
+nothing is reported, because a paragraph is exempt while any rule that edits its text is disabled in it.
+
+**A line that cannot be shortened is reported**: The paragraph `aaa - bbb` is formatted with a line length of 4. The
+lone dash may not start a line, so the result is `aaa -` and `bbb`, and a problem that rewriting cannot fix is reported
+for the line that stays too wide.
+
+**Literal blocks wider than the line length are kept as written**: A heading, a fenced code block, an HTML block, and a
+table, each with a line wider than 20 columns, are formatted. The text is unchanged and nothing is reported.
+
 **Line endings and the byte order mark do not matter**: The document that breaks every rule is formatted from bytes with
-CRLF line endings and a byte order mark, with CRLF only, with mixed endings, and with a mark and LF endings. The edits and
-the violations equal those for the LF text (the line ending problem excepted), the rewrite keeps the mark, and writing it
-with the target line ending gives CRLF throughout. A file with mixed line endings is written with the majority ending.
+CRLF line endings and a byte order mark, with CRLF only, with mixed endings, and with a mark and LF endings. The edits
+and the violations equal those for the LF text (the line ending problem excepted), the rewrite keeps the mark, and
+writing it with the target line ending gives CRLF throughout. A file with mixed line endings is written with the
+majority ending.
 
 **Suppressed blocks stay as written**: A setext heading, indented code, and a break inside a region that disables the
 rules of their formatters (by `markdownlint` numbers, by `lintmark` names, or all rules) stay as written, and the same
-three blocks after the comment that enables the rules again are formatted. A next-line directive keeps one closed heading
-as written and the next is formatted, and a next-line directive before a heading, a list, a tilde fence, a table, or
-indented code keeps its place directly above the block (no blank line is inserted between them).
+three blocks after the comment that enables the rules again are formatted. A next-line directive keeps one closed
+heading as written and the next is formatted, and a next-line directive before a heading, a list, a tilde fence, a
+table, or indented code keeps its place directly above the block (no blank line is inserted between them).
 
 **A block with an unexpected shape is left alone (defensive, no requirement)**: The inline span of a parsed heading with
 a tab in its text is moved so that it no longer fits the line; the document gets no edit.
@@ -227,8 +292,8 @@ closing sequence is removed.
 lines where that is a violation, and text that only looks like a boundary is not separated.
 
 **Lists are never merged or split**: Two bullet lists that are two lists only because their markers differ, and a list
-with a nested list, are formatted with `bullet: dash`, `asterisk`, and `plus`. The result holds the same four lists at the
-margin as the input, and the three markers at the margin stay different.
+with a nested list, are formatted with `bullet: dash`, `asterisk`, and `plus`. The result holds the same four lists at
+the margin as the input, and the three markers at the margin stay different.
 
 **The structure of a list is kept**: A list with a lazy continuation line, with a tab after the marker, and with five
 spaces after the marker (indented code) is formatted and the text is unchanged. A list with fenced code, a quote, and a
@@ -238,21 +303,22 @@ list in a block quote with wide gaps, and a list in the body of a referenced foo
 unchanged.
 
 **The content of a quote is kept**: Fenced code, HTML, a bullet list, a setext heading, a table, indented code, a line
-with five spaces after the marker, a tab after the marker, a lazy line, a quote in a list item, a footnote definition, and
-a math block, each in a quote with a wide gap, are formatted. The text is unchanged.
+with five spaces after the marker, a tab after the marker, a lazy line, a quote in a list item, a footnote definition,
+and a math block, each in a quote with a wide gap, are formatted. The text is unchanged.
 
 ##### Robustness
 
 **One shared document gives the same result on many threads**: One formatter instance and one parsed document are shared
 by eight threads that start together at a barrier; each formats the document many times. This runs for the document that
-breaks the whitespace and heading rules and for the document that breaks the list and quote rules. Every result equals the
-result of a single call, and the edits write the expected text.
+breaks the whitespace and heading rules and for the document that breaks the list and quote rules. Every result equals
+the result of a single call, and the edits write the expected text.
 
 **The repository and generated documents pass every assertion**: Every Markdown file of the repository (as LF, CRLF, and
 mixed endings with a byte order mark), the generated nested documents, and the random hostile documents are formatted.
 Each result is safe and stable, and the repository's own files need no edit; the one exception is a file under
-`.github/standards`, which is owned by the template and may have findings of the `emphasis` rule only. The corpus tests
-do not compute the result on several threads (they pass `checkParallel: false`); the test of concurrent use does.
+`.github/standards`, which is owned by the template and may have findings of the `emphasis` rule or the `line-length`
+rule only. The corpus tests do not compute the result on several threads (they pass `checkParallel: false`); the test of
+concurrent use does.
 
 **Generated lists, quotes, and paragraphs are safe and stable**: The seeded lists, quotes, and paragraphs of the corpus
 are formatted in every stored form. Each result is the same text for every line ending, renders the same HTML, and is
@@ -265,3 +331,7 @@ as written.
 **The paragraph proof is what prevents a mismatch**: The generated paragraphs are formatted with a normalizer that does
 not prove its paragraphs and with the normal one. At least one result of the first renders differently from its input,
 and no result of the second does.
+
+**Wrapping gives the same text on many threads**: A document with a list item, a quote, and a paragraph that are all too
+wide for 20 columns is wrapped by eight threads that share one production formatter and start together, each fifty
+times. Every result equals the text of a single call.

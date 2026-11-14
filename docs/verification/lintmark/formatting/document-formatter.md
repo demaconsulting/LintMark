@@ -19,23 +19,37 @@ formatters are test doubles, and they come from `TestBlockFormatters.cs`:
 passes see every block as unclaimed) and with the `ReplacingFormatter` double, so that the claim of a block by a
 formatter can be observed. Every pass scenario that checks the patched text goes through `AssertSafeAndStable` of the
 test helper `BlockFormatterAssertions` (a collaborator of the tests, described with the `Blocks` verification), which in
-addition to the text asserts that the result renders to the same HTML, keeps its Pandoc structure, is stable when formatted
-again, and that the edits, the problems, and the thread-independence of the result agree. The doubles of the unit are
-`ReplacingFormatter` and `OverlappingEditsFormatter`, which the contract tests use, and `ThrowingFormatter`, which proves
-that an exception propagates. Each scenario asserts on the patched text, and where reporting matters on the rule, line,
-and column of the problems that the formatter returns. The tests of the helper types call them directly with documents
-from the real parser; a few of them build a block by hand (`with`) to reach branches that the parser cannot produce.
+addition to the text asserts that the result renders to the same HTML, keeps its Pandoc structure, is stable when
+formatted again, and that the edits, the problems, and the thread-independence of the result agree. The doubles of the
+unit are `ReplacingFormatter` and `OverlappingEditsFormatter`, which the contract tests use, and `ThrowingFormatter`,
+which proves that an exception propagates. Each scenario asserts on the patched text, and where reporting matters on the
+rule, line, and column of the problems that the formatter returns. The tests of the helper types call them directly with
+documents from the real parser; a few of them build a block by hand (`with`) to reach branches that the parser cannot
+produce.
 
 Two parse helpers are used: one parses LF-normalized text, and one parses the bytes of a file so that its original
 line endings are counted. Suppression is driven by real suppression comments in the Markdown text. The test for
 parallel calls shares one formatter and one document among 64 calls that run with up to 16 threads, and compares
 every result with the result of a single call.
 
-The inline normalizer is optional for the formatter (`new DocumentFormatter(blockFormatters, inlineNormalizer)`). The two
-scenarios about it in `DocumentFormatterTests.cs` use the real `InlineNormalizer` of the `Inline` subsystem together with
-the `ReplacingFormatter` double, so that the claim of a paragraph by a block formatter can be observed; the cases of the
-normalizer itself are verified in its own unit document. The scenario about the format context builds a real parsed
-document, a real `LineLayout`, and a real `LineOwnership` and hands them to the context.
+The inline normalizer is optional for the formatter (`new DocumentFormatter(blockFormatters, inlineNormalizer)`). The
+two scenarios about it in `DocumentFormatterTests.cs` use the real `InlineNormalizer` of the `Inline` subsystem together
+with the `ReplacingFormatter` double, so that the claim of a paragraph by a block formatter can be observed; the cases
+of the normalizer itself are verified in its own unit document. The scenario about the format context builds a real
+parsed document, a real `LineLayout`, and a real `LineOwnership` and hands them to the context.
+
+The paragraph formatter is optional as well (the third constructor argument). `DocumentFormatterWrapTests.cs` verifies
+the second stage that wraps the paragraphs, and it uses no double at all: the formatter is the production composition of
+`BlockFormatterAssertions.ProductionFormatter()` (the five block formatters, the real `InlineNormalizer`, and the real
+`ParagraphFormatter`), the real `DocumentParser` parses the text and parses the result again where the stage does, and
+the real `SourcePatcher` applies the edits so that a test can assert on the patched text. The tests use a line length
+of 20 columns unless a scenario names another, assert on the patched text, the edits (every edit of a wrap is
+attributed to `line-length`), and the rule, kind, line, column, and message of the problems, and check the stability by
+formatting the result again. The scenario about a document that is unsafe to rewrite parses a text with an invalid grid
+table, which makes the parser fall back, and the scenario about a formatter without a paragraph formatter builds the
+formatter with the real normalizer only. The scenario about many threads shares one formatter among eight threads that
+start together, each formatting the same text fifty times and comparing edits, text, and problems with those of a single
+call.
 
 #### Test Environment
 
@@ -57,9 +71,9 @@ N/A - standard test environment.
   when the endings are equally frequent or the file has no terminator.
 - Exactly one `line-ending` formatting problem at line 1 and column 1 is reported when any line terminator differs
   from the target, with a message that names the endings found and the one expected; nothing is reported otherwise.
-- Trailing whitespace and tabs in text are removed or expanded without changing a hard line break, a tab in the whitespace
-  at the end of a line is never expanded, and whitespace in literal text, code, HTML, math, front matter, and grid tables
-  is never touched.
+- Trailing whitespace and tabs in text are removed or expanded without changing a hard line break, a tab in the
+  whitespace at the end of a line is never expanded, and whitespace in literal text, code, HTML, math, front matter, and
+  grid tables is never touched.
 - Runs of blank lines between blocks are reduced to the configured maximum, and blank lines inside blocks and
   containers are kept.
 - Blank lines are inserted between top-level blocks that need them, once per boundary, and never inside containers, for
@@ -88,6 +102,18 @@ N/A - standard test environment.
 - A line that starts with a plus sign after quote and list markers, and a footnote definition marker anywhere in a line,
   are recognized by the line arithmetic; text that only contains a plus sign is not taken for a grid table border.
 - Parallel calls give the same result as a single call.
+- The paragraph wrap is a second stage that runs after every other rule on the text that those rules produce: a
+  paragraph with a line wider than the line length is wrapped, the wrap and the edits of the other rules reach their
+  final form in one run, and an edit of another rule that lies inside the lines of a wrap is still reported although the
+  wrap absorbs it.
+- Each overlong paragraph gets one fixable `line-length` problem at the first column beyond the width, at the position
+  in the original file whatever edits come before it, and a line that stays too wide gets a second, lint-only problem
+  that says that the paragraph cannot be wrapped automatically.
+- A paragraph that cannot be rewritten safely (a lazy line of a list item) is reported lint-only and not changed, and a
+  wrap after which another rule would change the paragraph again is withdrawn: the paragraph stays as written and is
+  reported lint-only.
+- Nothing is wrapped or reported when the line length is 0, when the rule `line-length` is off, when the wrap mode is
+  not `fill`, when the formatter has no paragraph formatter, or when the document is unsafe to rewrite.
 
 #### Test Scenarios
 
@@ -205,8 +231,8 @@ it there.
 **A line that looks like a grid table border is not edited**: Lines that start with a plus sign after a list marker or a
 quote marker, with trailing whitespace, are formatted. Nothing changes.
 
-**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list marker,
-directly after text, is formatted. No blank line is inserted.
+**A line that looks like a grid table border is not separated**: A line that starts with a plus sign after a list
+marker, directly after text, is formatted. No blank line is inserted.
 
 **A tab in text becomes spaces up to the next tab stop**: Paragraphs with a tab after one, two, and four characters,
 with two tabs in a row, and inside a list item and a later line of a paragraph are formatted. Each tab becomes the
@@ -295,15 +321,15 @@ instruction, a declaration, or a CDATA section followed by blank lines, and a cl
 text are formatted. Each ends with exactly one line feed.
 
 **A suppressed rule, named by its identifier, leaves its part alone**: Trailing whitespace, tabs, and the end of a
-document are each covered by a comment that disables the rule by its identifier. The text is left as written, no edit and
-no problem results, and the same content without the comment is changed (a control).
+document are each covered by a comment that disables the rule by its identifier. The text is left as written, no edit
+and no problem results, and the same content without the comment is changed (a control).
 
 **A line-scoped suppression on the last line keeps the end of the document**: A document whose last content line carries
 a comment that disables `final-newline` for that line, with and without trailing blank lines and by identifier or alias,
 is left as written, with no edit and no problem.
 
-**A suppressed rule, named by an alias, leaves its part alone**: Trailing whitespace, tabs, and the end of a document are
-each covered by a comment that disables the rule by its legacy number. The text is left as written, no edit and no
+**A suppressed rule, named by an alias, leaves its part alone**: Trailing whitespace, tabs, and the end of a document
+are each covered by a comment that disables the rule by its legacy number. The text is left as written, no edit and no
 problem results, and the same content without the comment is changed (a control).
 
 **A blank-line rule is not applied where a region disables it**: A run of blank lines in a region that disables
@@ -314,11 +340,11 @@ surplus lines and keeps the whitespace of the line that stays.
 `e` without a final line ending is formatted. Three problems are reported in order of position: `hard-tabs` at line 1,
 column 2 (one problem for the two tabs), `trailing-whitespace` at line 2, column 2, and `final-newline` at line 3,
 column 2. Each is of kind formatting, has the path of the file, and has the description of the rule as its message. A
-document that ends in a closed comment without a final line ending is formatted as well: the line ending is added, and one
-`final-newline` problem is reported on the last line.
+document that ends in a closed comment without a final line ending is formatted as well: the line ending is added, and
+one `final-newline` problem is reported on the last line.
 
-**An edit of a configurable rule is not reported (defensive, no requirement)**: A paragraph is formatted by the replacing
-test double, whose rule is configurable. The text changes and no problem is reported.
+**An edit of a configurable rule is not reported (defensive, no requirement)**: A paragraph is formatted by the
+replacing test double, whose rule is configurable. The text changes and no problem is reported.
 
 **A claimed block is edited by its formatter only**: A paragraph with a double space and trailing spaces, accepted by
 the test double, is formatted. The replacements of the double formatter are applied, and the trailing whitespace is not
@@ -332,9 +358,9 @@ document formatter that holds an `InlineNormalizer` and by one that does not. Wi
 `a *b*` and a problem for the rule `emphasis` is reported; without it no edit results.
 
 **A claimed or suppressed paragraph is not normalized**: A paragraph that the `ReplacingFormatter` double claims, with a
-double space and underscore emphasis, is formatted by a document formatter that also holds the normalizer. Only the double
-formatter acts on it. A paragraph with underscore emphasis in a region that disables `emphasis` is formatted by the same
-formatter. No edit results.
+double space and underscore emphasis, is formatted by a document formatter that also holds the normalizer. Only the
+double formatter acts on it. A paragraph with underscore emphasis in a region that disables `emphasis` is formatted by
+the same formatter. No edit results.
 
 **The helper types answer for their inputs**: `LineLayout` is asked for line counts, extents (including the line after
 the last, which exists only after a final line feed), blank lines, tab stops, and grid-border lookalikes (a plus sign
@@ -347,6 +373,74 @@ and breaks, of a link, of no inline content, and of a tree built with a shift; `
 followed by whitespace lines of several widths (also inside a list), an unclosed fence in a list, and for every kind
 of HTML block whether its trailing blank lines are content; `FrontMatterGuard` for documents that could and could
 not open front matter. Each answer is the documented one, and null arguments are rejected.
+
+##### Paragraph wrap
+
+**An overlong paragraph is wrapped and reported at the first column beyond the width**: A heading `# T`, a blank line,
+and the paragraph `aaa bbb ccc ddd eee fff ggg` (27 columns) are formatted at 20 columns. The paragraph becomes
+`aaa bbb ccc ddd eee` and `fff ggg`, and the heading is unchanged. One problem results, of the formatting kind, for the
+rule `line-length`, at line 3, column 21, with the message `Line is 27 columns wide; the limit is 20`; every edit is
+credited to `line-length`.
+
+**Two overlong paragraphs are wrapped and reported separately**: Two paragraphs of six words each are formatted at 20
+columns. Both are wrapped (five words and one word, and five words and one word), and one problem is reported on each of
+the lines where the paragraphs start, lines 1 and 3.
+
+**Paragraphs that fit are left as written next to paragraphs that are wrapped**: A paragraph that is too wide, a
+paragraph of the three short lines `x`, `y z`, and `w`, and another paragraph that is too wide are formatted at 20
+columns. The two wide paragraphs are wrapped and the short lines in the middle are unchanged.
+
+**The wrap sees the result of the other rules**: A block quote with three spaces after its marker that holds the words
+`aaa bbb ccc`, a code span of the letter `x` with one space of padding on each side, and the word `ddd` is formatted at
+21 columns. The quote rule reduces the spaces after the marker and the code span rule removes the padding, and the
+paragraph then fits in one line of 21 columns, so the result is that line and nothing is wrapped.
+
+**A list that moves and overflows reaches its final form in one run**: A list with three spaces after each marker, a
+long first item with a continuation line `hhh iii`, and a second item `x` is formatted at 20 columns. The result is
+`- aaa bbb ccc ddd`, then `eee fff ggg hhh` and `iii` indented under the item, and `- x`; formatting the result again
+gives the same text with no edit
+and no problem, and the first run reports a `list-marker-space` problem and a `line-length` problem.
+
+**An edit that the wrap absorbs is still reported**: The paragraph `aaa bbb ccc ddd _eee_ fff ggg` is formatted at 20
+columns. The result is `aaa bbb ccc ddd` and `*eee* fff ggg`, both an `emphasis` problem and a `line-length` problem are
+reported, and every edit lies inside the original text.
+
+**A line that cannot be shortened gets a second, lint-only problem**: The paragraph `aaa - bbb` is formatted at 4
+columns. A lone dash may not start a line, so the result is `aaa -` and `bbb`. The `line-length` problems are one of the
+formatting kind and one of the lint-only kind, in this order, and the message of the second says that the paragraph
+cannot be wrapped automatically. Formatting the result again proposes no edit and reports the lint-only problem alone.
+
+**A paragraph that cannot be rewritten safely is reported and not changed**: A list item `- aaa bbb ccc ddd` with a lazy
+line `eee fff ggg hhh iii jjj` is formatted at 20 columns. The text is unchanged, no edit is proposed, and one lint-only
+problem results at line 2, column 21.
+
+**A wrap after which another rule would change the paragraph again is withdrawn**: A quote line `>aaa` followed by the
+line `>http://a.b/c ccc ddd eee fff ggg` (a URL directly after the marker) is formatted at 20 columns. After the wrap
+the settling step finds that another rule would change the wrapped paragraph again, so the wrap is withdrawn: the text
+is unchanged, no edit is proposed, and one lint-only `line-length` problem results at line 2, column 21. The text passes
+every assertion of the helper, so the result is stable.
+
+**A finding is placed at its position in the original file**: A heading with trailing spaces, three extra blank lines,
+and then the paragraph `aaa bbb ccc ddd eee fff ggg` are formatted at 20 columns. The `line-length` problem is at line
+5, column 21 of the original text, although the other edits change the text before the paragraph.
+
+**Nothing is wrapped when the settings switch it off**: A paragraph that is too wide is formatted with a line length of
+0, with the rule `line-length` switched off, with the wrap mode `sentence`, and with the wrap mode `semantic`. Each
+time no edit and no problem result and the text is unchanged.
+
+**A document that is unsafe to rewrite is not wrapped**: A text with an invalid grid table line, followed by a paragraph
+that is too wide, is formatted at 20 columns. The parser has fallen back, and no edit and no problem result.
+
+**Without a paragraph formatter nothing is wrapped or reported**: A formatter with no block formatters and a real
+inline normalizer formats a paragraph that is too wide at 20 columns. The text is unchanged and no edit and no
+problem result.
+
+**The paragraph formatter is optional in the constructor**: A formatter is created with no arguments, with an empty list
+and two null arguments, and with an empty list, a normalizer, and a paragraph formatter. Each creation succeeds.
+
+**Wrapping gives the same result on many threads**: One formatter formats a document with a list item, a quote, and a
+paragraph that are all too wide, once on one thread and then fifty times on each of eight threads that start together.
+Every thread gets the same edits, the same text, and the same problems.
 
 ##### Boundary conditions
 

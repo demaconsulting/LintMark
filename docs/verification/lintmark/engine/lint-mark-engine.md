@@ -2,11 +2,12 @@
 
 #### Verification Approach
 
-`LintMarkEngine` is verified with unit tests in four files that share one partial test class:
+`LintMarkEngine` is verified with unit tests in five files that share one partial test class:
 `LintMarkEngineTests.cs` (processing, ordering, configuration, and reporting), `LintMarkEngineFixTests.cs`
-(rewriting, `--fix`, `--diff`, and the safety checks), `LintMarkEngineIgnoreTests.cs` (the `ignore` patterns), and
+(rewriting, `--fix`, `--diff`, and the safety checks), `LintMarkEngineIgnoreTests.cs` (the `ignore` patterns),
 `LintMarkEngineFormattingTests.cs` (the default formatting rules of the tool, with no seam: the engine creates its own
-formatter with the five block formatters and the inline normalizer).
+formatter with the five block formatters, the inline normalizer, and the paragraph formatter), and
+`LintMarkEngineWrapTests.cs` (the paragraph wrap that the default engine applies, also with no seam).
 Real temporary files (the `TemporaryDirectory` test helper), the real `FileDiscovery`, `SourceDocument`,
 `DocumentParser`, `SourcePatcher`, safety checkers, and reporters, and a real `Context` writing to a log file are
 used for the normal scenarios; the run helper `Execute` makes the temporary directory the current directory, runs the
@@ -90,6 +91,10 @@ collection.
   writes nothing (including the violations of the list, block quote, emphasis, and bare URL rules, each under its own
   rule), `--diff` prints the change, a suppression by legacy number is honored, the settings of the
   configuration select the written form, and a document with an invalid grid table is never rewritten.
+- With the default engine a paragraph with a line wider than the configured `line-length` that has a place to break is
+  reported in check mode as a `line-length` problem at the first column beyond the width without writing the file, is
+  wrapped with `--fix` so that nothing is reported afterwards, and a line that could not be wrapped is still reported
+  as a problem that the fix cannot repair, with exit code 1.
 - A rewrite is refused, with a safety diagnostic at the first changed position, the file untouched, and exit code 1,
   when it would change the rendering, change the Pandoc structure, is not stable when formatted again, creates a
   grid table border, or would be read as an invalid grid table; a refusal never stops other files from being
@@ -284,6 +289,22 @@ formatting kind.
 
 **A document with an invalid grid table is never rewritten by the default formatters**: A document with an invalid grid
 table is run with `--fix`. One `grid-table-invalid` problem is reported at its line and the file is unchanged.
+
+**The default engine wraps an overlong paragraph when fixing**: A configuration with `line-length: 20` and a file with
+the paragraph `aaa bbb ccc ddd eee fff ggg` are run with `--fix` by the default engine with two workers. The file holds
+`aaa bbb ccc ddd eee` and `fff ggg` on two lines, nothing is written to the output, and the exit code is 0.
+
+**The default engine reports an overlong paragraph without writing when checking**: The same configuration and a file
+with the same paragraph and an old last write time are run without options. The exit code is 1, exactly one line is
+written, `a.md:1:21: line-length Line is 27 columns wide; the limit is 20`, and the file's bytes and last write time are
+unchanged.
+
+**A line that could not be wrapped is still reported after the fix**: A configuration with `line-length: 20` and a list
+item `- aaa bbb ccc ddd` followed by a trailing space, whose lazy continuation line `eee fff ggg hhh iii jjj` is 23
+columns wide are run with `--fix`. The trailing space is removed, the lazy line is as written, and exactly one line is
+written,
+`a.md:2:21: line-length Line is 23 columns wide; the limit is 20 and the paragraph cannot be wrapped automatically`; the
+exit code is 1.
 
 **Ignored files that were found are neither read nor reported**: A file below `node_modules` that is not explicit
 (built-in patterns) is marked ignored with no diagnostic and no change, also when the file does not exist, so that

@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def InlineNormalizer {
-        doc /* Proposes the edits that write emphasis and strong emphasis with the configured delimiter and wrap bare URLs in angle brackets inside one paragraph, skipping a paragraph where a rule is suppressed, where a link reference label could stop matching its definition, or where the paragraph would not render the same afterwards (also documents the InlineCandidates and ParagraphProof supporting types, the walk of the inline syntax tree that finds the candidate edits and the stand-alone render check that vets them). */
+        doc /* Proposes the edits that write emphasis and strong emphasis with the configured delimiter, wrap bare URLs in angle brackets, and remove the one redundant space on each side of a code span inside one paragraph, skipping a paragraph where a rule is suppressed, where a link reference label could stop matching its definition, or where the paragraph would not render the same afterwards (also documents the InlineCandidates and ParagraphProof supporting types, the walk of the inline syntax tree that finds the candidate edits and the stand-alone render check that vets them). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
@@ -33,7 +33,7 @@ package LintMark {
         dependency InlineNormalizer to BareUrlStyle;
 
         // The edits are added to the edit set of the document, and each is tagged with a rule identifier from
-        // the rule catalog.
+        // the rule catalog (the emphasis, strong, bare URL, and code span rules).
         dependency InlineNormalizer to EditSet;
         dependency InlineNormalizer to TextEdit;
         dependency InlineNormalizer to RuleCatalog;

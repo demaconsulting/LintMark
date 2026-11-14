@@ -2,7 +2,8 @@
 # Software Unit Requirements for the InlineNormalizer Class
 #
 # The InlineNormalizer class proposes the changes that bring the text of a paragraph into canonical form: emphasis and
-# strong emphasis written with the configured delimiter characters, and bare URLs wrapped in angle brackets. A
+# strong emphasis written with the configured delimiter characters, bare URLs wrapped in angle brackets, and code spans
+# without the one space of padding on each side. A
 # paragraph that it cannot rewrite without possibly changing how it renders is left as written.
 
 sections:
@@ -51,7 +52,7 @@ sections:
                       The list decides which suppressions affect the normalizer, and one instance is shared by every
                       thread.
                     tests:
-                      - InlineNormalizer_RuleIds_Read_ListsTheThreeRulesAndIsImmutable
+                      - InlineNormalizer_RuleIds_Read_ListsTheFourRulesAndIsImmutable
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-EmphasisDelimiterConverted
                     title: >-
@@ -313,23 +314,26 @@ sections:
                   - id: LintMark-Formatting-Inline-InlineNormalizer-EditsAttributedToRules
                     title: >-
                       The InlineNormalizer class shall attribute each change to the rule whose violation it removes:
-                      `emphasis` for a single delimiter, `strong` for a double delimiter, and `bare-urls` for a URL.
+                      `emphasis` for a single delimiter, `strong` for a double delimiter, `bare-urls` for a URL, and
+                      `code-span-space` for the padding of a code span.
                     justification: |
                       Violations are reported and suppressed by rule, so a change under the wrong rule would be
                       reported and suppressed wrongly.
                     tests:
                       - InlineNormalizer_AddBlockEdits_NonCanonicalParagraph_ReportsEachEditUnderItsRule
                       - InlineCandidates_Find_EmphasisStrongAndUrl_ReturnsTheEditsInStartOrder
+                      - InlineNormalizer_AddBlockEdits_PaddedCodeSpan_ProposesTwoDeletionsOfOneSpace
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-EditsReplaceCharacters
                     title: >-
-                      The InlineNormalizer class shall propose only changes that replace existing characters, never
-                      changes that insert text at a position.
+                      The InlineNormalizer class shall propose only changes that replace or delete existing
+                      characters, never changes that insert text at a position.
                     justification: |
                       An insertion at a position can collide with the blank lines that the block spacing inserts,
-                      while a replacement of characters inside the text cannot.
+                      while a replacement or a deletion of characters inside the text cannot.
                     tests:
                       - InlineNormalizer_AddBlockEdits_Edits_ReplaceExistingCharacters
+                      - InlineNormalizer_AddBlockEdits_PaddedCodeSpan_ProposesTwoDeletionsOfOneSpace
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-EditsOrderedAndDistinct
                     title: >-
@@ -360,3 +364,101 @@ sections:
                       could not be trusted.
                     tests:
                       - InlineNormalizer_AddBlockEdits_SharedInstanceOnManyThreads_GivesTheSameResult
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceRemoved
+                    title: >-
+                      The InlineNormalizer class shall remove the space after the opening backticks and the space
+                      before the closing backticks of a code span of a paragraph that stands on one line and is padded
+                      with exactly one space on each side, also in a list item and a block quote.
+                    justification: |
+                      One space on each side of a code span is not part of the code, because the parser removes it, so
+                      it only makes the spans of a project inconsistent.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_PaddedCodeSpan_LosesItsPadding
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceBacktickKept
+                    title: >-
+                      The InlineNormalizer class shall keep the padding of a code span whose content starts or ends
+                      with a backtick as written.
+                    justification: |
+                      The padding separates the content from the delimiters, so removing it would end or change the
+                      code span.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeSpanWithBacktickAtAnEdge_KeepsItsPadding
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceUnevenKept
+                    title: >-
+                      The InlineNormalizer class shall keep a code span whose padding is on one side only, or is more
+                      than one space on a side, as written.
+                    justification: |
+                      The parser removes the padding only when one space stands on each side, so any other padding is
+                      content of the code span.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_AsymmetricOrMultiplePadding_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceBlankKept
+                    title: >-
+                      The InlineNormalizer class shall keep a code span that holds only spaces as written.
+                    justification: |
+                      The spaces are the whole content of the code span, and removing them would change what the code
+                      says.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeSpanOfSpaces_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceAcrossLinesOrTabKept
+                    title: >-
+                      The InlineNormalizer class shall keep a code span that continues on another line, or that holds a
+                      tab, as written.
+                    justification: |
+                      The padding of such a code span depends on the line break or on the tab stop, so removing it could
+                      change the content of the span.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeSpanAcrossLinesOrWithTab_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceHeadingsAndTablesKept
+                    title: >-
+                      The InlineNormalizer class shall keep the code spans of a heading and of a table cell as written.
+                    justification: |
+                      The text of a heading or a table cell is not the subject of the inline rules, and rewriting it
+                      could change how the heading or the table renders.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeSpansInHeadingsAndTables_AreKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceSuppressedRuleSkipped
+                    title: >-
+                      The InlineNormalizer class shall keep the padding of a code span as written in a paragraph in
+                      which a suppression comment disables the `code-span-space` rule, whether the comment names the
+                      rule by its identifier or by its legacy rule number.
+                    justification: |
+                      An author who switched a rule off for a passage expects the passage to stay as written.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_CodeSpanRuleSuppressed_KeepsTheCodeSpanAndAppliesTheOthers
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceIndependentOfOtherRules
+                    title: >-
+                      The InlineNormalizer class shall remove the padding of a code span when the other inline rules
+                      are suppressed or switched off.
+                    justification: |
+                      A rule works on its own, so switching off other rules must neither hide it nor change its result.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_OtherInlineRulesOff_StillRemovesCodeSpanPadding
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceEditsAreDeletions
+                    title: >-
+                      The InlineNormalizer class shall remove the padding of a code span with two changes that each
+                      delete one space, credited to the `code-span-space` rule.
+                    justification: |
+                      Deleting the spaces leaves every other character in place, so the change cannot collide with a
+                      change of another rule to the text around the code span.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_PaddedCodeSpan_ProposesTwoDeletionsOfOneSpace
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-CodeSpanSpaceStableAndRendersTheSame
+                    title: >-
+                      The InlineNormalizer class shall remove the padding of a code span only so that the paragraph
+                      renders the same and a second run proposes no further change.
+                    justification: |
+                      A rewrite that needed to be repeated, or that changed how the paragraph renders, could not be
+                      trusted.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_PaddedCodeSpan_IsStableAndRendersTheSame

@@ -5,7 +5,8 @@
 # - Define requirements for the LintMark Blocks subsystem, which is part of the Formatting subsystem
 # - The Blocks subsystem holds the block formatters of the tool: one for headings, one for code blocks, one for
 #   thematic breaks, one for lists, and one for block quotes. Each proposes the changes that bring one kind of block
-#   into canonical form
+#   into canonical form. It also holds the paragraph formatter, which proposes the change that fills a paragraph
+#   that has a line wider than the line length
 # - Subsystem requirements describe what the block formatters guarantee together, with the real parser and the
 #   document formatter that drives them
 
@@ -595,3 +596,181 @@ sections:
                 tests:
                   - BlocksSubsystem_Format_QuoteContent_IsKept
                   - ListQuoteInlineCorpus_Format_RandomQuotes_AreSafeAndStable
+
+              - id: LintMark-Formatting-Blocks-ParagraphFormatterProvided
+                title: >-
+                  The Blocks subsystem shall provide a paragraph formatter that proposes the change that fills a
+                  paragraph that has a line wider than the line length.
+                justification: |
+                  Long lines are hard to read and to review. A formatter that is given the paragraphs of a document
+                  and the line length is the one place that decides which paragraphs are filled and how.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-RejectsMissingArguments
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-RejectsOtherBlocks
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-RuleIdsImmutable
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-EditAttributedToLineLength
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-DeterministicResult
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-OutcomeRejectsInconsistentArguments
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-TabParagraphKept
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-StoredFormsGiveTheSameEdit
+                tests:
+                  - BlocksSubsystem_Format_OverflowingParagraph_IsWrapped
+
+              - id: LintMark-Formatting-Blocks-ParagraphsWrapped
+                title: >-
+                  The Blocks subsystem shall fill each paragraph that has a line wider than the line length with as
+                  many words on each line as fit within the width.
+                justification: |
+                  Filling the lines up to the width is the one result that does not depend on how the author broke
+                  the lines, so it is the same for every author.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-OverflowingParagraphWrapped
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-WidthMeasuredInColumns
+                tests:
+                  - BlocksSubsystem_Format_OverflowingParagraph_IsWrapped
+
+              - id: LintMark-Formatting-Blocks-ParagraphsWithinTheWidthKept
+                title: >-
+                  The Blocks subsystem shall keep a paragraph in which no line is wider than the line length exactly
+                  as written, short and ragged lines included.
+                justification: |
+                  The author chose where to break the lines of such a paragraph, and a line that keeps to the limit is
+                  not a problem. Moving it would change every paragraph of a project for no reason.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-CompliantParagraphKept
+                tests:
+                  - BlocksSubsystem_Format_ParagraphWithinTheWidth_IsKeptExactly
+
+              - id: LintMark-Formatting-Blocks-HardBreaksKept
+                title: >-
+                  The Blocks subsystem shall keep each hard line break of a paragraph at the end of the line where it
+                  is when it wraps the paragraph.
+                justification: |
+                  A hard line break is part of what the author wrote, and moving or dropping it changes how the
+                  paragraph renders.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-HardBreakKept
+                tests:
+                  - BlocksSubsystem_Format_HardBreaks_StayWhereTheyAre
+
+              - id: LintMark-Formatting-Blocks-ListPrefixKept
+                title: >-
+                  The Blocks subsystem shall write each continuation line of a wrapped paragraph in a list item with
+                  the indentation of the content of the item.
+                justification: |
+                  A continuation line that is not indented to the content of the item would leave the item or start
+                  a different block.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ListPrefixKept
+                tests:
+                  - BlocksSubsystem_Format_ListItem_KeepsTheIndentationOfItsContent
+
+              - id: LintMark-Formatting-Blocks-QuotePrefixKept
+                title: >-
+                  The Blocks subsystem shall write each continuation line of a wrapped paragraph in a block quote
+                  with the quote markers of the first line.
+                justification: |
+                  A continuation line without the markers of its quote could leave the quote and change the text
+                  that belongs to it.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-QuotePrefixKept
+                tests:
+                  - BlocksSubsystem_Format_Quote_KeepsItsMarkers
+
+              - id: LintMark-Formatting-Blocks-LazyQuoteLinesPrefixed
+                title: >-
+                  The Blocks subsystem shall write a lazy continuation line of a block quote with the quote marker
+                  when it wraps the paragraph.
+                justification: |
+                  A wrapped paragraph writes all its lines the same way, and a marker on every line keeps each line
+                  in the quote wherever the wrap puts the line break.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-LazyQuoteLineGetsPrefix
+                tests:
+                  - BlocksSubsystem_Format_LazyQuoteLine_GetsTheQuoteMarker
+
+              - id: LintMark-Formatting-Blocks-LazyListLinesKept
+                title: >-
+                  The Blocks subsystem shall not wrap a paragraph of a list item that has a lazy continuation line.
+                justification: |
+                  A lazy continuation line belongs to the item by its position only, and a wrap that moved the line
+                  breaks could take it out of the item.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-LazyListLineKept
+                tests:
+                  - BlocksSubsystem_Format_LazyListLine_KeepsTheParagraphAndReportsIt
+
+              - id: LintMark-Formatting-Blocks-PandocParagraphsKept
+                title: >-
+                  The Blocks subsystem shall keep a paragraph that holds a Pandoc structural line exactly as written
+                  and report nothing about it.
+                justification: |
+                  Pandoc reads such lines as commands or fences, and joining or moving them would change the output
+                  of the document.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-PandocParagraphKept
+                tests:
+                  - BlocksSubsystem_Format_PandocParagraph_IsKeptAsWritten
+
+              - id: LintMark-Formatting-Blocks-FootnoteParagraphsKept
+                title: >-
+                  The Blocks subsystem shall keep a paragraph inside a footnote definition exactly as written and
+                  report nothing about it.
+                justification: |
+                  The parser adds a link back to the reference to the end of a footnote, which makes the effect of a
+                  rewrite there uncertain, and leaving the paragraph as written is always safe.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-FootnoteParagraphKept
+                tests:
+                  - BlocksSubsystem_Format_FootnoteParagraph_IsKeptAsWritten
+
+              - id: LintMark-Formatting-Blocks-SuppressedParagraphsKept
+                title: >-
+                  The Blocks subsystem shall keep a paragraph exactly as written and report nothing about it when a
+                  suppression comment disables the `line-length` rule or another rule that edits the text of
+                  paragraphs.
+                justification: |
+                  An author who switched a rule off for a passage expects the passage to stay as written, and a
+                  wrap would rewrite the lines that those rules also edit.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-SuppressedRuleKeepsParagraph
+                tests:
+                  - BlocksSubsystem_Format_SuppressedRule_KeepsTheParagraphAsWritten
+
+              - id: LintMark-Formatting-Blocks-ResidualOverflowReported
+                title: >-
+                  The Blocks subsystem shall report a line of a paragraph that stays wider than the line length,
+                  because the paragraph cannot be wrapped safely or has no good place to break, as a problem that
+                  rewriting cannot repair.
+                justification: |
+                  A line that stays too wide must not pass unnoticed, and rewriting must not claim to have repaired
+                  it.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ResidualOverflowReported
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ForcedStartKept
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ProofFailureKeepsParagraph
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ContainerProofFailureKeepsParagraph
+                tests:
+                  - BlocksSubsystem_Format_NoGoodBreak_ReportsTheOverflowThatCannotBeFixed
+
+              - id: LintMark-Formatting-Blocks-LiteralBlocksKept
+                title: >-
+                  The Blocks subsystem shall keep code, HTML, tables, and headings that are wider than the line
+                  length exactly as written and report nothing about them.
+                justification: |
+                  The lines of these blocks are content or structure that the author cannot break freely, so
+                  wrapping them would change the document.
+                tests:
+                  - BlocksSubsystem_Format_LiteralBlocks_AreKeptAsWritten
+
+              - id: LintMark-Formatting-Blocks-DeterministicWrap
+                title: >-
+                  The Blocks subsystem shall produce the same wrapped text for the same document and configuration
+                  when it is called from several threads at once as when it is called one after another.
+                justification: |
+                  Files are formatted in parallel by shared formatters, and a result that depended on timing could
+                  not be trusted.
+                children:
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-DeterministicResult
+                tests:
+                  - BlocksSubsystem_Format_WrapOnManyThreads_GivesTheSameText

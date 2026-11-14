@@ -22,8 +22,9 @@ its outputs, and use them][workflow]
 ## Features
 
 LintMark currently provides the following (the formatting rules for whitespace, blank lines, headings, code blocks,
-thematic breaks, lists, block quotes, emphasis, bare URLs, the end of the file, and line endings are implemented; the
-rules for paragraphs, tables, and links, and the lint-only rules, are planned but not yet implemented):
+thematic breaks, lists, block quotes, emphasis, bare URLs, code spans, paragraph line length, the end of the file, and
+line endings are implemented; the other wrap modes, the rules for tables and links, and the lint-only rules are planned
+but not yet implemented):
 
 - **Markdown File Discovery**: Select files by path, directory, or glob pattern (with `!` exclusions);
   with no arguments every `**/*.md` file under the current directory is used
@@ -36,7 +37,7 @@ rules for paragraphs, tables, and links, and the lint-only rules, are planned bu
   remains; a file that is already compliant is not touched
 - **Diff Preview**: `--diff` reports the findings and prints a unified diff of what `--fix` would change; it writes no
   file
-- **Formatting Rules**: Twenty-two always-applied rules, each with an identifier and a markdownlint number: trailing
+- **Formatting Rules**: Twenty-three always-applied rules, each with an identifier and a markdownlint number: trailing
   whitespace (`trailing-whitespace`, MD009), tabs (`hard-tabs`, MD010), runs of blank lines (`max-blank-lines`, MD012),
   heading style, spacing, and indentation (`heading-style`, `heading-space`, `heading-start-left`; MD003, MD019, MD021,
   MD023), blank lines around headings, fences, lists, and tables (`heading-blank-lines`, `fence-blank-lines`,
@@ -44,10 +45,16 @@ rules for paragraphs, tables, and links, and the lint-only rules, are planned bu
   code blocks and fences (`code-block-style`, `code-fence`; MD046, MD048), the final newline (`final-newline`,
   MD047), list markers, numbering, indentation, and spacing (`bullet`, `ordered-style`, `list-indent`,
   `list-marker-space`; MD004, MD029, MD005, MD007, MD030), block quote spacing (`blockquote-space`, MD027), emphasis
-  and strong emphasis delimiters (`emphasis`, `strong`; MD049, MD050), and bare URLs (`bare-urls`, MD034). Code, HTML,
-  math, and front matter are never changed, and a conversion that could change the meaning or the rendering of a
-  document is not made. MD018 and MD020 are not implemented, and MD037, MD038, and MD039 are not fixed: they are
-  planned as lint-only checks. Each rule is documented, with examples, in the [User Guide][link-guide-rules]
+  and strong emphasis delimiters (`emphasis`, `strong`; MD049, MD050), bare URLs (`bare-urls`, MD034), and the spaces
+  that pad a code span (`code-span-space`, MD038). Code, HTML, math, and front matter are never changed, and a
+  conversion that could change the meaning or the rendering of a document is not made. MD018 and MD020 are not
+  implemented, and MD037 and MD039 are not fixed: they are planned as lint-only checks. Each rule is documented, with
+  examples, in the [User Guide][link-guide-rules]
+- **Paragraph Wrapping**: The configurable rule `line-length` (MD013) rewraps a paragraph, a list item, or a block
+  quote only when one of its lines is wider than `line-length` display columns (120 by default; `0` is unlimited),
+  and never touches a paragraph that fits. It keeps links, code spans, inline HTML, and URLs whole, keeps hard breaks
+  and list and quote prefixes, never starts a line with text that would read as block syntax, and reports what it
+  cannot fix. `wrap: fill` is the only wrap mode that is applied
 - **Rule Suppression**: `lintmark-disable` and `markdownlint-disable` comments, by identifier or by legacy number, leave
   a passage as it is
 - **Safety Checks**: A rewrite is written only when it renders to the same HTML, keeps the Pandoc structure
@@ -171,8 +178,9 @@ LintMark is configured with an optional `.lintmark.yaml` file. Every setting has
 lists the settings it changes. This release finds, reads, and validates the configuration that applies to each
 Markdown file and reports every problem in it. It applies `end-of-line`, `final-newline`, `max-blank-lines`,
 `code-fence`, `thematic-break`, `heading-style`, `code-block-style`, `trailing-whitespace`, `bullet`, `list-indent`,
-`ordered-style`, `emphasis`, `strong`, `bare-urls`, `ignore`, and the `grid-table-invalid` entry of `rules`; the other
-settings are validated and stored, but no linting or formatting rule uses them yet.
+`ordered-style`, `emphasis`, `strong`, `bare-urls`, `line-length`, `wrap` (only `fill` is applied), `ignore`, and the
+`line-length` and `grid-table-invalid` entries of `rules`; the other settings are validated and stored, but no linting
+or formatting rule uses them yet.
 
 - **Discovery**: For each Markdown file the search starts in the file's directory and walks up. The nearest
   `.lintmark.yaml` wins and files are never merged. The search stops after the repository root (the first directory
@@ -216,8 +224,9 @@ settings are validated and stored, but no linting or formatting rule uses them y
 The `link-refactor` options are `enabled` (default `false`), `threshold` (`60`), `in-tables` (`true`),
 `break-link-text` (`false`), `label-max-length` (`40`), and `definitions-marker` (`<!-- Link References -->`).
 The `rules` setting switches rules on or off by identifier or markdownlint alias (such as `MD013`);
-`descriptive-link-text`,
-`table-grid-unformatted`, and `dollar-sign-in-shell-code` are off by default. The `ignore` patterns replace the
+`descriptive-link-text`, `table-grid-unformatted`, and `dollar-sign-in-shell-code` are off by default. `line-length` is
+the width, in display columns, above which a paragraph is rewrapped (`0` is unlimited), and `wrap` selects the method:
+only `fill` is applied, and `sentence` and `semantic` are accepted but do nothing yet. The `ignore` patterns replace the
 defaults (`.git/**`, `node_modules/**`, `**/.venv/**`, `**/generated/**`, `**/thirdparty/**`, `.agent-logs/**`);
 they are relative to the directory of the configuration file, and a file named on the command line is always
 processed. See the [User Guide][link-guide] for the complete rule list and every detail.
@@ -285,11 +294,13 @@ missing.yaml:1:1: config-error Configuration file not found
 ```
 
 The reported rule identifiers are `file-read-error`, `file-encoding-error`, `file-line-ending-error`,
-`file-parse-error`, `config-error`, `line-ending`, the 22 formatting rules (`trailing-whitespace`, `hard-tabs`,
+`file-parse-error`, `config-error`, `line-ending`, the 23 formatting rules (`trailing-whitespace`, `hard-tabs`,
 `max-blank-lines`, `heading-style`, `heading-space`, `heading-start-left`, `heading-blank-lines`, `fence-blank-lines`,
 `list-blank-lines`, `table-blank-lines`, `thematic-break`, `code-block-style`, `code-fence`, `final-newline`, `bullet`,
-`ordered-style`, `list-indent`, `list-marker-space`, `blockquote-space`, `emphasis`, `strong`, and `bare-urls`, each
-reported at the place that `--fix` would change), `grid-table-invalid`, `safety-html-mismatch`,
+`ordered-style`, `list-indent`, `list-marker-space`, `blockquote-space`, `emphasis`, `strong`, `bare-urls`, and
+`code-span-space`, each reported at the place that `--fix` would change), `line-length` (a paragraph line that is wider
+than the limit; fixable by `--fix` unless the message ends with `and the paragraph cannot be wrapped automatically`),
+`grid-table-invalid`, `safety-html-mismatch`,
 `safety-structure-mismatch`, `safety-not-idempotent`, `file-format-error`, and `file-write-error`. A `safety-*`
 identifier means that a rewrite was refused because it could damage the document; the file is left as it was. A
 grid table problem (`grid-table-invalid`) is never rewritten, and the formatting rules and `line-ending` are always

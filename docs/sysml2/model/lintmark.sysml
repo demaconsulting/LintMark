@@ -13,6 +13,7 @@ package LintMark {
         metadata info : SoftwareInfo {
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/IntegrationTests.cs",
+                "test/DemaConsulting.LintMark.Tests/IntegrationWrapTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Runner.cs",
                 "test/DemaConsulting.LintMark.Tests/TemporaryDirectory.cs",
                 "test/DemaConsulting.LintMark.Tests/AssemblyInfo.cs");

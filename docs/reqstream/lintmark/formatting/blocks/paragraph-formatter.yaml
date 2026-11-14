@@ -1,0 +1,285 @@
+---
+# Software Unit Requirements for the ParagraphFormatter Class
+#
+# The ParagraphFormatter class proposes the change that fills a paragraph with as many words on each line as fit within
+# the line length, but only when a line of the paragraph is wider than the line length and has a place to break. It
+# keeps list and quote prefixes, hard breaks, and inline constructs, never starts a line with block syntax, and leaves
+# or reports the paragraphs that it cannot wrap safely (with the ParagraphOutcome supporting type).
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: ParagraphFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-RejectsMissingArguments
+                    title: >-
+                      The ParagraphFormatter class shall throw an ArgumentNullException that names the parameter when
+                      an argument is null.
+                    justification: |
+                      Missing arguments are programming errors that must be reported as such.
+                    tests:
+                      - ParagraphFormatter_Format_NullArguments_Throw
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-RejectsOtherBlocks
+                    title: The ParagraphFormatter class shall refuse to format a block that is not a paragraph.
+                    justification: |
+                      A block of another kind has a different shape, and a wrap computed for it would damage it.
+                    tests:
+                      - ParagraphFormatter_Format_HeadingBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-RuleIdsImmutable
+                    title: >-
+                      The ParagraphFormatter class shall list the rules that edit the text of a paragraph in a form
+                      that its holders cannot change.
+                    justification: |
+                      The list decides in which paragraphs a suppression keeps the wrap away, and one instance is
+                      shared by every thread.
+                    tests:
+                      - ParagraphFormatter_RuleIds_Read_ListsTheRulesThatEditParagraphTextAndIsImmutable
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-OverflowingParagraphWrapped
+                    title: >-
+                      The ParagraphFormatter class shall fill a paragraph that has a line wider than the line length
+                      with as many words on each line as fit within the width.
+                    justification: |
+                      Filling the lines up to the width is the one result that does not depend on how the author broke
+                      the lines, so it is the same for every author.
+                    tests:
+                      - ParagraphFormatter_Format_OverflowingParagraph_IsFilledUpToTheWidth
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-CompliantParagraphKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph in which no line is wider
+                      than the line length, short and ragged lines included.
+                    justification: |
+                      The author chose where to break the lines of such a paragraph, and a line that keeps to the limit
+                      is not a problem. Moving it would change every paragraph of a project for no reason.
+                    tests:
+                      - ParagraphFormatter_Format_ParagraphWithinTheWidth_IsKeptAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-WidthMeasuredInColumns
+                    title: >-
+                      The ParagraphFormatter class shall measure the width of a line in display columns, counting
+                      wide East Asian characters and emoji as two columns and combining marks as none.
+                    justification: |
+                      Readers see columns, not characters, so a limit that counted characters would wrap text that
+                      fits on the screen and keep text that does not.
+                    tests:
+                      - ParagraphFormatter_Format_WideAndCombiningCharacters_AreMeasuredInColumns
+                      - ParagraphFormatter_Format_Emoji_AreCountedWithTwoColumns
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-UnbreakableLineKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph whose line is wider than
+                      the line length only because of one link, URL, autolink, code span, or image.
+                    justification: |
+                      Such an item cannot be broken without changing the document, so there is no change that would
+                      bring the line within the width.
+                    tests:
+                      - ParagraphFormatter_Format_SingleLongAtom_IsKeptAndAWordBeforeItIsSeparated
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-InlineConstructsKept
+                    title: >-
+                      The ParagraphFormatter class shall keep a code span with blanks inside it and a bare URL whole,
+                      on one line, when it wraps a paragraph.
+                    justification: |
+                      Breaking a line inside a code span changes its content, and breaking inside a URL changes the
+                      address.
+                    tests:
+                      - ParagraphFormatter_Format_CodeSpansAndUrls_AreNeverSplit
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-HardBreakKept
+                    title: >-
+                      The ParagraphFormatter class shall keep each hard line break of a paragraph, written with spaces
+                      or with a backslash, at the end of the line where it is, and wrap the text between the breaks on
+                      its own.
+                    justification: |
+                      A hard line break is part of what the author wrote, and moving or dropping it changes how the
+                      paragraph renders.
+                    tests:
+                      - ParagraphFormatter_Format_HardBreaks_StayWhereTheyAre
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ListPrefixKept
+                    title: >-
+                      The ParagraphFormatter class shall write each continuation line of a wrapped paragraph in a list
+                      item with the indentation of the content of the item, whatever the marker of the item is.
+                    justification: |
+                      A continuation line that is not indented to the content of the item would leave the item or
+                      start a different block.
+                    tests:
+                      - ParagraphFormatter_Format_ListItems_KeepTheIndentationOfTheContent
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-QuotePrefixKept
+                    title: >-
+                      The ParagraphFormatter class shall write each continuation line of a wrapped paragraph in a block
+                      quote with the quote markers of the first line, also for nested quotes.
+                    justification: |
+                      A continuation line without the markers of its quote could leave the quote and change the text
+                      that belongs to it.
+                    tests:
+                      - ParagraphFormatter_Format_Quotes_KeepTheirMarkers
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-LazyQuoteLineGetsPrefix
+                    title: >-
+                      The ParagraphFormatter class shall write a lazy continuation line of a block quote with the quote
+                      marker when it wraps the paragraph.
+                    justification: |
+                      A marker on every line keeps each line in the quote wherever the wrap puts the line break.
+                    tests:
+                      - ParagraphFormatter_Format_LazyQuoteLine_GetsTheQuoteMarker
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-LazyListLineKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph of a list item that has a
+                      lazy continuation line.
+                    justification: |
+                      A lazy continuation line belongs to the item by its position only, and a wrap that moved the line
+                      breaks could take it out of the item.
+                    tests:
+                      - ParagraphFormatter_Format_LazyListLine_KeepsTheParagraphAndReportsIt
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ForcedStartKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph in which a line after a
+                      hard line break starts with text that Markdown reads as block syntax.
+                    justification: |
+                      The line start is fixed by the hard break, so no wrap can keep the block syntax away from it.
+                    tests:
+                      - ParagraphFormatter_Format_ForcedLineStartThatIsBlockSyntax_KeepsTheParagraphAndReportsIt
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-BlockSyntaxKeptOffLineStarts
+                    title: >-
+                      The ParagraphFormatter class shall not start a line of a wrapped paragraph with a bullet marker,
+                      a number marker, a heading marker, or a quote marker.
+                    justification: |
+                      A line that starts with such text turns a part of the paragraph into a list, a heading, or a
+                      quote, so the wrap would change what the document says.
+                    tests:
+                      - ParagraphFormatter_Format_BlockSyntaxAtTheBreak_NeverStartsALine
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-PandocParagraphKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph that holds a Pandoc
+                      structural line.
+                    justification: |
+                      Pandoc reads such lines as commands or fences, and joining or moving them would change the output
+                      of the document.
+                    tests:
+                      - ParagraphFormatter_Format_PandocStructuralParagraph_IsKeptAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-FootnoteParagraphKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph inside a footnote
+                      definition.
+                    justification: |
+                      The parser adds a link back to the reference to the end of a footnote, which makes the effect of
+                      a rewrite there uncertain, and leaving the paragraph as written is always safe.
+                    tests:
+                      - ParagraphFormatter_Format_FootnoteParagraph_IsKeptAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-TabParagraphKept
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph that holds a tab.
+                    justification: |
+                      The width of a tab depends on the tab stop, and the rule that expands tabs changes the same
+                      lines, so a wrap could not be shown to be stable.
+                    tests:
+                      - ParagraphFormatter_Format_TabInTheParagraph_IsKeptAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-SuppressedRuleKeepsParagraph
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph in which a suppression
+                      comment disables the line length rule or any other rule that edits the text of a paragraph.
+                    justification: |
+                      An author who switched a rule off for a passage expects the passage to stay as written, and a
+                      wrap would rewrite the lines that those rules also edit.
+                    tests:
+                      - ParagraphFormatter_Format_SuppressedRule_KeepsTheParagraphAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ProofFailureKeepsParagraph
+                    title: >-
+                      The ParagraphFormatter class shall propose a wrap only when the paragraph taken on its own, as
+                      written and as wrapped, renders the same.
+                    justification: |
+                      A paragraph that renders differently after the wrap is damaged, so only a wrap that is shown to
+                      keep the rendering is made, and a wrap that is refused leaves the paragraph as written.
+                    tests:
+                      - ParagraphFormatter_Format_ProofRefusesTheWrap_KeepsTheParagraphAndReportsIt
+                      - ParagraphFormatter_Format_Proof_ReceivesTheParagraphBeforeAndAfter
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ContainerProofFailureKeepsParagraph
+                    title: >-
+                      The ParagraphFormatter class shall propose no change for a paragraph that the parser reads
+                      differently inside its list item or block quote after the wrap.
+                    justification: |
+                      The parser reads some text differently depending on what surrounds it, so a wrap that renders the
+                      same on its own can still change the paragraph in its container.
+                    tests:
+                      - ParagraphFormatter_Format_QuoteReadDifferentlyAfterTheWrap_KeepsTheParagraphAndReportsIt
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ResidualOverflowReported
+                    title: >-
+                      The ParagraphFormatter class shall report that a line stays wider than the line length when it
+                      leaves a line too wide, either because the wrap finds no good place to break or because it
+                      cannot wrap the paragraph safely.
+                    justification: |
+                      A line that stays too wide must not pass unnoticed, and the caller must be able to tell it from
+                      a line that the wrap repaired.
+                    tests:
+                      - ParagraphFormatter_Format_NoGoodBreak_ReportsTheResidualOverflow
+                      - ParagraphFormatter_Format_LazyListLine_KeepsTheParagraphAndReportsIt
+                      - ParagraphFormatter_Format_ForcedLineStartThatIsBlockSyntax_KeepsTheParagraphAndReportsIt
+                      - ParagraphFormatter_Format_ProofRefusesTheWrap_KeepsTheParagraphAndReportsIt
+                      - ParagraphFormatter_Format_QuoteReadDifferentlyAfterTheWrap_KeepsTheParagraphAndReportsIt
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-SettingsDisableWrapping
+                    title: >-
+                      The ParagraphFormatter class shall propose no change and report nothing when the line length is
+                      0, when the line length rule is switched off, or when the wrap mode is not fill.
+                    justification: |
+                      Projects that do not want their paragraphs wrapped must get their files back as they went in.
+                    tests:
+                      - ParagraphFormatter_Format_SettingsThatDisableWrapping_KeepTheParagraph
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-EditAttributedToLineLength
+                    title: >-
+                      The ParagraphFormatter class shall attribute the change that it proposes to the `line-length`
+                      rule.
+                    justification: |
+                      Violations are reported and suppressed by rule, so a change under the wrong rule would be
+                      reported and suppressed wrongly.
+                    tests:
+                      - ParagraphFormatter_Format_OverflowingParagraph_IsFilledUpToTheWidth
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-StoredFormsGiveTheSameEdit
+                    title: >-
+                      The ParagraphFormatter class shall propose the same change for a text whatever its line endings
+                      are, LF, CRLF, or mixed, and whether the file starts with a byte order mark.
+                    justification: |
+                      How a file is stored says nothing about its text, so the change must not depend on it.
+                    tests:
+                      - ParagraphFormatter_Format_LineEndingsAndByteOrderMark_DoNotChangeTheEdit
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-DeterministicResult
+                    title: >-
+                      The ParagraphFormatter class shall propose the same change for the same paragraph when one
+                      instance is called from several threads at once as when it is called one after another.
+                    justification: |
+                      Files are formatted in parallel by one shared instance, and a result that depended on timing
+                      could not be trusted.
+                    tests:
+                      - ParagraphFormatter_Format_ConcurrentCalls_GiveTheSameOutcome
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-OutcomeRejectsInconsistentArguments
+                    title: >-
+                      The ParagraphOutcome record shall refuse an overflow position, an overflow width, a change, and a
+                      residual overflow flag that contradict each other.
+                    justification: |
+                      An outcome that claims a change without saying where the overflow was, or a width without a
+                      position, would make the report of the caller wrong.
+                    tests:
+                      - ParagraphFormatter_Outcome_InconsistentArguments_Throw

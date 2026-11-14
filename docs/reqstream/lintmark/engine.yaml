@@ -500,3 +500,19 @@ sections:
               - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesFixed
             tests:
               - EngineSubsystem_Fix_FormattingViolations_RewritesWithTheDefaultRules
+
+          - id: LintMark-Engine-OverlongParagraphsHandled
+            title: >-
+              The Engine subsystem shall report each paragraph that is wider than the line length of the configuration
+              as a problem when it checks files, wrap it when it fixes files, and keep reporting the lines that it
+              could not shorten.
+            justification: |
+              A user who limits the length of lines expects the check to say which paragraphs are too wide, the fix to
+              repair them, and a line that the fix could not repair to stay reported, without having to assemble the
+              rules.
+            children:
+              - LintMark-Engine-LintMarkEngine-ParagraphsWrappedWhenFixing
+              - LintMark-Engine-LintMarkEngine-LineLengthReportedWhenChecking
+              - LintMark-Engine-LintMarkEngine-LineLengthStillReportedAfterFix
+            tests:
+              - EngineSubsystem_Run_OverlongParagraph_IsReportedWhenCheckingAndWrappedWhenFixing

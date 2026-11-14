@@ -11,8 +11,8 @@ rule `blockquote-space` and nothing else; the trailing whitespace of the lines s
 
 ##### Data Model
 
-`BlockQuoteFormatter` is an internal sealed class without instance data; the constants `MinRun` (two) and `MaxRun` (four)
-are the shortest and the longest run of spaces that is collapsed.
+`BlockQuoteFormatter` is an internal sealed class without instance data; the constants `MinRun` (two) and `MaxRun`
+(four) are the shortest and the longest run of spaces that is collapsed.
 
 - `RuleIds`: an immutable array that holds `blockquote-space`. `DocumentFormatter` leaves a whole quote as written when
   the rule is suppressed anywhere inside it.
@@ -46,15 +46,15 @@ line with one space; no edit is an insertion; every edit carries the identifier 
 
 Algorithm: (1) when any line of the quote holds a footnote definition marker (`LineLayout.HasFootnoteDefinitionMarker`,
 deliberately wider than the syntax), the whole quote stays as written, because the parser reads the body of a footnote
-that stands in a quote inconsistently. (2) The blocks of the document are in source order, so a bisection finds the first
-block that starts at the quote; every later block that ends inside the quote is looked at. (3) For each handled leaf the
-depth is the number of quotes around it, and each of its lines is taken from `DocumentParser.GetLines`. (4) A line is
-skipped when it has no content (the whitespace rule owns it), when its prefix holds a tab, or when the number of `>`
-characters in its prefix differs from the depth, which is the case for a lazy continuation line: it has fewer markers
-than quotes and no marker to collapse after. The number of markers decides, not the width of the prefix, because the
-width depends on the spaces this rule removes. (5) For every `>` in the prefix followed by a run of two to four spaces,
-that run is replaced by one space. A run of five or more is left alone (such a line would be indented code), and a run
-of zero or one is canonical already.
+that stands in a quote inconsistently. (2) The blocks of the document are in source order, so a bisection finds the
+first block that starts at the quote; every later block that ends inside the quote is looked at. (3) For each handled
+leaf the depth is the number of quotes around it, and each of its lines is taken from `DocumentParser.GetLines`. (4) A
+line is skipped when it has no content (the whitespace rule owns it), when its prefix holds a tab, or when the number of
+`>` characters in its prefix differs from the depth, which is the case for a lazy continuation line: it has fewer
+markers than quotes and no marker to collapse after. The number of markers decides, not the width of the prefix, because
+the width depends on the spaces this rule removes. (5) For every `>` in the prefix followed by a run of two to four
+spaces, that run is replaced by one space. A run of five or more is left alone (such a line would be indented code), and
+a run of zero or one is canonical already.
 
 Why this is safe: at most three spaces beyond the one that belongs to the marker are removed, and a block start needs
 fewer than four columns of indentation, so which block the line starts cannot change. The lines of leaves that the

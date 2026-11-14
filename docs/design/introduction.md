@@ -44,21 +44,22 @@ The following topics are out of scope:
 
 ## Software Structure
 
-The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the diagram
-below by SysML2Tools as part of the build pipeline. AI agents should query the SysML2 model
-directly (see the `sysml2tools-query` skill) rather than parsing this diagram or the prose
-elsewhere in this document. The model captures the shipped system's runtime composition only:
-the local software items and the OTS libraries the shipped tool consumes (Markdig,
-FileSystemGlobbing, YamlDotNet, and EditorConfig, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS
-items listed in Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
-rather than modeled as SysML2 parts. The system is made of the entry point `Program` and ten subsystems: `Cli`,
-`Configuration`, `Document`, `Engine`, `Formatting`, `Linting`, `Reporting`, `Safety`, `SelfTest`, and `Utilities`.
-`Linting` (findings and the rule registry), `Formatting` (edits and the document formatter), `Safety` (the checks that
-decide whether a rewrite may be written), and `Reporting` (text and diff output) are the subsystems that make rewriting
-files possible and safe; `AtomicFileWriter` is a unit of the `Engine` subsystem and `TextWidth` a unit of the
-`Utilities` subsystem. `Formatting` contains two nested subsystems: `Blocks`, which holds the block formatters of the
-tool (`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`),
-and `Inline`, which holds the inline normalizer (`InlineNormalizer`); they are the only nested subsystems.
+The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the diagram below by SysML2Tools as
+part of the build pipeline. AI agents should query the SysML2 model directly (see the `sysml2tools-query` skill) rather
+than parsing this diagram or the prose elsewhere in this document. The model captures the shipped system's runtime
+composition only: the local software items and the OTS libraries the shipped tool consumes (Markdig, FileSystemGlobbing,
+YamlDotNet, and EditorConfig, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS items listed in Scope above
+are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`) rather than modeled as SysML2 parts.
+The system is made of the entry point `Program` and ten subsystems: `Cli`, `Configuration`, `Document`, `Engine`,
+`Formatting`, `Linting`, `Reporting`, `Safety`, `SelfTest`, and `Utilities`. `Linting` (findings and the rule registry),
+`Formatting` (edits and the document formatter), `Safety` (the checks that decide whether a rewrite may be written), and
+`Reporting` (text and diff output) are the subsystems that make rewriting files possible and safe; `AtomicFileWriter` is
+a unit of the `Engine` subsystem and `TextWidth` a unit of the `Utilities` subsystem. `Formatting` contains two nested
+subsystems: `Blocks`, which holds the block formatters of the tool (`HeadingFormatter`, `CodeBlockFormatter`,
+`ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`) and the paragraph formatter
+(`ParagraphFormatter`), and `Inline`, which holds the inline normalizer (`InlineNormalizer`) and the units that cut
+paragraphs into words and fill lines (`AtomTokenizer`, `LineWrapper`, and `BlockSyntaxGuard`); they are the only nested
+subsystems.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -88,20 +89,25 @@ subsystems, support units, dependencies, inputs, and outputs with the real ones]
       - `LintMarkEngine.cs`, `FileResult.cs`, `FileChange.cs` - the `LintMarkEngine` unit
       - `AtomicFileWriter.cs` - the `AtomicFileWriter` unit
     - **Formatting/** - formatting subsystem (edits, patching, and the document formatter)
-      - `TextEdit.cs`, `EditSet.cs` - the `EditSet` unit
+      - `TextEdit.cs`, `EditSet.cs`, `EditRebaser.cs` - the `EditSet` unit
       - `SourcePatcher.cs` - the `SourcePatcher` unit
       - `DocumentFormatter.cs`, `IBlockFormatter.cs`, `FormatContext.cs`, `FormatResult.cs` - the `DocumentFormatter`
         unit, with the internal helpers `LineLayout.cs`, `LineOwnership.cs`, `InlineMap.cs`, `LeafWhitespace.cs`,
         `FrontMatterGuard.cs`, `BlankLinePass.cs`, `BlockSpacingPass.cs`, and `TrailerPass.cs`
-      - **Blocks/** - the nested `Blocks` subsystem (block formatters)
+      - **Blocks/** - the nested `Blocks` subsystem (block formatters and the paragraph formatter)
         - `HeadingFormatter.cs` - the `HeadingFormatter` unit
         - `CodeBlockFormatter.cs` - the `CodeBlockFormatter` unit
         - `ThematicBreakFormatter.cs` - the `ThematicBreakFormatter` unit
         - `ListFormatter.cs` - the `ListFormatter` unit, with the supporting types `ListModel.cs` and `ListPlan.cs`
         - `BlockQuoteFormatter.cs` - the `BlockQuoteFormatter` unit
-      - **Inline/** - the nested `Inline` subsystem (inline rewriting)
+        - `ParagraphFormatter.cs` - the `ParagraphFormatter` unit, with the supporting type `ParagraphOutcome.cs`
+      - **Inline/** - the nested `Inline` subsystem (inline rewriting and the units of paragraph wrapping)
         - `InlineNormalizer.cs` - the `InlineNormalizer` unit, with the supporting types `InlineCandidates.cs` and
           `ParagraphProof.cs`
+        - `AtomTokenizer.cs` - the `AtomTokenizer` unit, with the supporting types `TokenizedParagraph.cs`,
+          `ParagraphSegment.cs`, and `HardBreakKind.cs`
+        - `LineWrapper.cs` - the `LineWrapper` unit, with the supporting type `WrappedLines.cs`
+        - `BlockSyntaxGuard.cs` - the `BlockSyntaxGuard` unit
     - **Linting/** - findings and rule registry subsystem
       - `Diagnostic.cs`, `DiagnosticKind.cs` - the `Diagnostic` unit
       - `RuleCatalog.cs`, `RuleInfo.cs` - the `RuleCatalog` unit
@@ -151,10 +157,14 @@ tree: the `Blocks` subsystem of `Formatting` has the design document `docs/desig
 units have `docs/design/lintmark/formatting/blocks/heading-formatter.md` and the like, the source folder
 `src/DemaConsulting.LintMark/Formatting/Blocks/`, and the test files `BlocksSubsystemTests.cs` and
 `HeadingFormatterTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Blocks/`. The `Inline` subsystem of
-`Formatting` follows the same pattern: `docs/design/lintmark/formatting/inline.md`, its unit
-`docs/design/lintmark/formatting/inline/inline-normalizer.md`, the source folder
+`Formatting` follows the same pattern: `docs/design/lintmark/formatting/inline.md`, its units
+`docs/design/lintmark/formatting/inline/inline-normalizer.md`, `.../atom-tokenizer.md`, `.../line-wrapper.md`, and
+`.../block-syntax-guard.md`, the source folder
 `src/DemaConsulting.LintMark/Formatting/Inline/`, and the test files `InlineSubsystemTests.cs` and
-`InlineNormalizerTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Inline/`.
+`InlineNormalizerTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Inline/`. The supporting types of a unit
+keep the folders of the unit: `EditRebaser` is described in the `EditSet` design, `ParagraphOutcome` in the
+`ParagraphFormatter` design (`docs/design/lintmark/formatting/blocks/paragraph-formatter.md`), and `TokenizedParagraph`,
+`ParagraphSegment`, `HardBreakKind`, and `WrappedLines` in the designs of the tokenizer and the wrapper.
 
 OTS items have integration/usage design documentation parallel to system folders:
 

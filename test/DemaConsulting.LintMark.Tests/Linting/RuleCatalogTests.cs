@@ -401,7 +401,7 @@ public class RuleCatalogTests
 
     /// <summary>
     ///     Test that the formatting rules are the configurable line length and paragraph wrap rules, the line
-    ///     ending rule and the twenty-two always-applied whitespace, block and inline rules.
+    ///     ending rule and the twenty-three always-applied whitespace, block and inline rules.
     /// </summary>
     [Fact]
     public void RuleCatalog_Rules_FormattingRules_AreTheConfigurableOnesLineEndingAndTheAlwaysApplied()
@@ -419,6 +419,7 @@ public class RuleCatalogTests
                 "bullet",
                 "code-block-style",
                 "code-fence",
+                "code-span-space",
                 "emphasis",
                 "fence-blank-lines",
                 "final-newline",
@@ -475,6 +476,7 @@ public class RuleCatalogTests
             "emphasis",
             "strong",
             "bare-urls",
+            "code-span-space",
             "safety-html-mismatch",
             "safety-structure-mismatch",
             "safety-not-idempotent",
@@ -525,7 +527,8 @@ public class RuleCatalogTests
             ["blockquote-space"] = ["MD027"],
             ["emphasis"] = ["MD049"],
             ["strong"] = ["MD050"],
-            ["bare-urls"] = ["MD034"]
+            ["bare-urls"] = ["MD034"],
+            ["code-span-space"] = ["MD038"]
         };
 
         // Act: collect the aliases of the non-configurable entries
@@ -556,6 +559,7 @@ public class RuleCatalogTests
     [InlineData("MD049", "emphasis")]
     [InlineData("MD050", "strong")]
     [InlineData("md034", "bare-urls")]
+    [InlineData("MD038", "code-span-space")]
     [InlineData("trailing-whitespace", "trailing-whitespace")]
     public void RuleCatalog_TryResolve_FormattingRuleAlias_ResolvesButIsNotConfigurable(string name, string expected)
     {
@@ -571,11 +575,10 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the numbers of the rules that only report a problem later (emphasis, code span and link text spacing) are not registered.
+    ///     Test that the numbers of the rules that only report a problem later (spacing inside emphasis and link text) are not registered.
     /// </summary>
     [Theory]
     [InlineData("MD037")]
-    [InlineData("MD038")]
     [InlineData("MD039")]
     public void RuleCatalog_TryResolve_RuleNumberOfAPlannedLintOnlyRule_IsNotRegistered(string name)
     {
@@ -640,19 +643,42 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 22 configurable rules, 33 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
+    ///     Test that the registry holds 22 configurable rules, 34 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable22NonConfigurable33AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable22NonConfigurable34AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
         Assert.Equal(22, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
-        Assert.Equal(33, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(55, RuleCatalog.Rules.Length);
+        Assert.Equal(34, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
+        Assert.Equal(56, RuleCatalog.Rules.Length);
         Assert.Equal(22, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(22, RuleCatalog.Defaults.Count);
         Assert.Equal(16, RuleCatalog.Aliases.Count);
         Assert.Equal(9, RuleCatalog.DroppedAliases.Length);
         Assert.Equal(RuleCatalog.Rules.Where(rule => rule.IsConfigurable).Select(rule => rule.Id), RuleCatalog.ConfigurableRules);
+    }
+
+    /// <summary>
+    ///     Test that the code span rule is an always-applied formatting rule with the alias MD038 that is enabled and cannot be configured.
+    /// </summary>
+    [Fact]
+    public void RuleCatalog_Rules_CodeSpanSpace_IsAnAlwaysAppliedFormattingRuleWithTheNumberMd038()
+    {
+        // Act: look the rule up
+        var found = RuleCatalog.TryGet(RuleCatalog.CodeSpanSpaceRuleId, out var rule);
+        var resolved = RuleCatalog.TryResolve("md038", out var id);
+
+        // Assert: a formatting rule that is on, with its alias, resolvable but not configurable
+        Assert.True(found);
+        Assert.NotNull(rule);
+        Assert.Equal("code-span-space", rule.Id);
+        Assert.Equal(DiagnosticKind.Formatting, rule.Kind);
+        Assert.True(rule.DefaultEnabled);
+        Assert.False(rule.IsConfigurable);
+        Assert.Equal(["MD038"], rule.Aliases);
+        Assert.True(resolved);
+        Assert.Equal("code-span-space", id);
+        Assert.False(RuleCatalog.TryResolveConfigurable("MD038", out _));
     }
 }
