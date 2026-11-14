@@ -22,8 +22,8 @@ using System.Collections.Immutable;
 using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Safety;
 using DemaConsulting.LintMark.Utilities;
 using Markdig;
 using Markdig.Extensions.Tables;
@@ -242,7 +242,7 @@ internal sealed class TableFormatter : IBlockFormatter
     /// <returns><see langword="true"/> when both texts, each read on its own, render the same.</returns>
     /// <remarks>
     ///     The lines are read without the list markers and indentation of their prefixes (an indented line on its own would be
-    ///     code), keeping the block quote markers; the whole document is proved again by the safety checks before anything is written.
+    ///     code), keeping the block quote markers.
     /// </remarks>
     private bool RendersTheSame(string text, PipeTable table, List<TextEdit> proposed)
     {

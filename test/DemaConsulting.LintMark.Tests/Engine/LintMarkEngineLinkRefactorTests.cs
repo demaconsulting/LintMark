@@ -53,7 +53,7 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that the fix option converts the link, keeps CRLF line endings and the byte order mark, passes every safety check,
+    ///     Test that the fix option converts the link, keeps CRLF line endings and the byte order mark,
     ///     and that a second run and a check find nothing to do.
     /// </summary>
     [Fact]
@@ -70,7 +70,7 @@ public partial class LintMarkEngineTests
         var (secondCode, secondLines) = Execute(directory, new LintMarkEngine(1), "--fix");
         var (checkCode, checkLines) = Execute(directory, new LintMarkEngine(1));
 
-        // Assert: converted with CRLF and the mark, no safety refusal, and nothing left to do afterwards
+        // Assert: converted with CRLF and the mark, and nothing left to do afterwards
         Assert.Equal(
             [0xEF, 0xBB, 0xBF, .. Utf8($"# T\r\n\r\nA [long link text][long-link-text] here.\r\n\r\n<!-- Link References -->\r\n[long-link-text]: {RefactorUrl}\r\n")],
             written);

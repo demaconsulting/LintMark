@@ -23,11 +23,11 @@ using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
 using Markdig;
 
-namespace DemaConsulting.LintMark.Safety;
+namespace DemaConsulting.LintMark.Formatting.Proof;
 
 /// <summary>
-///     Decides whether two versions of a document render to the same HTML, the first safety check before a
-///     rewritten file may be written.
+///     Decides whether two versions of a document render to the same HTML; the proof that decides whether a
+///     formatter may apply a transformation.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -49,7 +49,7 @@ namespace DemaConsulting.LintMark.Safety;
 ///         <c>CheckOnDisk</c> accepts text with its real line endings, so that a rewrite that only changes the
 ///         line endings can be proved not to change the page either. A check that
 ///         cannot be completed (the renderer throws, a pattern times out) reports a difference, so an
-///         undecided check refuses the rewrite.
+///         undecided check rejects the transformation.
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless apart from the immutable shared pipeline and compiled patterns;
@@ -255,7 +255,7 @@ internal static partial class HtmlEquivalenceChecker
     ///     again only after the scan has passed it. These rules keep the scan linear even for input made of
     ///     thousands of unclosed tags or of very many code spans.
     /// </remarks>
-    private static string Normalize(string html)
+    internal static string Normalize(string html)
     {
         var builder = new StringBuilder(html.Length);
         var nextOpening = new int[VerbatimElements.Length];

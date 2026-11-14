@@ -38,7 +38,7 @@ namespace DemaConsulting.LintMark.Formatting;
 ///     <para>
 ///         A formatter must be a pure function of the block, the document and the configuration: no state kept
 ///         between calls and no side effects other than adding edits, so that formatting is deterministic and
-///         the safety checks can run it again. Implementations must be safe for concurrent use, because one
+///         it can be run again, for instance by the verification tool. Implementations must be safe for concurrent use, because one
 ///         instance serves every worker thread.
 ///     </para>
 /// </remarks>

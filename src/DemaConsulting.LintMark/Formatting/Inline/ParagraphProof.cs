@@ -41,8 +41,8 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         two HTML strings are byte for byte equal.
 ///     </para>
 ///     <para>
-///         This is a local copy of the safety property and never a replacement for the file-level checks, which
-///         still run unchanged on every rewrite. A paragraph whose proof fails is left exactly as written.
+///         This is a local proof that a transformation keeps the rendering; it is not a whole-file check, which the
+///         verification tool performs. A paragraph whose proof fails is left exactly as written.
 ///     </para>
 ///     <para>
 ///         Thread safety: static and stateless; safe for concurrent use (the pipeline is immutable).

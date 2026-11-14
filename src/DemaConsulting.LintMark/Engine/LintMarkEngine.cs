@@ -20,7 +20,6 @@
 
 using System.Collections.Immutable;
 using System.Security;
-using System.Text;
 using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
@@ -30,7 +29,6 @@ using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Reporting;
-using DemaConsulting.LintMark.Safety;
 
 namespace DemaConsulting.LintMark.Engine;
 
@@ -42,7 +40,7 @@ namespace DemaConsulting.LintMark.Engine;
 ///     <para>
 ///         Each file is processed independently by a worker: its configuration is loaded first (so that the
 ///         <c>ignore</c> patterns can skip it before it is read), then the file is read, decoded and parsed, and
-///         the document is formatted into a proposed rewrite that must pass every safety check. Workers never
+///         the document is formatted into a proposed rewrite. Workers never
 ///         write output, never write files and never touch the <see cref="Context"/>; they return a
 ///         <see cref="FileResult"/> stored by input index. After all workers finish, the files are rewritten
 ///         one after the other when the fix option is given, and all diagnostics are reported in order, so
@@ -60,12 +58,11 @@ namespace DemaConsulting.LintMark.Engine;
 ///         directory, a glob or the default pattern; a file named on the command line is never ignored.
 ///     </para>
 ///     <para>
-///         Safety is the central property of rewriting: a proposed rewrite is written only when the rendered
-///         HTML is equivalent, the Pandoc structure is unchanged, the rewritten text parses as before and
-///         formatting it again changes nothing. Any other outcome (including an exception in a check)
-///         leaves the file untouched and is reported as a diagnostic. A document the parser could only read by
-///         dropping grid tables is never rewritten and its offending line is reported. The checks run in check
-///         mode too, so what is reported predicts what the fix option does; only the write is gated.
+///         A document the parser could only read by dropping grid tables is never rewritten and its offending
+///         line is reported. A formatter that throws or proposes invalid edits fails its file only, which is
+///         left untouched. The block formatters prove their own transformations locally; the whole-file
+///         properties (same rendering, same structure, stable second pass) are verified outside the product by
+///         the verification tool.
 ///     </para>
 ///     <para>
 ///         Every finding is reported, one per line, as <c>path:line:col: rule-id message</c> through
@@ -159,7 +156,7 @@ internal sealed class LintMarkEngine
     /// </param>
     /// <param name="documentParser">
     ///     Optional replacement for the Markdown parsing step of the real per-file processing, including the
-    ///     parsing done by the safety checks (a test seam); <see langword="null"/> selects <see cref="DocumentParser.Parse"/>.
+    ///     (a test seam); <see langword="null"/> selects <see cref="DocumentParser.Parse"/>.
     /// </param>
     /// <param name="editorConfigFactory">
     ///     Optional replacement for the creation of the editor-settings resolver used by <see cref="Run(Context)"/>
@@ -193,14 +190,20 @@ internal sealed class LintMarkEngine
         _documentParser = documentParser ?? DocumentParser.Parse;
         _fileProcessor = fileProcessor ?? ReadAndRewrite;
         _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
-        _formatter = formatter ?? new DocumentFormatter(
-            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
-            new InlineNormalizer(),
-            new ParagraphFormatter(),
-            new LinkRefactorer());
+        _formatter = formatter ?? CreateDefaultFormatter();
         _lintRules = lintRules ?? LintRuleEngine.CreateDefault();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
+
+    /// <summary>
+    ///     Creates the production document formatter with every block formatter.
+    /// </summary>
+    /// <returns>A new formatter; the verification tool uses it to format a second time.</returns>
+    internal static DocumentFormatter CreateDefaultFormatter() => new(
+        [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
+        new InlineNormalizer(),
+        new ParagraphFormatter(),
+        new LinkRefactorer());
 
     /// <summary>
     ///     Discovers, processes, optionally rewrites, and reports the files selected by the context.
@@ -498,7 +501,7 @@ internal sealed class LintMarkEngine
     }
 
     /// <summary>
-    ///     Formats a parsed document and verifies the proposed rewrite.
+    ///     Formats a parsed document and prepares the proposed rewrite.
     /// </summary>
     /// <param name="path">Path of the file.</param>
     /// <param name="target">The full path of the file the bytes were read from, with symbolic links resolved.</param>
@@ -506,8 +509,8 @@ internal sealed class LintMarkEngine
     /// <param name="document">The parsed document.</param>
     /// <param name="config">The configuration to format under.</param>
     /// <returns>
-    ///     The result: the findings, and a change only when the proposed rewrite differs from the file and passed
-    ///     every safety check. A document that must not be rewritten yields the grid table finding and no change.
+    ///     The result: the findings, and a change only when the proposed rewrite differs from the file. A document
+    ///     that must not be rewritten yields the grid table finding and no change.
     /// </returns>
     private FileResult Rewrite(string path, string target, byte[] bytes, ParsedDocument document, LintMarkConfig config)
     {
@@ -554,13 +557,6 @@ internal sealed class LintMarkEngine
             return new FileResult(path, diagnostics);
         }
 
-        // Every rewrite that changes bytes must pass the safety checks, also one that changes the line endings alone:
-        // the Markdown parser renders some text differently for CRLF and LF
-        if (CheckSafety(path, source, newLf, bytes, newBytes, config) is { } refusal)
-        {
-            return new FileResult(path, diagnostics.Add(refusal.Diagnostic)) { Safety = refusal.Status };
-        }
-
         var change = new FileChange(
             source.Text,
             newLf,
@@ -581,8 +577,8 @@ internal sealed class LintMarkEngine
     /// <param name="grid">Where the offending line is.</param>
     /// <returns>One diagnostic, or none when the rule is switched off or suppressed at the offending line.</returns>
     /// <remarks>
-    ///     Switching the report off never lets the file be rewritten: that guard is a safety property and is
-    ///     applied by the caller regardless.
+    ///     Switching the report off never lets the file be rewritten: the guard is applied by the caller
+    ///     regardless (the formatters cannot edit a document that was read without its grid tables).
     /// </remarks>
     private static ImmutableArray<Diagnostic> ReportGridFallback(string path, ParsedDocument document, LintMarkConfig config, GridTableFallback grid)
     {
@@ -597,143 +593,6 @@ internal sealed class LintMarkEngine
         [
             Problem(path, rule, grid.Line, grid.Column, "Line looks like a grid table border but the table is not valid; the file is never rewritten")
         ];
-    }
-
-    /// <summary>
-    ///     Runs the safety checks on a proposed rewrite.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="source">The original document.</param>
-    /// <param name="newLf">The proposed LF-normalized text.</param>
-    /// <param name="bytes">The exact bytes of the file.</param>
-    /// <param name="newBytes">The exact bytes that would be written; differ from <paramref name="bytes"/>.</param>
-    /// <param name="config">The configuration the rewrite was computed under.</param>
-    /// <returns>The status and diagnostic of the first check that failed, or <see langword="null"/> when every check passed.</returns>
-    /// <remarks>
-    ///     Order: rendered HTML of the LF-normalized text, rendered HTML of the text with the line endings it has
-    ///     on disk, Pandoc structure, that the rewritten text is still read with grid tables, and idempotency.
-    ///     A rewrite that changes the line endings alone leaves the LF-normalized text as it is, so only the
-    ///     rendering of the text on disk is checked for it, because the parser renders some text differently for
-    ///     CRLF and LF. A check that throws is a failed check (fail closed). The diagnostic is placed at the
-    ///     first line where the original and the proposed text differ.
-    /// </remarks>
-    private (SafetyStatus Status, Diagnostic Diagnostic)? CheckSafety(
-        string path,
-        SourceDocument source,
-        string newLf,
-        byte[] bytes,
-        byte[] newBytes,
-        LintMarkConfig config)
-    {
-        // Each check yields a verdict; the first that is not equivalent decides
-        var textChanged = !string.Equals(newLf, source.Text, StringComparison.Ordinal);
-        var checks = new List<(SafetyStatus Status, string RuleId, string Sentence, Func<EquivalenceResult> Run)>();
-
-        // The one thing the link refactoring writes that the page contains is the comment that introduces the new definitions; it is
-        // left out of the comparison, and everything else is compared as it is
-        var marker = config.LinkRefactor.Enabled ? config.LinkRefactor.DefinitionsMarker : null;
-        string Visible(string original, string rewritten) =>
-            marker is null ? rewritten : LinkRefactorer.WithoutAddedMarker(original, rewritten, marker);
-        if (textChanged)
-        {
-            checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders",
-                () => HtmlEquivalenceChecker.Check(source.Text, Visible(source.Text, newLf))));
-        }
-
-        // The text as it is on disk, with its real line endings, always has to render the same
-        checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders because of its line endings",
-            () =>
-            {
-                var before = DecodeContent(bytes, source);
-                return HtmlEquivalenceChecker.CheckOnDisk(before, Visible(before, DecodeContent(newBytes, source)));
-            }
-        ));
-        if (textChanged)
-        {
-            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would change the Pandoc structure",
-                () => StructuralTokenChecker.Check(source.Text, newLf)));
-            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would not be read as before",
-                () => CheckReparse(path, newLf)));
-            checks.Add((SafetyStatus.NotIdempotent, RuleCatalog.NotIdempotentRuleId, "Formatting is not stable",
-                () => IdempotencyChecker.Check(newLf, text => Reformat(path, text, config))));
-        }
-
-        foreach (var (status, ruleId, sentence, run) in checks)
-        {
-            var verdict = Verdict(run);
-            if (verdict.IsEquivalent)
-            {
-                continue;
-            }
-
-            // Position the finding where the proposed text first differs from the file; a change of the line endings alone is at 1:1
-            var index = textChanged ? Math.Min(EquivalenceResult.FirstDifference(source.Text, newLf), source.Text.Length) : 0;
-            var (line, column) = source.PositionOf(index);
-            var message = $"{sentence} ({verdict.Description}); the file is not rewritten";
-            return (status, Problem(path, ruleId, line, column, message));
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Decodes the bytes of a file, or of its proposed rewrite, to text with the line endings it has on disk.
-    /// </summary>
-    /// <param name="content">The bytes, starting with the byte order mark when the document had one.</param>
-    /// <param name="source">The original document, which says whether there is a byte order mark.</param>
-    /// <returns>The text without a byte order mark and with its line terminators unchanged.</returns>
-    private static string DecodeContent(byte[] content, SourceDocument source)
-    {
-        var skip = source.HasBom ? source.Encoding.GetPreamble().Length : 0;
-        return Encoding.UTF8.GetString(content, skip, content.Length - skip);
-    }
-
-    /// <summary>
-    ///     Runs one check and treats an exception as a failed check.
-    /// </summary>
-    /// <param name="check">The check.</param>
-    /// <returns>The verdict, or a failed verdict when the check threw.</returns>
-    private static EquivalenceResult Verdict(Func<EquivalenceResult> check)
-    {
-        try
-        {
-            return check();
-        }
-
-        // A check that cannot be completed must refuse the rewrite, whatever the cause
-        catch (Exception ex)
-        {
-            return EquivalenceResult.Different($"the check failed: {ex.GetType().Name}");
-        }
-    }
-
-    /// <summary>
-    ///     Checks that the proposed text is read with grid tables, as a document the formatter may touch.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="newLf">The proposed LF-normalized text.</param>
-    /// <returns>An equivalent result when the proposed text parses without the grid table fallback.</returns>
-    /// <remarks>
-    ///     An edit must not create a grid-table-looking line that is not a valid table: the rewritten file would
-    ///     then be one that this tool refuses to format, and rendered output cannot show the damage.
-    /// </remarks>
-    private EquivalenceResult CheckReparse(string path, string newLf) =>
-        _documentParser(SourceDocument.FromText(path, newLf)).IsFormatUnsafe
-            ? EquivalenceResult.Different("the rewritten text contains a grid table border line that is not part of a valid grid table")
-            : EquivalenceResult.Equivalent;
-
-    /// <summary>
-    ///     Formats LF-normalized text the way the engine formats a file; the formatting step of the idempotency check.
-    /// </summary>
-    /// <param name="path">Path of the file, for the document.</param>
-    /// <param name="text">The LF-normalized text.</param>
-    /// <param name="config">The configuration to format under.</param>
-    /// <returns>The formatted text.</returns>
-    private string Reformat(string path, string text, LintMarkConfig config)
-    {
-        var document = _documentParser(SourceDocument.FromText(path, text));
-        var format = _formatter.Format(document, config);
-        return SourcePatcher.Apply(document.Source, format.Edits);
     }
 
     /// <summary>

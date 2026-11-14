@@ -23,9 +23,9 @@ using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Blocks;
+using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Linting.Rules;
-using DemaConsulting.LintMark.Safety;
 using DemaConsulting.LintMark.Utilities;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
@@ -472,7 +472,7 @@ internal sealed class LinkRefactorer
     ///     <para>
     ///         The new definitions are introduced by a comment, and an HTML comment is part of the HTML that a Markdown file
     ///         renders to (and is compared exactly), although no reader sees it. It is the one thing the link refactoring writes that
-    ///         the page contains. The proof and the safety checks therefore compare the original with the rewrite without that line;
+    ///         the page contains. The proof and the verification tool therefore compare the original with the rewrite without that line;
     ///         every other character of the rewrite, the definitions and the converted links included, is compared as before.
     ///     </para>
     ///     <para>

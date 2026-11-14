@@ -26,7 +26,7 @@ namespace DemaConsulting.LintMark.Linting;
 /// <remarks>
 ///     <para>
 ///         The single diagnostic model exists so that every finding of the tool (read and parse failures,
-///         configuration problems, formatting violations and safety refusals) is created, ordered,
+///         configuration problems, formatting violations and format refusals) is created, ordered,
 ///         de-duplicated and reported the same way. Whether a diagnostic is
 ///         <see cref="Fixable"/> is derived from its <see cref="Kind"/> so the two can never disagree.
 ///     </para>

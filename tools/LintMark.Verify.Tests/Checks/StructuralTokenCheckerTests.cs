@@ -18,9 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Formatting.Proof;
+using DemaConsulting.LintMark.Verify.Checks;
 
-namespace DemaConsulting.LintMark.Tests;
+namespace DemaConsulting.LintMark.Verify.Tests;
 
 /// <summary>
 ///     Test that the StructuralTokenChecker class refuses rewrites that damage Pandoc structure that the

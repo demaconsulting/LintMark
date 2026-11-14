@@ -19,11 +19,12 @@
 // SOFTWARE.
 
 using System.Text.RegularExpressions;
+using DemaConsulting.LintMark.Formatting.Proof;
 
-namespace DemaConsulting.LintMark.Safety;
+namespace DemaConsulting.LintMark.Verify.Checks;
 
 /// <summary>
-///     Decides whether a rewrite kept the Pandoc structure of a document, the second safety check: it sees
+///     Decides whether a rewrite kept the Pandoc structure of a document, the structure check of the verifier: it sees
 ///     damage that comparing rendered HTML cannot.
 /// </summary>
 /// <remarks>

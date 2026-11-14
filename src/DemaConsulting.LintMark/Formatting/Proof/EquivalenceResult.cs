@@ -20,16 +20,16 @@
 
 using System.Text;
 
-namespace DemaConsulting.LintMark.Safety;
+namespace DemaConsulting.LintMark.Formatting.Proof;
 
 /// <summary>
-///     The verdict of one safety check.
+///     The verdict of one equivalence proof.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Shared by the three checkers so the engine treats them uniformly. A result is equivalent only when
+///         Shared by the proof helpers and the verification tool so they treat verdicts uniformly. A result is equivalent only when
 ///         the check positively established it; every check that cannot decide (an exception, a timeout)
-///         returns a result that is not equivalent, so an undecided check refuses the rewrite.
+///         returns a result that is not equivalent, so an undecided check rejects the transformation.
 ///     </para>
 ///     <para>
 ///         The description of a failure is a single bounded line that names the first difference; it is

@@ -18,10 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Formatting.Proof;
+
+namespace DemaConsulting.LintMark.Verify.Checks;
 
 /// <summary>
-///     Decides whether formatting already formatted text changes it again, the third safety check.
+///     Decides whether formatting already formatted text changes it again, the idempotency check of the verifier.
 /// </summary>
 /// <remarks>
 ///     <para>

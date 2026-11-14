@@ -36,7 +36,7 @@ namespace DemaConsulting.LintMark.Linting;
 ///         setting of a configuration can switch them on or off), the always-applied formatting rules
 ///         (<c>line-ending</c>, the whitespace, blank-line, block-spacing, heading, code block, thematic break,
 ///         list, block quote, inline and final newline rules, some of which carry legacy rule-number aliases), and the identifiers under
-///         which the tool reports its own failures (file, safety and configuration problems). The last two
+///         which the tool reports its own failures (file, format and configuration problems). The last two
 ///         groups are known but not configurable, so a configuration that names one (by id or by alias) is
 ///         still rejected as an unknown rule; their aliases do resolve where a suppression comment names a rule.
 ///         Aliases of dropped rules are recognized (so a legacy entry is accepted and ignored) but never
@@ -315,21 +315,6 @@ internal static class RuleCatalog
     public const string LinkRefactorRuleId = "link-refactor";
 
     /// <summary>
-    ///     The identifier reported when a rewrite would change how the document renders.
-    /// </summary>
-    public const string HtmlMismatchRuleId = "safety-html-mismatch";
-
-    /// <summary>
-    ///     The identifier reported when a rewrite would change Pandoc structure that Markdown rendering does not show.
-    /// </summary>
-    public const string StructureMismatchRuleId = "safety-structure-mismatch";
-
-    /// <summary>
-    ///     The identifier reported when formatting the formatted text again would change it again.
-    /// </summary>
-    public const string NotIdempotentRuleId = "safety-not-idempotent";
-
-    /// <summary>
     ///     The identifier reported for a grid-table-looking line that is not a valid grid table.
     /// </summary>
     public const string GridTableInvalidRuleId = "grid-table-invalid";
@@ -432,11 +417,6 @@ internal static class RuleCatalog
         Applied(StrongRuleId, "Strong emphasis is not written with the configured delimiter.", "MD050"),
         Applied(BareUrlsRuleId, "A bare URL is not wrapped in angle brackets.", "MD034"),
         Applied(CodeSpanSpaceRuleId, "A code span has a space after its opening backtick and before its closing backtick that it does not need.", "MD038"),
-
-        // Safety refusals
-        Fixed(HtmlMismatchRuleId, DiagnosticKind.LintOnly, "A rewrite would change how the document renders, so the file is not rewritten."),
-        Fixed(StructureMismatchRuleId, DiagnosticKind.LintOnly, "A rewrite would change Pandoc structure, so the file is not rewritten."),
-        Fixed(NotIdempotentRuleId, DiagnosticKind.LintOnly, "Formatting the rewritten text would change it again, so the file is not rewritten."),
 
         // File, formatting and configuration problems
         Fixed(FileReadErrorRuleId, DiagnosticKind.LintOnly, "A file cannot be read."),

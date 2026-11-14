@@ -66,6 +66,7 @@
   <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\DemaConsulting.LintMark\DemaConsulting.LintMark.csproj" />
+    <ProjectReference Include="..\..\tools\LintMark.Verify\LintMark.Verify.csproj" />
   </ItemGroup>
 
 </Project>

@@ -233,7 +233,7 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a rewrite that the safety checks refuse reports the refusal and leaves the file, also for the default formatters.
+    ///     Test that the fix option leaves a document with an invalid grid table alone, also for the default formatters.
     /// </summary>
     [Fact]
     public void LintMarkEngine_Run_FixInvalidGridTableDocument_IsNeverRewrittenByTheDefaultFormatters()

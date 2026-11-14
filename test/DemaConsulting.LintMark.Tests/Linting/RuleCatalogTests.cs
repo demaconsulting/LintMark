@@ -262,7 +262,7 @@ public class RuleCatalogTests
     [InlineData("line-ending")]
     [InlineData("LINE-ENDING")]
     [InlineData("config-error")]
-    [InlineData("safety-html-mismatch")]
+    [InlineData("file-read-error")]
     public void RuleCatalog_TryResolveConfigurable_LineEnding_ReturnsFalse(string name)
     {
         // Act: resolve the name as a configurable rule
@@ -487,9 +487,6 @@ public class RuleCatalogTests
             "strong",
             "bare-urls",
             "code-span-space",
-            "safety-html-mismatch",
-            "safety-structure-mismatch",
-            "safety-not-idempotent",
             "file-read-error",
             "file-encoding-error",
             "file-line-ending-error",
@@ -663,15 +660,15 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 27 configurable rules, 36 non-configurable rules, 9 dropped aliases and 21 configurable aliases.
+    ///     Test that the registry holds 27 configurable rules, 33 non-configurable rules, 9 dropped aliases and 21 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable27NonConfigurable36AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable27NonConfigurable33AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
         Assert.Equal(27, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
-        Assert.Equal(36, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(63, RuleCatalog.Rules.Length);
+        Assert.Equal(33, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
+        Assert.Equal(60, RuleCatalog.Rules.Length);
         Assert.Equal(27, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(27, RuleCatalog.Defaults.Count);
         Assert.Equal(21, RuleCatalog.Aliases.Count);

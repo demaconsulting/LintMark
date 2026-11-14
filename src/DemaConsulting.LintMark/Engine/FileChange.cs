@@ -24,12 +24,13 @@ using DemaConsulting.LintMark.Document;
 namespace DemaConsulting.LintMark.Engine;
 
 /// <summary>
-///     A rewrite of one file that passed every safety check and is ready to be written.
+///     A rewrite of one file that is ready to be written.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         A change exists only for a rewrite that is safe: when any safety check fails, the result carries no
-///         change, so nothing downstream can write the file by mistake. The original bytes travel with the
+///         A change exists only for a rewrite that differs from the file: for a file that must not be rewritten
+///         (an invalid configuration, a format-unsafe document, a failure) the result carries no change, so
+///         nothing downstream can write the file by mistake. The original bytes travel with the
 ///         change so the writer can refuse to replace a file that changed after it was read, and so does the
 ///         resolved target (the file that the path referred to through symbolic links when it was read), so the
 ///         writer can also refuse when a link was redirected to a file with the same bytes. Immutable,

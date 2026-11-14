@@ -178,7 +178,7 @@ internal sealed class LineLayout
     ///     the rest of the line holds only border characters with at least one dash or equal sign.
     /// </returns>
     /// <remarks>
-    ///     Pandoc reads such a line as part of a grid table, and the structural safety check watches the lines that
+    ///     Pandoc reads such a line as part of a grid table, and the structural token check of the verification tool watches the lines that
     ///     have the exact shape of a border, so edits that could turn a line into one or move it are avoided. A line that
     ///     merely starts with a plus sign (a list item of a plus sign list) is not one: no table border can hold text.
     /// </remarks>

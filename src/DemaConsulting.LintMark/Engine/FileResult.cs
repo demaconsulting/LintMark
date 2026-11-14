@@ -21,7 +21,6 @@
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Safety;
 
 namespace DemaConsulting.LintMark.Engine;
 
@@ -92,15 +91,10 @@ internal sealed record FileResult
     public ImmutableArray<ConfigError> ConfigErrors { get; init; } = ImmutableArray<ConfigError>.Empty;
 
     /// <summary>
-    ///     Gets the outcome of the safety checks of a proposed rewrite (<see cref="SafetyStatus.Ok"/> when none was refused).
-    /// </summary>
-    public SafetyStatus Safety { get; init; } = SafetyStatus.Ok;
-
-    /// <summary>
     ///     Gets the rewrite that is ready to be written, or <see langword="null"/> when the file is not to be rewritten.
     /// </summary>
     /// <remarks>
-    ///     Set only for a rewrite that passed every safety check; never set for a file with an invalid
+    ///     Set only for a rewrite that changes the bytes of the file; never set for a file with an invalid
     ///     configuration, a format-unsafe document or a failure.
     /// </remarks>
     public FileChange? Change { get; init; }

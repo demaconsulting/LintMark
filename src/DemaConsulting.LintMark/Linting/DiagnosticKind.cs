@@ -31,7 +31,7 @@ namespace DemaConsulting.LintMark.Linting;
 internal enum DiagnosticKind
 {
     /// <summary>
-    ///     A problem that is only reported (file problems, configuration problems, safety refusals and lint rules).
+    ///     A problem that is only reported (file problems, configuration problems, format refusals and lint rules).
     /// </summary>
     LintOnly,
 

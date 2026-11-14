@@ -82,6 +82,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DemaConsulting.LintMark.Tests" />
+    <InternalsVisibleTo Include="DemaConsulting.LintMark.Verify" />
+    <InternalsVisibleTo Include="DemaConsulting.LintMark.Verify.Tests" />
   </ItemGroup>
 
   <ItemGroup>

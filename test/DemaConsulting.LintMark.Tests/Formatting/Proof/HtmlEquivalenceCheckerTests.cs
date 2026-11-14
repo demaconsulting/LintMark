@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 using System.Diagnostics;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Formatting.Proof;
 
 namespace DemaConsulting.LintMark.Tests;
 

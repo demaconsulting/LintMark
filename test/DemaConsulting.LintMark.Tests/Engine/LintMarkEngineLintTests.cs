@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 using DemaConsulting.LintMark.Engine;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -79,7 +79,7 @@ public partial class LintMarkEngineTests
         AssertUntouched(path, Utf8(LintOnlyText), writeTime);
         Assert.Equal(1, exitCode);
         Assert.Equal(4, lines.Length);
-        Assert.DoesNotContain(lines, line => line.Contains("safety-", StringComparison.Ordinal) || line.Contains("file-", StringComparison.Ordinal));
+        Assert.DoesNotContain(lines, line => line.Contains("file-", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -109,10 +109,10 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a lint-only finding does not turn a safe rewrite into a refusal, and a safety refusal and lint-only findings are reported together.
+    ///     Test that a lint-only finding does not prevent a rewrite, and a rewrite and lint-only findings are reported together.
     /// </summary>
     [Fact]
-    public void LintMarkEngine_Process_LintOnlyFindingsWithRewrite_ChangeIsProposedAndStatusIsOk()
+    public void LintMarkEngine_Process_LintOnlyFindingsWithRewrite_ChangeIsProposed()
     {
         // Arrange: a file with a formatting finding and a lint-only finding
         using var directory = new TemporaryDirectory();
@@ -121,9 +121,8 @@ public partial class LintMarkEngineTests
         // Act: process the file without writing it
         var result = Assert.Single(new LintMarkEngine(1).Process([path]));
 
-        // Assert: a change exists, the status is fine, and both kinds of findings are present
+        // Assert: a change exists, and both kinds of findings are present
         Assert.NotNull(result.Change);
-        Assert.Equal(SafetyStatus.Ok, result.Safety);
         Assert.Equal(["heading-style", "link-empty"], result.Diagnostics.Select(d => d.RuleId));
         Assert.Equal([true, false], result.Diagnostics.Select(d => d.Fixable));
     }

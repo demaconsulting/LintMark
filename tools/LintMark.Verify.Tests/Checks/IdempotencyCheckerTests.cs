@@ -21,9 +21,9 @@
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Verify.Checks;
 
-namespace DemaConsulting.LintMark.Tests;
+namespace DemaConsulting.LintMark.Verify.Tests;
 
 /// <summary>
 ///     Test that the IdempotencyChecker class accepts formatters whose output is a fixed point of themselves

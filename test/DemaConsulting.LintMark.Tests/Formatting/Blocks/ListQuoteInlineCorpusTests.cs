@@ -24,7 +24,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Formatting.Proof;
 
 namespace DemaConsulting.LintMark.Tests;
 

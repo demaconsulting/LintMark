@@ -23,14 +23,14 @@ using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
+using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Safety;
 
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
 ///     Test that the paragraph wrap is safe, stable and deterministic over every Markdown file of this repository and over
-///     generated adversarial paragraphs, at four line lengths and in every stored form of a file, and that the safety checks
+///     generated adversarial paragraphs, at four line lengths and in every stored form of a file, and that the HTML check
 ///     are sensitive enough to catch a wrap that ignores the rules of the wrapper.
 /// </summary>
 public class ParagraphCorpusTests
@@ -180,8 +180,8 @@ public class ParagraphCorpusTests
     }
 
     /// <summary>
-    ///     Test that the safety checks catch a wrap that breaks lines at every blank, ignoring the block syntax guard and the
-    ///     constructs that must stay whole: each such rewrite is refused because the page renders differently.
+    ///     Test that the HTML check catches a wrap that breaks lines at every blank, ignoring the block syntax guard and the
+    ///     constructs that must stay whole: each such rewrite is caught because the page renders differently.
     /// </summary>
     [Theory]
     [InlineData("ant bat - cat\n", "ant bat\n- cat\n")]
@@ -192,7 +192,7 @@ public class ParagraphCorpusTests
     [InlineData("ant <span a=\"b c\">d</span>\n", "ant <span a=\"b\nc\">d</span>\n")]
     [InlineData("ant [b](c \"d e\")\n", "ant [b](c \"d\ne\")\n")]
     [InlineData("ant ![b](c \"d e\")\n", "ant ![b](c \"d\ne\")\n")]
-    public void ParagraphCorpus_Mutants_WrapIgnoringTheRulesOfTheWrapper_IsCaughtByTheSafetyChecks(string original, string mutant)
+    public void ParagraphCorpus_Mutants_WrapIgnoringTheRulesOfTheWrapper_IsCaughtByTheHtmlCheck(string original, string mutant)
     {
         // Act: compare the page of the original with the page of the rewrite a faulty wrapper would produce
         var verdict = HtmlEquivalenceChecker.Check(original, mutant);

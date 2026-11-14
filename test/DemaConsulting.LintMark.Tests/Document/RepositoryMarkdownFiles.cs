@@ -42,7 +42,7 @@ internal static class RepositoryMarkdownFiles
     /// </summary>
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
-        "node_modules", "bin", "obj", ".git", ".venv", "venv", "generated", ".agent-logs", "TestResults", "artifacts"
+        "node_modules", "bin", "obj", ".git", ".venv", "venv", "generated", ".agent-logs", "TestResults", "artifacts", ".corpus"
     };
 
     /// <summary>

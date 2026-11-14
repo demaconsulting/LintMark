@@ -30,7 +30,7 @@ namespace DemaConsulting.LintMark.Tests;
 /// </summary>
 /// <remarks>
 ///     The formatters in this file are deliberately broken (or deliberately simple) doubles that let the tests
-///     prove that the safety checks refuse every kind of harmful rewrite. They are never used in production code.
+///     prove how the engine reports a formatter that fails. They are never used in production code.
 /// </remarks>
 internal abstract class ParagraphTestFormatter : IBlockFormatter
 {
@@ -99,97 +99,6 @@ internal sealed class ReplacingFormatter : ParagraphTestFormatter
         {
             edits.Add(new TextEdit(block.Start + index, _find.Length, _replacement, "paragraph-wrap"));
             index = text.IndexOf(_find, index + _find.Length, StringComparison.Ordinal);
-        }
-    }
-}
-
-/// <summary>
-///     Removes the two spaces of a hard break, which changes how the paragraph renders.
-/// </summary>
-internal sealed class HardBreakDroppingFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits)
-    {
-        var text = TextOf(context, block);
-        var index = text.IndexOf("  \n", StringComparison.Ordinal);
-        while (index >= 0)
-        {
-            edits.Add(new TextEdit(block.Start + index, 2, string.Empty, "paragraph-wrap"));
-            index = text.IndexOf("  \n", index + 3, StringComparison.Ordinal);
-        }
-    }
-}
-
-/// <summary>
-///     Joins the lines of a paragraph with spaces: the rendered text is the same, but Pandoc fence lines
-///     (such as a line that starts with three colons) are glued into prose.
-/// </summary>
-internal sealed class LineJoiningFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits)
-    {
-        var text = TextOf(context, block);
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '\n')
-            {
-                edits.Add(new TextEdit(block.Start + i, 1, " ", "paragraph-wrap"));
-            }
-        }
-    }
-}
-
-/// <summary>
-///     Switches the words <c>alpha beta</c> between a space and a line break on every pass: the rendered text is
-///     the same each time, but formatting the result changes it again.
-/// </summary>
-internal sealed class FlipFlopFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits)
-    {
-        var text = TextOf(context, block);
-        var space = text.IndexOf("alpha beta", StringComparison.Ordinal);
-        if (space >= 0)
-        {
-            edits.Add(new TextEdit(block.Start + space + "alpha".Length, 1, "\n", "paragraph-wrap"));
-            return;
-        }
-
-        var newline = text.IndexOf("alpha\nbeta", StringComparison.Ordinal);
-        if (newline >= 0)
-        {
-            edits.Add(new TextEdit(block.Start + newline + "alpha".Length, 1, " ", "paragraph-wrap"));
-        }
-    }
-}
-
-/// <summary>
-///     Appends a space to every paragraph on every pass: the rendered text never changes, but the text keeps growing.
-/// </summary>
-internal sealed class GrowingFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits) =>
-        edits.Add(new TextEdit(block.EndInclusive + 1, 0, " ", "paragraph-wrap"));
-}
-
-/// <summary>
-///     Puts the text <c>+---</c> on a line of its own, which makes the line look like the border of a grid table.
-/// </summary>
-internal sealed class GridBorderCreatingFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits)
-    {
-        var text = TextOf(context, block);
-        var index = text.IndexOf(" +--- ", StringComparison.Ordinal);
-        if (index >= 0)
-        {
-            edits.Add(new TextEdit(block.Start + index, 1, "\n", "paragraph-wrap"));
-            edits.Add(new TextEdit(block.Start + index + 5, 1, "\n", "paragraph-wrap"));
         }
     }
 }

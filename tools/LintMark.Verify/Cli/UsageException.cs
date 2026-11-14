@@ -18,34 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace DemaConsulting.LintMark.Safety;
+namespace DemaConsulting.LintMark.Verify.Cli;
 
 /// <summary>
-///     The outcome of the safety checks for one proposed rewrite of a file.
+///     The command line of the verifier is invalid; the message is shown to the user and the exit code is 2.
 /// </summary>
-/// <remarks>
-///     Everything other than <see cref="Ok"/> means that the file must not be written.
-/// </remarks>
-internal enum SafetyStatus
+public sealed class UsageException : Exception
 {
     /// <summary>
-    ///     Every check passed (or no check was needed because the text does not change).
+    ///     Initializes a new instance of the <see cref="UsageException"/> class.
     /// </summary>
-    Ok,
-
-    /// <summary>
-    ///     The rewritten text would render differently.
-    /// </summary>
-    HtmlMismatch,
-
-    /// <summary>
-    ///     The rewritten text would change Pandoc structure that rendering does not show, or would be read
-    ///     differently by the parser.
-    /// </summary>
-    StructureMismatch,
-
-    /// <summary>
-    ///     Formatting the rewritten text again would change it again.
-    /// </summary>
-    NotIdempotent
+    /// <param name="message">What is wrong with the command line.</param>
+    public UsageException(string message)
+        : base(message)
+    {
+    }
 }

@@ -83,7 +83,7 @@ internal sealed class Context : IDisposable
 
     /// <summary>
     ///     Gets a value indicating whether the fix flag was specified: files are rewritten into canonical form
-    ///     (when every safety check passes) and the problems that remain are reported.
+    ///     and the problems that remain are reported.
     /// </summary>
     public bool Fix { get; private init; }
 

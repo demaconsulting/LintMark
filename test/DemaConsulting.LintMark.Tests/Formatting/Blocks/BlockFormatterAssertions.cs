@@ -24,8 +24,9 @@ using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Formatting.Links;
+using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Verify.Checks;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -35,7 +36,7 @@ namespace DemaConsulting.LintMark.Tests;
 ///     the reported violations match the edits.
 /// </summary>
 /// <remarks>
-///     The safety checks used here are the ones the engine runs before it writes a file. A formatter that
+///     The checks used here are the ones the verification tool runs on every formatted file. A formatter that
 ///     fails one of them is wrong; the assertions are never relaxed to make a case pass.
 /// </remarks>
 internal static class BlockFormatterAssertions

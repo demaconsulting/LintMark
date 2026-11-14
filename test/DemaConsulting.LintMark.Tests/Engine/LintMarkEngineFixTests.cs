@@ -23,12 +23,12 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
-using DemaConsulting.LintMark.Safety;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
-///     Unit tests for the fix, diff and safety behavior of the LintMarkEngine class.
+///     Unit tests for the fix and diff behavior of the LintMarkEngine class.
 /// </summary>
 public partial class LintMarkEngineTests
 {
@@ -350,7 +350,7 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that the fix option writes a text change proposed by a formatter when every safety check passes.
+    ///     Test that the fix option writes a text change proposed by a formatter.
     /// </summary>
     [Fact]
     public void LintMarkEngine_Run_FixTextChange_WritesSafeRewrite()
@@ -366,113 +366,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(Utf8("a b\n"), File.ReadAllBytes(path));
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that would change how the document renders is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixHardBreakDropped_RefusesWithHtmlMismatch()
-    {
-        // Arrange: a paragraph with a hard break and a formatter that drops it
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  \nb\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new HardBreakDroppingFormatter()), "--fix");
-
-        // Assert: one safety diagnostic at the first changed character; the file is untouched
-        Assert.Equal(1, exitCode);
-        var line = Assert.Single(lines);
-        Assert.StartsWith("a.md:1:2: safety-html-mismatch The rewrite would change how the document renders (", line, StringComparison.Ordinal);
-        Assert.EndsWith("); the file is not rewritten", line, StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("a  \nb\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that only changes the line endings is refused when the document renders differently
-    ///     for the two line endings, and that the file is left as it is.
-    /// </summary>
-    /// <param name="text">The document text as written to the file.</param>
-    /// <param name="endOfLine">The line ending that the configuration asks for.</param>
-    [Theory]
-    [InlineData("`\nbb\n`\n", "crlf")]
-    [InlineData("`\r\nbb\r\n`\r\n", "lf")]
-    public void LintMarkEngine_Run_FixCodeSpanLineEndingChange_RefusesWithHtmlMismatchAndLeavesFile(string text, string endOfLine)
-    {
-        // Arrange: a code span framed by line breaks (rendered differently for CRLF and LF) and a configuration that asks for the other ending
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", $"end-of-line: {endOfLine}\n");
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(text));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
-
-        // Assert: the refusal is reported at 1:1 beside the line ending finding, and the file and its directory are untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal(2, lines.Length);
-        Assert.StartsWith("a.md:1:1: line-ending ", lines[0], StringComparison.Ordinal);
-        Assert.StartsWith(
-            "a.md:1:1: safety-html-mismatch The rewrite would change how the document renders because of its line endings (",
-            lines[1],
-            StringComparison.Ordinal);
-        Assert.EndsWith("); the file is not rewritten", lines[1], StringComparison.Ordinal);
-        AssertUntouched(path, Utf8(text), writeTime);
-        Assert.Equal(
-            [".lintmark.yaml", "a.md"],
-            Directory.GetFiles(directory.FullPath, "*", SearchOption.AllDirectories)
-                .Select(f => Path.GetFileName(f))
-                .Where(n => n != "report.log")
-                .Order(StringComparer.Ordinal)
-                .ToArray());
-    }
-
-    /// <summary>
-    ///     Test that the check option reports the refusal of a rewrite of the line endings that would change how the document renders.
-    /// </summary>
-    /// <param name="text">The document text as written to the file.</param>
-    /// <param name="endOfLine">The line ending that the configuration asks for.</param>
-    [Theory]
-    [InlineData("`\nbb\n`\n", "crlf")]
-    [InlineData("`\r\nbb\r\n`\r\n", "lf")]
-    public void LintMarkEngine_Run_CheckCodeSpanLineEndingChange_ReportsHtmlMismatchAndWritesNothing(string text, string endOfLine)
-    {
-        // Arrange: the same code span document and configuration
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", $"end-of-line: {endOfLine}\n");
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(text));
-
-        // Act: run in check mode and in diff mode
-        var check = Execute(directory, new LintMarkEngine(1), "--check");
-        var diff = Execute(directory, new LintMarkEngine(1), "--diff");
-
-        // Assert: the refusal is predicted by both, nothing is shown as a change, and the file is untouched
-        Assert.Equal(1, check.ExitCode);
-        Assert.Contains(check.Lines, l => l.StartsWith("a.md:1:1: safety-html-mismatch ", StringComparison.Ordinal));
-        Assert.Equal(1, diff.ExitCode);
-        Assert.Equal(check.Lines, diff.Lines);
-        AssertUntouched(path, Utf8(text), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that processing a document that renders differently for CRLF and LF yields the HTML status and no change
-    ///     when only the line endings would change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_CodeSpanLineEndingChange_SetsHtmlMismatchAndNoChange()
-    {
-        // Arrange: a code span framed by line breaks and a configuration that asks for CRLF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
-        var path = directory.WriteFile("a.md", "`\nbb\n`\n");
-
-        // Act: process the file
-        var result = Assert.Single(new LintMarkEngine(1).Process([path], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
-
-        // Assert: refused with the HTML status, no change
-        Assert.Equal(SafetyStatus.HtmlMismatch, result.Safety);
-        Assert.Null(result.Change);
-        Assert.Contains(result.Diagnostics, d => d.RuleId == "safety-html-mismatch");
     }
 
     /// <summary>
@@ -498,163 +391,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(Utf8(after), File.ReadAllBytes(path));
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that glues Pandoc fence lines into prose is refused although the rendered output is the same.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixFencesJoined_RefusesWithStructureMismatch()
-    {
-        // Arrange: a fenced div and a formatter that joins the lines of the paragraph
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(":::note\ntext\n:::\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new LineJoiningFormatter()), "--fix");
-
-        // Assert: one structure diagnostic at the first changed character; the file is untouched
-        Assert.Equal(1, exitCode);
-        var line = Assert.Single(lines);
-        Assert.StartsWith("a.md:1:8: safety-structure-mismatch The rewrite would change the Pandoc structure (", line, StringComparison.Ordinal);
-        AssertUntouched(path, Utf8(":::note\ntext\n:::\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a formatter whose output changes again when it is formatted again is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixFlipFlopFormatter_RefusesWithNotIdempotent()
-    {
-        // Arrange: a paragraph and a formatter that switches the layout on every pass
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("alpha beta\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new FlipFlopFormatter()), "--fix");
-
-        // Assert: one idempotency diagnostic; the file is untouched
-        Assert.Equal(1, exitCode);
-        var line = Assert.Single(lines);
-        Assert.StartsWith("a.md:1:6: safety-not-idempotent Formatting is not stable (", line, StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("alpha beta\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a formatter that keeps growing the text is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixGrowingFormatter_RefusesWithNotIdempotent()
-    {
-        // Arrange: a paragraph and a formatter that appends a space on every pass
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("text\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new GrowingFormatter()), "--fix");
-
-        // Assert: one idempotency diagnostic; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.StartsWith("a.md:1:5: safety-not-idempotent ", Assert.Single(lines), StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("text\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that an edit that makes a line look like the border of an invalid grid table is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixGridBorderCreated_RefusesAndLeavesFile()
-    {
-        // Arrange: a paragraph and a formatter that puts the text "+---" on a line of its own
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a +--- b\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new GridBorderCreatingFormatter()), "--fix");
-
-        // Assert: refused by a safety check (the grid table parser damages the rendering), file untouched
-        Assert.Equal(1, exitCode);
-        var line = Assert.Single(lines);
-        Assert.Matches(@"^a\.md:1:\d+: safety-(html|structure)-mismatch ", line);
-        AssertUntouched(path, Utf8("a +--- b\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite whose text the parser would only read by dropping grid tables is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixRewriteReadAsFallback_RefusesWithStructureMismatch()
-    {
-        // Arrange: a harmless rewrite, and a parser that reads the rewritten text as an invalid grid table document
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  b\n"));
-        var engine = new LintMarkEngine(
-            1,
-            documentParser: source => source.Text == "a b\n"
-                ? DocumentParser.Parse(source) with { GridFallback = new GridTableFallback(1, 1) }
-                : DocumentParser.Parse(source),
-            formatter: new DocumentFormatter([new ReplacingFormatter("  ", " ")]));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, engine, "--fix");
-
-        // Assert: refused by the structure check; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.StartsWith("a.md:1:3: safety-structure-mismatch The rewrite would not be read as before (", Assert.Single(lines), StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("a  b\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a safety check that cannot be completed refuses the rewrite and says so.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixReparseThrows_RefusesWithCheckFailedAndLeavesFile()
-    {
-        // Arrange: a harmless rewrite, and a parser that fails for the rewritten text
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  b\n"));
-        var engine = new LintMarkEngine(
-            1,
-            documentParser: source => source.Text == "a b\n"
-                ? throw new InvalidOperationException("parse failed")
-                : DocumentParser.Parse(source),
-            formatter: new DocumentFormatter([new ReplacingFormatter("  ", " ")]));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, engine, "--fix");
-
-        // Assert: refused as a failed check; the file is untouched
-        Assert.Equal(1, exitCode);
-        var line = Assert.Single(lines);
-        Assert.StartsWith("a.md:1:3: safety-structure-mismatch The rewrite would not be read as before (the check failed: InvalidOperationException)", line, StringComparison.Ordinal);
-        Assert.EndsWith("; the file is not rewritten", line, StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("a  b\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a parser that fails during the stability check refuses the rewrite as not stable.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixIdempotencyParseThrows_RefusesWithNotIdempotentAndLeavesFile()
-    {
-        // Arrange: a harmless rewrite, and a parser that fails the second time it reads the rewritten text
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  b\n"));
-        var reads = 0;
-        var engine = new LintMarkEngine(
-            1,
-            documentParser: source => source.Text == "a b\n" && ++reads > 1
-                ? throw new InvalidOperationException("parse failed")
-                : DocumentParser.Parse(source),
-            formatter: new DocumentFormatter([new ReplacingFormatter("  ", " ")]));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, engine, "--fix");
-
-        // Assert: refused by the stability check; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.StartsWith("a.md:1:3: safety-not-idempotent Formatting is not stable (", Assert.Single(lines), StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("a  b\n"), writeTime);
     }
 
     /// <summary>
@@ -731,46 +467,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(1, exitCode);
         Assert.Equal(["a.md:1:1: file-format-error Formatting failed: the result contains a carriage return"], lines);
         AssertUntouched(path, Utf8("text\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a broken formatter is reported in check mode in the same way as with the fix option.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_CheckBrokenFormatter_ReportsSafetyDiagnostic()
-    {
-        // Arrange: a paragraph with a hard break and a formatter that drops it
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  \nb\n"));
-
-        // Act: run in check mode
-        var (exitCode, lines) = Execute(directory, EngineWith(new HardBreakDroppingFormatter()));
-
-        // Assert: the refusal is predicted; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.StartsWith("a.md:1:2: safety-html-mismatch ", Assert.Single(lines), StringComparison.Ordinal);
-        AssertUntouched(path, Utf8("a  \nb\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a refused file does not stop a safe file from being written.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixSafeFileNextToRefusedFile_StillWritten()
-    {
-        // Arrange: one file whose rewrite loses a hard break and one whose rewrite is harmless
-        using var directory = new TemporaryDirectory();
-        var (refused, writeTime) = WriteOld(directory, "a.md", Utf8("x  \ny\n"));
-        var safe = directory.WriteBytes("b.md", Utf8("x  y\n"));
-
-        // Act: run with the fix option and a formatter that collapses double spaces
-        var (exitCode, lines) = Execute(directory, EngineWith(new ReplacingFormatter("  ", " ")), "--fix");
-
-        // Assert: the safe file is written, the other is refused and untouched, and exactly one diagnostic is reported
-        Assert.Equal(1, exitCode);
-        Assert.StartsWith("a.md:1:3: safety-html-mismatch ", Assert.Single(lines), StringComparison.Ordinal);
-        Assert.Equal(Utf8("x y\n"), File.ReadAllBytes(safe));
-        AssertUntouched(refused, Utf8("x  \ny\n"), writeTime);
     }
 
     /// <summary>
@@ -1128,7 +824,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(1, sequential.ExitCode);
         Assert.Equal(sequential.ExitCode, parallel.ExitCode);
         Assert.Equal(sequential.Lines, parallel.Lines);
-        Assert.Contains(sequential.Lines, l => l.Contains("safety-html-mismatch", StringComparison.Ordinal));
         Assert.Contains(sequential.Lines, l => l.Contains("grid-table-invalid", StringComparison.Ordinal));
         Assert.Contains(sequential.Lines, l => l.Contains("file-encoding-error", StringComparison.Ordinal));
         Assert.Equal(sequential.Lines.Order(StringComparer.Ordinal), sequential.Lines);
@@ -1155,7 +850,6 @@ public partial class LintMarkEngineTests
 
         // Assert: the change keeps the BOM and the CRLF endings and carries both byte arrays
         var change = Assert.IsType<FileChange>(result.Change);
-        Assert.Equal(SafetyStatus.Ok, result.Safety);
         Assert.Equal("a  b\nc\n", change.OriginalLf);
         Assert.Equal("a b\nc\n", change.NewLf);
         Assert.Equal(LineEnding.CrLf, change.TargetEnding);
@@ -1163,90 +857,6 @@ public partial class LintMarkEngineTests
         Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. Utf8("a b\r\nc\r\n")], change.NewBytes.ToArray());
         Assert.Equal(Path.GetFullPath(path), change.ResolvedTarget);
         Assert.Empty(result.Diagnostics);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that loses a hard break is refused with the HTML status and no change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_HardBreakFormatter_SetsHtmlMismatchAndNoChange()
-    {
-        // Arrange: a paragraph with a hard break
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "a  \nb\n");
-
-        // Act: process the file with a formatter that drops the hard break
-        var result = Assert.Single(EngineWith(new HardBreakDroppingFormatter()).Process([path]));
-
-        // Assert: refused, no change
-        Assert.Equal(SafetyStatus.HtmlMismatch, result.Safety);
-        Assert.Null(result.Change);
-        Assert.Equal("safety-html-mismatch", Assert.Single(result.Diagnostics).RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that joins Pandoc fences is refused with the structure status and no change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_JoiningFormatter_SetsStructureMismatchAndNoChange()
-    {
-        // Arrange: a fenced div
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", ":::note\ntext\n:::\n");
-
-        // Act: process the file with a formatter that joins the lines
-        var result = Assert.Single(EngineWith(new LineJoiningFormatter()).Process([path]));
-
-        // Assert: refused, no change
-        Assert.Equal(SafetyStatus.StructureMismatch, result.Safety);
-        Assert.Null(result.Change);
-        Assert.Equal("safety-structure-mismatch", Assert.Single(result.Diagnostics).RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a rewrite that is not stable is refused with the idempotency status and no change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_FlipFlopFormatter_SetsNotIdempotentAndNoChange()
-    {
-        // Arrange: a paragraph that the formatter flips
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "alpha beta\n");
-
-        // Act: process the file with the flip-flop formatter
-        var result = Assert.Single(EngineWith(new FlipFlopFormatter()).Process([path]));
-
-        // Assert: refused, no change
-        Assert.Equal(SafetyStatus.NotIdempotent, result.Safety);
-        Assert.Null(result.Change);
-        Assert.Equal("safety-not-idempotent", Assert.Single(result.Diagnostics).RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a safety check that cannot be completed gives the structure status, a message that says so and no change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_ReparseThrows_SetsStructureMismatchAndNoChange()
-    {
-        // Arrange: a harmless rewrite and a parser that fails for the rewritten text
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "a  b\n");
-        var engine = new LintMarkEngine(
-            1,
-            documentParser: source => source.Text == "a b\n"
-                ? throw new InvalidOperationException("parse failed")
-                : DocumentParser.Parse(source),
-            formatter: new DocumentFormatter([new ReplacingFormatter("  ", " ")]));
-
-        // Act: process the file
-        var result = Assert.Single(engine.Process([path]));
-
-        // Assert: refused, no change, and the diagnostic says the check failed
-        Assert.Equal(SafetyStatus.StructureMismatch, result.Safety);
-        Assert.Null(result.Change);
-        var diagnostic = Assert.Single(result.Diagnostics);
-        Assert.Equal("safety-structure-mismatch", diagnostic.RuleId);
-        Assert.Contains("the check failed", diagnostic.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1262,9 +872,8 @@ public partial class LintMarkEngineTests
         // Act: process the file
         var result = Assert.Single(EngineWith(new ThrowingFormatter()).Process([path]));
 
-        // Assert: a format error, no change, and the safety status is untouched
+        // Assert: a format error and no change
         Assert.Null(result.Change);
-        Assert.Equal(SafetyStatus.Ok, result.Safety);
         Assert.Equal("file-format-error", Assert.Single(result.Diagnostics).RuleId);
     }
 
