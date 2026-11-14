@@ -167,15 +167,39 @@ public class InlineNormalizerTests
         AssertFormats(input, input);
 
     /// <summary>
-    ///     Test that code spans, HTML, math and link destinations keep their delimiters.
+    ///     Test that the delimiter characters in a code span keep their text.
     /// </summary>
     [Theory]
     [InlineData("`_a_`\n")]
+    [InlineData("`__a__` and `*b*`\n")]
+    public void InlineNormalizer_AddBlockEdits_DelimitersInCodeSpan_AreKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that the delimiter characters in inline HTML keep their text.
+    /// </summary>
+    [Theory]
     [InlineData("<span>_a_</span>\n")]
+    [InlineData("<a title=\"__a__\">b</a>\n")]
+    public void InlineNormalizer_AddBlockEdits_DelimitersInHtml_AreKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that the delimiter characters in inline math keep their text.
+    /// </summary>
+    [Theory]
     [InlineData("$_a_$\n")]
+    [InlineData("$$__a__$$\n")]
+    public void InlineNormalizer_AddBlockEdits_DelimitersInMath_AreKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that the delimiter characters in the destination of a link or an image keep their text.
+    /// </summary>
+    [Theory]
     [InlineData("[a](http://x.com/_b_)\n")]
     [InlineData("![a](http://x.com/_b_.png)\n")]
-    public void InlineNormalizer_AddBlockEdits_CodeHtmlMathAndDestinations_KeepTheirDelimiters(string input) =>
+    public void InlineNormalizer_AddBlockEdits_DelimitersInLinkDestination_AreKept(string input) =>
         AssertFormats(input, input);
 
     /// <summary>
@@ -190,18 +214,24 @@ public class InlineNormalizerTests
         AssertFormats(input, expected);
 
     /// <summary>
-    ///     Test that the paragraphs of a footnote are normalized, except emphasis or strong emphasis that ends the last
-    ///     paragraph of the footnote, which is left as written.
+    ///     Test that the paragraphs of a footnote are normalized like those of the top level.
     /// </summary>
     [Theory]
     [InlineData("a[^n]\n\n[^n]: x _b_ y\n", "a[^n]\n\n[^n]: x *b* y\n")]
     [InlineData("a[^n]\n\n[^n]: x _b_ y\n\n    z _c_ w\n", "a[^n]\n\n[^n]: x *b* y\n\n    z *c* w\n")]
     [InlineData("a[^n]\n\n[^n]: x http://x.com\n", "a[^n]\n\n[^n]: x <http://x.com>\n")]
-    [InlineData("a[^n]\n\n[^n]: _b_\n", "a[^n]\n\n[^n]: _b_\n")]
-    [InlineData("a[^n]\n\n[^n]: x __b__\n", "a[^n]\n\n[^n]: x __b__\n")]
-    [InlineData("a[^n]\n\n[^n]: x\n\n    _para_\n", "a[^n]\n\n[^n]: x\n\n    _para_\n")]
-    public void InlineNormalizer_AddBlockEdits_ParagraphInFootnote_IsNormalizedExceptEmphasisEndingTheLastParagraph(string input, string expected) =>
+    public void InlineNormalizer_AddBlockEdits_ParagraphInFootnote_IsNormalized(string input, string expected) =>
         AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that emphasis or strong emphasis that ends the last paragraph of a footnote is left as written.
+    /// </summary>
+    [Theory]
+    [InlineData("a[^n]\n\n[^n]: _b_\n")]
+    [InlineData("a[^n]\n\n[^n]: x __b__\n")]
+    [InlineData("a[^n]\n\n[^n]: x\n\n    _para_\n")]
+    public void InlineNormalizer_AddBlockEdits_EmphasisEndingLastFootnoteParagraph_IsKept(string input) =>
+        AssertFormats(input, input);
 
     /// <summary>
     ///     Test that headings and table cells keep their emphasis and URLs: the normalizer leaves the text as written, and
@@ -231,6 +261,11 @@ public class InlineNormalizerTests
     [InlineData("http://x.com/a&b\n", "<http://x.com/a&b>\n")]
     [InlineData("a\nhttp://x.com\n", "a\n<http://x.com>\n")]
     [InlineData("http://a.com and http://b.com\n", "<http://a.com> and <http://b.com>\n")]
+    [InlineData("see http://x.com/a_(b) now\n", "see <http://x.com/a_(b)> now\n")]
+    [InlineData("see (http://x.com/a_(b))\n", "see (<http://x.com/a_(b)>)\n")]
+    [InlineData("- see http://y.com\n", "- see <http://y.com>\n")]
+    [InlineData("1. see http://y.com\n", "1. see <http://y.com>\n")]
+    [InlineData("- [x] see http://y.com\n", "- [x] see <http://y.com>\n")]
     public void InlineNormalizer_AddBlockEdits_BareUrls_AreWrappedInAngleBrackets(string input, string expected) =>
         AssertFormats(input, expected);
 
@@ -242,22 +277,77 @@ public class InlineNormalizerTests
         BlockFormatterAssertions.AssertFormats("# T\nhttp://x.com\n", "# T\n\n<http://x.com>\n");
 
     /// <summary>
-    ///     Test that addresses and links that are not wrapped by this rule keep their form.
+    ///     Test that a www address keeps its form.
     /// </summary>
     [Theory]
     [InlineData("www.x.com\n")]
+    [InlineData("see www.x.com/a now\n")]
+    public void InlineNormalizer_AddBlockEdits_WwwAddress_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that an e-mail address and a mailto link keep their form.
+    /// </summary>
+    [Theory]
     [InlineData("a@b.com\n")]
     [InlineData("mailto:a@b.com\n")]
-    [InlineData("<http://x.com>\n")]
     [InlineData("<mailto:a@b.com>\n")]
+    public void InlineNormalizer_AddBlockEdits_MailAddress_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a URL that is already a link keeps its form, in an angle-bracket autolink, in link text, and as the
+    ///     destination of a link, also where the link stands in a list item and starts with text that looks like a task
+    ///     list marker.
+    /// </summary>
+    [Theory]
+    [InlineData("<http://x.com>\n")]
     [InlineData("[http://x.com](http://y.com)\n")]
     [InlineData("[a](http://x.com)\n")]
-    [InlineData("`http://x.com`\n")]
-    [InlineData("<a href=\"http://x.com\">a</a>\n")]
+    [InlineData("[x](http://y.com)\n")]
+    [InlineData("- [a](http://y.com)\n")]
+    [InlineData("- [x](http://y.com)\n")]
+    [InlineData("- [X](http://y.com)\n")]
+    [InlineData("- [ ](http://y.com)\n")]
+    [InlineData("1. [x](http://y.com)\n")]
+    [InlineData("- foo [x](http://y.com)\n")]
+    [InlineData("> - [x](http://y.com)\n")]
+    public void InlineNormalizer_AddBlockEdits_UrlAlreadyLinked_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a URL in a code span keeps its form.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_UrlInCodeSpan_IsKept() =>
+        AssertFormats("`http://x.com`\n", "`http://x.com`\n");
+
+    /// <summary>
+    ///     Test that a URL in inline HTML keeps its form.
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_UrlInHtml_IsKept() =>
+        AssertFormats("<a href=\"http://x.com\">a</a>\n", "<a href=\"http://x.com\">a</a>\n");
+
+    /// <summary>
+    ///     Test that a URL that is not set off from the text around it keeps its form: it follows or precedes a quote
+    ///     mark, an emphasis delimiter, or a pipe.
+    /// </summary>
+    [Theory]
     [InlineData("\"http://x.com\"\n")]
     [InlineData("*http://x.com*\n")]
     [InlineData("a|http://x.com\n")]
-    public void InlineNormalizer_AddBlockEdits_OtherAddressesAndLinks_KeepTheirForm(string input) =>
+    public void InlineNormalizer_AddBlockEdits_UrlAttachedToOtherText_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that an address whose scheme is not written in lower case keeps its form, because the parser does not
+    ///     read it as a bare URL.
+    /// </summary>
+    [Theory]
+    [InlineData("HTTP://X.COM/a\n")]
+    [InlineData("see Http://x.com/a.\n")]
+    public void InlineNormalizer_AddBlockEdits_UpperCaseScheme_IsKept(string input) =>
         AssertFormats(input, input);
 
     /// <summary>
@@ -303,13 +393,13 @@ public class InlineNormalizerTests
     ///     Test that a rule is not applied to a paragraph when it is suppressed in it, by identifier or by alias.
     /// </summary>
     [Theory]
-    [InlineData("lintmark-disable emphasis", "_a_ **b** http://x.com", "_a_ **b** <http://x.com>")]
-    [InlineData("markdownlint-disable MD049", "_a_ **b** http://x.com", "_a_ **b** <http://x.com>")]
-    [InlineData("lintmark-disable strong", "_a_ __b__ http://x.com", "*a* __b__ <http://x.com>")]
-    [InlineData("markdownlint-disable MD050", "_a_ __b__ http://x.com", "*a* __b__ <http://x.com>")]
-    [InlineData("lintmark-disable bare-urls", "_a_ __b__ http://x.com", "*a* **b** http://x.com")]
-    [InlineData("markdownlint-disable MD034", "_a_ __b__ http://x.com", "*a* **b** http://x.com")]
-    public void InlineNormalizer_AddBlockEdits_RuleSuppressed_LeavesThatRule(string directive, string paragraph, string expected)
+    [InlineData("lintmark-disable emphasis", "_a_ **b** http://x.com", "_a_ **b** <http://x.com>", "bare-urls")]
+    [InlineData("markdownlint-disable MD049", "_a_ **b** http://x.com", "_a_ **b** <http://x.com>", "bare-urls")]
+    [InlineData("lintmark-disable strong", "_a_ __b__ http://x.com", "*a* __b__ <http://x.com>", "bare-urls,emphasis")]
+    [InlineData("markdownlint-disable MD050", "_a_ __b__ http://x.com", "*a* __b__ <http://x.com>", "bare-urls,emphasis")]
+    [InlineData("lintmark-disable bare-urls", "_a_ __b__ http://x.com", "*a* **b** http://x.com", "emphasis,strong")]
+    [InlineData("markdownlint-disable MD034", "_a_ __b__ http://x.com", "*a* **b** http://x.com", "emphasis,strong")]
+    public void InlineNormalizer_AddBlockEdits_RuleSuppressed_LeavesThatRule(string directive, string paragraph, string expected, string appliedRules)
     {
         // Arrange: a paragraph inside a region that disables one rule
         var input = $"<!-- {directive} -->\n\n{paragraph}\n";
@@ -318,9 +408,31 @@ public class InlineNormalizerTests
         // Act: format
         var (result, formatted) = BlockFormatterAssertions.Apply(formatter, input);
 
-        // Assert: only the other rules are applied
+        // Assert: only the other rules are applied, and each edit and each violation names one of them
         Assert.Equal($"<!-- {directive} -->\n\n{expected}\n", formatted);
-        Assert.All(result.Diagnostics, diagnostic => Assert.NotEqual(RuleCatalog.TryResolve(directive.Split(' ')[^1], out var id) ? id : string.Empty, diagnostic.RuleId));
+        Assert.Equal(appliedRules, string.Join(',', result.Edits.Select(edit => edit.RuleId).Distinct().Order(StringComparer.Ordinal)));
+        Assert.Equal(appliedRules, string.Join(',', result.Diagnostics.Select(diagnostic => diagnostic.RuleId).Distinct().Order(StringComparer.Ordinal)));
+    }
+
+    /// <summary>
+    ///     Test that a rule is still applied to a paragraph when only a different rule is suppressed in it.
+    /// </summary>
+    [Theory]
+    [InlineData("lintmark-disable emphasis", "_a_ __b__", "_a_ **b**", "strong")]
+    [InlineData("markdownlint-disable MD050", "_a_ __b__", "*a* __b__", "emphasis")]
+    [InlineData("lintmark-disable bare-urls", "_a_ http://x.com", "*a* http://x.com", "emphasis")]
+    public void InlineNormalizer_AddBlockEdits_OtherRuleSuppressed_StillAppliesTheRule(string directive, string paragraph, string expected, string appliedRule)
+    {
+        // Arrange: a paragraph inside a region that disables one rule only
+        var input = $"<!-- {directive} -->\n\n{paragraph}\n";
+        var formatter = new DocumentFormatter([], Normalizer);
+
+        // Act: format
+        var (result, formatted) = BlockFormatterAssertions.Apply(formatter, input);
+
+        // Assert: the rule that is not disabled is applied, and its edit is credited to it
+        Assert.Equal($"<!-- {directive} -->\n\n{expected}\n", formatted);
+        Assert.Contains(result.Edits, edit => edit.RuleId == appliedRule);
     }
 
     /// <summary>
@@ -367,7 +479,7 @@ public class InlineNormalizerTests
     public void InlineNormalizer_AddBlockEdits_LineEndingsAndByteOrderMark_ProposeTheSameEdits()
     {
         // Arrange: a text with emphasis, strong emphasis and a URL
-        const string input = "_a_ __b__\nhttp://x.com\n";
+        const string input = "_a_ __b__\nhttp://x.com\nend\n";
         var formatter = new DocumentFormatter([], Normalizer);
         var expected = BlockFormatterAssertions.Apply(formatter, input).Result.Edits;
 
@@ -376,6 +488,7 @@ public class InlineNormalizerTests
         foreach (var bytes in new[]
         {
             System.Text.Encoding.UTF8.GetBytes(input.Replace("\n", "\r\n", StringComparison.Ordinal)),
+            System.Text.Encoding.UTF8.GetBytes(BlockFormatterAssertions.MixEndings(input)),
             [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(input)]
         })
         {

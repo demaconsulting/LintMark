@@ -557,6 +557,8 @@ reviews:
       - "src/**/Formatting/Inline/InlineCandidates.cs"
       - "src/**/Formatting/Inline/ParagraphProof.cs"
       - "test/**/Formatting/Inline/InlineNormalizerTests.cs"
+      - "test/**/Formatting/Inline/InlineCandidatesTests.cs"
+      - "test/**/Formatting/Inline/ParagraphProofTests.cs"
 
   # LintMark - Linting
   - id: LintMark-Linting

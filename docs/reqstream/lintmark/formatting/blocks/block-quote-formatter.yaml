@@ -92,7 +92,7 @@ sections:
                       With five spaces the text after the marker is indented code, and removing spaces would change
                       the block.
                     tests:
-                      - BlockQuoteFormatter_Format_FiveSpacesTabAndLazyLines_AreLeftAlone
+                      - BlockQuoteFormatter_Format_FiveSpaces_AreLeftAlone
 
                   - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-TabsKept
                     title: >-
@@ -101,7 +101,7 @@ sections:
                     justification: |
                       A tab reaches the next tab stop, so replacing it can change where the text of the line starts.
                     tests:
-                      - BlockQuoteFormatter_Format_FiveSpacesTabAndLazyLines_AreLeftAlone
+                      - BlockQuoteFormatter_Format_TabInPrefix_IsLeftAlone
 
                   - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-LazyLinesKept
                     title: >-
@@ -112,28 +112,76 @@ sections:
                       not part of what the rule describes. The marked lines of the same paragraph are still written
                       canonically.
                     tests:
-                      - BlockQuoteFormatter_Format_FiveSpacesTabAndLazyLines_AreLeftAlone
-                      - BlockQuoteFormatter_Format_LazyLineInParagraph_KeepsItsText
+                      - BlockQuoteFormatter_Format_LazyLine_IsLeftAlone
 
-                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-OtherBlocksInQuoteKept
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-CodeInQuoteKept
                     title: >-
-                      The BlockQuoteFormatter class shall propose no change for the lines of code, HTML, math, a
-                      setext heading, or a table inside a block quote.
+                      The BlockQuoteFormatter class shall propose no change for the lines of a fenced or indented code
+                      block inside a block quote.
                     justification: |
-                      The spaces after the marker are content in code, HTML, and math, and part of the structure of
-                      a setext heading and a table, so removing them would change the block.
+                      The spaces after the marker are content in code, so removing them would change the code.
                     tests:
-                      - BlockQuoteFormatter_Format_OtherBlocksInQuote_KeepTheSpaces
+                      - BlockQuoteFormatter_Format_CodeInQuote_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-HtmlInQuoteKept
+                    title: >-
+                      The BlockQuoteFormatter class shall propose no change for the lines of an HTML block inside a
+                      block quote.
+                    justification: |
+                      The spaces after the marker are content in an HTML block, so removing them would change the
+                      block.
+                    tests:
+                      - BlockQuoteFormatter_Format_HtmlInQuote_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-MathInQuoteKept
+                    title: >-
+                      The BlockQuoteFormatter class shall propose no change for the lines of a math block inside a
+                      block quote.
+                    justification: |
+                      The spaces after the marker are content in a math block, so removing them would change the
+                      formula.
+                    tests:
+                      - BlockQuoteFormatter_Format_MathInQuote_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-SetextHeadingInQuoteKept
+                    title: >-
+                      The BlockQuoteFormatter class shall propose no change for the lines of a setext heading inside a
+                      block quote.
+                    justification: |
+                      The spaces after the marker are part of the structure of a setext heading, so removing them
+                      would change the heading.
+                    tests:
+                      - BlockQuoteFormatter_Format_SetextHeadingInQuote_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-TableInQuoteKept
+                    title: >-
+                      The BlockQuoteFormatter class shall propose no change for the rows of a table inside a block
+                      quote.
+                    justification: |
+                      The spaces after the marker are part of the structure of a table, so removing them would change
+                      the table.
+                    tests:
+                      - BlockQuoteFormatter_Format_TableInQuote_KeepsTheSpaces
 
                   - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-ListInQuoteKept
                     title: >-
-                      The BlockQuoteFormatter class shall propose no change for the lines of a list or a footnote
+                      The BlockQuoteFormatter class shall propose no change for the lines of a list inside a block
+                      quote.
+                    justification: |
+                      The spaces after the marker are the indentation of the list there, so removing them would change
+                      which text belongs to its items.
+                    tests:
+                      - BlockQuoteFormatter_Format_ListInQuote_KeepsTheSpaces
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-FootnoteInQuoteKept
+                    title: >-
+                      The BlockQuoteFormatter class shall propose no change for the lines of a footnote definition
                       inside a block quote.
                     justification: |
-                      The spaces after the marker are the indentation of the list or footnote there, so removing
-                      them would change which text belongs to its items.
+                      The spaces after the marker are the indentation of the footnote there, so removing them would
+                      change which text belongs to it.
                     tests:
-                      - BlockQuoteFormatter_Format_ListOrFootnoteInQuote_KeepsTheSpaces
+                      - BlockQuoteFormatter_Format_FootnoteInQuote_KeepsTheSpaces
 
                   - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-QuoteInListItemKept
                     title: >-
@@ -181,6 +229,13 @@ sections:
                       The rule of a change decides how it is reported and which suppression comment switches it off.
                     tests:
                       - BlockQuoteFormatter_Format_ExtraSpaces_ReportsTheQuoteRule
+
+                  - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-CanonicalUnchanged
+                    title: The BlockQuoteFormatter class shall propose no change for a block quote in canonical form.
+                    justification: |
+                      A canonical quote must not be reported or rewritten.
+                    tests:
+                      - BlockQuoteFormatter_Format_CanonicalQuote_ProposesNoEdit
 
                   - id: LintMark-Formatting-Blocks-BlockQuoteFormatter-LineEndingsKept
                     title: >-

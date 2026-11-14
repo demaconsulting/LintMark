@@ -22,6 +22,8 @@ sections:
                       Missing arguments are programming errors that must be reported as such.
                     tests:
                       - InlineNormalizer_AddBlockEdits_NullArguments_Throw
+                      - InlineCandidates_Find_NullArguments_Throw
+                      - ParagraphProof_Holds_NullArguments_Throw
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
                     title: The InlineNormalizer class shall refuse to normalize a block that is not a paragraph.
@@ -30,6 +32,16 @@ sections:
                       edits computed for them could damage them.
                     tests:
                       - InlineNormalizer_AddBlockEdits_HeadingBlock_ThrowsArgumentException
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-HeadingsAndTablesNotNormalized
+                    title: >-
+                      The InlineNormalizer class shall leave the emphasis and the URLs of a heading and of a table
+                      cell as written.
+                    justification: |
+                      The text of a heading or a table cell is not the subject of the inline rules, and rewriting it
+                      could change how the heading or the table renders.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_HeadingsAndTables_AreNotNormalized
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-RuleIdsImmutable
                     title: >-
@@ -93,14 +105,39 @@ sections:
                     tests:
                       - InlineNormalizer_AddBlockEdits_UnsafeEmphasis_KeepsTheParagraph
 
-                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeHtmlMathKept
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeSpansKept
                     title: >-
-                      The InlineNormalizer class shall keep the delimiter characters in code spans, HTML, math, and
-                      link destinations as written.
+                      The InlineNormalizer class shall keep the delimiter characters inside a code span as written.
                     justification: |
                       Those characters are content, not emphasis, and changing them changes what the text says.
                     tests:
-                      - InlineNormalizer_AddBlockEdits_CodeHtmlMathAndDestinations_KeepTheirDelimiters
+                      - InlineNormalizer_AddBlockEdits_DelimitersInCodeSpan_AreKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInHtmlKept
+                    title: >-
+                      The InlineNormalizer class shall keep the delimiter characters inside inline HTML as written.
+                    justification: |
+                      Those characters are markup, not emphasis, and changing them changes the HTML.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_DelimitersInHtml_AreKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInMathKept
+                    title: >-
+                      The InlineNormalizer class shall keep the delimiter characters inside inline math as written.
+                    justification: |
+                      Those characters are part of the formula, not emphasis, and changing them changes the formula.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_DelimitersInMath_AreKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-DelimitersInLinkDestinationsKept
+                    title: >-
+                      The InlineNormalizer class shall keep the delimiter characters inside the destination of a link
+                      or image as written.
+                    justification: |
+                      Those characters are part of the address, not emphasis, and changing them changes where the link
+                      leads.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_DelimitersInLinkDestination_AreKept
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-ParagraphsInContainersNormalized
                     title: >-
@@ -111,6 +148,27 @@ sections:
                       must not depend on where the text is.
                     tests:
                       - InlineNormalizer_AddBlockEdits_ParagraphInContainer_IsNormalized
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-ParagraphsInFootnotesNormalized
+                    title: >-
+                      The InlineNormalizer class shall normalize a paragraph inside a footnote the same way as a
+                      paragraph at the top level.
+                    justification: |
+                      Footnotes hold ordinary text, and the style of their emphasis and URLs must not depend on where
+                      the text is.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_ParagraphInFootnote_IsNormalized
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EmphasisEndingFootnoteKept
+                    title: >-
+                      The InlineNormalizer class shall keep an emphasis or strong emphasis that ends the last paragraph
+                      of a footnote as written.
+                    justification: |
+                      The parser appends a link back to the reference after the last inline of that paragraph, which
+                      makes the effect of a rewrite there uncertain. Keeping the delimiters as written is always
+                      safe, and nothing is reported for them.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_EmphasisEndingLastFootnoteParagraph_IsKept
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-UrlWrapped
                     title: >-
@@ -133,25 +191,70 @@ sections:
                     tests:
                       - InlineNormalizer_AddBlockEdits_BareUrls_AreWrappedInAngleBrackets
 
-                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsInLinksCodeHtmlKept
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsAlreadyLinkedKept
                     title: >-
-                      The InlineNormalizer class shall keep a URL that is already a link, or is part of code or HTML,
-                      as written.
+                      The InlineNormalizer class shall keep a URL that is already a link, in angle brackets, as the
+                      text of a link, or as the destination of a link, as written.
                     justification: |
-                      A URL in a link, a code span, or an HTML tag is not a bare URL, and wrapping it would change
-                      the link or the text.
+                      Wrapping such a URL would change the link, also where the link stands in a list item and its
+                      text looks like a task list marker.
                     tests:
-                      - InlineNormalizer_AddBlockEdits_OtherAddressesAndLinks_KeepTheirForm
+                      - InlineNormalizer_AddBlockEdits_UrlAlreadyLinked_IsKept
 
-                  - id: LintMark-Formatting-Inline-InlineNormalizer-WwwAndMailAddressesKept
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsInCodeSpansKept
                     title: >-
-                      The InlineNormalizer class shall keep a www address, an e-mail address, and a mailto link as
-                      written.
+                      The InlineNormalizer class shall keep a URL inside a code span as written.
                     justification: |
-                      Such addresses render differently when they are wrapped in angle brackets, so the rule would
+                      A URL in a code span is literal text, and wrapping it would change what the text says.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UrlInCodeSpan_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsInHtmlKept
+                    title: >-
+                      The InlineNormalizer class shall keep a URL inside inline HTML as written.
+                    justification: |
+                      A URL in an HTML tag is an attribute value, and wrapping it would change the HTML.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UrlInHtml_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UrlAttachedToTextKept
+                    title: >-
+                      The InlineNormalizer class shall keep a URL as written when it directly follows or precedes a
+                      character other than a blank or punctuation that ends a sentence, such as a quotation mark, an
+                      emphasis delimiter, or a pipe.
+                    justification: |
+                      A URL that is attached to other text is not set off the way a bare URL is in prose, so it is
+                      uncertain where it ends and wrapping it could change the text.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UrlAttachedToOtherText_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-UpperCaseSchemeKept
+                    title: >-
+                      The InlineNormalizer class shall keep an address as written when its scheme is not written in
+                      lower case.
+                    justification: |
+                      The parser does not read such an address as a bare URL, so the rule has no URL to wrap and the
+                      text stays as the author wrote it.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_UpperCaseScheme_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-WwwAddressKept
+                    title: >-
+                      The InlineNormalizer class shall keep a www address as written.
+                    justification: |
+                      A www address renders differently when it is wrapped in angle brackets, so the rule would change
+                      the document instead of its form.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_WwwAddress_IsKept
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-MailAddressKept
+                    title: >-
+                      The InlineNormalizer class shall keep an e-mail address and a mailto link as written.
+                    justification: |
+                      A mail address renders differently when it is wrapped in angle brackets, so the rule would
                       change the document instead of its form.
                     tests:
-                      - InlineNormalizer_AddBlockEdits_OtherAddressesAndLinks_KeepTheirForm
+                      - InlineNormalizer_AddBlockEdits_MailAddress_IsKept
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-UrlsLeftWhenConfigured
                     title: >-
@@ -174,14 +277,79 @@ sections:
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-ParagraphLeftWhenRenderingWouldChange
                     title: >-
-                      The InlineNormalizer class shall keep a paragraph as written when it cannot show that the
-                      changes would render the same.
+                      The InlineNormalizer class shall keep a paragraph as written when the content of the paragraph,
+                      rendered on its own with and without the changes, does not give the same HTML.
                     justification: |
                       A paragraph that renders differently after the rewrite is damaged, so only a rewrite that is
-                      shown to keep the meaning is made, and the other paragraphs of the document are still
-                      normalized.
+                      shown to keep the rendering is made, and the other paragraphs of the document are still
+                      normalized. A paragraph whose content cannot be rendered on its own as exactly one paragraph, or
+                      whose changes lie outside the content, cannot be shown and is kept as well.
                     tests:
                       - InlineNormalizer_AddBlockEdits_ParagraphThatMayRenderDifferently_IsLeftAndTheRestIsNormalized
+                      - ParagraphProof_Holds_EditsThatChangeTheRendering_ReturnsFalse
+                      - ParagraphProof_Holds_LineRangeInvalid_ReturnsFalse
+                      - ParagraphProof_Holds_EditOutsideLineContent_ReturnsFalse
+                      - ParagraphProof_Holds_ContentNotOneParagraph_ReturnsFalse
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-SuppressedRuleSkipped
+                    title: >-
+                      The InlineNormalizer class shall not apply a rule to a paragraph in which a suppression comment
+                      disables that rule, whether the comment names the rule by its identifier or by its alias.
+                    justification: |
+                      An author who switched a rule off for a passage expects the passage to stay as written.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_RuleSuppressed_LeavesThatRule
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-OtherRulesStillApplied
+                    title: >-
+                      The InlineNormalizer class shall apply a rule to a paragraph in which a suppression comment
+                      disables only a different rule.
+                    justification: |
+                      A rule that was not switched off keeps its effect, so a suppression protects only the rule that
+                      it names.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_OtherRuleSuppressed_StillAppliesTheRule
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EditsAttributedToRules
+                    title: >-
+                      The InlineNormalizer class shall attribute each change to the rule whose violation it removes:
+                      `emphasis` for a single delimiter, `strong` for a double delimiter, and `bare-urls` for a URL.
+                    justification: |
+                      Violations are reported and suppressed by rule, so a change under the wrong rule would be
+                      reported and suppressed wrongly.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_NonCanonicalParagraph_ReportsEachEditUnderItsRule
+                      - InlineCandidates_Find_EmphasisStrongAndUrl_ReturnsTheEditsInStartOrder
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EditsReplaceCharacters
+                    title: >-
+                      The InlineNormalizer class shall propose only changes that replace existing characters, never
+                      changes that insert text at a position.
+                    justification: |
+                      An insertion at a position can collide with the blank lines that the block spacing inserts,
+                      while a replacement of characters inside the text cannot.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_Edits_ReplaceExistingCharacters
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EditsOrderedAndDistinct
+                    title: >-
+                      The InlineNormalizer class shall propose the changes of a paragraph in the order of their
+                      position, each change once.
+                    justification: |
+                      The changes are applied in one pass from the start of the text, so they must be in order, and
+                      a node that the tree holds twice must not be rewritten twice.
+                    tests:
+                      - InlineCandidates_Find_EmphasisStrongAndUrl_ReturnsTheEditsInStartOrder
+                      - InlineCandidates_Find_SameEmphasisInTwoPlaces_ReturnsEachEditOnce
+
+                  - id: LintMark-Formatting-Inline-InlineNormalizer-EditsIndependentOfStorage
+                    title: >-
+                      The InlineNormalizer class shall propose the same changes for a text whatever its line endings
+                      are, LF, CRLF, or mixed, and whether the file starts with a byte order mark.
+                    justification: |
+                      How a file is stored says nothing about its text, so the changes must not depend on it.
+                    tests:
+                      - InlineNormalizer_AddBlockEdits_LineEndingsAndByteOrderMark_ProposeTheSameEdits
 
                   - id: LintMark-Formatting-Inline-InlineNormalizer-DeterministicResult
                     title: >-

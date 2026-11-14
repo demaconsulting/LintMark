@@ -104,7 +104,9 @@ Verification of the subsystem relies on three checkers of the `Safety` subsystem
 check, the structural token check, and the idempotency check run over every document that the tests format, and a
 corpus of the Markdown files of the repository and of generated hostile documents (see the verification design). They
 are collaborators of the tests only; the production formatters do not call them, because the `Engine` subsystem applies
-the same checks to every rewrite.
+the same checks to every rewrite. The corpus tests that format generated paragraphs (the random inline text tests and
+the test of the unproved normalizer in `ListQuoteInlineCorpusTests`) verify the `Inline` subsystem; they stay in the
+class of this subsystem because they share its generator and assertions (see the verification design).
 
 Thread safety: the units are stateless and immutable (the list formatter creates its `ListPlan` for one call and uses it
 on one thread). The shared helper types are immutable per document, so one parsed

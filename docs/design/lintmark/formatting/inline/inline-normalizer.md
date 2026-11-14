@@ -90,10 +90,14 @@ An emphasis node is a candidate when all of these hold:
 The edits replace the delimiter run at each end by a run of the target character of the same length (two edits per
 node).
 
-A URL is a candidate when it is an autolink that the parser found in the text (a bare URL) and is not inside the text of
-a link, its source starts with `http://`, `https://`, or `ftp://` (letter case ignored) and holds none of a blank, `<`,
-`>`, `|`, a line feed, or a tab, and it stands where prose puts a URL: after a blank (a line start included) or `(`, and
-before a blank, the end of the text, or one of `.`, `,`, `;`, `:`, `!`, `?`, `)`. The edits replace the first
+A URL is a candidate when it is an autolink that the parser found in the text (a bare URL), is not inside the text of
+a link, is not the destination of a link (the text before it is not `](`, which also covers a destination that the parser
+reads as a task list marker, `[x]`, `[X]`, or `[ ]`, followed by a URL in parentheses in a list item), its source starts
+with `http://`, `https://`, or `ftp://` and holds none of a blank, `<`, `>`, `|`, a line feed, or a tab, and it stands
+where prose puts a URL: after a blank (a line start included) or `(`, and before a blank, the end of the text, or one of
+`.`, `,`, `;`, `:`, `!`, `?`, `)`. The parser reads only a lower-case scheme as a bare URL, so an address such as
+`HTTP://X.COM/a` is no candidate and stays as written. A pair of parentheses inside the URL is part of it
+(`http://x.com/a_(b)` is wrapped as a whole). The edits replace the first
 character `c` of the URL by `<c` and the last character `d` by `d>`. URLs that start with `www.`, e-mail addresses,
 `mailto:` links, and URLs in headings, table cells, link text, code, and HTML stay as written, because wrapping them
 renders differently or is not a bare URL.
@@ -123,13 +127,14 @@ file-level checks of the `Engine` subsystem, which still run on every rewrite. A
 written, and fails it again in the next run, so formatting stays idempotent. After a conversion no candidate remains,
 because the delimiter now equals the target and a URL in angle brackets is no bare URL.
 
-Known limits: a paragraph that the proof or a guard refuses is left as written even though a human could convert it
-(a hostile document that uses quirks of the parser, a paragraph with a literal `*` or `_`, and a paragraph with a `[` in
-a document that has link reference definitions). Emphasis or strong emphasis that ends the last paragraph of a footnote
-is kept as written and nothing is reported (a limit of the source ranges that the parser reports in that position);
-URLs and emphasis anywhere else in a footnote, a second paragraph included, are converted. `***text***` is left as
-written, and so is an
-emphasis that would have to become an underscore inside a word.
+Known limits: a paragraph that the proof or a guard refuses is left as written even though a human could convert it (a
+hostile document that uses quirks of the parser, a paragraph with a literal `*` or `_`, and a paragraph with a `[` in a
+document that has link reference definitions). Emphasis or strong emphasis that ends the last paragraph of a footnote is
+kept as written and nothing is reported (the parser appends a link back to the reference after the last inline of that
+paragraph, so the emphasis has a neighbor that is neither text nor a code span, a line break, or a link, and the check
+of the neighbors refuses it). The proof stands behind every edit that does get through. URLs and emphasis anywhere else
+in a footnote, a second paragraph included, are converted. `***text***` is left as written, and so is an emphasis that
+would have to become an underscore inside a word.
 
 ##### Error Handling
 

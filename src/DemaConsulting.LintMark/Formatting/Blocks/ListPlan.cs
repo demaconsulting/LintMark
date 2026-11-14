@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using DemaConsulting.LintMark.Configuration;
@@ -39,10 +40,9 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         edits that change no column (<em>tier 1</em>) and apply at any depth, also inside block quotes. A list in the
 ///         body of a footnote is left as written: the proof below renders the lines of the nest by themselves, where the
 ///         four-space indent of a footnote body reads as indented code, so it cannot show that a rewrite keeps the meaning.
-///         Everything
-///         that changes a column (<em>tier 2</em>: the column of a marker, the spaces after it, a number that gains or loses a
-///         digit) needs the columns of the lines to mean what they say, so it is only done for a nest at the top level of the
-///         document whose items can be moved (see <see cref="ListModel"/>).
+///         Everything that changes a column (<em>tier 2</em>: the column of a marker, the spaces after it, a number that
+///         gains or loses a digit) needs the columns of the lines to mean what they say, so it is only done for a nest at
+///         the top level of the document whose items can be moved (see <see cref="ListModel"/>).
 ///     </para>
 ///     <para>
 ///         A moved item shifts all its lines by the change of its content column. The relative indentation of
@@ -70,6 +70,11 @@ internal sealed class ListPlan
     private const long MaxNumber = 999_999_999;
 
     /// <summary>
+    ///     The number of lines after a nest that the proof of the plan renders with it.
+    /// </summary>
+    private const int ProofTailLines = 3;
+
+    /// <summary>
     ///     The document, settings and line arithmetic.
     /// </summary>
     private readonly FormatContext _context;
@@ -83,11 +88,6 @@ internal sealed class ListPlan
     ///     The edits of the plan so far; they are given to <see cref="_edits"/> only when the plan is accepted.
     /// </summary>
     private readonly List<TextEdit> _planned = [];
-
-    /// <summary>
-    ///     The number of lines after a nest that the proof of the plan renders with it.
-    /// </summary>
-    private const int ProofTailLines = 3;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ListPlan"/> class.
@@ -183,14 +183,16 @@ internal sealed class ListPlan
         // An edit of another formatter that begins in the stretch and ends beyond it (a code block that is rewritten as a
         // fence) is applied whole, so the stretch grows to its end
         var snapshot = _edits.ToImmutable();
-        var others = new List<TextEdit>();
-        for (var grown = true; grown;)
+        List<TextEdit> others;
+        bool grown;
+        do
         {
             others = [.. snapshot.Where(edit => edit.Start >= start && edit.Start <= end)];
             var reach = others.Count == 0 ? end : Math.Max(end, others.Max(static edit => edit.End));
             grown = reach > end;
             end = reach;
         }
+        while (grown);
 
         var original = Render(start, end, others);
         var combined = Render(start, end, [.. others, .. _planned.Where(edit => edit.Start >= start && edit.End <= end)]);
@@ -315,7 +317,7 @@ internal sealed class ListPlan
             : parent.NewContent + (list.Items[0].MarkerColumn - parent.OldContent);
         var offset = column - parent.NewContent;
         var oldOffset = list.Items[0].MarkerColumn - parent.OldContent;
-        return offset is >= 0 and <= 3 && oldOffset is >= 0 and <= 3 ? column : null;
+        return offset is >= 0 and <= ListModel.MaxIndent && oldOffset is >= 0 and <= ListModel.MaxIndent ? column : null;
     }
 
     /// <summary>
@@ -387,10 +389,16 @@ internal sealed class ListPlan
     {
         var layout = _context.Layout;
         var text = layout.Text;
+        var next = 0;
         for (var line = item.FirstLine + 1; line <= item.LastLine; line++)
         {
-            var covered = line;
-            if (skipped.Exists(range => covered >= range.First && covered <= range.Last))
+            // The ranges are in source order and do not overlap, so one pass over them is enough
+            while (next < skipped.Count && skipped[next].Last < line)
+            {
+                next++;
+            }
+
+            if (next < skipped.Count && line >= skipped[next].First)
             {
                 continue;
             }
@@ -467,8 +475,11 @@ internal sealed class ListPlan
     /// <param name="list">The list.</param>
     /// <returns>
     ///     <see langword="true"/> when the list does not already use the character, no item is empty, no new marker line would be
-    ///     a thematic break or look like a grid table border, and no bullet list directly precedes or follows the list (it would
-    ///     merge with it once both use the same character).
+    ///     a thematic break, no item holds a thematic break (which the thematic break rule may rewrite to the new character),
+    ///     no marker line that has a plus sign, as the new marker or as the one it replaces, would look like the border of a
+    ///     grid table (only a plus sign can start one, and the parser may read such a line as part of a table instead of as
+    ///     an item), and no bullet list directly precedes or follows the list (it would merge with it once both use the same
+    ///     character).
     /// </returns>
     private bool ShouldConvertBullet(ListModel list)
     {
@@ -483,7 +494,11 @@ internal sealed class ListPlan
         {
             var lineEnd = _context.Layout.LineEnd(item.MarkerLine);
             var rest = text.AsSpan(item.MarkerOffset + 1, lineEnd - item.MarkerOffset - 1);
-            if (WouldBeThematicBreak(target, rest) || IsThematicBreakText(rest) || WouldBeGridBorder(rest))
+
+            // A line that starts with a plus sign and holds only the characters of a grid table border can be read as part
+            // of a grid table, whether the plus sign is the marker that is written or the one that is replaced
+            var plusMarker = target == '+' || text[item.MarkerOffset] == '+';
+            if (WouldBeThematicBreak(target, rest) || IsThematicBreakText(rest) || (plusMarker && WouldBeGridBorder(rest)))
             {
                 return false;
             }
@@ -584,16 +599,7 @@ internal sealed class ListPlan
     private bool IsAdjacentToBulletList(BlockInfo list)
     {
         var blocks = _context.Document.Blocks;
-        var index = -1;
-        for (var i = 0; i < blocks.Length; i++)
-        {
-            if (ReferenceEquals(blocks[i], list))
-            {
-                index = i;
-                break;
-            }
-        }
-
+        var index = IndexOf(blocks, list);
         if (index < 0)
         {
             return true;
@@ -623,6 +629,45 @@ internal sealed class ListPlan
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Finds the index of a block in the block list of the document.
+    /// </summary>
+    /// <param name="blocks">The blocks, in source order.</param>
+    /// <param name="block">The block to find.</param>
+    /// <returns>The index, or -1 when the block is not in the list.</returns>
+    /// <remarks>
+    ///     The list is ordered by the start of the blocks, so the search starts at the first block that begins where this
+    ///     one does (a list, its first item and its first paragraph can begin at the same offset) instead of at the start
+    ///     of the document.
+    /// </remarks>
+    private static int IndexOf(ImmutableArray<BlockInfo> blocks, BlockInfo block)
+    {
+        var low = 0;
+        var high = blocks.Length;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (blocks[middle].Start < block.Start)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        for (var i = low; i < blocks.Length && blocks[i].Start == block.Start; i++)
+        {
+            if (ReferenceEquals(blocks[i], block))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>

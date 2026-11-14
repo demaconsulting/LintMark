@@ -86,6 +86,22 @@ internal sealed record ListItemModel(
 internal sealed class ListModel
 {
     /// <summary>
+    ///     The most columns a list marker may be indented by, from the margin or from the content of the item that holds
+    ///     the list; one more column would make the line indented code.
+    /// </summary>
+    public const int MaxIndent = 3;
+
+    /// <summary>
+    ///     The most spaces after a marker that still belong to it; five or more make the content indented code.
+    /// </summary>
+    private const int MaxSpacesAfterMarker = 4;
+
+    /// <summary>
+    ///     The most digits an ordered list marker may have.
+    /// </summary>
+    private const int MaxDigits = 9;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="ListModel"/> class.
     /// </summary>
     /// <param name="info">The block of the list.</param>
@@ -272,7 +288,7 @@ internal sealed class ListModel
             }
 
             // A top-level list that starts after more than three columns only exists because of what precedes it
-            movable &= !isOutermost || items[0].MarkerColumn <= 3;
+            movable &= !isOutermost || items[0].MarkerColumn <= MaxIndent;
             return new ListModel(list, listBlock.IsOrdered, items.ToImmutable(), firstLine, lastLine, movable);
         }
 
@@ -316,9 +332,9 @@ internal sealed class ListModel
 
             // The marker line must start with spaces only for its column to mean something
             var prefix = text.AsSpan(lineStart, info.Start - lineStart);
-            var blockedHere = tabAfter || !hasText || spaces > 4 || prefix.ContainsAnyExcept(' ');
+            var blockedHere = tabAfter || !hasText || spaces > MaxSpacesAfterMarker || prefix.ContainsAnyExcept(' ');
             var markerColumn = info.Start - lineStart;
-            var contentColumn = markerColumn + markerLength + (hasText && spaces <= 4 ? spaces : 1);
+            var contentColumn = markerColumn + markerLength + (hasText && spaces <= MaxSpacesAfterMarker ? spaces : 1);
 
             // The lines of the item and the lists inside it
             var (first, last) = LineOwnership.LinesOf(layout, info);
@@ -400,7 +416,7 @@ internal sealed class ListModel
             }
 
             digits = end - offset;
-            return digits is >= 1 and <= 9 && end < lineEnd && text[end] is '.' or ')' ? digits + 1 : 0;
+            return digits is >= 1 and <= MaxDigits && end < lineEnd && text[end] is '.' or ')' ? digits + 1 : 0;
         }
 
         /// <summary>

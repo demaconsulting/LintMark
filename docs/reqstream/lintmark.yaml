@@ -1032,8 +1032,8 @@ sections:
 
       - id: LintMark-System-ListsNeverMergedOrSplit
         title: >-
-          The tool shall keep two bullet lists that differ only by their marker as two lists and shall keep one list
-          as one list when it writes list markers.
+          The tool shall never merge two lists into one or split a list into two when it writes the markers of
+          lists.
         tags: [system]
         justification: |
           Two lists that differ only by their markers are two lists, and rewriting must not change how the

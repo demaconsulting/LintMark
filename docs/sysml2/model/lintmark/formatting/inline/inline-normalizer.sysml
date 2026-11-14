@@ -9,7 +9,10 @@ package LintMark {
                 "src/DemaConsulting.LintMark/Formatting/Inline/InlineNormalizer.cs",
                 "src/DemaConsulting.LintMark/Formatting/Inline/InlineCandidates.cs",
                 "src/DemaConsulting.LintMark/Formatting/Inline/ParagraphProof.cs");
-            testFiles = ("test/DemaConsulting.LintMark.Tests/Formatting/Inline/InlineNormalizerTests.cs");
+            testFiles = (
+                "test/DemaConsulting.LintMark.Tests/Formatting/Inline/InlineNormalizerTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Formatting/Inline/InlineCandidatesTests.cs",
+                "test/DemaConsulting.LintMark.Tests/Formatting/Inline/ParagraphProofTests.cs");
             designFiles = ("docs/design/lintmark/formatting/inline/inline-normalizer.md");
             verificationFiles = ("docs/verification/lintmark/formatting/inline/inline-normalizer.md");
             requirementFiles = ("docs/reqstream/lintmark/formatting/inline/inline-normalizer.yaml");

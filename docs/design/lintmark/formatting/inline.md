@@ -63,8 +63,9 @@ never collide with the edits of other rules: they cover characters inside the te
 trailing runs and tabs after the first text of a line, and the block spacing pass inserts at the start of a line.
 
 Known limits, stated honestly: paragraphs of a footnote are normalized like any other, except that emphasis or strong
-emphasis that ends the last paragraph of a footnote is kept as written (the source ranges that the parser reports in
-that position are not reliable), URLs and emphasis elsewhere in a footnote convert, and a hostile document
+emphasis that ends the last paragraph of a footnote is kept as written (the parser appends a link back to the reference
+after the last inline of that paragraph, which gives the emphasis a neighbor that the check of the neighbors refuses),
+URLs and emphasis elsewhere in a footnote convert, and a hostile document
 that uses quirks of the parser may be left unchanged because the proof refuses it. Both leave the text as written and
 report nothing; neither can change the meaning of a document. Spaces inside emphasis markers, code spans, and link text
 (MD037, MD038, and MD039) are not fixed at all, because removing the space changes how the text renders; they are planned

@@ -165,53 +165,120 @@ public class BlockQuoteFormatterTests
         AssertFormats(input, expected);
 
     /// <summary>
-    ///     Test that a line with five or more spaces after the marker, a tab, or no marker for its quote is left as written.
+    ///     Test that a line with five or more spaces after the marker is left as written.
     /// </summary>
     [Theory]
     [InlineData("> a\n>     b\n")]
     [InlineData(">     code\n")]
-    [InlineData(">\ttext\n")]
-    [InlineData("> a\nlazy\n")]
-    public void BlockQuoteFormatter_Format_FiveSpacesTabAndLazyLines_AreLeftAlone(string input) =>
+    public void BlockQuoteFormatter_Format_FiveSpaces_AreLeftAlone(string input) =>
         AssertFormats(input, input);
 
     /// <summary>
-    ///     Test that a lazy line is left alone while the marked lines of the same paragraph are collapsed.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_Format_LazyLineInParagraph_KeepsItsText() =>
-        AssertFormats(">  a\n>  b\nlazy\n", "> a\n> b\nlazy\n");
-
-    /// <summary>
-    ///     Test that setext headings, tables, code, HTML and fences in a quote keep the spaces after the marker.
+    ///     Test that a line with a tab in its prefix is left as written, whether the tab follows the first marker, a
+    ///     nested marker, or stands on a later line of the quote, while the other lines are still collapsed.
     /// </summary>
     [Theory]
-    [InlineData(">  Title\n>  ===\n")]
-    [InlineData(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n")]
+    [InlineData(">\ttext\n", ">\ttext\n")]
+    [InlineData("> a\n>\tb\n", "> a\n>\tb\n")]
+    [InlineData(">  a\n>\tb\n", "> a\n>\tb\n")]
+    [InlineData(">  >\ta\n", ">  >\ta\n")]
+    [InlineData("> >\ta\n", "> >\ta\n")]
+    public void BlockQuoteFormatter_Format_TabInPrefix_IsLeftAlone(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that a line without a marker for its quote is left as written, also in a nested quote, while the marked
+    ///     lines of the same quote are still collapsed.
+    /// </summary>
+    [Theory]
+    [InlineData("> a\nlazy\n", "> a\nlazy\n")]
+    [InlineData(">  a\n>  b\nlazy\n", "> a\n> b\nlazy\n")]
+    [InlineData("> >  a\n>  b\n", "> > a\n>  b\n")]
+    [InlineData(">  > a\n>  b\n", "> > a\n>  b\n")]
+    public void BlockQuoteFormatter_Format_LazyLine_IsLeftAlone(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
+    ///     Test that a fenced or indented code block in a quote keeps the spaces after the marker.
+    /// </summary>
+    [Theory]
     [InlineData(">  ```\n>  code\n>  ```\n")]
-    [InlineData(">  <div>\n>  html\n>  </div>\n")]
     [InlineData(">      indented code\n")]
-    [InlineData(">  $$\n>  x = 1\n>  $$\n")]
-    public void BlockQuoteFormatter_Format_OtherBlocksInQuote_KeepTheSpaces(string input) =>
+    public void BlockQuoteFormatter_Format_CodeInQuote_KeepsTheSpaces(string input) =>
         AssertFormats(input, input);
 
     /// <summary>
-    ///     Test that a list, a footnote or a table row in a quote keeps the spaces, because they are indentation there.
+    ///     Test that an HTML block in a quote keeps the spaces after the marker.
+    /// </summary>
+    [Fact]
+    public void BlockQuoteFormatter_Format_HtmlInQuote_KeepsTheSpaces() =>
+        AssertFormats(">  <div>\n>  html\n>  </div>\n", ">  <div>\n>  html\n>  </div>\n");
+
+    /// <summary>
+    ///     Test that a math block in a quote keeps the spaces after the marker.
+    /// </summary>
+    [Fact]
+    public void BlockQuoteFormatter_Format_MathInQuote_KeepsTheSpaces() =>
+        AssertFormats(">  $$\n>  x = 1\n>  $$\n", ">  $$\n>  x = 1\n>  $$\n");
+
+    /// <summary>
+    ///     Test that a setext heading in a quote keeps the spaces after the marker.
+    /// </summary>
+    [Fact]
+    public void BlockQuoteFormatter_Format_SetextHeadingInQuote_KeepsTheSpaces() =>
+        AssertFormats(">  Title\n>  ===\n", ">  Title\n>  ===\n");
+
+    /// <summary>
+    ///     Test that a table in a quote keeps the spaces after the marker on its rows.
+    /// </summary>
+    [Fact]
+    public void BlockQuoteFormatter_Format_TableInQuote_KeepsTheSpaces() =>
+        AssertFormats(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n", ">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n");
+
+    /// <summary>
+    ///     Test that a list in a quote keeps the spaces after the marker, because they are indentation there.
     /// </summary>
     [Theory]
     [InlineData(">  - a\n")]
     [InlineData(">  1. a\n")]
     [InlineData("> - a\n>   continued\n")]
-    [InlineData(">  [^n]: note\n")]
-    public void BlockQuoteFormatter_Format_ListOrFootnoteInQuote_KeepsTheSpaces(string input) =>
+    public void BlockQuoteFormatter_Format_ListInQuote_KeepsTheSpaces(string input) =>
         AssertFormats(input, input);
 
     /// <summary>
-    ///     Test that a quote inside a list item is left alone.
+    ///     Test that a footnote definition in a quote keeps the spaces after the marker, because they are indentation there.
     /// </summary>
     [Fact]
-    public void BlockQuoteFormatter_Format_QuoteInListItem_KeepsTheSpaces() =>
-        AssertFormats("- >  quote\n", "- >  quote\n");
+    public void BlockQuoteFormatter_Format_FootnoteInQuote_KeepsTheSpaces() =>
+        AssertFormats(">  [^n]: note\n", ">  [^n]: note\n");
+
+    /// <summary>
+    ///     Test that a quote inside a list item is left alone, also where the list is itself inside a quote.
+    /// </summary>
+    [Theory]
+    [InlineData("- >  quote\n")]
+    [InlineData("> - >  a\n")]
+    public void BlockQuoteFormatter_Format_QuoteInListItem_KeepsTheSpaces(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a quote that is already canonical gets no edit.
+    /// </summary>
+    [Theory]
+    [InlineData("> a\n> b\n")]
+    [InlineData("> > a\n")]
+    [InlineData("> # Heading\n")]
+    [InlineData("> a\n>\n> b\n")]
+    [InlineData("> [!NOTE]\n> text\n")]
+    public void BlockQuoteFormatter_Format_CanonicalQuote_ProposesNoEdit(string input)
+    {
+        // Act: apply the quote formatter alone, and the production formatters
+        var (edits, _) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
+
+        // Assert: the formatter proposes nothing, and the tool reports nothing
+        Assert.Empty(edits);
+        BlockFormatterAssertions.AssertUnchanged(input);
+    }
 
     /// <summary>
     ///     Test that a quote line that holds only the marker is left to the whitespace rule: the quote formatter leaves

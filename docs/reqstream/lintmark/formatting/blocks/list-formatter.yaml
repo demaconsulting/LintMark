@@ -67,11 +67,12 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-MarkersChangedInContainers
                     title: >-
-                      The ListFormatter class shall write the markers of a list inside a block quote or list item the
-                      same way as the markers of a list at the top level, where they keep their width.
+                      The ListFormatter class shall write the markers and numbers of a list inside a block quote or list
+                      item the same way as those of a list at the top level, when writing them does not change the
+                      column of any text.
                     justification: |
-                      A marker that keeps its width moves nothing, so it can be written canonically wherever the list
-                      is, even where the columns of the list are not changed.
+                      A marker character, or a number with the same number of digits, moves no text, so it can be
+                      written canonically wherever the list is, even where the columns of the list are not changed.
                     tests:
                       - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
                       - ListFormatter_Format_OrderedNumbers_CountUpFromTheFirst
@@ -84,7 +85,7 @@ sections:
                       the markers it has.
                     tests:
                       - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
-                      - ListFormatter_Format_UnsafeMarkerChange_LeavesTheMarkers
+                      - ListFormatter_Format_EmptyItem_LeavesTheMarkers
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-AdjacentListsKept
                     title: >-
@@ -95,6 +96,7 @@ sections:
                       document renders.
                     tests:
                       - ListFormatter_Format_AdjacentBulletLists_KeepTheirMarkers
+                      - ListFormatter_Format_AdjacentNestedBulletLists_KeepTheirMarkers
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-SeparatedListsConverted
                     title: >-
@@ -108,13 +110,46 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-ThematicBreakLookalikeKept
                     title: >-
-                      The ListFormatter class shall keep the markers of a bullet list when the text after a marker
-                      would read as a thematic break with the configured marker character.
+                      The ListFormatter class shall keep the markers of a bullet list as written when the line of a
+                      converted marker would read as a thematic break.
                     justification: |
-                      A marker followed by text such as dashes can be a thematic break instead of an item, so the
-                      conversion would change the structure of the document.
+                      A marker followed by text such as dashes, or by more of the marker character, can be a thematic
+                      break instead of an item, so the conversion would change the structure of the document.
                     tests:
-                      - ListFormatter_Format_UnsafeMarkerChange_LeavesTheMarkers
+                      - ListFormatter_Format_ConvertedMarkerLineWouldBeThematicBreak_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-ItemBreakTextKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when the text after a
+                      marker is a thematic break of its own.
+                    justification: |
+                      The thematic break rule may write such a break with the character that the converted marker has,
+                      and the whole line would then read as a thematic break instead of an item.
+                    tests:
+                      - ListFormatter_Format_ItemTextIsThematicBreak_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-EmptyItemKeepsMarkers
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when an item of the
+                      list is empty.
+                    justification: |
+                      A marker without text is a different line after a change of its character (a line of only a
+                      dash can end a paragraph above it), so the list keeps the markers it has.
+                    tests:
+                      - ListFormatter_Format_EmptyItem_LeavesTheMarkers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-GridBorderLookalikeKept
+                    title: >-
+                      The ListFormatter class shall keep the markers of a bullet list as written when the text after a
+                      marker has the shape of the border of a grid table and the marker, as written or as it would be
+                      written, is a plus sign.
+                    justification: |
+                      A plus sign followed by dashes, colons, or equal signs can be read as the border of a grid table
+                      instead of an item, so writing it or replacing it would change the structure of the document.
+                      Other marker characters cannot start such a border, so the text does not matter for them.
+                    tests:
+                      - ListFormatter_Format_PlusMarkerAndGridBorderLookalike_LeavesTheMarkers
+                      - ListFormatter_Format_GridBorderLookalikeWithoutPlusMarker_ConvertsTheMarkers
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-NumbersIncrementFromFirst
                     title: >-
@@ -158,12 +193,34 @@ sections:
                   - id: LintMark-Formatting-Blocks-ListFormatter-NumbersKeptWhenItemsCannotMove
                     title: >-
                       The ListFormatter class shall keep the numbers of an ordered list as written when a number
-                      would change its width and the items of the list cannot move.
+                      would gain or lose a digit and the columns of the list are kept as written, as for a list inside
+                      a block quote.
                     justification: |
-                      A number that gains a digit pushes the text of its item to the right, and an item that cannot
-                      move with it would then change its meaning.
+                      A number that gains a digit pushes the text of its item to the right, and an item whose columns
+                      must stay would then change its meaning.
                     tests:
                       - ListFormatter_Format_NumberGainsADigitInAQuote_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-LeadingZerosKept
+                    title: >-
+                      The ListFormatter class shall keep the numbers of an ordered list as written when its first
+                      number has leading zeros.
+                    justification: |
+                      Writing the other numbers without leading zeros, or with them, would not match the first number,
+                      and changing the first number would change where the list starts.
+                    tests:
+                      - ListFormatter_Format_FirstNumberWithLeadingZeros_LeavesTheNumbers
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NumbersBeyondNineDigitsKept
+                    title: >-
+                      The ListFormatter class shall keep the numbers of an ordered list as written when counting would
+                      give a number of more than nine digits.
+                    justification: |
+                      A list marker has at most nine digits, so a number with ten digits would not be a marker and
+                      the item would stop being part of the list.
+                    tests:
+                      - ListFormatter_Format_NumbersOfNineDigits_AreCountedUp
+                      - ListFormatter_Format_NumberWouldHaveTenDigits_LeavesTheNumbers
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-WidthChangeMovesContent
                     title: >-
@@ -206,7 +263,7 @@ sections:
                       With five spaces the text after the marker is a code block, and removing spaces would change
                       the block.
                     tests:
-                      - ListFormatter_Format_ColumnsCannotChangeSafely_LeavesTheItems
+                      - ListFormatter_Format_FiveSpacesAfterMarker_LeavesTheColumns
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-ItemsAlignedToFirst
                     title: >-
@@ -255,17 +312,26 @@ sections:
                       Such a line belongs to the item only because of where it is, so moving the item could change
                       which text belongs to it.
                     tests:
-                      - ListFormatter_Format_ColumnsCannotChangeSafely_LeavesTheItems
+                      - ListFormatter_Format_LazyLine_LeavesTheColumns
 
-                  - id: LintMark-Formatting-Blocks-ListFormatter-TabsKept
+                  - id: LintMark-Formatting-Blocks-ListFormatter-TabAfterMarkerKept
                     title: >-
-                      The ListFormatter class shall keep the columns of a list as written when a tab follows a marker
-                      or indents a line of an item.
+                      The ListFormatter class shall keep the columns of a list as written when a tab follows a marker.
                     justification: |
-                      A tab reaches the next tab stop, so moving the line can change how wide the tab is and where
+                      A tab reaches the next tab stop, so changing the marker can change how wide the tab is and where
                       the text of the item starts.
                     tests:
-                      - ListFormatter_Format_ColumnsCannotChangeSafely_LeavesTheItems
+                      - ListFormatter_Format_TabAfterMarker_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-TabIndentKept
+                    title: >-
+                      The ListFormatter class shall keep the columns of a list as written when a tab indents a line of
+                      an item.
+                    justification: |
+                      A tab reaches the next tab stop, so moving the line can change how wide the tab is and which
+                      item the line belongs to.
+                    tests:
+                      - ListFormatter_Format_TabIndentedLine_LeavesTheColumns
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-QuoteListsKeepColumns
                     title: >-
@@ -294,6 +360,27 @@ sections:
                       can pull the line into an item.
                     tests:
                       - ListFormatter_Format_FollowingLineWouldJoinTheItem_LeavesTheColumns
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-NestKeptWhenRenderingWouldChange
+                    title: >-
+                      The ListFormatter class shall keep a nest of lists as written when the nest, together with the
+                      lines directly after it, would not render to the same HTML after its changes.
+                    justification: |
+                      Some readings of a list depend on the exact text around it, and a change that cannot be shown to
+                      keep the rendering would damage the document, so the nest stays as the author wrote it.
+                    tests:
+                      - ListFormatter_Format_ListInFootnote_IsLeftAsWritten
+
+                  - id: LintMark-Formatting-Blocks-ListFormatter-MarkersWrittenWhenColumnsKept
+                    title: >-
+                      The ListFormatter class shall still write the marker characters and the numbers that keep their
+                      width in a nest whose columns it keeps as written because changing the columns would change how
+                      the nest renders.
+                    justification: |
+                      A marker character moves no text, so it is safe even where the columns must stay, and leaving it
+                      would make the lists of a project inconsistent.
+                    tests:
+                      - ListFormatter_Format_ColumnChangeWouldChangeTheRendering_StillWritesTheMarkers
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-GridTableInItemKept
                     title: >-
@@ -355,8 +442,7 @@ sections:
                     justification: |
                       A canonical list must not be reported or rewritten.
                     tests:
-                      - ListFormatter_Format_BulletMarkers_BecomeTheDefaultCharacter
-                      - ListFormatter_Format_OtherNesting_KeepsTheOffset
+                      - ListFormatter_Format_CanonicalList_ProposesNoEdit
 
                   - id: LintMark-Formatting-Blocks-ListFormatter-LineEndingsKept
                     title: >-

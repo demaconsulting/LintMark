@@ -187,17 +187,58 @@ public class ListFormatterTests
         AssertFormats("* a\n\n<!-- x -->\n\n+ b\n", "- a\n\n<!-- x -->\n\n- b\n");
 
     /// <summary>
-    ///     Test that a marker is kept when the converted line would be a thematic break, when an item is empty, and when
-    ///     the text after the marker looks like the border of a grid table.
+    ///     Test that a marker is kept when the converted marker line would be a thematic break.
     /// </summary>
     [Theory]
     [InlineData("* ---\n", "* ---\n")]
-    [InlineData("* ***\n\ntext\n", "* ***\n\ntext\n")]
-    [InlineData("* a\n*\n", "* a\n*\n")]
     [InlineData("+ ---\n", "+ ---\n")]
     [InlineData("* - - -\n", "* ---\n")]
-    public void ListFormatter_Format_UnsafeMarkerChange_LeavesTheMarkers(string input, string toolExpected) =>
+    public void ListFormatter_Format_ConvertedMarkerLineWouldBeThematicBreak_LeavesTheMarkers(string input, string toolExpected) =>
         AssertUnitKeepsInput(input, toolExpected);
+
+    /// <summary>
+    ///     Test that a marker is kept when the text after it is a thematic break of its own, which the thematic break
+    ///     rule may write with the character that the converted marker would have.
+    /// </summary>
+    [Theory]
+    [InlineData("* ___\n", "* ---\n")]
+    public void ListFormatter_Format_ItemTextIsThematicBreak_LeavesTheMarkers(string input, string toolExpected) =>
+        AssertUnitKeepsInput(input, toolExpected);
+
+    /// <summary>
+    ///     Test that a marker is kept when an item of the list is empty.
+    /// </summary>
+    [Theory]
+    [InlineData("* a\n*\n", "* a\n*\n")]
+    [InlineData("*\n* a\n", "*\n* a\n")]
+    [InlineData("+ a\n+\n+ b\n", "+ a\n+\n+ b\n")]
+    public void ListFormatter_Format_EmptyItem_LeavesTheMarkers(string input, string toolExpected) =>
+        AssertUnitKeepsInput(input, toolExpected);
+
+    /// <summary>
+    ///     Test that a marker is not written before text that has the shape of the border of a grid table when the marker that
+    ///     is written, or the one that it replaces, is a plus sign.
+    /// </summary>
+    [Theory]
+    [InlineData("- :--\n", "Plus")]
+    [InlineData("- =\n", "Plus")]
+    [InlineData("- :-:\n- b\n", "Plus")]
+    [InlineData("* ===\n* b\n", "Plus")]
+    [InlineData("+ :--\n", "Dash")]
+    [InlineData("+ ===\n+ b\n", "Dash")]
+    public void ListFormatter_Format_PlusMarkerAndGridBorderLookalike_LeavesTheMarkers(string input, string bullet) =>
+        AssertFormats(input, input, LintMarkConfig.Default with { Bullet = Enum.Parse<BulletMarker>(bullet) });
+
+    /// <summary>
+    ///     Test that text with the shape of the border of a grid table does not keep a marker from changing when no plus sign is
+    ///     involved.
+    /// </summary>
+    [Theory]
+    [InlineData("* :--\n", "- :--\n")]
+    [InlineData("* =\n", "- =\n")]
+    [InlineData("* :-:\n* b\n", "- :-:\n- b\n")]
+    public void ListFormatter_Format_GridBorderLookalikeWithoutPlusMarker_ConvertsTheMarkers(string input, string expected) =>
+        AssertFormats(input, expected);
 
     /// <summary>
     ///     Test that the numbers of an ordered list count up from the first number by default.
@@ -229,6 +270,22 @@ public class ListFormatterTests
     [Fact]
     public void ListFormatter_Format_FirstNumberWithLeadingZeros_LeavesTheNumbers() =>
         AssertFormats("01. a\n01. b\n", "01. a\n01. b\n");
+
+    /// <summary>
+    ///     Test that numbers of nine digits are counted up.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_NumbersOfNineDigits_AreCountedUp() =>
+        AssertFormats("999999998. a\n999999998. b\n", "999999998. a\n999999999. b\n");
+
+    /// <summary>
+    ///     Test that the numbers are left as written when counting would need a tenth digit.
+    /// </summary>
+    [Theory]
+    [InlineData("999999999. a\n999999999. b\n")]
+    [InlineData("999999998. a\n999999998. b\n999999998. c\n")]
+    public void ListFormatter_Format_NumberWouldHaveTenDigits_LeavesTheNumbers(string input) =>
+        AssertFormats(input, input);
 
     /// <summary>
     ///     Test that a number that gains a digit moves the content of its item with it.
@@ -275,16 +332,38 @@ public class ListFormatterTests
         AssertFormats(input, expected);
 
     /// <summary>
-    ///     Test that a list stays as written when a line is a lazy continuation, a tab follows the marker, or five
-    ///     spaces make the content indented code.
+    ///     Test that a list stays as written when a line continues an item without being indented.
     /// </summary>
     [Theory]
     [InlineData("-   a\n  lazy\n")]
-    [InlineData("-\ta\n")]
-    [InlineData("-     code\n")]
-    [InlineData("-   a\n\t- b\n")]
-    public void ListFormatter_Format_ColumnsCannotChangeSafely_LeavesTheItems(string input) =>
+    [InlineData("1.  a\nlazy\n")]
+    public void ListFormatter_Format_LazyLine_LeavesTheColumns(string input) =>
         AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a list stays as written when a tab follows a marker.
+    /// </summary>
+    [Theory]
+    [InlineData("-\ta\n")]
+    [InlineData("1.\ta\n")]
+    public void ListFormatter_Format_TabAfterMarker_LeavesTheColumns(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a list stays as written when a tab indents a line of an item.
+    /// </summary>
+    [Theory]
+    [InlineData("-   a\n\t- b\n")]
+    [InlineData("-   a\n\n\tcode\n")]
+    public void ListFormatter_Format_TabIndentedLine_LeavesTheColumns(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a list stays as written when five spaces after a marker make the content indented code.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_FiveSpacesAfterMarker_LeavesTheColumns() =>
+        AssertFormats("-     code\n", "-     code\n");
 
     /// <summary>
     ///     Test that the items of a list start in the same column, and a top-level list starts at the margin.
@@ -318,8 +397,36 @@ public class ListFormatterTests
     [InlineData("- a\n  1. b\n")]
     [InlineData("1. a\n   1. b\n")]
     [InlineData("1. a\n    - b\n")]
+    [InlineData("1. a\n      - b\n")]
     public void ListFormatter_Format_OtherNesting_KeepsTheOffset(string input) =>
         AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that bullet lists that stand next to each other inside one item keep their markers.
+    /// </summary>
+    [Theory]
+    [InlineData("- a\n  * b\n\n  + c\n")]
+    [InlineData("1. a\n   * b\n\n   + c\n")]
+    public void ListFormatter_Format_AdjacentNestedBulletLists_KeepTheirMarkers(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that the markers are still written when the columns of the nest cannot change without changing the rendering.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ColumnChangeWouldChangeTheRendering_StillWritesTheMarkers()
+    {
+        // Arrange: an indented bullet list directly followed by an ordered list; moving the bullet list to the margin would
+        // pull the second line into its item
+        const string input = "  * a\n  1. b\n";
+
+        // Act: the list formatter alone changes the marker and nothing else, and the tool adds the blank line that separates the lists
+        var (_, formatted) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
+
+        // Assert: the column of the list is as written
+        Assert.Equal("  - a\n  1. b\n", formatted);
+        BlockFormatterAssertions.AssertFormats(input, "  - a\n\n  1. b\n");
+    }
 
     /// <summary>
     ///     Test that a list in a block quote keeps its columns.
@@ -400,6 +507,25 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertFormats(input, expected);
 
     /// <summary>
+    ///     Test that a list that is already canonical gets no edit.
+    /// </summary>
+    [Theory]
+    [InlineData("- a\n- b\n")]
+    [InlineData("1. a\n2. b\n3. c\n")]
+    [InlineData("- a\n  - b\n    - c\n")]
+    [InlineData("1. a\n   - b\n\n   more\n")]
+    [InlineData("> - a\n> - b\n")]
+    public void ListFormatter_Format_CanonicalList_ProposesNoEdit(string input)
+    {
+        // Act: apply the list formatter alone, and the production formatters
+        var (edits, _) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
+
+        // Assert: the formatter proposes nothing, and the tool reports nothing
+        Assert.Empty(edits);
+        BlockFormatterAssertions.AssertUnchanged(input);
+    }
+
+    /// <summary>
     ///     Test that the same edits are proposed for CRLF and mixed line endings, and with a byte order mark.
     /// </summary>
     [Fact]
@@ -440,7 +566,9 @@ public class ListFormatterTests
     [InlineData("markdownlint-disable MD005")]
     [InlineData("markdownlint-disable MD007")]
     [InlineData("markdownlint-disable MD029")]
+    [InlineData("lintmark-disable ordered-style")]
     [InlineData("markdownlint-disable MD030")]
+    [InlineData("lintmark-disable list-marker-space")]
     [InlineData("lintmark-disable list-indent")]
     [InlineData("lintmark-disable")]
     public void ListFormatter_Format_RuleSuppressed_LeavesTheList(string directive)

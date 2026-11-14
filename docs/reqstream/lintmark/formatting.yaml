@@ -49,6 +49,7 @@ sections:
               - LintMark-Formatting-DocumentFormatter-OneFormatterPerBlock
               - LintMark-Formatting-DocumentFormatter-DeterministicResult
               - LintMark-Formatting-DocumentFormatter-UnsuppressedBlocksFormatted
+              - LintMark-Formatting-Blocks-BlocksFormattedWhereEnabled
               - LintMark-Formatting-DocumentFormatter-OtherRuleSuppressionIgnored
               - LintMark-Formatting-DocumentFormatter-RejectsMissingArguments
               - LintMark-Formatting-DocumentFormatter-RejectsMissingBlockFormatter
@@ -70,6 +71,7 @@ sections:
               - LintMark-Formatting-Blocks-DeterministicResult
               - LintMark-Formatting-Inline-InlineNormalizerProvided
               - LintMark-Formatting-Inline-DeterministicResult
+              - LintMark-Formatting-Inline-OtherRulesStillApplied
               - LintMark-Formatting-DocumentFormatter-FormatContextExposesLayoutAndOwnership
               - LintMark-Formatting-DocumentFormatter-FormatContextBuildsLayoutAndOwnership
             tests:
@@ -144,7 +146,14 @@ sections:
               - LintMark-Formatting-DocumentFormatter-ClaimedLinesNotEdited
               - LintMark-Formatting-DocumentFormatter-InlineRulesNotForClaimedParagraphs
               - LintMark-Formatting-Inline-ParagraphsOnly
-              - LintMark-Formatting-Inline-CodeLinksHtmlAndAddressesKept
+              - LintMark-Formatting-Inline-CodeSpansKept
+              - LintMark-Formatting-Inline-LinkDestinationsKept
+              - LintMark-Formatting-Inline-HtmlKept
+              - LintMark-Formatting-Inline-MathKept
+              - LintMark-Formatting-Inline-WwwAddressesKept
+              - LintMark-Formatting-Inline-MailAddressesKept
+              - LintMark-Formatting-Inline-OnlyBareUrlsWrapped
+              - LintMark-Formatting-Inline-FootnoteEndingEmphasisKept
               - LintMark-Formatting-Inline-MeaningKept
             tests:
               - FormattingSubsystem_Format_NoFormatter_LeavesTextIdentical
@@ -166,6 +175,7 @@ sections:
               - LintMark-Formatting-DocumentFormatter-SpacingNotAfterDirective
               - LintMark-Formatting-Blocks-SuppressedBlocksKept
               - LintMark-Formatting-DocumentFormatter-InlineSuppressedRuleKept
+              - LintMark-Formatting-Inline-SuppressedRulesKept
             tests:
               - FormattingSubsystem_Format_SuppressedBlock_LeftVerbatim
 
@@ -572,8 +582,8 @@ sections:
 
           - id: LintMark-Formatting-ListsNeverMergedOrSplit
             title: >-
-              The Formatting subsystem shall keep two bullet lists of a document that differ only by their marker as
-              two lists and shall keep one list as one list when it writes list markers.
+              The Formatting subsystem shall never merge two lists of a document into one or split a list into two
+              when it writes the markers of lists.
             justification: |
               Two lists that differ only by their markers are two lists, and the items of one list must stay one
               list, or the document would render differently.
@@ -685,7 +695,9 @@ sections:
               consistent. An underscore does not emphasize inside a word, so such an emphasis keeps its asterisks.
             children:
               - LintMark-Formatting-Inline-EmphasisStyle
+              - LintMark-Formatting-Inline-WithinWordEmphasisKept
               - LintMark-Formatting-Inline-ParagraphsInContainers
+              - LintMark-Formatting-Inline-ParagraphsInFootnotes
             tests:
               - FormattingSubsystem_Format_EmphasisDelimiters_UseTheConfiguredCharacter
               - FormattingSubsystem_Format_EmphasisInListsAndQuotes_UsesTheConfiguredCharacter

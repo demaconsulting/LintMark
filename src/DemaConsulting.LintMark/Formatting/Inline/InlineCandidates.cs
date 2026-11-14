@@ -38,7 +38,8 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         the paragraph holds no literal delimiter character anywhere (an unpaired or escaped delimiter changes how
 ///         the others pair). When the target is the underscore, the node must not stand inside a word. A bare URL
 ///         is a candidate when it starts with <c>http://</c>, <c>https://</c> or <c>ftp://</c>, holds no character
-///         that would end or change an angle-bracket autolink, is not inside another link, and stands between
+///         that would end or change an angle-bracket autolink, is not inside another link or the destination of one,
+///         and stands between
 ///         the characters that normally surround a URL in prose. Everything the walk does not recognize is left
 ///         alone. The edits replace existing characters (never insert at a position), so they cannot collide
 ///         with the insertions of the block spacing rule.
@@ -62,7 +63,7 @@ internal static class InlineCandidates
     /// <param name="emphasis">The delimiter that emphasis is written with, or <see langword="null"/> when the rule is off.</param>
     /// <param name="strong">The delimiter that strong emphasis is written with, or <see langword="null"/> when the rule is off.</param>
     /// <param name="urls">Whether bare URLs are wrapped in angle brackets.</param>
-    /// <returns>The edits, in no particular order and without overlaps; empty when there is no candidate.</returns>
+    /// <returns>The edits, ordered by start offset and without overlaps; empty when there is no candidate.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> or <paramref name="root"/> is null.</exception>
     public static ImmutableArray<TextEdit> Find(
         string text,
@@ -293,6 +294,13 @@ internal static class InlineCandidates
         var before = start == 0 ? '\n' : text[start - 1];
         var after = end + 1 >= text.Length ? '\n' : text[end + 1];
         if (!(char.IsWhiteSpace(before) || before == '(') || !(char.IsWhiteSpace(after) || after is '.' or ',' or ';' or ':' or '!' or '?' or ')'))
+        {
+            return;
+        }
+
+        // A URL right after "](" is the destination of a link, even where the parser reports a task list marker followed by the
+        // URL (a "[x]" inside a list item), so it is not a bare URL
+        if (start >= 2 && text[start - 1] == '(' && text[start - 2] == ']')
         {
             return;
         }

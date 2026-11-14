@@ -137,7 +137,7 @@ internal static class ListQuoteInlineDocuments
     /// </summary>
     /// <param name="random">The generator.</param>
     /// <returns>The document text.</returns>
-    public static string InlineDocument(Lcg random)
+    private static string InlineDocument(Lcg random)
     {
         var prefix = random.Next(6) switch
         {
@@ -146,7 +146,7 @@ internal static class ListQuoteInlineDocuments
             2 => "1. ",
             _ => string.Empty
         };
-        var continuation = new string(' ', prefix.Length == 0 ? 0 : prefix.Length);
+        var continuation = new string(' ', prefix.Length);
         if (prefix == "> ")
         {
             continuation = "> ";

@@ -25,6 +25,7 @@ using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Safety;
+using static DemaConsulting.LintMark.Tests.BlockFormatterAssertions;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -62,37 +63,6 @@ public class BlocksCorpusTests
         var verdict = HtmlEquivalenceChecker.CheckOnDisk(before, after);
         Assert.True(verdict.IsEquivalent, verdict.Description);
     }
-
-    /// <summary>
-    ///     Runs a check over a set of documents and collects the failures instead of stopping at the first.
-    /// </summary>
-    /// <param name="names">The names of the documents, for the failure messages.</param>
-    /// <param name="check">The check, called once per document index.</param>
-    /// <returns>One line per failed document.</returns>
-    private static List<string> CollectFailures(IReadOnlyList<string> names, Action<int> check)
-    {
-        var failures = new List<string>();
-        for (var i = 0; i < names.Count; i++)
-        {
-            try
-            {
-                check(i);
-            }
-            catch (Exception ex)
-            {
-                failures.Add($"{names[i]}: {ex.Message.ReplaceLineEndings("\\n")}");
-            }
-        }
-
-        return failures;
-    }
-
-    /// <summary>
-    ///     Asserts that no document failed, showing the first failures in the message.
-    /// </summary>
-    /// <param name="failures">The failures collected by <see cref="CollectFailures"/>.</param>
-    private static void AssertNone(List<string> failures) =>
-        Assert.True(failures.Count == 0, $"{failures.Count} document(s) failed:\n{string.Join("\n", failures.Take(8))}");
 
     /// <summary>
     ///     Test that this repository's own Markdown files need no change, except for the emphasis delimiter of the standards the template owns.

@@ -56,30 +56,8 @@ public class ListQuoteInlineCorpusTests
     /// <param name="documents">The documents.</param>
     /// <param name="check">The check, called once per document.</param>
     /// <returns>One line per failed document.</returns>
-    private static List<string> CollectFailures(IReadOnlyList<SyntheticDocument> documents, Action<string> check)
-    {
-        var failures = new List<string>();
-        foreach (var document in documents)
-        {
-            try
-            {
-                check(document.Text);
-            }
-            catch (Exception ex)
-            {
-                failures.Add($"{document.Name}: {ex.Message.ReplaceLineEndings("\\n")}");
-            }
-        }
-
-        return failures;
-    }
-
-    /// <summary>
-    ///     Asserts that no document failed, showing the first failures in the message.
-    /// </summary>
-    /// <param name="failures">The failures collected by <see cref="CollectFailures"/>.</param>
-    private static void AssertNone(List<string> failures) =>
-        Assert.True(failures.Count == 0, $"{failures.Count} document(s) failed:\n{string.Join("\n", failures.Take(6))}");
+    private static List<string> CollectFailures(IReadOnlyList<SyntheticDocument> documents, Action<string> check) =>
+        BlockFormatterAssertions.CollectFailures([.. documents.Select(static document => document.Name)], index => check(documents[index].Text));
 
     /// <summary>
     ///     Formats a text and asserts that the same bytes are written for every stored form of it.
@@ -120,7 +98,7 @@ public class ListQuoteInlineCorpusTests
         var documents = ListQuoteInlineDocuments.Lists(20260101u, ListDocuments).ToList();
 
         // Act & Assert: every document passes the safety assertions
-        AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
+        BlockFormatterAssertions.AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
         Assert.True(documents.Count(document => BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), document.Text).Formatted != document.Text) > ListDocuments / 4);
     }
 
@@ -143,7 +121,7 @@ public class ListQuoteInlineCorpusTests
         };
 
         // Act & Assert: every document passes the safety assertions
-        AssertNone(CollectFailures(documents, text => BlockFormatterAssertions.AssertSafeAndStable(text, config, checkParallel: false)));
+        BlockFormatterAssertions.AssertNone(CollectFailures(documents, text => BlockFormatterAssertions.AssertSafeAndStable(text, config, checkParallel: false)));
     }
 
     /// <summary>
@@ -156,7 +134,7 @@ public class ListQuoteInlineCorpusTests
         var documents = ListQuoteInlineDocuments.Quotes(20260102u, QuoteDocuments).ToList();
 
         // Act & Assert: every document passes the safety assertions
-        AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
+        BlockFormatterAssertions.AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
         Assert.True(documents.Count(document => BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), document.Text).Formatted != document.Text) > QuoteDocuments / 4);
     }
 
@@ -170,7 +148,7 @@ public class ListQuoteInlineCorpusTests
         var documents = ListQuoteInlineDocuments.Inlines(20260103u, InlineDocuments).ToList();
 
         // Act & Assert: no document is refused
-        AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
+        BlockFormatterAssertions.AssertNone(CollectFailures(documents, text => AssertSafeInEveryLineEnding(text)));
         Assert.True(documents.Count(document => BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), document.Text).Formatted != document.Text) > InlineDocuments / 10);
     }
 
@@ -185,7 +163,7 @@ public class ListQuoteInlineCorpusTests
         var config = LintMarkConfig.Default with { Emphasis = EmphasisMarker.Underscore, Strong = EmphasisMarker.Underscore, BareUrls = BareUrlStyle.Leave };
 
         // Act & Assert: no document is refused
-        AssertNone(CollectFailures(documents, text => BlockFormatterAssertions.AssertSafeAndStable(text, config, checkParallel: false)));
+        BlockFormatterAssertions.AssertNone(CollectFailures(documents, text => BlockFormatterAssertions.AssertSafeAndStable(text, config, checkParallel: false)));
     }
 
     /// <summary>

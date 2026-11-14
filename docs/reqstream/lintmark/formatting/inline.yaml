@@ -17,34 +17,48 @@ sections:
             requirements:
               - id: LintMark-Formatting-Inline-InlineNormalizerProvided
                 title: >-
-                  The Inline subsystem shall provide a normalizer that proposes the changes that bring the emphasis,
-                  strong emphasis, and bare URLs of each paragraph into canonical form.
+                  The Inline subsystem shall provide a normalizer that proposes the changes that write the emphasis and
+                  strong emphasis of each paragraph with the configured delimiter characters and each bare URL in angle
+                  brackets.
                 justification: |
-                  Emphasis and URLs have more than one way of being written in Markdown. The canonical form is what
-                  makes the documents of a project consistent.
+                  Emphasis and URLs have more than one way of being written in Markdown. One way makes the documents
+                  of a project consistent.
                 children:
                   - LintMark-Formatting-Inline-InlineNormalizer-RejectsMissingArguments
                   - LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
                   - LintMark-Formatting-Inline-InlineNormalizer-RuleIdsImmutable
+                  - LintMark-Formatting-Inline-InlineNormalizer-EditsAttributedToRules
+                  - LintMark-Formatting-Inline-InlineNormalizer-EditsReplaceCharacters
+                  - LintMark-Formatting-Inline-InlineNormalizer-EditsOrderedAndDistinct
+                  - LintMark-Formatting-Inline-InlineNormalizer-EditsIndependentOfStorage
                 tests:
                   - InlineSubsystem_Format_UnderscoreDelimiters_BecomeAsterisksByDefault
                   - InlineSubsystem_Format_BareUrls_AreWrappedUnlessConfiguredOtherwise
 
               - id: LintMark-Formatting-Inline-EmphasisStyle
                 title: >-
-                  The Inline subsystem shall write each emphasis of a paragraph with the configured delimiter
-                  character, except inside a word, where the delimiter that the configuration names would not
-                  emphasize.
+                  The Inline subsystem shall write each emphasis of a paragraph with the delimiter character that the
+                  `emphasis` setting names, an asterisk by default.
                 justification: |
                   Underscores and asterisks mean the same emphasis, and one of them makes the documents of a project
-                  consistent. An underscore does not emphasize inside a word, so such an emphasis keeps its
-                  asterisks.
+                  consistent.
                 children:
                   - LintMark-Formatting-Inline-InlineNormalizer-EmphasisDelimiterConverted
-                  - LintMark-Formatting-Inline-InlineNormalizer-WithinWordEmphasisKept
                 tests:
                   - InlineSubsystem_Format_UnderscoreDelimiters_BecomeAsterisksByDefault
                   - InlineSubsystem_Format_UnderscoreConfigured_AsteriskDelimitersBecomeUnderscores
+
+              - id: LintMark-Formatting-Inline-WithinWordEmphasisKept
+                title: >-
+                  The Inline subsystem shall keep the asterisks of an emphasis that starts or ends inside a word when
+                  the configuration names the underscore.
+                justification: |
+                  An underscore does not emphasize inside a word, so writing it there would change how the paragraph
+                  renders.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-WithinWordEmphasisKept
+                tests:
+                  - InlineSubsystem_Format_UnderscoreConfigured_WithinWordEmphasis_KeepsAsterisks
 
               - id: LintMark-Formatting-Inline-StrongStyle
                 title: >-
@@ -95,6 +109,30 @@ sections:
                 tests:
                   - InlineSubsystem_Format_ParagraphsInContainers_AreNormalized
 
+              - id: LintMark-Formatting-Inline-ParagraphsInFootnotes
+                title: >-
+                  The Inline subsystem shall normalize a paragraph inside a footnote the same way as a paragraph at the
+                  top level.
+                justification: |
+                  Footnotes hold ordinary text, and the style of their emphasis and URLs must not depend on where the
+                  text is.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-ParagraphsInFootnotesNormalized
+                tests:
+                  - InlineSubsystem_Format_ParagraphsInFootnotes_AreNormalized
+
+              - id: LintMark-Formatting-Inline-FootnoteEndingEmphasisKept
+                title: >-
+                  The Inline subsystem shall keep an emphasis that ends the last paragraph of a footnote as written.
+                justification: |
+                  The parser appends a link back to the reference after the last inline of that paragraph, which
+                  makes the effect of a rewrite there uncertain. Leaving the emphasis as written is always safe, and
+                  nothing is reported for it.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-EmphasisEndingFootnoteKept
+                tests:
+                  - InlineSubsystem_Format_EmphasisEndingFootnote_IsKept
+
               - id: LintMark-Formatting-Inline-ParagraphsOnly
                 title: >-
                   The Inline subsystem shall keep the emphasis and the URLs of a heading and of a table cell as
@@ -103,24 +141,113 @@ sections:
                   Only the text of paragraphs is the subject of the inline rules. The text of a heading or a table
                   cell is kept as the author wrote it.
                 children:
-                  - LintMark-Formatting-Inline-InlineNormalizer-RejectsOtherBlocks
+                  - LintMark-Formatting-Inline-InlineNormalizer-HeadingsAndTablesNotNormalized
                 tests:
                   - InlineSubsystem_Format_HeadingsAndTableCells_KeepTheirText
 
-              - id: LintMark-Formatting-Inline-CodeLinksHtmlAndAddressesKept
+              - id: LintMark-Formatting-Inline-SuppressedRulesKept
                 title: >-
-                  The Inline subsystem shall keep code, the destination of a link, HTML, math, and addresses that the
-                  inline rules do not own as written.
+                  The Inline subsystem shall not apply the `emphasis`, `strong`, or `bare-urls` rule to a paragraph
+                  in which a suppression comment disables that rule.
                 justification: |
-                  A delimiter or URL inside a code span, a link destination, an HTML tag, or math is content, and a
-                  www or e-mail address renders differently when it is wrapped, so changing any of them changes the
-                  document instead of its form.
+                  An author who switched a rule off for a passage expects the passage to stay as written.
                 children:
-                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeHtmlMathKept
-                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsInLinksCodeHtmlKept
-                  - LintMark-Formatting-Inline-InlineNormalizer-WwwAndMailAddressesKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-SuppressedRuleSkipped
                 tests:
-                  - InlineSubsystem_Format_CodeLinksHtmlAndAddresses_KeepTheirText
+                  - InlineSubsystem_Format_RuleSuppressed_LeavesThatRule
+
+              - id: LintMark-Formatting-Inline-OtherRulesStillApplied
+                title: >-
+                  The Inline subsystem shall apply the `emphasis`, `strong`, or `bare-urls` rule to a paragraph in
+                  which a suppression comment disables only a different one of these rules.
+                justification: |
+                  A rule that was not switched off keeps its effect, so a suppression protects only the rule that it
+                  names.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-OtherRulesStillApplied
+                tests:
+                  - InlineSubsystem_Format_OtherRuleSuppressed_StillAppliesTheRule
+
+              - id: LintMark-Formatting-Inline-CodeSpansKept
+                title: >-
+                  The Inline subsystem shall keep the text of a code span as written.
+                justification: |
+                  A delimiter or URL inside a code span is content, and changing it changes the document instead of its
+                  form.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInCodeSpansKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsInCodeSpansKept
+                tests:
+                  - InlineSubsystem_Format_CodeSpans_KeepTheirText
+
+              - id: LintMark-Formatting-Inline-LinkDestinationsKept
+                title: >-
+                  The Inline subsystem shall keep the destination of a link as written.
+                justification: |
+                  A delimiter inside a destination is part of the address, and changing it changes where the link
+                  leads.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInLinkDestinationsKept
+                tests:
+                  - InlineSubsystem_Format_LinkDestinations_KeepTheirText
+
+              - id: LintMark-Formatting-Inline-HtmlKept
+                title: >-
+                  The Inline subsystem shall keep the text of inline HTML as written.
+                justification: |
+                  A delimiter or URL inside an HTML tag is markup, and changing it changes the document instead of its
+                  form.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInHtmlKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsInHtmlKept
+                tests:
+                  - InlineSubsystem_Format_Html_KeepsItsText
+
+              - id: LintMark-Formatting-Inline-MathKept
+                title: >-
+                  The Inline subsystem shall keep the text of inline math as written.
+                justification: |
+                  A delimiter inside math is content, and changing it changes the formula.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-DelimitersInMathKept
+                tests:
+                  - InlineSubsystem_Format_Math_KeepsItsText
+
+              - id: LintMark-Formatting-Inline-WwwAddressesKept
+                title: >-
+                  The Inline subsystem shall keep a www address as written.
+                justification: |
+                  A www address renders differently when it is wrapped in angle brackets, so wrapping it would change
+                  the document instead of its form.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-WwwAddressKept
+                tests:
+                  - InlineSubsystem_Format_WwwAddress_IsKept
+
+              - id: LintMark-Formatting-Inline-MailAddressesKept
+                title: >-
+                  The Inline subsystem shall keep an e-mail address and a mailto link as written.
+                justification: |
+                  A mail address renders differently when it is wrapped in angle brackets, so wrapping it would change
+                  the document instead of its form.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-MailAddressKept
+                tests:
+                  - InlineSubsystem_Format_MailAddress_IsKept
+
+              - id: LintMark-Formatting-Inline-OnlyBareUrlsWrapped
+                title: >-
+                  The Inline subsystem shall wrap a URL in angle brackets only where it stands bare in the text of a
+                  paragraph.
+                justification: |
+                  A URL that is already a link, or is attached to other text, or has a scheme that the parser does
+                  not read as a bare URL, is not a bare URL, and wrapping it would change the link or the text.
+                children:
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlsAlreadyLinkedKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UrlAttachedToTextKept
+                  - LintMark-Formatting-Inline-InlineNormalizer-UpperCaseSchemeKept
+                tests:
+                  - InlineSubsystem_Format_UrlsThatAreNotBare_AreKept
 
               - id: LintMark-Formatting-Inline-MeaningKept
                 title: >-

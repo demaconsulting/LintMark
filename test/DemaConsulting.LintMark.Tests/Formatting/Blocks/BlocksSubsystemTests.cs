@@ -27,14 +27,14 @@ using DemaConsulting.LintMark.Linting;
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
-///     Test that the heading, code block and thematic break formatters and the document passes work together on
-///     real documents: every rewrite renders the same, keeps its Pandoc structure, is stable when formatted again,
-///     and leaves code, HTML, math, front matter and Pandoc constructs alone.
+///     Test that the block formatters (heading, code block, thematic break, list and block quote) and the document passes
+///     work together on real documents: every rewrite renders the same, keeps its Pandoc structure, is stable when
+///     formatted again, and leaves code, HTML, math, front matter and Pandoc constructs alone.
 /// </summary>
 public class BlocksSubsystemTests
 {
     /// <summary>
-    ///     A document that breaks every rule of the subsystem at least once.
+    ///     A document that breaks every whitespace, blank-line, heading, code block, thematic break and final newline rule at least once.
     /// </summary>
     private const string DirtyDocument =
         "Title\n=====\nIntro text with trailing space \n- one\n- two\n\n\n\n## Closed ##\n```\ncode\n```\n   ***\n  #   Spaced   \n"
@@ -46,6 +46,16 @@ public class BlocksSubsystemTests
     private const string CleanDocument =
         "# Title\n\nIntro text with trailing space\n\n- one\n- two\n\n## Closed\n\n```\ncode\n```\n\n   ---\n\n# Spaced\n\n"
         + "```js\ntilde\n```\n\n```\nindented code\n```\n\nSome    tabbed text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+
+    /// <summary>
+    ///     A document that breaks every list and block quote rule at least once.
+    /// </summary>
+    private const string DirtyListsAndQuotes = "* a\n   * b\n\n1. c\n1. d\n\n-   e\n\n>  >  f\n";
+
+    /// <summary>
+    ///     The canonical form of <see cref="DirtyListsAndQuotes"/>.
+    /// </summary>
+    private const string CleanListsAndQuotes = "- a\n  - b\n\n1. c\n2. d\n\n- e\n\n> > f\n";
 
     /// <summary>
     ///     A document that is already canonical and uses every construct the rules look at.
@@ -84,7 +94,7 @@ public class BlocksSubsystemTests
 
     /// <summary>
     ///     Test that every violation of the dirty document is reported once per rule and line, at the place of its
-    ///     change and with the description of its rule, and that all fourteen rules of the subsystem are among them.
+    ///     change and with the description of its rule, and that all fourteen rules that the document breaks are among them.
     /// </summary>
     [Fact]
     public void BlocksSubsystem_Format_DocumentBreakingEveryRule_ReportsEveryRuleOnce()
@@ -335,6 +345,7 @@ public class BlocksSubsystemTests
     [InlineData("    ~~~\n    x\n", "```\n~~~\nx\n```\n")]
     [InlineData("    ```\n    x\n    ```\n", "````\n```\nx\n```\n````\n")]
     [InlineData("    code\n- item\n", "```\ncode\n```\n\n- item\n")]
+    [InlineData("text\n\n\tcode\n", "text\n\n```\ncode\n```\n")]
     public void BlocksSubsystem_Format_IndentedCodeVariants_BecomeFencedCode(string input, string expected) =>
         BlockFormatterAssertions.AssertFormats(input, expected);
 
@@ -555,6 +566,9 @@ public class BlocksSubsystemTests
     [InlineData("<!-- markdownlint-disable-next-line MD019 -->\n#  Heading  one\n")]
     [InlineData("Intro\n\n<!-- markdownlint-disable-next-line MD009 -->\n- a  \n- b\n")]
     [InlineData("Intro\n\n<!-- lintmark-disable-next-line trailing-whitespace -->\n- a   \n- b\n")]
+    [InlineData("Intro\n\n<!-- lintmark-disable-next-line code-fence -->\n~~~\ncode\n~~~\n")]
+    [InlineData("Intro\n\n<!-- lintmark-disable-next-line trailing-whitespace -->\n| a | b |   \n|---|---|\n| 1 | 2 |\n")]
+    [InlineData("Intro\n\n<!-- lintmark-disable-next-line code-block-style -->\n    code\n")]
     public void BlocksSubsystem_Format_NextLineDirectiveBeforeBlock_KeepsTheDirectiveWithItsLine(string input) =>
         Assert.Equal(input, BlockFormatterAssertions.AssertSafeAndStable(input));
 
@@ -592,14 +606,62 @@ public class BlocksSubsystemTests
     ///     Test that formatting the same parsed document on many threads that start together, with one shared formatter, gives the same result.
     /// </summary>
     [Fact]
-    public void BlocksSubsystem_Format_SameDocumentOnManyThreads_GivesTheSameResult()
+    public void BlocksSubsystem_Format_SameDocumentOnManyThreads_GivesTheSameResult() =>
+        AssertSameResultOnManyThreads(DirtyDocument, CleanDocument);
+
+    /// <summary>
+    ///     Test that formatting a dirty document of lists and quotes on many threads that start together, with one shared
+    ///     formatter, gives the same result.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_DirtyListsAndQuotesOnManyThreads_GiveTheSameResult() =>
+        AssertSameResultOnManyThreads(DirtyListsAndQuotes, CleanListsAndQuotes);
+
+    /// <summary>
+    ///     Test that the violations of a document of lists and quotes are reported under the rule of each list and quote
+    ///     rule, once per line, at the place of the change.
+    /// </summary>
+    [Fact]
+    public void BlocksSubsystem_Format_DirtyListsAndQuotes_ReportsEachListAndQuoteRuleOnItsLine()
+    {
+        // Act: format the document that breaks every list and quote rule
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(DirtyListsAndQuotes);
+        var (result, _) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), DirtyListsAndQuotes);
+
+        // Assert: the canonical text, and one violation per rule and line, each with the description of its rule
+        Assert.Equal(CleanListsAndQuotes, formatted);
+        var reported = result.Diagnostics.OrderBy(d => d.Line).ThenBy(d => d.RuleId, StringComparer.Ordinal).Select(d => (d.RuleId, d.Line)).ToList();
+        Assert.Equal(
+            [
+                ("bullet", 1),
+                ("bullet", 2),
+                ("list-indent", 2),
+                ("ordered-style", 5),
+                ("list-marker-space", 7),
+                ("blockquote-space", 9)
+            ],
+            reported);
+        Assert.All(result.Diagnostics, diagnostic =>
+        {
+            Assert.True(RuleCatalog.TryGet(diagnostic.RuleId, out var rule));
+            Assert.Equal(rule.Description, diagnostic.Message);
+        });
+    }
+
+    /// <summary>
+    ///     Asserts that one shared formatter gives the same edits and violations on eight threads that start together as in a
+    ///     single call, and that the edits write the expected text.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="expected">The expected formatted text.</param>
+    private static void AssertSameResultOnManyThreads(string text, string expected)
     {
         // Arrange: one shared formatter, as the engine uses it, and one parsed document shared by every thread
         const int threadCount = 8;
         var formatter = BlockFormatterAssertions.ProductionFormatter();
-        var document = BlockFormatterAssertions.Parse(DirtyDocument);
+        var document = BlockFormatterAssertions.Parse(text);
         var reference = formatter.Format(document, LintMarkConfig.Default);
-        Assert.Equal(CleanDocument, SourcePatcher.Apply(document.Source, reference.Edits));
+        Assert.Equal(expected, SourcePatcher.Apply(document.Source, reference.Edits));
         var results = new FormatResult[threadCount];
 
         // Act: every thread formats the document many times after the common start signal
@@ -651,6 +713,8 @@ public class BlocksSubsystemTests
     [InlineData("-   a\n    b\n", "- a\n  b\n")]
     [InlineData("1.  a\n    - b\n", "1. a\n   - b\n")]
     [InlineData("* ---\n", "* ---\n")]
+    [InlineData("* a\n*\n", "* a\n*\n")]
+    [InlineData("* ___\n", "* ---\n")]
     public void BlocksSubsystem_Format_ListForms_AreCanonical(string input, string expected) =>
         BlockFormatterAssertions.AssertFormats(input, expected);
 
@@ -719,6 +783,7 @@ public class BlocksSubsystemTests
     [InlineData("- >  quote\n")]
     [InlineData(">  [^n]: note\n")]
     [InlineData(">  $$\n>  x = 1\n>  $$\n")]
+    [InlineData(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n")]
     public void BlocksSubsystem_Format_QuoteContent_IsKept(string input) =>
         BlockFormatterAssertions.AssertFormats(input, input);
 

@@ -59,7 +59,10 @@ checked against both.
 
 **ListPlan**: A sealed class created for one call (one `FormatContext` and one `EditSet`) and used by one thread. Its
 state is the list of planned edits, which reach the `EditSet` only when the plan has been accepted. The constant
-`ProofTailLines` is three and `MaxNumber` is 999,999,999.
+`ProofTailLines` is three and `MaxNumber` is 999,999,999 (nine digits, the most a list marker may have). `ListModel`
+names the thresholds of the shape of a list: `MaxIndent` (three, the most columns a marker may be indented by from the
+margin or from the content of its item), the most spaces after a marker that still belong to it (four), and the most
+digits of a marker (nine).
 
 ##### Key Methods
 
@@ -91,13 +94,19 @@ edits. `ListPlan` works in two tiers.
 
 **Bullet conversion** (`bullet`, Tier 1, per list, all or nothing): the marker of every item becomes the configured
 character (`-` by default). The list is left as written when every item already uses the character; when any item has
-no text; when the new marker line would be a thematic break (the rest of the line holds only blanks and the new marker
-character, and with the marker there are at least three of them); when the text after the marker is itself a thematic
-break (the thematic break rule may rewrite it in the same run to the character of the marker, which would turn the whole
-line into a break); when the text after the marker holds only the characters of a grid table border (dashes, equal signs,
-colons, plus signs, and blanks, with at least one dash or equal sign), because a plus sign marker would then make the
-line a border; or when the nearest sibling block before or after the list in the same container is also a bullet list,
-which only differs from this one by its marker character and would merge with it.
+no text (a marker alone on a line, which in the form of a dash can also underline a paragraph above it); when the new
+marker line would be a thematic break (the rest of the line holds only blanks and the new marker character, and with the
+marker there are at least three of them); when the text after the marker is itself a thematic break (the thematic break
+rule may rewrite it in the same run to the character of the marker, which would turn the whole line into a break); when
+the configured character or the character of an item is the plus sign and the text after that marker holds only the
+characters of a grid table border (dashes, equal signs, colons, plus signs, and blanks, with at least one dash or equal
+sign), because the parser may read a line that starts with a plus sign and looks like that as part of a grid table, so
+neither writing nor replacing such a marker is safe (the other characters cannot start a border, so the text does not
+matter for them, and the corpus of generated lists showed that the check is needed for the plus sign that is replaced as
+well as for the one that is written); or when the nearest sibling block before or after the list in the same container is
+also a bullet list, which only differs from this one by its marker character and would merge with it. The siblings are
+found by a binary search of the blocks by their start, so the cost of a list does not grow with its distance from the start
+of the document.
 
 **Numbering** (`ordered-style`): the first number and the delimiter (`.` or `)`) of an ordered list are never
 changed, because the first number is the start number of the rendered list. Item *i* becomes `n + i` for
@@ -118,7 +127,10 @@ digit count moves the content column of the item and is part of Tier 2.
 - every item of a list gets the column of the list (the alignment of MD005).
 
 The new content column of an item is the new marker column, the marker length (with the new number), and one space. The
-**shift** of the item is the new content column minus the old one.
+**shift** of the item is the new content column minus the old one. A nested list is moved only while its offset to the
+content column of its item is between zero and `MaxIndent` (three) before and after the move; the parser reads a line that
+is indented four or more columns beyond the content of the item as text of the item, so a real nested list always passes
+this guard, which exists as a safeguard against a model that does not match the text.
 
 **Edits of an item** (Tier 2): when the marker column differs from the target, the indentation of the marker line is
 replaced by that many spaces (`list-indent`). When the blanks after the marker are not exactly one, they are replaced by
