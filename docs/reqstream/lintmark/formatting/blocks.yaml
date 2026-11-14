@@ -612,7 +612,8 @@ sections:
                   - LintMark-Formatting-Blocks-ParagraphFormatter-DeterministicResult
                   - LintMark-Formatting-Blocks-ParagraphFormatter-OutcomeRejectsInconsistentArguments
                   - LintMark-Formatting-Blocks-ParagraphFormatter-TabParagraphKept
-                  - LintMark-Formatting-Blocks-ParagraphFormatter-StoredFormsGiveTheSameEdit
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-LineEndingsKept
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-ByteOrderMarkKept
                 tests:
                   - BlocksSubsystem_Format_OverflowingParagraph_IsWrapped
 
@@ -747,6 +748,7 @@ sections:
                   it.
                 children:
                   - LintMark-Formatting-Blocks-ParagraphFormatter-ResidualOverflowReported
+                  - LintMark-Formatting-Blocks-ParagraphFormatter-UnsafeWrapResidualReported
                   - LintMark-Formatting-Blocks-ParagraphFormatter-ForcedStartKept
                   - LintMark-Formatting-Blocks-ParagraphFormatter-ProofFailureKeepsParagraph
                   - LintMark-Formatting-Blocks-ParagraphFormatter-ContainerProofFailureKeepsParagraph

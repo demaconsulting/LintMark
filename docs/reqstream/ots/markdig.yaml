@@ -22,6 +22,7 @@ sections:
             tags: [ots]
             tests:
               - Markdig_SourceSpans_BlocksAndInlines_AreSourceAccurate
+              - Markdig_WordInlines_HardBreaksEntitiesMathFootnoteLinksAndTaskMarkers_ExposeTheirSourceSpans
               - Markdig_LinkReferenceDefinitions_ExposeLabelUrlTitleAndSpan
               - Markdig_UnclosedFence_SpanCoversOnlyOpeningLine
               - Markdig_ListSpan_IncludesTrailingNewline

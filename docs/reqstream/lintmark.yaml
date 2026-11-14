@@ -1315,13 +1315,13 @@ sections:
       - id: LintMark-System-DisplayWidth
         title: >-
           The tool shall measure the length of a line of a paragraph in terminal display columns when it
-          compares the line with the `line-length` setting, counting wide East Asian characters as two columns
-          and combining marks as none.
+          compares the line with the `line-length` setting, counting wide East Asian characters and emoji as two
+          columns and combining marks as none.
         tags: [system]
         justification: |
           Line length limits exist for readers, and readers see columns, not characters. A limit that
-          counted characters would report Japanese, Korean, and Chinese text as much longer than it looks
-          and would miss text that is wider on the screen than its number of characters says. The
+          counted characters would report Japanese, Korean, and Chinese text, and emoji, as much longer than it
+          looks and would miss text that is wider on the screen than its number of characters says. The
           measurement shows in the line length problems that the tool reports and in the paragraphs
           that it wraps.
         children:
@@ -1440,12 +1440,13 @@ sections:
 
       - id: LintMark-System-WrapKeepsInlineConstructsWhole
         title: >-
-          The tool shall keep each link, code span, and inline HTML element of a paragraph whole, on one line,
-          when it wraps the paragraph.
+          The tool shall keep each link, code span, inline HTML element, inline math, footnote reference, character
+          reference, Pandoc attribute group, and Pandoc citation of a paragraph whole, on one line, when it wraps
+          the paragraph.
         tags: [system]
         justification: |
-          Breaking a line inside a link, a code span, or a tag changes what the document says or how it renders,
-          so a wrap may only break the text between such items.
+          Breaking a line inside a link, a code span, a tag, or another inline construct changes what the document
+          says or how it renders, so a wrap may only break the text between such items.
         children:
           - LintMark-Formatting-WrapKeepsInlineConstructsWhole
         tests:
@@ -1480,11 +1481,12 @@ sections:
       - id: LintMark-System-WrapNeverStartsBlockSyntax
         title: >-
           The tool shall not start a line of a wrapped paragraph with text that Markdown reads as a list marker,
-          a number marker, or a heading marker.
+          a number marker, a heading marker, a quote marker, a thematic break or setext underline, a code fence,
+          a link definition, an HTML block, a table row, or a Pandoc fenced div.
         tags: [system]
         justification: |
-          A line that starts with such text turns a part of the paragraph into a list or a heading, so the
-          wrap would change what the document says.
+          A line that starts with such text turns a part of the paragraph into another block, so the wrap would
+          change what the document says.
         children:
           - LintMark-Formatting-WrapNeverStartsBlockSyntax
         tests:
@@ -1493,7 +1495,7 @@ sections:
       - id: LintMark-System-WrapKeepsPandocParagraphs
         title: >-
           The tool shall leave a paragraph that holds a Pandoc structural line, such as a LaTeX command on a
-          line of its own, exactly as written and shall report no line length problem for it.
+          line of its own, exactly as written when it wraps paragraphs.
         tags: [system]
         justification: |
           Pandoc reads such lines as commands, and joining or moving them would change the output of the
@@ -1505,8 +1507,8 @@ sections:
 
       - id: LintMark-System-WrapKeepsFootnoteParagraphs
         title: >-
-          The tool shall leave a paragraph inside a footnote definition exactly as written and shall report no
-          line length problem for it.
+          The tool shall leave a paragraph inside a footnote definition exactly as written when it wraps
+          paragraphs.
         tags: [system]
         justification: |
           The parser adds a link back to the reference to the end of a footnote, which makes the effect of a
@@ -1514,6 +1516,21 @@ sections:
         children:
           - LintMark-Formatting-WrapKeepsFootnoteParagraphs
         tests:
+          - LintMark_FixFlag_FootnoteParagraph_IsLeftAsWritten
+
+      - id: LintMark-System-LineLengthLeftParagraphsNotReported
+        title: >-
+          The tool shall not report a line length problem for a paragraph that it leaves as written because the
+          paragraph holds a Pandoc structural line or stands inside a footnote definition.
+        tags: [system]
+        justification: |
+          Such a paragraph is not wrapped, so a report about its width could not be repaired by the fix option, and
+          a report that cannot be repaired would fail a pipeline for no reason.
+        children:
+          - LintMark-Formatting-WrapKeepsPandocParagraphs
+          - LintMark-Formatting-WrapKeepsFootnoteParagraphs
+        tests:
+          - LintMark_FixFlag_PandocStructuralParagraph_IsLeftAsWritten
           - LintMark_FixFlag_FootnoteParagraph_IsLeftAsWritten
 
       - id: LintMark-System-LineLengthResidualReported

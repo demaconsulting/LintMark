@@ -83,17 +83,24 @@ public class BlockSyntaxGuardTests
         Assert.False(BlockSyntaxGuard.IsGuardedLineStart(atom));
 
     /// <summary>
-    ///     Test that the number signs of a heading are guarded and words that only start with one are not.
+    ///     Test that the number signs of a heading are guarded.
     /// </summary>
     [Theory]
-    [InlineData("#", true)]
-    [InlineData("##", true)]
-    [InlineData("######", true)]
-    [InlineData("#######", false)]
-    [InlineData("#hashtag", false)]
-    [InlineData("C#", false)]
-    public void BlockSyntaxGuard_IsGuardedLineStart_HeadingMarkers_AreGuardedOnlyAsMarkers(string atom, bool expected) =>
-        Assert.Equal(expected, BlockSyntaxGuard.IsGuardedLineStart(atom));
+    [InlineData("#")]
+    [InlineData("##")]
+    [InlineData("######")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_HeadingMarkers_AreGuarded(string atom) =>
+        Assert.True(BlockSyntaxGuard.IsGuardedLineStart(atom));
+
+    /// <summary>
+    ///     Test that words that only start with number signs are not guarded.
+    /// </summary>
+    [Theory]
+    [InlineData("#######")]
+    [InlineData("#hashtag")]
+    [InlineData("C#")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_HeadingLookalikes_AreNotGuarded(string atom) =>
+        Assert.False(BlockSyntaxGuard.IsGuardedLineStart(atom));
 
     /// <summary>
     ///     Test that every word that starts with a quote marker is guarded.
@@ -106,34 +113,48 @@ public class BlockSyntaxGuardTests
         Assert.True(BlockSyntaxGuard.IsGuardedLineStart(atom));
 
     /// <summary>
-    ///     Test that words that open a code fence are guarded and code spans and strikethrough are not.
+    ///     Test that words that open a code fence are guarded.
     /// </summary>
     [Theory]
-    [InlineData("```", true)]
-    [InlineData("```csharp", true)]
-    [InlineData("````", true)]
-    [InlineData("~~~", true)]
-    [InlineData("~~~~", true)]
-    [InlineData("```{.python}", true)]
-    [InlineData("``code``", false)]
-    [InlineData("`code`", false)]
-    [InlineData("~~strike~~", false)]
-    public void BlockSyntaxGuard_IsGuardedLineStart_Fences_AreGuarded(string atom, bool expected) =>
-        Assert.Equal(expected, BlockSyntaxGuard.IsGuardedLineStart(atom));
+    [InlineData("```")]
+    [InlineData("```csharp")]
+    [InlineData("````")]
+    [InlineData("~~~")]
+    [InlineData("~~~~")]
+    [InlineData("```{.python}")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_Fences_AreGuarded(string atom) =>
+        Assert.True(BlockSyntaxGuard.IsGuardedLineStart(atom));
 
     /// <summary>
-    ///     Test that a reference definition and a footnote definition are guarded and a link, a reference and a task marker are not.
+    ///     Test that code spans and strikethrough words are not guarded.
     /// </summary>
     [Theory]
-    [InlineData("[label]:", true)]
-    [InlineData("[label]:/url", true)]
-    [InlineData("[^note]:", true)]
-    [InlineData("[label]", false)]
-    [InlineData("[label](url)", false)]
-    [InlineData("[x]", false)]
-    [InlineData("[^1]", false)]
-    public void BlockSyntaxGuard_IsGuardedLineStart_Definitions_AreGuarded(string atom, bool expected) =>
-        Assert.Equal(expected, BlockSyntaxGuard.IsGuardedLineStart(atom));
+    [InlineData("``code``")]
+    [InlineData("`code`")]
+    [InlineData("~~strike~~")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_CodeSpansAndStrikethrough_AreNotGuarded(string atom) =>
+        Assert.False(BlockSyntaxGuard.IsGuardedLineStart(atom));
+
+    /// <summary>
+    ///     Test that a reference definition and a footnote definition are guarded.
+    /// </summary>
+    [Theory]
+    [InlineData("[label]:")]
+    [InlineData("[label]:/url")]
+    [InlineData("[^note]:")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_Definitions_AreGuarded(string atom) =>
+        Assert.True(BlockSyntaxGuard.IsGuardedLineStart(atom));
+
+    /// <summary>
+    ///     Test that a link, a reference and a task marker are not guarded.
+    /// </summary>
+    [Theory]
+    [InlineData("[label]")]
+    [InlineData("[label](url)")]
+    [InlineData("[x]")]
+    [InlineData("[^1]")]
+    public void BlockSyntaxGuard_IsGuardedLineStart_LinksAndTaskMarkers_AreNotGuarded(string atom) =>
+        Assert.False(BlockSyntaxGuard.IsGuardedLineStart(atom));
 
     /// <summary>
     ///     Test that the starts of block-level HTML are guarded.

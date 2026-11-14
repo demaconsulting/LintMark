@@ -456,14 +456,13 @@ flowchart TD
       formatting diagnostics (`line-ending`, the always-applied formatting rules at the place of each edit, and
       `line-length` for the paragraphs that are wrapped or cannot be wrapped); the paragraphs that are still too wide
       after all other edits are wrapped last, on the text that those edits produce, and the wraps are composed with
-      them; `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed
-      text with the byte order mark and the target line ending restored. Bytes that equal the file mean no change.
+      them; `SourcePatcher.Apply` produces the proposed text; the bytes to write are the proposed text with the byte
+      order mark and the target line ending restored. Bytes that equal the file mean no change.
    7. **Safety checks**: for every rewrite that changes bytes, the HTML check of the text as it is on disk runs, and
-      when
-      the text changed, the HTML, structure, reparse, and idempotency checks of the LF-normalized text run as well; the
-      first that fails refuses the rewrite and becomes a diagnostic. A rewrite of the line endings alone is checked
-      too, because the rendering of some text depends on the line endings. A rewrite that passed becomes the change of
-      the file.
+      when the text changed, the HTML, structure, reparse, and idempotency checks of the LF-normalized text run as
+      well; the first that fails refuses the rewrite and becomes a diagnostic. A rewrite of the line endings alone is
+      checked too, because the rendering of some text depends on the line endings. A rewrite that passed becomes the
+      change of the file.
    Results are stored by input index, then sorted by path.
 7. After all workers have finished, `LintMarkEngine.Run` writes the changes when `--fix` is given: one file after the
    other, in path order, from the calling thread, through `AtomicFileWriter`, which refuses a file that changed, or a

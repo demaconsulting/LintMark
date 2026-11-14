@@ -100,8 +100,8 @@ a file without permissions, such as when the tests run as a privileged user.
   validation, and `--config` combined with `--no-config` is rejected with exit code 1.
 - A selected file that matches an `ignore` pattern of its configuration is skipped, unless it is named on the
   command line.
-- The width of a line is measured in display columns: a line of wide characters is reported and wrapped although it has
-  fewer characters than the limit, and a line of combining marks is not although it has more.
+- The width of a line is measured in display columns: a line of wide characters or of emoji is reported and wrapped
+  although it has fewer characters than the limit, and a line of combining marks is not although it has more.
 - A paragraph line that is wider than `line-length` (120 by default) and holds a place to break is reported as a
   `line-length` problem at the first column beyond the width, `--fix` wraps the paragraph so that no line is wider than
   the limit except lines that cannot be broken, and every paragraph with no such line stays byte for byte as written; a
@@ -407,7 +407,10 @@ with `--check` and a limit of 20. The exit code is 0 and nothing is reported.
 **A wrapped paragraph keeps its inline constructs whole**: The paragraph `aaa`, a link with the text `bb cc dd`, `fff`,
 a code span with the text `gg hh ii`, `jjj`, inline HTML `<span a="b c">kk</span>`, and `lll` is passed with `--fix` and
 a limit of 20. The link, the code span, and the inline HTML each stand on one line of the result, and no line is longer
-than 30 characters.
+than 30 characters. A second file with the paragraph `ant`, inline math `$gg + hh$`, `bat`, an attribute group
+`{#id .cls}`, `cat`, a citation `[@key, p. 3]`, `dog`, a character reference `&amp;`, `eel`, and a footnote reference
+after the word `text`, followed by the footnote definition, is passed with `--fix` and a limit of 20. Each construct
+stands on one line of the result, and no line of the paragraph is longer than 20 characters.
 
 **A wrapped paragraph keeps its hard breaks**: Paragraphs in which `aaa bbb ccc ddd eee fff ggg` ends with a hard break
 written with two spaces, and in another file with a backslash, followed by `hhh iii`, are passed with `--fix` and a
@@ -418,9 +421,10 @@ a lazy line, each with a paragraph that is too wide, are passed with `--fix` and
 of the bullet items are indented to the content of their items, and every line of the quotes, the lazy line included,
 starts with the quote marker.
 
-**A wrapped line never starts with block syntax**: Paragraphs in which a lone dash, `2026.`, a lone plus sign, or a lone
-number sign stands after `eee` are passed with `--fix` and a limit of 20. The paragraph is wrapped before `eee`, so the
-marker stays inside its line.
+**A wrapped line never starts with block syntax**: Paragraphs in which `eee` is followed by a lone dash, `2026.`, a lone
+plus sign, a lone number sign, a lone greater-than sign, a lone pipe, three backticks, `<div>`, `[ref]:`, three colons,
+or three dashes, then by `fox gnu`, are each passed with `--fix` and a limit of 20. The paragraph is wrapped before
+`eee`, so the marker stays inside its line.
 
 **A paragraph with a Pandoc structural line is left as written**: A paragraph whose second line is a LaTeX page break
 command is passed with `--fix` and a limit of 20. The exit code is 0, nothing is reported, and the file is
@@ -620,13 +624,15 @@ output contains `a.md:1:1: safety-html-mismatch`, and the file's bytes are uncha
 ### Display width
 
 **Display width of a line is measured in columns**: A paragraph of 63 characters that need 123 columns (four groups of
-fifteen East Asian characters, joined by spaces), and a second paragraph of 167 characters that need 87 columns (eight
-words of ten letters `e` with a combining accent, joined by spaces), are checked without a configuration, so the limit
-is 120 columns. The exit code is 1, the output contains
-`a.md:1:62: line-length Line is 123 columns wide; the limit is 120`, and the output has no line for line 3. The same
+fifteen East Asian characters, joined by spaces), a second paragraph of 167 characters that need 87 columns (eight words
+of ten letters `e` with a combining accent, joined by spaces), and a third paragraph of 65 characters that need 125
+columns (six words of ten emoji, joined by spaces), are checked without a configuration, so the limit is 120 columns.
+The exit code is 1, the output contains `a.md:1:62: line-length Line is 123 columns wide; the limit is 120` and
+`a.md:5:120: line-length Line is 125 columns wide; the limit is 120`, and the output has no line for line 3. The same
 text is then passed with `--fix`: the wide paragraph is wrapped after its third group, so its first line holds three
-groups and its second line holds one, and the paragraph of combining marks is unchanged. The width counts display
-columns and not UTF-16 code units, a wide character counts two columns, and a combining mark counts none.
+groups and its second line holds one, the emoji paragraph is wrapped after its fifth word, so its first line holds five
+words and its second line holds one, and the paragraph of combining marks is unchanged. The width counts display columns
+and not UTF-16 code units, a wide character and an emoji count two columns, and a combining mark counts none.
 
 The measure itself is also verified at the Utilities subsystem level: a line with accented, combining, East Asian, and
 emoji characters is measured, and a line padded to a fixed number of columns measures exactly that number of columns.

@@ -95,8 +95,7 @@ sections:
                   - id: LintMark-Formatting-Blocks-ParagraphFormatter-HardBreakKept
                     title: >-
                       The ParagraphFormatter class shall keep each hard line break of a paragraph, written with spaces
-                      or with a backslash, at the end of the line where it is, and wrap the text between the breaks on
-                      its own.
+                      or with a backslash, at the end of the line where it is.
                     justification: |
                       A hard line break is part of what the author wrote, and moving or dropping it changes how the
                       paragraph renders.
@@ -223,14 +222,22 @@ sections:
 
                   - id: LintMark-Formatting-Blocks-ParagraphFormatter-ResidualOverflowReported
                     title: >-
-                      The ParagraphFormatter class shall report that a line stays wider than the line length when it
-                      leaves a line too wide, either because the wrap finds no good place to break or because it
-                      cannot wrap the paragraph safely.
+                      The ParagraphFormatter class shall report that a line stays wider than the line length when the
+                      wrap finds no good place to break in it.
                     justification: |
                       A line that stays too wide must not pass unnoticed, and the caller must be able to tell it from
                       a line that the wrap repaired.
                     tests:
                       - ParagraphFormatter_Format_NoGoodBreak_ReportsTheResidualOverflow
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-UnsafeWrapResidualReported
+                    title: >-
+                      The ParagraphFormatter class shall report that a line stays wider than the line length when it
+                      leaves the paragraph as written because it cannot wrap the paragraph safely.
+                    justification: |
+                      A refused wrap must not pass unnoticed, and the caller must be able to tell the line that stays
+                      too wide from a line that the wrap repaired.
+                    tests:
                       - ParagraphFormatter_Format_LazyListLine_KeepsTheParagraphAndReportsIt
                       - ParagraphFormatter_Format_ForcedLineStartThatIsBlockSyntax_KeepsTheParagraphAndReportsIt
                       - ParagraphFormatter_Format_ProofRefusesTheWrap_KeepsTheParagraphAndReportsIt
@@ -255,12 +262,23 @@ sections:
                     tests:
                       - ParagraphFormatter_Format_OverflowingParagraph_IsFilledUpToTheWidth
 
-                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-StoredFormsGiveTheSameEdit
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-LineEndingsKept
                     title: >-
-                      The ParagraphFormatter class shall propose the same change for a text whatever its line endings
-                      are, LF, CRLF, or mixed, and whether the file starts with a byte order mark.
+                      The ParagraphFormatter class shall propose the same change for a text with CRLF or mixed line
+                      endings as for the same text with LF line endings.
                     justification: |
-                      How a file is stored says nothing about its text, so the change must not depend on it.
+                      How a file is stored says nothing about its text, so the change must not depend on the line
+                      endings.
+                    tests:
+                      - ParagraphFormatter_Format_LineEndingsAndByteOrderMark_DoNotChangeTheEdit
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-ByteOrderMarkKept
+                    title: >-
+                      The ParagraphFormatter class shall propose the same change for a text with a byte order mark as
+                      for the same text without one.
+                    justification: |
+                      How a file is stored says nothing about its text, so the change must not depend on a byte order
+                      mark.
                     tests:
                       - ParagraphFormatter_Format_LineEndingsAndByteOrderMark_DoNotChangeTheEdit
 

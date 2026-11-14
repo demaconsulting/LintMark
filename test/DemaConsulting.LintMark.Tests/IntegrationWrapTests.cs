@@ -205,29 +205,37 @@ public class IntegrationWrapTests
     }
 
     /// <summary>
-    ///     Test that the width of a line is counted in display columns: a line of wide characters is reported although it has fewer
-    ///     than 120 characters, and a line of combining marks is not although it has more.
+    ///     Test that the width of a line is counted in display columns: a line of wide characters or of emoji is reported although
+    ///     it has fewer than 120 characters, and a line of combining marks is not although it has more.
     /// </summary>
     [Fact]
     public void LintMark_LineLength_WideCharacters_AreMeasuredInDisplayColumns()
     {
-        // Arrange: a paragraph of 63 characters that need 123 columns, and one of 167 characters that need 87
+        // Arrange: a paragraph of 63 characters that need 123 columns, one of 167 characters that need 87,
+        // and one of 65 characters that need 125
         using var directory = new TemporaryDirectory();
         using var fixDirectory = new TemporaryDirectory();
         var wide = string.Join(' ', Enumerable.Repeat("日本語日本語日本語日本語日本語", 4));
         var combining = string.Join(' ', Enumerable.Repeat(string.Concat(Enumerable.Repeat("e\u0301", 10)), 8));
+        var emojiWord = string.Concat(Enumerable.Repeat("\U0001F600", 10));
+        var emoji = string.Join(' ', Enumerable.Repeat(emojiWord, 6));
         Assert.True(wide.Length <= 120 && combining.Length > 120);
+        Assert.True(emoji.EnumerateRunes().Count() <= 120);
+        var content = $"{wide}\n\n{combining}\n\n{emoji}\n";
 
         // Act: check, then fix, with the default width
-        var (exitCode, output) = CheckFile(directory, $"{wide}\n\n{combining}\n", config: null);
-        var (_, _, fixedText) = FixFile(fixDirectory, $"{wide}\n\n{combining}\n", config: null);
+        var (exitCode, output) = CheckFile(directory, content, config: null);
+        var (_, _, fixedText) = FixFile(fixDirectory, content, config: null);
 
-        // Assert: only the paragraph of wide characters is reported, at its first column beyond 120, and only it is wrapped
+        // Assert: only the paragraphs of wide characters and of emoji are reported, each at its first column beyond 120,
+        // and only they are wrapped
         Assert.Equal(1, exitCode);
         Assert.Contains("a.md:1:62: line-length Line is 123 columns wide; the limit is 120", output);
         Assert.DoesNotContain("a.md:3", output);
+        Assert.Contains("a.md:5:120: line-length Line is 125 columns wide; the limit is 120", output);
         var firstFour = string.Join(' ', Enumerable.Repeat("日本語日本語日本語日本語日本語", 3));
-        Assert.Equal($"{firstFour}\n日本語日本語日本語日本語日本語\n\n{combining}\n", fixedText);
+        var firstFive = string.Join(' ', Enumerable.Repeat(emojiWord, 5));
+        Assert.Equal($"{firstFour}\n日本語日本語日本語日本語日本語\n\n{combining}\n\n{firstFive}\n{emojiWord}\n", fixedText);
     }
 
     /// <summary>
@@ -275,14 +283,20 @@ public class IntegrationWrapTests
     }
 
     /// <summary>
-    ///     Test that a wrapped paragraph keeps its links, code spans and inline HTML whole.
+    ///     Test that a wrapped paragraph keeps its links, code spans, inline HTML, inline math, Pandoc attribute groups,
+    ///     citations, character references and footnote references whole.
     /// </summary>
     [Fact]
     public void LintMark_FixFlag_WrappedParagraph_KeepsInlineConstructsWhole()
     {
-        // Arrange and Act: fix a paragraph with a link, a code span and inline HTML that all have blanks inside
+        // Arrange and Act: fix a paragraph with a link, a code span and inline HTML that all have blanks inside,
+        // and a paragraph with the other inline constructs
         using var directory = new TemporaryDirectory();
+        using var otherDirectory = new TemporaryDirectory();
         var (exitCode, _, text) = FixFile(directory, "ant [bb cc dd](ee) fox `gg hh ii` jam <span a=\"b c\">kk</span> log\n");
+        var (otherExitCode, _, otherText) = FixFile(
+            otherDirectory,
+            "ant $gg + hh$ bat {#id .cls} cat [@key, p. 3] dog &amp; eel text[^1]\n\n[^1]: note\n");
 
         // Assert: every construct is on one line
         Assert.Equal(0, exitCode);
@@ -290,6 +304,13 @@ public class IntegrationWrapTests
         Assert.Contains("`gg hh ii`", text, StringComparison.Ordinal);
         Assert.Contains("<span a=\"b c\">kk</span>", text, StringComparison.Ordinal);
         Assert.All(text.TrimEnd('\n').Split('\n'), line => Assert.True(line.Length <= 30));
+        Assert.Equal(0, otherExitCode);
+        Assert.Contains("$gg + hh$", otherText, StringComparison.Ordinal);
+        Assert.Contains("{#id .cls}", otherText, StringComparison.Ordinal);
+        Assert.Contains("[@key, p. 3]", otherText, StringComparison.Ordinal);
+        Assert.Contains("&amp;", otherText, StringComparison.Ordinal);
+        Assert.Contains("text[^1]", otherText, StringComparison.Ordinal);
+        Assert.All(otherText.Split("\n\n")[0].Split('\n'), line => Assert.True(line.Length <= 20));
     }
 
     /// <summary>
@@ -329,13 +350,22 @@ public class IntegrationWrapTests
     }
 
     /// <summary>
-    ///     Test that no wrapped line starts with text that Markdown reads as another block, whether it is a list marker, a number marker or a heading.
+    ///     Test that no wrapped line starts with text that Markdown reads as another block, whether it is a list marker,
+    ///     a number marker, a heading marker, a quote marker, a table row, a code fence, an HTML block, a link definition,
+    ///     a Pandoc fenced div, or a thematic break.
     /// </summary>
     [Theory]
     [InlineData("ant bat cat dog eel - fox gnu\n", "ant bat cat dog\neel - fox gnu\n")]
     [InlineData("ant bat cat dog eel 2026. fox gnu\n", "ant bat cat dog\neel 2026. fox gnu\n")]
     [InlineData("ant bat cat dog eel + fox gnu\n", "ant bat cat dog\neel + fox gnu\n")]
     [InlineData("ant bat cat dog eel # fox gnu\n", "ant bat cat dog\neel # fox gnu\n")]
+    [InlineData("ant bat cat dog eel > fox gnu\n", "ant bat cat dog\neel > fox gnu\n")]
+    [InlineData("ant bat cat dog eel | fox gnu\n", "ant bat cat dog\neel | fox gnu\n")]
+    [InlineData("ant bat cat dog eel ``` fox gnu\n", "ant bat cat dog\neel ``` fox gnu\n")]
+    [InlineData("ant bat cat dog eel <div> fox gnu\n", "ant bat cat dog\neel <div> fox gnu\n")]
+    [InlineData("ant bat cat dog eel [ref]: fox gnu\n", "ant bat cat dog\neel [ref]: fox gnu\n")]
+    [InlineData("ant bat cat dog eel ::: fox gnu\n", "ant bat cat dog\neel ::: fox gnu\n")]
+    [InlineData("ant bat cat dog eel --- fox gnu\n", "ant bat cat dog\neel --- fox gnu\n")]
     public void LintMark_FixFlag_WrappedParagraph_NeverStartsALineWithBlockSyntax(string content, string expected)
     {
         // Arrange and Act: fix the file

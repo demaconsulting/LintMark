@@ -32,7 +32,17 @@ tests, because the compensating logic is verified there.
 **Scenario**: A document is parsed with precise source locations and the ranges of blocks and inlines are
 compared with the source text.
 
-**Expected**: Every reported range covers exactly the text of its element.
+**Requirement coverage**: `LintMark-OTS-Markdig-Spans`.
+
+#### Word-level inlines expose hard breaks and exact source ranges
+
+**Scenario**: A paragraph with a line end made of two spaces, one made of a backslash, and a plain line end, and with an
+entity, an inline math span, and a footnote reference, is parsed together with a task list item and a footnote
+definition.
+
+**Expected**: The line ends made of spaces and of a backslash are reported as hard breaks, the second one as a
+backslash break, and the plain line end as a soft break. The entity, the inline math span, the footnote reference, and
+the task marker each report a range that covers exactly their source text.
 
 **Requirement coverage**: `LintMark-OTS-Markdig-Spans`.
 

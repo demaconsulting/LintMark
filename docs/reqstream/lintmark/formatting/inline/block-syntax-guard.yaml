@@ -54,12 +54,21 @@ sections:
                   - id: LintMark-Formatting-Inline-BlockSyntaxGuard-HeadingMarkersGuarded
                     title: >-
                       The BlockSyntaxGuard class shall guard a word of one to six number signs against the start of a
-                      line, and no word that has more number signs or other characters.
+                      line.
                     justification: |
                       A line that starts with such a word is a heading, so the wrap would turn a part of the
                       paragraph into a heading.
                     tests:
-                      - BlockSyntaxGuard_IsGuardedLineStart_HeadingMarkers_AreGuardedOnlyAsMarkers
+                      - BlockSyntaxGuard_IsGuardedLineStart_HeadingMarkers_AreGuarded
+
+                  - id: LintMark-Formatting-Inline-BlockSyntaxGuard-HeadingLookalikesNotGuarded
+                    title: >-
+                      The BlockSyntaxGuard class shall not guard a word of more than six number signs, or a word that
+                      starts with number signs and has other characters.
+                    justification: |
+                      Guarding words that do not start a heading would leave lines too wide when a good break exists.
+                    tests:
+                      - BlockSyntaxGuard_IsGuardedLineStart_HeadingLookalikes_AreNotGuarded
 
                   - id: LintMark-Formatting-Inline-BlockSyntaxGuard-QuoteGuarded
                     title: >-
@@ -74,22 +83,38 @@ sections:
                   - id: LintMark-Formatting-Inline-BlockSyntaxGuard-FencesGuarded
                     title: >-
                       The BlockSyntaxGuard class shall guard a word that starts with three or more backticks or tildes
-                      against the start of a line, and no code span or strikethrough.
+                      against the start of a line.
                     justification: |
                       A line that starts with a fence opens a code block, so the wrap would turn the rest of the
                       document into code.
                     tests:
                       - BlockSyntaxGuard_IsGuardedLineStart_Fences_AreGuarded
 
+                  - id: LintMark-Formatting-Inline-BlockSyntaxGuard-CodeSpansAndStrikethroughNotGuarded
+                    title: >-
+                      The BlockSyntaxGuard class shall not guard a code span or a strikethrough word.
+                    justification: |
+                      Guarding words that do not start a block would leave lines too wide when a good break exists.
+                    tests:
+                      - BlockSyntaxGuard_IsGuardedLineStart_CodeSpansAndStrikethrough_AreNotGuarded
+
                   - id: LintMark-Formatting-Inline-BlockSyntaxGuard-DefinitionsGuarded
                     title: >-
                       The BlockSyntaxGuard class shall guard a word that starts a link reference definition or a
-                      footnote definition against the start of a line, and no link, reference, or task marker.
+                      footnote definition against the start of a line.
                     justification: |
                       A line that starts with a definition would turn a part of the paragraph into a definition that
                       is no longer rendered.
                     tests:
                       - BlockSyntaxGuard_IsGuardedLineStart_Definitions_AreGuarded
+
+                  - id: LintMark-Formatting-Inline-BlockSyntaxGuard-LinksAndTaskMarkersNotGuarded
+                    title: >-
+                      The BlockSyntaxGuard class shall not guard a link, a reference, or a task marker.
+                    justification: |
+                      Guarding words that do not start a block would leave lines too wide when a good break exists.
+                    tests:
+                      - BlockSyntaxGuard_IsGuardedLineStart_LinksAndTaskMarkers_AreNotGuarded
 
                   - id: LintMark-Formatting-Inline-BlockSyntaxGuard-HtmlBlocksGuarded
                     title: >-

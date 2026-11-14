@@ -23,13 +23,13 @@ N/A - standard test environment.
 - A number of one to nine digits followed by a period or a closing parenthesis is guarded as an ordered list marker, a
   year-like number included; a number of ten digits, a number with text after the marker, and a number without a marker
   are not guarded.
-- One to six number signs are guarded as a heading marker; seven number signs and words that only contain a number sign
-  are not guarded.
+- One to six number signs are guarded as a heading marker.
+- Seven number signs and words that only contain a number sign are not guarded.
 - Every word that starts with `>` is guarded as a quote.
-- Words that start with three backticks or three tildes are guarded as code fences; code spans and strikethrough are
-  not.
-- A word that starts with a bracketed label and a colon is guarded as a definition; a link, a reference, a task marker,
-  and a footnote reference are not.
+- Words that start with three backticks or three tildes are guarded as code fences.
+- Code spans and strikethrough are not guarded.
+- A word that starts with a bracketed label and a colon is guarded as a definition.
+- A link, a reference, a task marker, and a footnote reference are not guarded.
 - The starts of block-level HTML (tags of the block list, raw text elements, comments, processing instructions, CDATA
   sections, and declarations) are guarded, in either case; inline HTML tags and links in angle brackets are not.
 - A run of dashes, asterisks, underscores, or equal signs is guarded as a thematic break or a setext underline.
@@ -56,19 +56,24 @@ each guarded, a number that looks like a year included.
 **Numbers that are not markers are not guarded**: The words `1.5`, `1)x`, `2026.5`, `1234567890.` (ten digits), `v1.`,
 `1,`, and `1.x` are not guarded.
 
-**Heading markers are guarded only as markers**: The words `#`, `##`, and `######` are guarded; `#######` (seven),
-`#hashtag`, and `C#` are not.
+**Heading markers are guarded**: The words `#`, `##`, and `######` are each guarded.
+
+**Words that only start with number signs are not guarded**: The words `#######` (seven), `#hashtag`, and `C#` are not
+guarded.
 
 **Quote markers are guarded**: The words `>`, `>quote`, and `>=` are each guarded, so every word that starts with a
 greater-than sign is.
 
-**Code fences are guarded and code spans are not**: Six words that start with three backticks or three tildes are
-guarded: three backticks alone, three backticks followed by `csharp`, four backticks, `~~~`, `~~~~`, and three backticks
-followed by `{.python}`. A code span with two backticks on each side, a code span with one backtick on each side (both
-around the word `code`), and `~~strike~~` are not guarded.
+**Code fences are guarded**: Six words that start with three backticks or three tildes are guarded: three backticks
+alone, three backticks followed by `csharp`, four backticks, `~~~`, `~~~~`, and three backticks followed by `{.python}`.
 
-**Definitions are guarded and links are not**: The words `[label]:`, `[label]:/url`, and `[^note]:` are guarded. The
-words `[label]`, `[label](url)`, `[x]` (a task marker), and `[^1]` (a footnote reference) are not.
+**Code spans and strikethrough are not guarded**: A code span with two backticks on each side, a code span with one
+backtick on each side (both around the word `code`), and `~~strike~~` are not guarded.
+
+**Definitions are guarded**: The words `[label]:`, `[label]:/url`, and `[^note]:` are each guarded.
+
+**Links, references, and task markers are not guarded**: The words `[label]`, `[label](url)`, `[x]` (a task marker),
+and `[^1]` (a footnote reference) are not guarded.
 
 **Block-level HTML starts are guarded**: The words `<div>`, `<DIV` (upper case), `</div>`, `<p>`, `<table>`, `<h1>`,
 `<details>`, `<!--`, `<?php`, `<![CDATA[`, `<!DOCTYPE`, `<pre>`, `<script>`, `<style`, and `<textarea` are each guarded.

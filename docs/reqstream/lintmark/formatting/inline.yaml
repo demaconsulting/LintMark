@@ -334,6 +334,9 @@ sections:
                 children:
                   - LintMark-Formatting-Inline-BlockSyntaxGuard-RejectsMissingArguments
                   - LintMark-Formatting-Inline-BlockSyntaxGuard-NumbersThatAreNotMarkersNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-HeadingLookalikesNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-CodeSpansAndStrikethroughNotGuarded
+                  - LintMark-Formatting-Inline-BlockSyntaxGuard-LinksAndTaskMarkersNotGuarded
                   - LintMark-Formatting-Inline-BlockSyntaxGuard-InlineHtmlNotGuarded
                   - LintMark-Formatting-Inline-BlockSyntaxGuard-OrdinaryTextNotGuarded
                   - LintMark-Formatting-Inline-BlockSyntaxGuard-PandocStructuralLinesDetected

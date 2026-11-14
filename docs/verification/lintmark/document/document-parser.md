@@ -23,8 +23,9 @@ of a border-shaped line, preceded only by blanks and quote markers and followed 
 scenario also requires that at least one generated document takes the fallback, so that it cannot pass vacuously.
 No double is used.
 
-The scenarios for `GetLines` and `GetContinuationPrefix` are supporting verification: the line geometry has no
-requirement and no production caller yet, and its tests protect the behavior until the first consumer exists.
+The scenarios for `GetLines` and `GetContinuationPrefix` verify the line geometry directly; the geometry is also
+verified through its consumers, in the `BlockQuoteFormatter`, `InlineNormalizer`, and `ParagraphFormatter`
+scenarios. It has no requirement of its own.
 
 Line-ending style and the byte order mark are handled by `SourceDocument`, not by the parser, so the tests that
 need bytes (the same blocks for LF and CRLF text, and offsets that ignore a byte order mark) are in the `Document`

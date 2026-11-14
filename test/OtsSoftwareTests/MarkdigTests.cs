@@ -79,6 +79,38 @@ public class MarkdigTests
     }
 
     /// <summary>
+    ///     Validates that the word-level inlines the wrap relies on expose hard breaks and exact source ranges.
+    /// </summary>
+    [Fact]
+    public void Markdig_WordInlines_HardBreaksEntitiesMathFootnoteLinksAndTaskMarkers_ExposeTheirSourceSpans()
+    {
+        // Arrange: a paragraph with the three kinds of line end, an entity, inline math and a footnote reference,
+        // a task list item and a footnote definition
+        const string text = "ant  \nbat\\\ncat\ndog &amp; $x + y$ eel[^1]\n\n- [x] task\n\n[^1]: note\n";
+
+        // Act: parse with the precise-source-location pipeline
+        var document = Markdown.Parse(text, CreatePipeline());
+
+        // Assert: the breaks tell hard from soft, and every other inline addresses exactly its source text
+        var paragraph = Assert.IsType<ParagraphBlock>(document[0]);
+        var breaks = paragraph.Inline!.Descendants<LineBreakInline>().ToList();
+        Assert.Equal(3, breaks.Count);
+        Assert.True(breaks[0].IsHard);
+        Assert.False(breaks[0].IsBackslash);
+        Assert.True(breaks[1].IsHard);
+        Assert.True(breaks[1].IsBackslash);
+        Assert.False(breaks[2].IsHard);
+        var entity = paragraph.Inline!.Descendants<HtmlEntityInline>().Single();
+        Assert.Equal("&amp;", text.Substring(entity.Span.Start, entity.Span.Length));
+        var math = paragraph.Inline!.Descendants<MathInline>().Single();
+        Assert.Equal("$x + y$", text.Substring(math.Span.Start, math.Span.Length));
+        var footnoteLink = paragraph.Inline!.Descendants<FootnoteLink>().Single();
+        Assert.Equal("[^1]", text.Substring(footnoteLink.Span.Start, footnoteLink.Span.Length));
+        var taskMarker = document.Descendants<TaskList>().Single();
+        Assert.Equal("[x]", text.Substring(taskMarker.Span.Start, taskMarker.Span.Length));
+    }
+
+    /// <summary>
     ///     Validates that every extension LintMark enables recognizes its construct.
     /// </summary>
     [Fact]
