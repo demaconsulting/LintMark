@@ -55,10 +55,14 @@ public class RuleCatalogTests
             ["MD011"] = "link-reversed",
             ["MD013"] = "line-length",
             ["MD014"] = "dollar-sign-in-shell-code",
+            ["MD018"] = "heading-missing-space",
+            ["MD020"] = "heading-closed-missing-space",
             ["MD024"] = "heading-duplicate",
             ["MD026"] = "heading-trailing-punctuation",
             ["MD028"] = "blockquote-blank-line",
             ["MD036"] = "emphasis-as-heading",
+            ["MD037"] = "emphasis-space",
+            ["MD039"] = "link-space",
             ["MD040"] = "code-fence-language",
             ["MD042"] = "link-empty",
             ["MD045"] = "image-alt-text",
@@ -196,8 +200,8 @@ public class RuleCatalogTests
         // Act: take the rule list
         var rules = RuleCatalog.ConfigurableRules;
 
-        // Assert: 22 unique ids in ordinal order, each with a default
-        Assert.Equal(22, rules.Length);
+        // Assert: 26 unique ids in ordinal order, each with a default
+        Assert.Equal(26, rules.Length);
         Assert.Equal(rules.Order(StringComparer.Ordinal), rules);
         Assert.Equal(rules.Length, rules.Distinct(StringComparer.Ordinal).Count());
         Assert.All(rules, rule => Assert.True(RuleCatalog.Defaults.ContainsKey(rule)));
@@ -581,19 +585,27 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the numbers of the rules that only report a problem later (spacing inside emphasis and link text) are not registered.
+    ///     Test that the rules that report spacing problems the formatter cannot fix are registered, configurable and on by default.
     /// </summary>
     [Theory]
-    [InlineData("MD037")]
-    [InlineData("MD039")]
-    public void RuleCatalog_TryResolve_RuleNumberOfAPlannedLintOnlyRule_IsNotRegistered(string name)
+    [InlineData("MD018", "heading-missing-space")]
+    [InlineData("MD020", "heading-closed-missing-space")]
+    [InlineData("MD037", "emphasis-space")]
+    [InlineData("MD039", "link-space")]
+    public void RuleCatalog_TryResolve_RuleNumberOfASpacingLintOnlyRule_IsConfigurableAndEnabled(string name, string expected)
     {
-        // Act: resolve the name
+        // Act: resolve the name both ways
         var resolved = RuleCatalog.TryResolve(name, out var id);
+        var configurable = RuleCatalog.TryResolveConfigurable(name, out var configurableId);
 
-        // Assert: it is unknown until the lint-only rule exists
-        Assert.False(resolved);
-        Assert.Null(id);
+        // Assert: it is a lint-only rule that is on by default
+        Assert.True(resolved);
+        Assert.True(configurable);
+        Assert.Equal(expected, id);
+        Assert.Equal(expected, configurableId);
+        Assert.True(RuleCatalog.Defaults[expected]);
+        Assert.True(RuleCatalog.TryGet(expected, out var rule));
+        Assert.Equal(DiagnosticKind.LintOnly, rule.Kind);
     }
 
     /// <summary>
@@ -649,18 +661,18 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the registry holds 22 configurable rules, 36 non-configurable rules, 9 dropped aliases and 16 configurable aliases.
+    ///     Test that the registry holds 26 configurable rules, 36 non-configurable rules, 9 dropped aliases and 20 configurable aliases.
     /// </summary>
     [Fact]
-    public void RuleCatalog_Rules_Configurable22NonConfigurable36AndDropped9_CountsMatch()
+    public void RuleCatalog_Rules_Configurable26NonConfigurable36AndDropped9_CountsMatch()
     {
         // Act & Assert: the registered counts agree with each other
-        Assert.Equal(22, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
+        Assert.Equal(26, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
         Assert.Equal(36, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
-        Assert.Equal(58, RuleCatalog.Rules.Length);
-        Assert.Equal(22, RuleCatalog.ConfigurableRules.Length);
-        Assert.Equal(22, RuleCatalog.Defaults.Count);
-        Assert.Equal(16, RuleCatalog.Aliases.Count);
+        Assert.Equal(62, RuleCatalog.Rules.Length);
+        Assert.Equal(26, RuleCatalog.ConfigurableRules.Length);
+        Assert.Equal(26, RuleCatalog.Defaults.Count);
+        Assert.Equal(20, RuleCatalog.Aliases.Count);
         Assert.Equal(9, RuleCatalog.DroppedAliases.Length);
         Assert.Equal(RuleCatalog.Rules.Where(rule => rule.IsConfigurable).Select(rule => rule.Id), RuleCatalog.ConfigurableRules);
     }

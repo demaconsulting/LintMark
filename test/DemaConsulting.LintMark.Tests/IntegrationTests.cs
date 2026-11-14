@@ -585,8 +585,9 @@ public class IntegrationTests
         // Act: run the tool with the file
         var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
 
-        // Assert: success without diagnostics
-        Assert.Equal(0, exitCode);
+        // Assert: the unclosed fence is reported (a lint-only finding), no file failure is
+        Assert.Equal(1, exitCode);
+        Assert.Contains("all.md:21:1: fence-unclosed", output);
         Assert.DoesNotContain("file-", output);
     }
 
@@ -1916,11 +1917,11 @@ public class IntegrationTests
         using var directory = new TemporaryDirectory();
 
         // Act: fix the file
-        var (exitCode, _, text) = FixFile(directory, "# H\ntext\n```\ncode\n```\n- a\n- b\n\nmore\n| a | b |\n|---|---|\n| 1 | 2 |\n");
+        var (exitCode, _, text) = FixFile(directory, "# H\ntext\n```text\ncode\n```\n- a\n- b\n\nmore\n| a | b |\n|---|---|\n| 1 | 2 |\n");
 
         // Assert: every boundary has one blank line
         Assert.Equal(0, exitCode);
-        Assert.Equal("# H\n\ntext\n\n```\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n", text);
+        Assert.Equal("# H\n\ntext\n\n```text\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n", text);
     }
 
     /// <summary>
@@ -1972,7 +1973,7 @@ public class IntegrationTests
         // Arrange: content with trailing whitespace, tabs and blank lines inside protected blocks
         using var directory = new TemporaryDirectory();
         const string content =
-            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n";
+            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```text\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n";
 
         // Act: fix the file
         var (exitCode, output, text) = FixFile(directory, content);
@@ -1991,7 +1992,7 @@ public class IntegrationTests
     {
         // Arrange: a tight list item with a fence and a quote with a heading directly followed by text
         using var directory = new TemporaryDirectory();
-        const string content = "- a\n  ```\n  code\n  ```\n- b\n\n> # H\n> text\n";
+        const string content = "- a\n  ```text\n  code\n  ```\n- b\n\n> # H\n> text\n";
 
         // Act: fix the file
         var (exitCode, _, text) = FixFile(directory, content);
@@ -2148,7 +2149,7 @@ public class IntegrationTests
     [Theory]
     [InlineData("MD004", "* a\n")]
     [InlineData("MD027", ">  a\n")]
-    [InlineData("MD049", "_a_\n")]
+    [InlineData("MD049", "_a_ b\n")]
     [InlineData("MD034", "http://x.com\n")]
     public void LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation(string rule, string block)
     {
@@ -2169,23 +2170,23 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that rules planned as lint-only are not known by their legacy numbers.
+    ///     Test that a lint-only rule is known by its legacy number in the configuration and can be switched off with it.
     /// </summary>
     [Fact]
-    public void LintMark_ConfigRules_PlannedLintOnlyRuleByAlias_ReportsUnknownRule()
+    public void LintMark_ConfigRules_LintOnlyRuleByAlias_SwitchesTheRuleOff()
     {
-        // Arrange: a configuration that names MD037
+        // Arrange: a configuration that names MD037, and a file with a stray space inside an emphasis
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", "rules:\n  MD037: false\n");
-        var file = directory.WriteBytes("a.md", Bytes("text\n"));
+        var file = directory.WriteBytes("a.md", Bytes("see *text * here\n"));
 
         // Act: run the tool
         var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
 
-        // Assert: the rule is reported as unknown
-        Assert.Equal(1, exitCode);
-        Assert.Contains("config-error", output);
-        Assert.Contains("MD037", output);
+        // Assert: the rule is known and off, so nothing is reported
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("config-error", output);
+        Assert.DoesNotContain("emphasis-space", output);
     }
 
     /// <summary>
@@ -2218,7 +2219,7 @@ public class IntegrationTests
     {
         // Arrange: a document that breaks many rules, fixed by a first run
         using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("Title\n=====\ntext  \n- a\n\n\n\n~~~\ncode\n~~~\n    indented\n***\n"));
+        var file = directory.WriteBytes("a.md", Bytes("Title\n=====\ntext  \n- a\n\n\n\n~~~text\ncode\n~~~\n***\n"));
         Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
         var afterFirst = File.ReadAllBytes(file);
 

@@ -30,12 +30,12 @@ public partial class LintMarkEngineTests
     /// <summary>
     ///     A small document that breaks several rules, with its line endings as LF.
     /// </summary>
-    private const string DirtyText = "Title\n=====\ntext  \nmore \n- a\n- b\n\n\n\n~~~\ncode\n~~~\n";
+    private const string DirtyText = "Title\n=====\ntext  \nmore \n- a\n- b\n\n\n\n~~~text\ncode\n~~~\n";
 
     /// <summary>
     ///     The canonical form of <see cref="DirtyText"/>.
     /// </summary>
-    private const string CleanText = "# Title\n\ntext  \nmore\n\n- a\n- b\n\n```\ncode\n```\n";
+    private const string CleanText = "# Title\n\ntext  \nmore\n\n- a\n- b\n\n```text\ncode\n```\n";
 
     /// <summary>
     ///     Test that the default engine rewrites whitespace and block structure with the fix option and reports nothing afterwards.
@@ -156,7 +156,7 @@ public partial class LintMarkEngineTests
         // Arrange: a configuration with tildes, asterisks, two blank lines and no final newline
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", "code-fence: tilde\nthematic-break: asterisks\nmax-blank-lines: 2\nfinal-newline: false\n");
-        var path = directory.WriteBytes("a.md", Utf8("text\n\n\n\n```\ncode\n```\n\n---\n"));
+        var path = directory.WriteBytes("a.md", Utf8("text\n\n\n\n```text\ncode\n```\n\n---\n"));
 
         // Act: run with the fix option
         var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
@@ -164,7 +164,7 @@ public partial class LintMarkEngineTests
         // Assert: the file follows every setting
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-        Assert.Equal(Utf8("text\n\n\n~~~\ncode\n~~~\n\n***"), File.ReadAllBytes(path));
+        Assert.Equal(Utf8("text\n\n\n~~~text\ncode\n~~~\n\n***"), File.ReadAllBytes(path));
     }
 
     /// <summary>

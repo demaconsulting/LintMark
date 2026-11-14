@@ -68,7 +68,7 @@ public class LintMarkConfigTests
         var rules = LintMarkConfig.Default.Rules;
 
         // Assert: all configurable rules are present and only the documented three are disabled
-        Assert.Equal(22, rules.Count);
+        Assert.Equal(26, rules.Count);
         Assert.Equal(
             ["descriptive-link-text", "dollar-sign-in-shell-code", "table-grid-unformatted"],
             rules.Where(r => !r.Value).Select(r => r.Key));

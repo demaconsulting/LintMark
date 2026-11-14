@@ -129,7 +129,7 @@ internal sealed class LintMarkEngine
     /// <summary>
     ///     Runs the lint-only rules; replaceable so tests can install rules, including broken ones.
     /// </summary>
-    private readonly LintRuleRunner _lintRules;
+    private readonly LintRuleEngine _lintRules;
 
     /// <summary>
     ///     Replaces the content of a file given the resolved target captured when it was read, the bytes it was
@@ -175,7 +175,7 @@ internal sealed class LintMarkEngine
     /// </param>
     /// <param name="lintRules">
     ///     Optional replacement for the runner of the lint-only rules (a test seam); <see langword="null"/> selects
-    ///     <see cref="LintRuleRunner.CreateDefault"/>.
+    ///     <see cref="LintRuleEngine.CreateDefault"/>.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than one.</exception>
     internal LintMarkEngine(
@@ -185,7 +185,7 @@ internal sealed class LintMarkEngine
         Func<EditorConfigResolver>? editorConfigFactory = null,
         DocumentFormatter? formatter = null,
         Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null,
-        LintRuleRunner? lintRules = null)
+        LintRuleEngine? lintRules = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
@@ -196,7 +196,7 @@ internal sealed class LintMarkEngine
             [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
             new InlineNormalizer(),
             new ParagraphFormatter());
-        _lintRules = lintRules ?? LintRuleRunner.CreateDefault();
+        _lintRules = lintRules ?? LintRuleEngine.CreateDefault();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 
@@ -229,7 +229,7 @@ internal sealed class LintMarkEngine
         // Choose the configuration sources from the command line, then process; no output happens until all workers are done
         var loader = CreateLoader(context);
         var editorConfig = context.NoConfig ? null : _editorConfigFactory();
-        var results = Process(files, loader, editorConfig, baseDirectory);
+        var results = Process(files, loader, editorConfig, baseDirectory, context.RuleOverrides);
 
         // Write the rewrites one after the other (never from a worker), then collect what remains to report
         List<Diagnostic> diagnostics = context.Fix ? WriteChanges(results) : [.. results.SelectMany(static r => r.Diagnostics)];
@@ -297,6 +297,7 @@ internal sealed class LintMarkEngine
     ///     The directory that <c>ignore</c> patterns are relative to when no configuration file applies, or
     ///     <see langword="null"/> for the current directory.
     /// </param>
+    /// <param name="overrides">The rules forced on or off by the command line; <see langword="null"/> for none.</param>
     /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
     /// <remarks>
     ///     Results are stored by input index while workers run and sorted afterwards, which keeps the
@@ -311,7 +312,8 @@ internal sealed class LintMarkEngine
         IReadOnlyList<DiscoveredFile> files,
         ConfigLoader loader,
         EditorConfigResolver? editorConfig,
-        string? baseDirectory = null)
+        string? baseDirectory = null,
+        RuleOverrides? overrides = null)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(files);
@@ -323,11 +325,12 @@ internal sealed class LintMarkEngine
 
         // Fix the base directory once, so every worker uses the same one
         var root = baseDirectory ?? Directory.GetCurrentDirectory();
+        var forced = overrides ?? RuleOverrides.None;
 
         // Process every file; each worker writes only its own slot
         var results = new FileResult[files.Count];
         var options = new ParallelOptions { MaxDegreeOfParallelism = _maxDegreeOfParallelism };
-        Parallel.For(0, files.Count, options, index => results[index] = ProcessFile(files[index], loader, editorConfig, root));
+        Parallel.For(0, files.Count, options, index => results[index] = ProcessFile(files[index], loader, editorConfig, root, forced));
 
         // Order by path (stable) so the caller never observes scheduling order
         return [.. results.OrderBy(static r => r.Path, StringComparer.Ordinal)];
@@ -394,6 +397,7 @@ internal sealed class LintMarkEngine
     /// <param name="loader">Supplies the configuration that applies to the file.</param>
     /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
     /// <param name="baseDirectory">The directory that <c>ignore</c> patterns are relative to when no configuration file applies.</param>
+    /// <param name="overrides">The rules forced on or off by the command line, applied over the configuration of the file.</param>
     /// <returns>The result with its configuration or configuration problems.</returns>
     /// <remarks>
     ///     An invalid configuration leaves <see cref="FileResult.Config"/> null and carries the problems; the
@@ -401,7 +405,7 @@ internal sealed class LintMarkEngine
     ///     add one problem at the start of the Markdown file, keep the configuration with an unspecified line
     ///     ending, and also prevent formatting: the line ending the file should get is not known.
     /// </remarks>
-    private FileResult ProcessFile(DiscoveredFile file, ConfigLoader loader, EditorConfigResolver? editorConfig, string baseDirectory)
+    private FileResult ProcessFile(DiscoveredFile file, ConfigLoader loader, EditorConfigResolver? editorConfig, string baseDirectory, RuleOverrides overrides)
     {
         // The configuration comes first, because its ignore patterns decide whether the file is read at all
         var load = loader.Load(file.Path);
@@ -412,11 +416,13 @@ internal sealed class LintMarkEngine
             return new FileResult(file.Path, []) { Config = loaded, Ignored = true };
         }
 
-        // An invalid configuration yields no settings, only its problems
-        if (load.Config is not { } config)
+        // An invalid configuration yields no settings, only its problems; the rules forced on the command line win over the file
+        if (load.Config is not { } loadedConfig)
         {
             return _fileProcessor(file.Path, null) with { Config = null, ConfigErrors = load.Errors };
         }
+
+        var config = overrides.Apply(loadedConfig);
 
         // The configuration's own line ending wins; the editor settings are consulted only when it gives none
         var errors = ImmutableArray<ConfigError>.Empty;
@@ -505,10 +511,18 @@ internal sealed class LintMarkEngine
     {
         var source = document.Source;
 
-        // A document the parser could only read by dropping grid tables is never formatted; its offending line is reported
+        // A document the parser could only read by dropping grid tables is never formatted; its offending line is reported,
+        // and the lint-only rules still run on the reading without grid tables
         if (document.GridFallback is { } grid)
         {
-            return new FileResult(path, ReportGridFallback(path, document, config, grid));
+            try
+            {
+                return new FileResult(path, ReportGridFallback(path, document, config, grid).AddRange(_lintRules.Run(document, config)));
+            }
+            catch (Exception ex)
+            {
+                return Failed(path, FormatErrorRuleId, 1, 1, $"Linting failed: {ex.GetType().Name}");
+            }
         }
 
         // Format, then apply the edits; a formatter that throws or proposes invalid edits fails this file only. The lint-only
@@ -519,7 +533,7 @@ internal sealed class LintMarkEngine
         try
         {
             format = _formatter.Format(document, config);
-            diagnostics = format.Diagnostics.AddRange(_lintRules.Run(document, config));
+            diagnostics = FormatDiffAnalyzer.Analyze(source, format).AddRange(_lintRules.Run(document, config));
             newLf = SourcePatcher.Apply(source, format.Edits);
             if (newLf.Contains('\r'))
             {

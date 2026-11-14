@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Cli;
 
@@ -113,6 +114,11 @@ internal sealed class Context : IDisposable
     public bool NoConfig { get; private init; }
 
     /// <summary>
+    ///     Gets the rules forced on or off with <c>--enable</c> and <c>--disable</c>; they win over the configuration.
+    /// </summary>
+    public RuleOverrides RuleOverrides { get; private init; } = RuleOverrides.None;
+
+    /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
     public string? ResultsFile { get; private init; }
@@ -165,10 +171,11 @@ internal sealed class Context : IDisposable
 
         // Self-validation is a separate mode: lint arguments would be silently ignored, so reject them
         if (parser.Validate
-            && (parser.Check || parser.Fix || parser.Diff || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig))
+            && (parser.Check || parser.Fix || parser.Diff || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig
+                || parser.Enable.Count > 0 || parser.Disable.Count > 0))
         {
             throw new ArgumentException(
-                "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+                "--validate cannot be combined with paths, --check, --fix, --diff, --config, --no-config, --enable, or --disable",
                 nameof(args));
         }
 
@@ -196,6 +203,7 @@ internal sealed class Context : IDisposable
             Paths = parser.Paths.ToImmutableArray(),
             ConfigFile = parser.ConfigFile,
             NoConfig = parser.NoConfig,
+            RuleOverrides = RuleOverrides.Create(parser.Enable, parser.Disable),
             ResultsFile = parser.ResultsFile,
             HeadingDepth = parser.HeadingDepth
         };
@@ -291,6 +299,16 @@ internal sealed class Context : IDisposable
         public bool NoConfig { get; private set; }
 
         /// <summary>
+        ///     Gets the value of every <c>--enable</c> option, in the order given.
+        /// </summary>
+        public List<string> Enable { get; } = [];
+
+        /// <summary>
+        ///     Gets the value of every <c>--disable</c> option, in the order given.
+        /// </summary>
+        public List<string> Disable { get; } = [];
+
+        /// <summary>
         ///     Gets the log file path.
         /// </summary>
         public string? LogFile { get; private set; }
@@ -376,6 +394,14 @@ internal sealed class Context : IDisposable
                 case "--no-config":
                     NoConfig = true;
                     return index;
+
+                case "--enable":
+                    Enable.Add(GetRequiredStringArgument(arg, args, index, "a comma-separated list of rule ids"));
+                    return index + 1;
+
+                case "--disable":
+                    Disable.Add(GetRequiredStringArgument(arg, args, index, "a comma-separated list of rule ids"));
+                    return index + 1;
 
                 case "--log":
                     LogFile = GetRequiredStringArgument(arg, args, index, "a filename argument");

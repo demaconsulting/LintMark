@@ -31,7 +31,7 @@ namespace DemaConsulting.LintMark.Linting;
 ///     <para>
 ///         A lint rule reads a parsed document and returns diagnostics of kind <see cref="DiagnosticKind.LintOnly"/>.
 ///         It does not look at suppression comments or at whether it is switched off in the configuration: the
-///         <see cref="LintRuleRunner"/> filters its diagnostics by the rule identifier they carry.
+///         <see cref="LintRuleEngine"/> filters its diagnostics by the rule identifier they carry.
 ///     </para>
 ///     <para>
 ///         Thread safety: an implementation must be stateless (or immutable) so that one instance serves every worker.

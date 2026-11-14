@@ -179,7 +179,7 @@ public partial class LintMarkEngineTests
         // Arrange: two files and a runner whose rule throws
         using var directory = new TemporaryDirectory();
         directory.WriteBytes("a.md", Utf8("text\n"));
-        var runner = new DemaConsulting.LintMark.Linting.LintRuleRunner([new ThrowingRule()]);
+        var runner = new DemaConsulting.LintMark.Linting.LintRuleEngine([new ThrowingRule()]);
 
         // Act: check with the broken runner
         var (exitCode, lines) = Execute(directory, new LintMarkEngine(2, lintRules: runner));

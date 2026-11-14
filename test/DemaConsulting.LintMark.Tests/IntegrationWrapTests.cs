@@ -271,7 +271,7 @@ public class IntegrationWrapTests
             + "# a heading with many words in it that is long\n\n"
             + "```text\ncode line with many words in it that is long\n```\n\n"
             + "<div>html block with many words in it that is long</div>\n\n"
-            + "[ref]: http://example.org/very/long/path/to/something \"a long title here\"\n";
+            + "[ref]\n\n[ref]: http://example.org/very/long/path/to/something \"a long title here\"\n";
 
         // Act: check the file
         var (exitCode, output) = CheckFile(directory, content);
@@ -359,12 +359,12 @@ public class IntegrationWrapTests
         using var directory = new TemporaryDirectory();
         var (exitCode, _, text) = FixFile(
             directory,
-            "- ant bat cat dog eel fox gnu\n  - hen ink jam key log map nut\n\n> ant bat cat dog eel fox gnu\n\n> ant bat cat dog\neel fox gnu hen ink jam\n");
+            "- ant bat cat dog eel fox gnu\n  - hen ink jam key log map nut\n\n> ant bat cat dog eel fox gnu\n\ntext\n\n> ant bat cat dog\neel fox gnu hen ink jam\n");
 
         // Assert: prefixes on every line
         Assert.Equal(0, exitCode);
         Assert.Equal(
-            "- ant bat cat dog\n  eel fox gnu\n  - hen ink jam key\n    log map nut\n\n> ant bat cat dog\n> eel fox gnu\n\n> ant bat cat dog\n> eel fox gnu hen\n> ink jam\n",
+            "- ant bat cat dog\n  eel fox gnu\n  - hen ink jam key\n    log map nut\n\n> ant bat cat dog\n> eel fox gnu\n\ntext\n\n> ant bat cat dog\n> eel fox gnu hen\n> ink jam\n",
             text);
     }
 

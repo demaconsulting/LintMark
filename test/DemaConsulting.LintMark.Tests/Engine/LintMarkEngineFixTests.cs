@@ -482,8 +482,8 @@ public partial class LintMarkEngineTests
     /// <param name="after">The document with the line endings that the configuration asks for.</param>
     /// <param name="endOfLine">The line ending that the configuration asks for.</param>
     [Theory]
-    [InlineData("# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```\nx  y\n```\n", "# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```\r\nx  y\r\n```\r\n", "crlf")]
-    [InlineData("# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```\r\nx  y\r\n```\r\n", "# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```\nx  y\n```\n", "lf")]
+    [InlineData("# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```text\nx  y\n```\n", "# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```text\r\nx  y\r\n```\r\n", "crlf")]
+    [InlineData("# T\r\n\r\nA `code` span\r\nand a soft break.\r\n\r\n- one\r\n- two\r\n\r\n```text\r\nx  y\r\n```\r\n", "# T\n\nA `code` span\nand a soft break.\n\n- one\n- two\n\n```text\nx  y\n```\n", "lf")]
     public void LintMarkEngine_Run_FixOrdinaryLineEndingChange_StillWritten(string before, string after, string endOfLine)
     {
         // Arrange: an ordinary document with a code span, a soft break, a list and a fenced block

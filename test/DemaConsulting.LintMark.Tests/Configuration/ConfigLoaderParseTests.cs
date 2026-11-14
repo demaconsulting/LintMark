@@ -780,7 +780,7 @@ public class ConfigLoaderParseTests
         // Assert: stored under the canonical id, and no alias key appears
         Assert.False(config.Rules["line-length"]);
         Assert.False(config.Rules.ContainsKey("MD013"));
-        Assert.Equal(22, config.Rules.Count);
+        Assert.Equal(26, config.Rules.Count);
     }
 
     /// <summary>

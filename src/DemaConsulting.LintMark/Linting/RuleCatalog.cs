@@ -133,6 +133,106 @@ internal static class RuleCatalog
     public const string TableGridUnformattedRuleId = "table-grid-unformatted";
 
     /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a heading that skips a level.
+    /// </summary>
+    public const string HeadingIncrementRuleId = "heading-increment";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a heading whose text another heading of the document has too.
+    /// </summary>
+    public const string HeadingDuplicateRuleId = "heading-duplicate";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a heading that ends with punctuation.
+    /// </summary>
+    public const string HeadingTrailingPunctuationRuleId = "heading-trailing-punctuation";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a paragraph that is only emphasis where a heading is meant.
+    /// </summary>
+    public const string EmphasisAsHeadingRuleId = "emphasis-as-heading";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a line that starts like a heading but has no space after the number signs.
+    /// </summary>
+    public const string HeadingMissingSpaceRuleId = "heading-missing-space";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a line written like a closed heading without the spaces inside the number signs.
+    /// </summary>
+    public const string HeadingClosedMissingSpaceRuleId = "heading-closed-missing-space";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports an image without alternative text.
+    /// </summary>
+    public const string ImageAltTextRuleId = "image-alt-text";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link without a destination.
+    /// </summary>
+    public const string LinkEmptyRuleId = "link-empty";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link to a fragment that no heading or anchor provides.
+    /// </summary>
+    public const string LinkFragmentRuleId = "link-fragment";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a reference link whose label is not defined.
+    /// </summary>
+    public const string LinkReferenceUndefinedRuleId = "link-reference-undefined";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link reference definition that is never used or is defined twice.
+    /// </summary>
+    public const string LinkDefinitionUnusedRuleId = "link-definition-unused";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link written with the brackets and the parentheses reversed.
+    /// </summary>
+    public const string LinkReversedRuleId = "link-reversed";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link whose text starts or ends with a space.
+    /// </summary>
+    public const string LinkSpaceRuleId = "link-space";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a link whose text says nothing about the destination.
+    /// </summary>
+    public const string DescriptiveLinkTextRuleId = "descriptive-link-text";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a fenced code block without a language.
+    /// </summary>
+    public const string CodeFenceLanguageRuleId = "code-fence-language";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a fenced code block that is never closed.
+    /// </summary>
+    public const string FenceUnclosedRuleId = "fence-unclosed";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a footnote definition that is never referenced.
+    /// </summary>
+    public const string FootnoteUnusedRuleId = "footnote-unused";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a blank line that separates two block quotes.
+    /// </summary>
+    public const string BlockQuoteBlankLineRuleId = "blockquote-blank-line";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports a code block whose lines all start with a dollar sign.
+    /// </summary>
+    public const string DollarSignInShellCodeRuleId = "dollar-sign-in-shell-code";
+
+    /// <summary>
+    ///     The identifier of the configurable lint-only rule that reports emphasis with a space on one side only.
+    /// </summary>
+    public const string EmphasisSpaceRuleId = "emphasis-space";
+
+    /// <summary>
     ///     The identifier of the always-applied rule that writes thematic breaks in the configured style.
     /// </summary>
     public const string ThematicBreakRuleId = "thematic-break";
@@ -273,26 +373,30 @@ internal static class RuleCatalog
         Configurable(ParagraphWrapRuleId, DiagnosticKind.Formatting, "A paragraph is not wrapped per the configured sentence or semantic style.", true),
 
         // Configurable rules (lint only)
-        Configurable("heading-increment", DiagnosticKind.LintOnly, "A heading level skips a level.", true, "MD001"),
-        Configurable("heading-duplicate", DiagnosticKind.LintOnly, "Two headings in the same document have the same text.", true, "MD024"),
-        Configurable("heading-trailing-punctuation", DiagnosticKind.LintOnly, "A heading ends with punctuation.", true, "MD026"),
-        Configurable("emphasis-as-heading", DiagnosticKind.LintOnly, "Emphasis is used where a heading is meant.", true, "MD036"),
-        Configurable("image-alt-text", DiagnosticKind.LintOnly, "An image has no alternative text.", true, "MD045"),
-        Configurable("link-empty", DiagnosticKind.LintOnly, "A link has no destination.", true, "MD042"),
-        Configurable("link-fragment", DiagnosticKind.LintOnly, "A link fragment does not match any heading.", true, "MD051"),
-        Configurable("link-reference-undefined", DiagnosticKind.LintOnly, "A reference link uses a label that is not defined.", true, "MD052"),
-        Configurable("link-definition-unused", DiagnosticKind.LintOnly, "A link reference definition is never used.", true, "MD053"),
-        Configurable("link-reversed", DiagnosticKind.LintOnly, "A link is written with the brackets and parentheses reversed.", true, "MD011"),
-        Configurable("descriptive-link-text", DiagnosticKind.LintOnly, "A link text is not descriptive.", false, "MD059"),
-        Configurable("code-fence-language", DiagnosticKind.LintOnly, "A fenced code block has no language.", true, "MD040"),
+        Configurable(HeadingIncrementRuleId, DiagnosticKind.LintOnly, "A heading level skips a level.", true, "MD001"),
+        Configurable(HeadingDuplicateRuleId, DiagnosticKind.LintOnly, "Two headings in the same document have the same text.", true, "MD024"),
+        Configurable(HeadingTrailingPunctuationRuleId, DiagnosticKind.LintOnly, "A heading ends with punctuation.", true, "MD026"),
+        Configurable(EmphasisAsHeadingRuleId, DiagnosticKind.LintOnly, "Emphasis is used where a heading is meant.", true, "MD036"),
+        Configurable(HeadingMissingSpaceRuleId, DiagnosticKind.LintOnly, "A line starts with number signs but has no space after them, so it is not a heading.", true, "MD018"),
+        Configurable(HeadingClosedMissingSpaceRuleId, DiagnosticKind.LintOnly, "A line looks like a closed heading but has no spaces inside the number signs, so it is not a heading.", true, "MD020"),
+        Configurable(ImageAltTextRuleId, DiagnosticKind.LintOnly, "An image has no alternative text.", true, "MD045"),
+        Configurable(LinkEmptyRuleId, DiagnosticKind.LintOnly, "A link has no destination.", true, "MD042"),
+        Configurable(LinkFragmentRuleId, DiagnosticKind.LintOnly, "A link fragment does not match any heading.", true, "MD051"),
+        Configurable(LinkReferenceUndefinedRuleId, DiagnosticKind.LintOnly, "A reference link uses a label that is not defined.", true, "MD052"),
+        Configurable(LinkDefinitionUnusedRuleId, DiagnosticKind.LintOnly, "A link reference definition is never used.", true, "MD053"),
+        Configurable(LinkReversedRuleId, DiagnosticKind.LintOnly, "A link is written with the brackets and parentheses reversed.", true, "MD011"),
+        Configurable(LinkSpaceRuleId, DiagnosticKind.LintOnly, "The text of a link starts or ends with a space.", true, "MD039"),
+        Configurable(DescriptiveLinkTextRuleId, DiagnosticKind.LintOnly, "A link text is not descriptive.", false, "MD059"),
+        Configurable(CodeFenceLanguageRuleId, DiagnosticKind.LintOnly, "A fenced code block has no language.", true, "MD040"),
         Configurable(TableTooWideRuleId, DiagnosticKind.LintOnly, "A table is wider than the configured line length.", true),
         Configurable(TableColumnCountRuleId, DiagnosticKind.LintOnly, "A table row has a different number of cells than the header.", true, "MD056"),
         Configurable(TableGridUnformattedRuleId, DiagnosticKind.LintOnly, "A grid table is left as written.", false),
-        Configurable("fence-unclosed", DiagnosticKind.LintOnly, "A fenced code block is never closed.", true),
+        Configurable(FenceUnclosedRuleId, DiagnosticKind.LintOnly, "A fenced code block is never closed.", true),
         Configurable(GridTableInvalidRuleId, DiagnosticKind.LintOnly, "A line looks like a grid table border but the table is not valid.", true),
-        Configurable("footnote-unused", DiagnosticKind.LintOnly, "A footnote definition is never referenced.", true),
-        Configurable("blockquote-blank-line", DiagnosticKind.LintOnly, "A blank line separates two block quotes.", true, "MD028"),
-        Configurable("dollar-sign-in-shell-code", DiagnosticKind.LintOnly, "A shell command in a code block starts with a dollar sign.", false, "MD014"),
+        Configurable(FootnoteUnusedRuleId, DiagnosticKind.LintOnly, "A footnote definition is never referenced.", true),
+        Configurable(BlockQuoteBlankLineRuleId, DiagnosticKind.LintOnly, "A blank line separates two block quotes.", true, "MD028"),
+        Configurable(DollarSignInShellCodeRuleId, DiagnosticKind.LintOnly, "A shell command in a code block starts with a dollar sign.", false, "MD014"),
+        Configurable(EmphasisSpaceRuleId, DiagnosticKind.LintOnly, "Emphasis has a space inside one of its delimiters but not the other.", true, "MD037"),
 
         // Always-applied formatting rules
         Fixed(LineEndingRuleId, DiagnosticKind.Formatting, "A line ending differs from the line ending chosen for the file."),

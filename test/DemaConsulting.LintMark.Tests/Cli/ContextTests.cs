@@ -769,7 +769,7 @@ public class ContextTests
         // Act & Assert: the combination is rejected with the documented message
         var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--fix"]));
         Assert.Contains(
-            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+            "--validate cannot be combined with paths, --check, --fix, --diff, --config, --no-config, --enable, or --disable",
             exception.Message);
     }
 
@@ -782,8 +782,77 @@ public class ContextTests
         // Act & Assert: the combination is rejected with the documented message
         var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--diff", "--validate"]));
         Assert.Contains(
-            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+            "--validate cannot be combined with paths, --check, --fix, --diff, --config, --no-config, --enable, or --disable",
             exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that combining the validate flag with a rule override is a usage error.
+    /// </summary>
+    [Theory]
+    [InlineData("--enable")]
+    [InlineData("--disable")]
+    public void Context_Create_ValidateWithRuleOverride_Throws(string option)
+    {
+        // Act & Assert: the combination is rejected
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", option, "MD037"]));
+        Assert.Contains("--validate cannot be combined with", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that the enable and disable options take comma-separated lists of ids and legacy numbers, may be repeated, and are resolved.
+    /// </summary>
+    [Fact]
+    public void Context_Create_EnableAndDisable_AreResolvedToCanonicalIds()
+    {
+        // Act: name rules by id and by number, in several options
+        using var context = Context.Create(["--enable", "descriptive-link-text, MD014", "--disable", "MD037", "--enable", "link-space", "a.md"]);
+
+        // Assert: canonical ids in ordinal order, and the path is still a path
+        Assert.Equal(["descriptive-link-text", "dollar-sign-in-shell-code", "link-space"], context.RuleOverrides.Enabled);
+        Assert.Equal(["emphasis-space"], context.RuleOverrides.Disabled);
+        Assert.Equal(["a.md"], context.Paths);
+    }
+
+    /// <summary>
+    ///     Test that no override option leaves the rule overrides empty.
+    /// </summary>
+    [Fact]
+    public void Context_Create_NoRuleOptions_HasNoOverrides()
+    {
+        // Act & Assert: nothing is forced
+        using var context = Context.Create(["--check"]);
+        Assert.True(context.RuleOverrides.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Test that an invalid rule list is a usage error that names the problem.
+    /// </summary>
+    [Theory]
+    [InlineData("--enable", "no-such-rule", "unknown rule 'no-such-rule'")]
+    [InlineData("--disable", "trailing-whitespace", "always applied")]
+    [InlineData("--enable", "MD037,,MD039", "empty rule id")]
+    [InlineData("--enable", " ", "comma-separated list")]
+    public void Context_Create_InvalidRuleList_Throws(string option, string value, string message)
+    {
+        // Act & Assert: the usage error carries the option and the reason
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create([option, value]));
+        Assert.Contains(option, exception.Message);
+        Assert.Contains(message, exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that a missing rule list, a rule named by both options and a dropped alias are handled.
+    /// </summary>
+    [Fact]
+    public void Context_Create_RuleListEdgeCases_BehaveAsDocumented()
+    {
+        // Act & Assert: the value is required, a contradiction is rejected, a dropped alias is accepted and ignored
+        Assert.Contains("--enable requires", Assert.Throws<ArgumentException>(() => Context.Create(["--enable"])).Message);
+        Assert.Contains("--disable requires", Assert.Throws<ArgumentException>(() => Context.Create(["--disable"])).Message);
+        Assert.Contains("both --enable and --disable", Assert.Throws<ArgumentException>(() => Context.Create(["--enable", "MD037", "--disable", "emphasis-space"])).Message);
+        using var context = Context.Create(["--disable", "MD033"]);
+        Assert.True(context.RuleOverrides.IsEmpty);
     }
 
     /// <summary>
