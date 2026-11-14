@@ -43,7 +43,7 @@ namespace DemaConsulting.LintMark.Linting.Rules;
 ///         <item><c>fence-unclosed</c>: a fenced code or math block that is never closed (the parser runs it to the end of its container).</item>
 ///         <item><c>blockquote-blank-line</c> (MD028): a blank line between two block quotes of the same container.</item>
 ///         <item><c>dollar-sign-in-shell-code</c> (MD014, off by default): a code block in which every non-blank line starts with a dollar sign and a blank.</item>
-///         <item><c>heading-missing-space</c> (MD018): the first line of a paragraph that starts with one to six number signs directly followed by a letter. It is a paragraph, not a heading.</item>
+///         <item><c>heading-missing-space</c> (MD018): the first line of a paragraph that starts at the start of a line with one to six number signs directly followed by a letter. It is a paragraph, not a heading. After a list marker or a quote marker it is left alone (an issue number or a tag).</item>
 ///         <item><c>heading-closed-missing-space</c> (MD020): the same, when the line also ends with number signs that follow a non-blank character (<c>##Title##</c>).</item>
 ///         <item>
 ///             <c>emphasis-space</c> (MD037): emphasis whose delimiters have a space inside on one side only, on a single line
@@ -243,6 +243,12 @@ internal sealed partial class StructureRules : ILintRule
     /// <param name="found">Receives the finding.</param>
     private static void CheckHeadingSpace(SourceDocument source, BlockInfo block, ImmutableArray<Diagnostic>.Builder found)
     {
+        // Only a line that starts the line is meant as a heading; after a list marker or a quote marker it is an issue number or a tag
+        if (source.PositionOf(block.Start).Column != 1)
+        {
+            return;
+        }
+
         var lineEnd = source.Text.IndexOf('\n', block.Start);
         var first = source.Text[block.Start..(lineEnd < 0 || lineEnd > block.EndInclusive ? block.EndInclusive + 1 : lineEnd)];
         if (ClosedMissingSpaceRegex().IsMatch(first))

@@ -158,7 +158,8 @@ internal sealed class Context : IDisposable
     ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths, <c>--check</c>,
     ///     <c>--fix</c>, <c>--diff</c>, <c>--config</c> or <c>--no-config</c>, when <c>--fix</c> is combined with
     ///     <c>--check</c> or <c>--diff</c>, when <c>--config</c> is combined with <c>--no-config</c>, or when
-    ///     <c>--config</c> has no (or a blank) filename.
+    ///     <c>--config</c> has no (or a blank) filename, or when <c>--enable</c> or <c>--disable</c> has no list of rule ids, names a rule that
+    ///     cannot be switched (unknown, or always applied), has an empty entry, or names the same rule as the other option.
     /// </exception>
     /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
     public static Context Create(string[] args)

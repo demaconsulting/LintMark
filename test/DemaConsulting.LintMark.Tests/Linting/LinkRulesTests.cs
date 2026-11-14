@@ -87,8 +87,8 @@ public class LinkRulesTests
     {
         // Arrange: headings, a repeated heading, an HTML anchor and an explicit identifier
         const string known =
-            "# Intro Text\n\n# Intro Text\n\n## What's new? (v2)\n\n<a id=\"custom\"></a>\n\n# Custom {#my-id}\n\n"
-            + "[a](#intro-text) [b](#intro-text-1) [c](#whats-new-v2) [d](#custom) [e](#my-id) [f](#top) [g](#L10) [h](#L10-L20)\n";
+            "# Intro Text\n\n# Intro Text\n\n## What's new? (v2)\n\n<a id=\"custom\"></a>\n\n# Custom {#my-id}\n\n## Logo ![alt](x.png)\n\n"
+            + "[a](#intro-text) [b](#intro-text-1) [c](#whats-new-v2) [d](#custom) [e](#my-id) [f](#top) [g](#L10) [h](#L10-L20) [i](#logo-)\n";
 
         // Act & Assert: every fragment is provided
         Assert.Empty(LintRuleTestSupport.Findings(Rules, known));

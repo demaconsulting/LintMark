@@ -116,7 +116,8 @@ public class StructureRulesTests
         Assert.Equal(["1:1 heading-missing-space"], LintRuleTestSupport.Findings(Rules, "##Title with words\n"));
         Assert.Equal(["1:1 heading-closed-missing-space"], LintRuleTestSupport.Findings(Rules, "##Title##\n"));
         Assert.Equal(["1:1 heading-missing-space"], LintRuleTestSupport.Findings(Rules, "#Title #\n"));
-        Assert.Equal(["1:3 heading-missing-space"], LintRuleTestSupport.Findings(Rules, "> #Title\n"));
+        Assert.Empty(LintRuleTestSupport.Findings(Rules, "> #Title\n"));
+        Assert.Empty(LintRuleTestSupport.Findings(Rules, "- #X\n- #Y\n"));
 
         // Issue numbers, shebangs, escapes, seven number signs, real headings and a later line are not reported
         Assert.Empty(LintRuleTestSupport.Findings(Rules, "#123 is an issue\n"));

@@ -50,13 +50,14 @@ internal static class RuleSupport
     ///     Reads the plain text of an inline tree: the text, the content of code spans and the text of links and emphasis.
     /// </summary>
     /// <param name="root">The inline content, or <see langword="null"/> when there is none.</param>
+    /// <param name="includeImages">Whether the alternative text of an image is part of the text; <see langword="false"/> gives an image no text at all.</param>
     /// <returns>The text; line breaks are blanks and inline HTML contributes nothing.</returns>
-    public static string PlainText(ContainerInline? root)
+    public static string PlainText(ContainerInline? root, bool includeImages = true)
     {
         var builder = new StringBuilder();
         if (root is not null)
         {
-            Append(root, builder);
+            Append(root, builder, includeImages);
         }
 
         return builder.ToString();
@@ -97,7 +98,8 @@ internal static class RuleSupport
     /// </summary>
     /// <param name="inline">The inline.</param>
     /// <param name="builder">The builder.</param>
-    private static void Append(Inline inline, StringBuilder builder)
+    /// <param name="includeImages">Whether the alternative text of an image is read.</param>
+    private static void Append(Inline inline, StringBuilder builder, bool includeImages)
     {
         switch (inline)
         {
@@ -113,10 +115,12 @@ internal static class RuleSupport
             case HtmlEntityInline entity:
                 builder.Append(entity.Transcoded.ToString());
                 break;
+            case LinkInline { IsImage: true } when !includeImages:
+                break;
             case ContainerInline container:
                 foreach (var child in container)
                 {
-                    Append(child, builder);
+                    Append(child, builder, includeImages);
                 }
 
                 break;

@@ -2190,6 +2190,65 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that the help text lists the rule options.
+    /// </summary>
+    [Fact]
+    public void LintMark_HelpFlag_Provided_ListsEnableAndDisableOptions()
+    {
+        // Act: run the tool with the help flag
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--help");
+
+        // Assert: both options are described
+        Assert.Equal(0, exitCode);
+        Assert.Contains("--enable <ids>", output);
+        Assert.Contains("--disable <ids>", output);
+    }
+
+    /// <summary>
+    ///     Test that the disable option switches a lint-only rule off end to end, and the enable option an optional rule on.
+    /// </summary>
+    [Fact]
+    public void LintMark_EnableAndDisableFlags_Provided_SwitchLintOnlyRules()
+    {
+        // Arrange: a stray emphasis space and a link text that says nothing
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("see *text * here and [click here](u)\n"));
+
+        // Act: run with the defaults, with the rule switched off by number, and with the optional rule switched on
+        var byDefault = Runner.Run(out var defaultOutput, "dotnet", _dllPath, file);
+        var disabled = Runner.Run(out var disabledOutput, "dotnet", _dllPath, "--disable", "MD037", file);
+        var enabled = Runner.Run(out var enabledOutput, "dotnet", _dllPath, "--enable", "descriptive-link-text", file);
+
+        // Assert: the default reports one rule, disabling it leaves a clean run, enabling adds the other
+        Assert.Equal(1, byDefault);
+        Assert.Contains("a.md:1:5: emphasis-space", defaultOutput);
+        Assert.DoesNotContain("descriptive-link-text", defaultOutput);
+        Assert.Equal(0, disabled);
+        Assert.DoesNotContain("emphasis-space", disabledOutput);
+        Assert.Equal(1, enabled);
+        Assert.Contains("descriptive-link-text", enabledOutput);
+    }
+
+    /// <summary>
+    ///     Test that a rule list that names an unknown rule is a usage error and nothing is processed.
+    /// </summary>
+    [Fact]
+    public void LintMark_EnableFlag_UnknownRule_IsAUsageError()
+    {
+        // Arrange: a file that would be reported
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("see *text * here\n"));
+
+        // Act: run with an unknown rule
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--enable", "no-such-rule", file);
+
+        // Assert: the error names the option and the rule, and no finding is reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("--enable names an unknown rule 'no-such-rule'", output);
+        Assert.DoesNotContain("emphasis-space", output);
+    }
+
+    /// <summary>
     ///     Test that the diff option shows what the fix option would change and writes nothing.
     /// </summary>
     [Fact]

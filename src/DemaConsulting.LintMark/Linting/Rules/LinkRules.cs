@@ -493,7 +493,8 @@ internal sealed partial class LinkRules : ILintRule
                 continue;
             }
 
-            var text = RuleSupport.PlainText(heading.Inline).Trim();
+            // The text of the heading as the hosting site reads it: an image has no text, and blanks around it stay
+            var text = RuleSupport.PlainText(heading.Inline, includeImages: false);
             var explicitId = ExplicitIdRegex().Match(text);
             if (explicitId.Success)
             {
