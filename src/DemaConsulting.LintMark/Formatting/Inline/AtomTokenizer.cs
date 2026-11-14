@@ -22,6 +22,7 @@ using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Links;
 using Markdig.Extensions.Footnotes;
 using Markdig.Extensions.Mathematics;
 using Markdig.Extensions.TaskLists;
@@ -102,13 +103,17 @@ internal static partial class AtomTokenizer
     /// <param name="lines">
     ///     The lines of the paragraph (see <see cref="DocumentParser.GetLines"/>), at least one. Must not be null or contain null.
     /// </param>
+    /// <param name="breakLinkText">
+    ///     Whether the text of an inline link may be broken at its blanks; only the destination part (<c>](destination "title")</c>)
+    ///     then stays whole. A link whose destination part is not read with certainty stays whole in any case.
+    /// </param>
     /// <returns>
     ///     The segments between hard line breaks with their atoms, and for each line the number of places where it could be
     ///     broken; <see langword="null"/> when the paragraph cannot be cut safely (see the remarks of the class).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null or <paramref name="lines"/> holds a null element.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="lines"/> is empty.</exception>
-    public static TokenizedParagraph? Tokenize(string text, ContainerInline root, IReadOnlyList<LeafLine> lines)
+    public static TokenizedParagraph? Tokenize(string text, ContainerInline root, IReadOnlyList<LeafLine> lines, bool breakLinkText = false)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(text);
@@ -126,7 +131,7 @@ internal static partial class AtomTokenizer
 
         try
         {
-            return TokenizeCore(text, root, lines);
+            return TokenizeCore(text, root, lines, breakLinkText);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -141,9 +146,10 @@ internal static partial class AtomTokenizer
     /// <param name="text">The LF-normalized text of the document.</param>
     /// <param name="root">The inline content of the paragraph.</param>
     /// <param name="lines">The lines of the paragraph.</param>
+    /// <param name="breakLinkText">Whether the text of an inline link may be broken.</param>
     /// <returns>The tokenized paragraph, or <see langword="null"/> when it cannot be cut safely.</returns>
     /// <exception cref="RegexMatchTimeoutException">Thrown when a pattern times out.</exception>
-    private static TokenizedParagraph? TokenizeCore(string text, ContainerInline root, IReadOnlyList<LeafLine> lines)
+    private static TokenizedParagraph? TokenizeCore(string text, ContainerInline root, IReadOnlyList<LeafLine> lines, bool breakLinkText)
     {
         // Rebuild the text of the paragraph; spans that do not fit the lines make it untrustworthy
         var flat = FlatText.Create(text, lines);
@@ -154,7 +160,7 @@ internal static partial class AtomTokenizer
 
         // Mark the constructs that stay whole, from the tree first and then by pattern
         var content = flat.Content;
-        var state = new MarkState(flat, new bool[content.Length]);
+        var state = new MarkState(flat, new bool[content.Length], text, breakLinkText);
         if (!MarkInlineAtoms(root, state))
         {
             return null;
@@ -303,6 +309,20 @@ internal static partial class AtomTokenizer
         if (!state.Flat.TryRange(link, out var first, out var last))
         {
             return false;
+        }
+
+        // With the option on, only the destination part of an inline link stays whole; its text is read like any other text
+        if (state.BreakLinkText
+            && !link.IsImage
+            && InlineLinkTail.TryRead(state.DocumentText, link) is { } tail
+            && state.Flat.TryOffset(tail.Start - 1, out var bracket)
+            && state.Flat.TryOffset(tail.End - 1, out var closing)
+            && first <= bracket
+            && bracket < closing
+            && closing <= last)
+        {
+            state.Atom.AsSpan(bracket, closing - bracket + 1).Fill(true);
+            return MarkInlineAtoms(link, state);
         }
 
         // Count the line breaks of the construct; each must be a soft break in the text of a link
@@ -514,7 +534,9 @@ internal static partial class AtomTokenizer
     /// </summary>
     /// <param name="Flat">The text of the paragraph with its lines.</param>
     /// <param name="Atom">Which characters belong to a construct that stays whole.</param>
-    private sealed record MarkState(FlatText Flat, bool[] Atom)
+    /// <param name="DocumentText">The text of the document, for reading the destination of a link.</param>
+    /// <param name="BreakLinkText">Whether the text of an inline link may be broken (only its destination part stays whole).</param>
+    private sealed record MarkState(FlatText Flat, bool[] Atom, string DocumentText, bool BreakLinkText)
     {
         /// <summary>
         ///     Gets the end offsets of the task list markers.
@@ -648,6 +670,18 @@ internal static partial class AtomTokenizer
         {
             var index = Array.BinarySearch(_flatStarts, offset);
             return index >= 0 ? index : ~index - 1;
+        }
+
+        /// <summary>
+        ///     Converts a document offset to an offset of the paragraph text.
+        /// </summary>
+        /// <param name="documentOffset">The offset in the document.</param>
+        /// <param name="offset">Receives the offset in the paragraph text.</param>
+        /// <returns><see langword="false"/> when the offset is not in the content of a line.</returns>
+        public bool TryOffset(int documentOffset, out int offset)
+        {
+            offset = ToFlat(documentOffset);
+            return offset >= 0;
         }
 
         /// <summary>

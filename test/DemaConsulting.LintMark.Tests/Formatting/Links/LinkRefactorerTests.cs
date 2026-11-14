@@ -634,6 +634,58 @@ public class LinkRefactorerTests
     }
 
     /// <summary>
+    ///     Test that the text of an inline link may be broken when the option is on, while its destination part stays whole,
+    ///     and that the link is one word otherwise.
+    /// </summary>
+    [Fact]
+    public void LinkRefactorer_Format_BreakLinkText_BreaksTheTextAndKeepsTheDestinationWhole()
+    {
+        // Arrange: a paragraph that is too wide, with a link in it; the link is not converted (threshold above its width)
+        const string text = "Words [link text with many words](https://example.com/x) after words.\n";
+        var off = LintMarkConfig.Default with { LineLength = 30 };
+        var on = off with { LinkRefactor = LinkRefactorOptions.Disabled with { BreakLinkText = true } };
+
+        // Act / Assert: without the option the link is one word, with it the text is filled like any other text
+        Assert.Equal("Words\n[link text with many words](https://example.com/x)\nafter words.\n", Format(text, off));
+        Assert.Equal("Words [link text with many\nwords](https://example.com/x)\nafter words.\n", Format(text, on));
+    }
+
+    /// <summary>
+    ///     Test that random documents are safe and stable with broken link text, alone and with the conversion.
+    /// </summary>
+    [Fact]
+    public void LinkRefactorer_Format_RandomDocumentsWithBreakLinkText_AreSafeAndStable()
+    {
+        // Arrange: adversarial documents at two narrow widths
+        var documents = ParagraphDocuments.Generate(20261115u, 300).ToList();
+        var names = documents.SelectMany(document => new[] { 40, 20 }.Select(width => $"{document.Name} @{width}")).ToList();
+
+        // Act: documents that the other rules alone refuse are skipped
+        var failures = BlockFormatterAssertions.CollectFailures(
+            names,
+            index =>
+            {
+                var document = documents[index / 2];
+                var width = index % 2 == 0 ? 40 : 20;
+                try
+                {
+                    BlockFormatterAssertions.AssertSafeAndStable(document.Text, LintMarkConfig.Default with { LineLength = width }, checkParallel: false);
+                }
+                catch (Xunit.Sdk.XunitException)
+                {
+                    return;
+                }
+
+                var broken = LintMarkConfig.Default with { LineLength = width, LinkRefactor = LinkRefactorOptions.Disabled with { BreakLinkText = true } };
+                BlockFormatterAssertions.AssertSafeAndStable(document.Text, broken, checkParallel: false);
+                BlockFormatterAssertions.AssertSafeAndStable(document.Text, broken with { LinkRefactor = broken.LinkRefactor with { Enabled = true, Threshold = 12 } }, checkParallel: false);
+            });
+
+        // Assert
+        BlockFormatterAssertions.AssertNone(failures);
+    }
+
+    /// <summary>
     ///     Test that random documents with many links convert safely and stably.
     /// </summary>
     [Fact]

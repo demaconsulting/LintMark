@@ -236,7 +236,7 @@ internal sealed class ParagraphFormatter
         }
 
         // Find the first line that is too wide and has a place to break; without the atoms any line with a blank inside will do
-        var tokenized = AtomTokenizer.Tokenize(text, inline, lines);
+        var tokenized = AtomTokenizer.Tokenize(text, inline, lines, config.LinkRefactor.BreakLinkText);
         var overflowLine = tooWide ? FindOverflowLine(text, lines, widths, limit, tokenized) : -1;
         if (overflowLine < 0 && !layoutActive)
         {
