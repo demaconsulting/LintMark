@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Utilities;
 
@@ -284,5 +285,134 @@ public class LineWrapperTests
                     Assert.Equal(reference.HasBreakableOverflow, other.HasBreakableOverflow);
                 }
             });
+    }
+
+    /// <summary>
+    ///     Wraps atoms given as one string separated by blanks in a wrap mode.
+    /// </summary>
+    /// <param name="atoms">The atoms separated by single spaces.</param>
+    /// <param name="mode">The wrap mode.</param>
+    /// <param name="firstWidth">The width of the first line.</param>
+    /// <param name="width">The width of the other lines; the first width when omitted.</param>
+    /// <returns>The wrapped lines.</returns>
+    private static WrappedLines WrapIn(string atoms, WrapMode mode, int firstWidth, int? width = null) =>
+        LineWrapper.Wrap([.. atoms.Split(' ')], firstWidth, width ?? firstWidth, mode);
+
+    /// <summary>
+    ///     Test that the fill mode gives the same lines as the overload without a mode, and that an undefined mode is rejected.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_FillModeAndUndefinedMode_AreHandled()
+    {
+        // Act & Assert: the fill mode is the plain fill and an undefined mode is rejected and named
+        Assert.Equal(Wrap("ant bat cat dog", 7).Lines, WrapIn("ant bat cat dog", WrapMode.Fill, 7).Lines);
+        Assert.Equal("mode", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 5, 5, (WrapMode)9)).ParamName);
+        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => LineWrapper.Wrap([], 5, 5, WrapMode.Sentence)).ParamName);
+        Assert.Equal("firstWidth", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 0, 5, WrapMode.Semantic)).ParamName);
+    }
+
+    /// <summary>
+    ///     Test that the sentence mode puts every sentence on its own line, however short.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SentenceMode_PutsEverySentenceOnItsOwnLine()
+    {
+        // Act: wrap three short sentences into a width that would hold them all
+        var wrapped = WrapIn("One two. Three four. Five six", WrapMode.Sentence, 100);
+
+        // Assert: one line each
+        Assert.Equal(["One two.", "Three four.", "Five six"], wrapped.Lines);
+        Assert.False(wrapped.HasBreakableOverflow);
+    }
+
+    /// <summary>
+    ///     Test that the sentence mode fills the lines of a sentence that is too wide, with the continuation width after the first line.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SentenceModeTooWideSentence_IsFilled()
+    {
+        // Act: wrap a sentence of 27 columns into 11 and 12 columns, then a short one
+        var wrapped = WrapIn("ant bat cat dog eel fox gnu. Hen ink", WrapMode.Sentence, 11, 12);
+
+        // Assert: the first sentence is filled and the second starts a new line
+        Assert.Equal(["ant bat cat", "dog eel fox", "gnu.", "Hen ink"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that the semantic mode keeps a sentence that fits on one line, and splits one that does not at its clauses before it fills.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticMode_SplitsOnlyTooWideSentencesAtClauses()
+    {
+        // Act: a sentence that fits with a comma in it, then one that does not
+        var wrapped = WrapIn("Yes, it fits. However, this longer sentence does not fit; split it, please", WrapMode.Semantic, 40);
+
+        // Assert: the first sentence stays whole, the second is split at its clauses
+        Assert.Equal(["Yes, it fits.", "However,", "this longer sentence does not fit;", "split it,", "please"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a clause that is still too wide is filled.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticModeTooWideClause_IsFilled()
+    {
+        // Act: a sentence with a clause that does not fit in 12 columns
+        var wrapped = WrapIn("ant bat cat dog eel, fox gnu", WrapMode.Semantic, 12);
+
+        // Assert: the first clause is filled, then the second
+        Assert.Equal(["ant bat cat", "dog eel,", "fox gnu"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a sentence start that the guard refuses stays on the line before it.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SentenceStartThatIsBlockSyntax_StaysOnTheLineBefore()
+    {
+        // Act: the second sentence would start with a number marker
+        var wrapped = WrapIn("Done. 12. Then more. Next", WrapMode.Sentence, 100);
+
+        // Assert: "12." is not a place to break, so the lines break only where the next atom may start a line
+        Assert.Equal(["Done. 12. Then more.", "Next"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that an unlimited width writes one sentence per line in both modes.
+    /// </summary>
+    [Theory]
+    [InlineData("Sentence")]
+    [InlineData("Semantic")]
+    public void LineWrapper_Wrap_UnlimitedWidth_WritesOneSentencePerLine(string modeName)
+    {
+        var mode = Enum.Parse<WrapMode>(modeName);
+        // Act: wrap with a width that no line reaches
+        var wrapped = WrapIn("One, two. Three, four. Five", mode, int.MaxValue / 2);
+
+        // Assert: one sentence per line
+        Assert.Equal(["One, two.", "Three, four.", "Five"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that wrapping the lines that a mode wrote gives the same lines, for both modes and several widths.
+    /// </summary>
+    [Theory]
+    [InlineData("Sentence", 10)]
+    [InlineData("Sentence", 30)]
+    [InlineData("Semantic", 10)]
+    [InlineData("Semantic", 30)]
+    [InlineData("Semantic", 80)]
+    public void LineWrapper_Wrap_ModesAreIdempotent(string modeName, int width)
+    {
+        var mode = Enum.Parse<WrapMode>(modeName);
+        // Arrange: a text with sentences, clauses, abbreviations and block syntax at possible breaks
+        const string text = "Dr. Smith, who e.g. wrote this, said: stop! Then 12. went; away. - Next is 2026. Done? Yes, really long clauses follow, again and again; stop";
+        var first = WrapIn(text, mode, width, width - 2);
+
+        // Act: wrap the words of the result again
+        var again = WrapIn(string.Join(' ', first.Lines), mode, width, width - 2);
+
+        // Assert: the same lines
+        Assert.Equal(first.Lines, again.Lines);
     }
 }

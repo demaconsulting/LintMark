@@ -149,11 +149,11 @@ public class ParagraphFormatterTests
         // Act: read the rule ids
         var ruleIds = Formatter.RuleIds;
 
-        // Assert: the ten rules, each registered, in an immutable array
+        // Assert: the eleven rules, each registered, in an immutable array
         Assert.Equal(
             [
                 "line-length", "trailing-whitespace", "hard-tabs", "emphasis", "strong", "bare-urls", "code-span-space",
-                "list-indent", "list-marker-space", "blockquote-space"
+                "list-indent", "list-marker-space", "blockquote-space", "paragraph-wrap"
             ],
             ruleIds);
         Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
@@ -478,7 +478,7 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
-    ///     Test that nothing is wrapped when the line length is zero, the rule is switched off, or the wrap mode is not fill.
+    ///     Test that nothing is wrapped when the line length is zero or the rule is switched off, in the fill mode.
     /// </summary>
     [Fact]
     public void ParagraphFormatter_Format_SettingsThatDisableWrapping_KeepTheParagraph()
@@ -486,11 +486,10 @@ public class ParagraphFormatterTests
         // Arrange: a paragraph that is too wide for twenty columns
         const string text = "ant bat cat dog eel fox gnu\n";
 
-        // Act & Assert: no limit, the rule off, the sentence mode and the semantic mode keep it
+        // Act & Assert: no limit and the rule off keep it, and so does the paragraph-wrap rule in the fill mode
         AssertKept(text, Width(0));
         AssertKept(text, Width(20) with { Rules = LintMarkConfig.Default.Rules.SetItem("line-length", false) });
-        AssertKept(text, Width(20) with { Wrap = WrapMode.Sentence });
-        AssertKept(text, Width(20) with { Wrap = WrapMode.Semantic });
+        AssertKept(text, Width(0) with { Rules = LintMarkConfig.Default.Rules.SetItem("paragraph-wrap", true) });
         Assert.False(ParagraphFormatter.IsEnabled(Width(0)));
         Assert.True(ParagraphFormatter.IsEnabled(Width(20)));
     }

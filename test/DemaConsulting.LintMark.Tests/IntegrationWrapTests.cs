@@ -429,22 +429,50 @@ public class IntegrationWrapTests
     }
 
     /// <summary>
-    ///     Test that the sentence and semantic wrap modes are accepted and change nothing.
+    ///     Test that the sentence and semantic wrap modes wrap every sentence on its own line when the file is fixed.
     /// </summary>
     [Theory]
     [InlineData("sentence")]
     [InlineData("semantic")]
-    public void LintMark_ConfigWrap_SentenceAndSemantic_AreAcceptedAndChangeNothing(string mode)
+    public void LintMark_ConfigWrap_SentenceAndSemantic_PutEverySentenceOnItsOwnLine(string mode)
     {
-        // Arrange and Act: fix a paragraph that is too wide under a wrap mode that is accepted but not applied
+        // Arrange and Act: fix a paragraph that is too wide under a wrap mode
         using var directory = new TemporaryDirectory();
         const string content = "ant bat cat dog eel fox gnu. Hen ink jam.\n";
         var (exitCode, output, text) = FixFile(directory, content, $"line-length: 20\nwrap: {mode}\n");
 
-        // Assert: the configuration is accepted and the paragraph is unchanged
+        // Assert: the configuration is accepted and the paragraph is wrapped per sentence
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("config-error", output);
-        Assert.Equal(content, text);
+        Assert.Equal("ant bat cat dog eel\nfox gnu.\nHen ink jam.\n", text);
+    }
+
+    /// <summary>
+    ///     Test that the paragraph-wrap rule reports a paragraph that is not laid out per sentence, and that disabling it in the
+    ///     configuration leaves a paragraph that fits alone.
+    /// </summary>
+    [Fact]
+    public void LintMark_ConfigWrap_ParagraphWrapRule_ReportsAndCanBeDisabled()
+    {
+        // Arrange and Act: check a paragraph that fits but holds two sentences
+        using var directory = new TemporaryDirectory();
+        const string content = "One two. Three four.\n";
+        var path = directory.WriteFile("a.md", content);
+        directory.WriteFile(".lintmark.yaml", "wrap: sentence\n");
+        var reported = Runner.Run(out var output, "dotnet", _dllPath, path);
+
+        // Assert: the finding is reported under the paragraph-wrap rule
+        Assert.Equal(1, reported);
+        Assert.Contains(":1:1: paragraph-wrap", output);
+
+        // Arrange and Act: switch the rule off
+        directory.WriteFile(".lintmark.yaml", "wrap: sentence\nrules:\n  paragraph-wrap: false\n");
+        var silent = Runner.Run(out var quiet, "dotnet", _dllPath, path);
+
+        // Assert: nothing is reported and the file is unchanged
+        Assert.Equal(0, silent);
+        Assert.DoesNotContain("paragraph-wrap", quiet);
+        Assert.Equal(content, File.ReadAllText(path));
     }
 
     /// <summary>

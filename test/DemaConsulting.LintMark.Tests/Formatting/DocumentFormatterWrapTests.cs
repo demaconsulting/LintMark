@@ -206,7 +206,7 @@ public class DocumentFormatterWrapTests
     }
 
     /// <summary>
-    ///     Test that nothing is wrapped when the line length is zero, the rule is off, or the wrap mode is not fill.
+    ///     Test that nothing is wrapped when the line length is zero or the rule is off, and that the paragraph-wrap rule does nothing in the fill mode.
     /// </summary>
     [Fact]
     public void DocumentFormatter_Format_SettingsThatDisableWrapping_ReportAndChangeNothing()
@@ -218,8 +218,7 @@ public class DocumentFormatterWrapTests
         {
             Width(0),
             Width(20) with { Rules = LintMarkConfig.Default.Rules.SetItem("line-length", false) },
-            Width(20) with { Wrap = WrapMode.Sentence },
-            Width(20) with { Wrap = WrapMode.Semantic }
+            Width(0) with { Rules = LintMarkConfig.Default.Rules.SetItem("paragraph-wrap", true) }
         };
 
         // Act & Assert: no edit and no finding for any of them

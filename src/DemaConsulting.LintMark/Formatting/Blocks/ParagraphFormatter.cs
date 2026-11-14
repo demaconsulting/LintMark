@@ -38,10 +38,16 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         This is the <c>line-length</c> rule in its <c>fill</c> mode. A paragraph is rewritten only when one of its lines
+///         This is the <c>line-length</c> rule in its <c>fill</c> mode, and the <c>paragraph-wrap</c> rule in the
+///         <c>sentence</c> and <c>semantic</c> modes. In the <c>fill</c> mode a paragraph is rewritten only when one of its lines
 ///         is wider (in display columns, container prefix included) than the line length and could be broken, so
-///         hand-wrapped text that fits is never reflowed. The words of the paragraph come from the
-///         <see cref="AtomTokenizer"/> (a link, a code span or an inline HTML tag is never split), are filled by the
+///         hand-wrapped text that fits is never reflowed. In the <c>sentence</c> and <c>semantic</c> modes (an opt-in) every
+///         eligible paragraph has one canonical layout (see <see cref="LineWrapper"/>): a paragraph that is not laid out that way is
+///         a finding of the <c>paragraph-wrap</c> rule and is rewritten, while a line that is too wide and could be broken stays a
+///         finding of the <c>line-length</c> rule; the two rules are switched on and off, and suppressed, independently, and either
+///         one is enough to rewrite a paragraph. A line length of 0 means no limit, and a layout without width.
+///         The words of the paragraph come from the
+///         <see cref="AtomTokenizer"/> (a link, a code span or an inline HTML tag is never split), are laid out by the
 ///         <see cref="LineWrapper"/> (which keeps block syntax away from the start of a line, see
 ///         <see cref="BlockSyntaxGuard"/>), and are written back with the container prefix of the paragraph on every line.
 ///         A line that has only one atom (a long link or URL) is never reported or changed. A hard line break stays
@@ -69,6 +75,11 @@ internal sealed class ParagraphFormatter
     ///     The identifier of the rule that wraps paragraphs.
     /// </summary>
     private const string LineLengthRule = RuleCatalog.LineLengthRuleId;
+
+    /// <summary>
+    ///     The width that stands for no limit (a line length of 0), large enough that no line reaches it.
+    /// </summary>
+    private const int Unlimited = int.MaxValue / 2;
 
     /// <summary>
     ///     The characters that separate the words of a line and that never count towards its width at its end.
@@ -121,7 +132,8 @@ internal sealed class ParagraphFormatter
         RuleCatalog.CodeSpanSpaceRuleId,
         RuleCatalog.ListIndentRuleId,
         RuleCatalog.ListMarkerSpaceRuleId,
-        RuleCatalog.BlockQuoteSpaceRuleId
+        RuleCatalog.BlockQuoteSpaceRuleId,
+        RuleCatalog.ParagraphWrapRuleId
     ];
 
     /// <summary>
@@ -129,8 +141,8 @@ internal sealed class ParagraphFormatter
     /// </summary>
     /// <param name="config">The effective configuration. Must not be null.</param>
     /// <returns>
-    ///     <see langword="true"/> when the wrap mode is <c>fill</c>, the line length is not 0 and the <c>line-length</c> rule is
-    ///     switched on.
+    ///     <see langword="true"/> when the line length is not 0 and the <c>line-length</c> rule is switched on, or when the wrap mode
+    ///     is <c>sentence</c> or <c>semantic</c> and the <c>paragraph-wrap</c> rule is switched on.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
     public static bool IsEnabled(LintMarkConfig config)
@@ -138,7 +150,25 @@ internal sealed class ParagraphFormatter
         // Validate input
         ArgumentNullException.ThrowIfNull(config);
 
-        return config.Wrap == WrapMode.Fill && config.LineLength > 0 && config.Rules[RuleCatalog.LineLengthRuleId];
+        return (config.LineLength > 0 && config.Rules[RuleCatalog.LineLengthRuleId])
+            || (config.Wrap != WrapMode.Fill && config.Rules[RuleCatalog.ParagraphWrapRuleId]);
+    }
+
+    /// <summary>
+    ///     Determines whether the settings ask for every paragraph to be laid out the way the wrap mode says.
+    /// </summary>
+    /// <param name="config">The effective configuration. Must not be null.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the wrap mode is <c>sentence</c> or <c>semantic</c> and the <c>paragraph-wrap</c> rule is
+    ///     switched on: then a paragraph is checked whatever the width of its lines.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
+    public static bool IsLayoutEnforced(LintMarkConfig config)
+    {
+        // Validate input
+        ArgumentNullException.ThrowIfNull(config);
+
+        return config.Wrap != WrapMode.Fill && config.Rules[RuleCatalog.ParagraphWrapRuleId];
     }
 
     /// <summary>
@@ -166,19 +196,29 @@ internal sealed class ParagraphFormatter
             throw new ArgumentException($"The block must be a paragraph, not {block.Kind}.", nameof(block));
         }
 
-        // Only a paragraph with inline content, under settings that ask for wrapping, outside a footnote and with no suppressed rule
+        // Only a paragraph with inline content, outside a footnote and with no suppressed rule that edits its text
         var document = context.Document;
-        if (!IsEnabled(context.Config) || block.Node is not ParagraphBlock { Inline: { } inline } || IsExempt(context, block))
+        var config = context.Config;
+        if (!IsEnabled(config) || block.Node is not ParagraphBlock { Inline: { } inline } || IsExempt(context, block))
         {
             return ParagraphOutcome.None;
         }
 
-        // Measure every line; a paragraph in which no line is too wide needs nothing
+        // The rules that ask for a wrap: the line length (a line that is too wide) and the layout of the wrap mode (every paragraph)
+        var suppressions = document.Suppressions;
+        var limit = config.LineLength;
+        var lengthActive = limit > 0
+            && config.Rules[LineLengthRule]
+            && !suppressions.IsSuppressedRange(block.Start, block.EndInclusive + 1, LineLengthRule);
+        var layoutActive = IsLayoutEnforced(config)
+            && !suppressions.IsSuppressedRange(block.Start, block.EndInclusive + 1, RuleCatalog.ParagraphWrapRuleId);
+
+        // Measure every line; a paragraph in which no line is too wide needs nothing unless its layout is enforced
         var text = document.Source.Text;
-        var limit = context.Config.LineLength;
         var lines = DocumentParser.GetLines(document, block);
         var widths = MeasureLines(text, lines);
-        if (!widths.Any(width => width > limit))
+        var tooWide = lengthActive && widths.Any(width => width > limit);
+        if (!tooWide && !layoutActive)
         {
             return ParagraphOutcome.None;
         }
@@ -197,25 +237,25 @@ internal sealed class ParagraphFormatter
 
         // Find the first line that is too wide and has a place to break; without the atoms any line with a blank inside will do
         var tokenized = AtomTokenizer.Tokenize(text, inline, lines);
-        var overflowLine = FindOverflowLine(text, lines, widths, limit, tokenized);
-        if (overflowLine < 0)
+        var overflowLine = tooWide ? FindOverflowLine(text, lines, widths, limit, tokenized) : -1;
+        if (overflowLine < 0 && !layoutActive)
         {
             return ParagraphOutcome.None;
         }
 
-        var offset = FindOffsetBeyond(text, lines[overflowLine], limit);
-        var overflowWidth = widths[overflowLine];
+        var offset = overflowLine >= 0 ? FindOffsetBeyond(text, lines[overflowLine], limit) : -1;
+        var overflowWidth = overflowLine >= 0 ? widths[overflowLine] : 0;
 
-        // A paragraph that cannot be rewritten safely is reported and left as written
+        // A paragraph that cannot be rewritten safely is reported and left as written (its layout is not reported: it is not known)
         if (tokenized is null || IsLazyInListItem(block, lines) || StartsLineWithBlockSyntax(tokenized))
         {
-            return new ParagraphOutcome(null, offset, overflowWidth, hasResidualOverflow: true);
+            return overflowLine >= 0 ? new ParagraphOutcome(null, offset, overflowWidth, hasResidualOverflow: true) : ParagraphOutcome.None;
         }
 
-        // Wrap every segment, each with the widths of the lines it starts
+        // Wrap every segment in the layout of the mode, each with the widths of the lines it starts
         var firstPrefix = text[firstLineStart..block.Start];
-        var firstWidth = Math.Max(1, limit - TextWidth.Of(firstPrefix));
-        var continuationWidth = Math.Max(1, limit - TextWidth.Of(continuationPrefix));
+        var firstWidth = limit > 0 ? Math.Max(1, limit - TextWidth.Of(firstPrefix)) : Unlimited;
+        var continuationWidth = limit > 0 ? Math.Max(1, limit - TextWidth.Of(continuationPrefix)) : Unlimited;
         var wrapped = new List<string>();
         var overflow = false;
         foreach (var segment in tokenized.Segments)
@@ -225,7 +265,7 @@ internal sealed class ParagraphFormatter
                 continue;
             }
 
-            var result = LineWrapper.Wrap(segment.Atoms, wrapped.Count == 0 ? firstWidth : continuationWidth, continuationWidth);
+            var result = LineWrapper.Wrap(segment.Atoms, wrapped.Count == 0 ? firstWidth : continuationWidth, continuationWidth, config.Wrap);
             overflow |= result.HasBreakableOverflow;
             var segmentLines = result.Lines.ToArray();
             if (segment.End == HardBreakKind.Spaces)
@@ -241,18 +281,43 @@ internal sealed class ParagraphFormatter
         var replacement = string.Join("\n" + continuationPrefix, wrapped);
         if (string.Equals(replacement, original, StringComparison.Ordinal))
         {
-            return new ParagraphOutcome(null, offset, overflowWidth, overflow);
+            return overflowLine >= 0 ? new ParagraphOutcome(null, offset, overflowWidth, overflow) : ParagraphOutcome.None;
         }
+
+        // A paragraph that is not in the layout of the mode is a finding of its own, at the first line that differs
+        var wrapOffset = layoutActive ? FindFirstDifference(text, lines, wrapped) : -1;
+        var residual = overflowLine >= 0;
 
         // The wrap stands only when the stand-alone paragraph renders the same afterwards, and so does the paragraph inside
         // its list or quote (a parser may read the first line of a quote differently when it is followed by more text)
         if (!_rendersTheSame(StandAloneText(text, lines), string.Join('\n', wrapped))
             || !RenderTheSameInContainer(text[firstLineStart..end], firstPrefix + replacement))
         {
-            return new ParagraphOutcome(null, offset, overflowWidth, hasResidualOverflow: true);
+            return new ParagraphOutcome(null, offset, overflowWidth, residual, wrapOffset);
         }
 
-        return new ParagraphOutcome(new TextEdit(block.Start, end - block.Start, replacement, LineLengthRule), offset, overflowWidth, overflow);
+        var rule = wrapOffset >= 0 ? RuleCatalog.ParagraphWrapRuleId : LineLengthRule;
+        return new ParagraphOutcome(new TextEdit(block.Start, end - block.Start, replacement, rule), offset, overflowWidth, residual && overflow, wrapOffset);
+    }
+
+    /// <summary>
+    ///     Finds the start of the first line of a paragraph that differs from the lines the wrap would write.
+    /// </summary>
+    /// <param name="text">The text of the document.</param>
+    /// <param name="lines">The lines of the paragraph as written.</param>
+    /// <param name="wrapped">The lines the wrap writes, without container prefix.</param>
+    /// <returns>The offset of the start of the first line that differs (or, when the lines only differ in count, of the last line).</returns>
+    private static int FindFirstDifference(string text, IReadOnlyList<LeafLine> lines, List<string> wrapped)
+    {
+        for (var i = 0; i < lines.Count && i < wrapped.Count; i++)
+        {
+            if (!string.Equals(text[lines[i].ContentStart..lines[i].ContentEnd], wrapped[i], StringComparison.Ordinal))
+            {
+                return lines[i].LineStart;
+            }
+        }
+
+        return lines[Math.Min(Math.Min(lines.Count, wrapped.Count), lines.Count - 1)].LineStart;
     }
 
     /// <summary>
@@ -270,7 +335,8 @@ internal sealed class ParagraphFormatter
         }
 
         var suppressions = context.Document.Suppressions;
-        return RuleIds.Any(rule => suppressions.IsSuppressedRange(block.Start, block.EndInclusive + 1, rule));
+        return RuleIds.Any(rule => rule is not (LineLengthRule or RuleCatalog.ParagraphWrapRuleId)
+            && suppressions.IsSuppressedRange(block.Start, block.EndInclusive + 1, rule));
     }
 
     /// <summary>

@@ -100,7 +100,7 @@ internal static class BlockFormatterAssertions
         Assert.Equal(!string.Equals(text, formatted, StringComparison.Ordinal), result.Diagnostics.Any(static diagnostic => diagnostic.Kind == DiagnosticKind.Formatting));
         Assert.All(result.Diagnostics, diagnostic =>
         {
-            Assert.True(diagnostic.Kind == DiagnosticKind.Formatting || (diagnostic.Kind == DiagnosticKind.LintOnly && diagnostic.RuleId == RuleCatalog.LineLengthRuleId));
+            Assert.True(diagnostic.Kind == DiagnosticKind.Formatting || (diagnostic.Kind == DiagnosticKind.LintOnly && diagnostic.RuleId is RuleCatalog.LineLengthRuleId or RuleCatalog.ParagraphWrapRuleId));
             Assert.True(diagnostic.Line >= 1 && diagnostic.Column >= 1);
         });
 
@@ -118,7 +118,7 @@ internal static class BlockFormatterAssertions
         var second = Apply(used, formatted, effective);
         Assert.Empty(second.Result.Edits);
         Assert.DoesNotContain(second.Result.Diagnostics, static diagnostic => diagnostic.Kind == DiagnosticKind.Formatting);
-        Assert.All(second.Result.Diagnostics, static diagnostic => Assert.Equal(RuleCatalog.LineLengthRuleId, diagnostic.RuleId));
+        Assert.All(second.Result.Diagnostics, static diagnostic => Assert.True(diagnostic.RuleId is RuleCatalog.LineLengthRuleId or RuleCatalog.ParagraphWrapRuleId));
         Assert.True(
             Parse(text).IsFormatUnsafe == Parse(formatted).IsFormatUnsafe,
             $"The rewrite changed whether the document is read with grid tables.\n--- before ---\n{text}\n--- after ---\n{formatted}");

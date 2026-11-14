@@ -277,13 +277,15 @@ public class FormattingSubsystemWrapTests
     }
 
     /// <summary>
-    ///     Test that the sentence and semantic wrap modes are accepted and change nothing.
+    ///     Test that the sentence and semantic wrap modes wrap a paragraph that is too wide, one sentence per line, safely and stably.
     /// </summary>
     [Theory]
     [InlineData("Sentence")]
     [InlineData("Semantic")]
-    public void FormattingSubsystem_Format_ReservedWrapModes_AreAcceptedAndChangeNothing(string mode) =>
-        AssertSilent("ant bat cat dog eel fox gnu. Hen ink jam.\n", Width(20) with { Wrap = Enum.Parse<WrapMode>(mode) });
+    public void FormattingSubsystem_Format_SentenceAndSemanticModes_WrapTheParagraphPerSentence(string mode) =>
+        Assert.Equal(
+            "ant bat cat dog eel\nfox gnu.\nHen ink jam.\n",
+            BlockFormatterAssertions.AssertSafeAndStable("ant bat cat dog eel fox gnu. Hen ink jam.\n", Width(20) with { Wrap = Enum.Parse<WrapMode>(mode) }));
 
     /// <summary>
     ///     Test that formatting a wrapped text proposes nothing more, also when other rules change the text in the same run.

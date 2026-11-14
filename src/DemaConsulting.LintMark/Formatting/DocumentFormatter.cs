@@ -221,7 +221,7 @@ internal sealed class DocumentFormatter
 
         var source = document.Source;
         var produced = SourcePatcher.Apply(source, edits);
-        if (!HasLineWiderThan(produced, config.LineLength))
+        if (!ParagraphFormatter.IsLayoutEnforced(config) && !HasLineWiderThan(produced, config.LineLength))
         {
             return (edits, []);
         }
@@ -238,7 +238,7 @@ internal sealed class DocumentFormatter
         var outcomes = current.Blocks
             .Where(static block => block.Kind == BlockKind.Paragraph)
             .Select(block => _paragraphs.Format(context, block))
-            .Where(static outcome => outcome.OverflowOffset >= 0)
+            .Where(static outcome => outcome.HasFinding)
             .ToList();
 
         // A wrap that the rules would change again is not a result a second run could leave alone, so it is not made
@@ -317,7 +317,7 @@ internal sealed class DocumentFormatter
         }
 
         return [.. outcomes.Select(outcome => withdrawn.Contains(outcome)
-            ? new ParagraphOutcome(null, outcome.OverflowOffset, outcome.OverflowWidth, hasResidualOverflow: true)
+            ? new ParagraphOutcome(null, outcome.OverflowOffset, outcome.OverflowWidth, hasResidualOverflow: outcome.OverflowOffset >= 0, outcome.WrapOffset)
             : outcome)];
     }
 
@@ -364,6 +364,27 @@ internal sealed class DocumentFormatter
         ParagraphOutcome outcome,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
+        // A paragraph that is not in the layout of the wrap mode is one finding, fixed by the edit when there is one
+        if (outcome.WrapOffset >= 0)
+        {
+            var (wrapLine, wrapColumn) = source.PositionOf(EditRebaser.MapOffset(edits, outcome.WrapOffset));
+            const string description = "Paragraph is not wrapped per the configured sentence or semantic style";
+            diagnostics.Add(outcome.Edit is not null
+                ? new Diagnostic(RuleCatalog.ParagraphWrapRuleId, DiagnosticKind.Formatting, source.Path, wrapLine, wrapColumn, description)
+                : new Diagnostic(
+                    RuleCatalog.ParagraphWrapRuleId,
+                    DiagnosticKind.LintOnly,
+                    source.Path,
+                    wrapLine,
+                    wrapColumn,
+                    description + " and the paragraph cannot be wrapped automatically"));
+        }
+
+        if (outcome.OverflowOffset < 0)
+        {
+            return;
+        }
+
         var (line, column) = source.PositionOf(EditRebaser.MapOffset(edits, outcome.OverflowOffset));
         var message = $"Line is {outcome.OverflowWidth} columns wide; the limit is {limit}";
         if (outcome.Edit is not null)

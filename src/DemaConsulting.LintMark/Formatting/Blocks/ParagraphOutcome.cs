@@ -47,20 +47,32 @@ internal sealed record ParagraphOutcome
     /// </param>
     /// <param name="overflowWidth">The display width of that line; 0 when <paramref name="overflowOffset"/> is -1.</param>
     /// <param name="hasResidualOverflow">Whether a line that could be broken is still too wide (after the edit, when there is one).</param>
+    /// <param name="wrapOffset">
+    ///     The offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
+    ///     the paragraph is laid out that way or the mode does not apply. With an edit the finding is one that the edit fixes;
+    ///     without one it is a finding that cannot be fixed automatically.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when <paramref name="overflowOffset"/> is less than -1 or <paramref name="overflowWidth"/> is negative.
+    ///     Thrown when <paramref name="overflowOffset"/> or <paramref name="wrapOffset"/> is less than -1 or <paramref name="overflowWidth"/> is negative.
     /// </exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when an edit or a residual overflow is given without an overflow offset, or a width without an offset.
+    ///     Thrown when a residual overflow is given without an overflow offset, a width without an offset, or an edit without
+    ///     any offset.
     /// </exception>
-    public ParagraphOutcome(TextEdit? edit, int overflowOffset, int overflowWidth, bool hasResidualOverflow)
+    public ParagraphOutcome(TextEdit? edit, int overflowOffset, int overflowWidth, bool hasResidualOverflow, int wrapOffset = -1)
     {
         // Validate every argument so that an inconsistent outcome can never be created
         ArgumentOutOfRangeException.ThrowIfLessThan(overflowOffset, -1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(wrapOffset, -1);
         ArgumentOutOfRangeException.ThrowIfNegative(overflowWidth);
-        if (overflowOffset < 0 && (edit is not null || hasResidualOverflow || overflowWidth != 0))
+        if (overflowOffset < 0 && (hasResidualOverflow || overflowWidth != 0))
         {
-            throw new ArgumentException("An edit, a residual overflow and a width need the offset of the overflow.", nameof(overflowOffset));
+            throw new ArgumentException("A residual overflow and a width need the offset of the overflow.", nameof(overflowOffset));
+        }
+
+        if (edit is not null && overflowOffset < 0 && wrapOffset < 0)
+        {
+            throw new ArgumentException("An edit needs the offset of the overflow or of the wrap finding.", nameof(overflowOffset));
         }
 
         if (edit is { } proposed && (proposed.Replacement is null || proposed.RuleId is null))
@@ -72,12 +84,24 @@ internal sealed record ParagraphOutcome
         OverflowOffset = overflowOffset;
         OverflowWidth = overflowWidth;
         HasResidualOverflow = hasResidualOverflow;
+        WrapOffset = wrapOffset;
     }
 
     /// <summary>
     ///     Gets the outcome for a paragraph that needs no report and no edit.
     /// </summary>
     public static ParagraphOutcome None { get; } = new(null, -1, 0, false);
+
+    /// <summary>
+    ///     Gets a value indicating whether the outcome has a finding or an edit: the paragraph is too wide somewhere or not laid out as the mode asks.
+    /// </summary>
+    public bool HasFinding => OverflowOffset >= 0 || WrapOffset >= 0;
+
+    /// <summary>
+    ///     Gets the offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
+    ///     there is none.
+    /// </summary>
+    public int WrapOffset { get; }
 
     /// <summary>
     ///     Gets the edit that wraps the paragraph, or <see langword="null"/> when none is proposed.
