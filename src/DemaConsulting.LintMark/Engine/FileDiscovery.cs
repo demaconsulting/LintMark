@@ -549,10 +549,39 @@ internal static class FileDiscovery
         /// <param name="directory">The directory.</param>
         /// <returns>The full path without a trailing separator.</returns>
         /// <exception cref="IOException">Thrown when the directory is a link that cannot be resolved (a link loop, for instance).</exception>
-        private static string RealPathOf(DirectoryInfo directory)
+        private static string RealPathOf(DirectoryInfo directory) => Canonical(directory.FullName, 0);
+
+        /// <summary>
+        ///     Resolves every link along a path, so that two spellings of one directory (such as <c>/var/x</c> and
+        ///     <c>/private/var/x</c> on macOS, where <c>/var</c> is a link) give the same result.
+        /// </summary>
+        /// <param name="path">The full path.</param>
+        /// <param name="depth">The number of links resolved so far on the way here.</param>
+        /// <returns>The full path without a trailing separator and without any link in it.</returns>
+        /// <exception cref="IOException">Thrown when a link cannot be resolved or the links are nested too deeply.</exception>
+        private static string Canonical(string path, int depth)
         {
-            var target = directory.LinkTarget is null ? null : directory.ResolveLinkTarget(returnFinalTarget: true);
-            return Path.TrimEndingDirectorySeparator((target ?? directory).FullName);
+            if (depth > 32)
+            {
+                throw new IOException("Too many levels of links.");
+            }
+
+            var root = Path.GetPathRoot(path) ?? string.Empty;
+            var current = root;
+            foreach (var part in path[root.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, part);
+                var info = new DirectoryInfo(current);
+                if (info.LinkTarget is null)
+                {
+                    continue;
+                }
+
+                var target = info.ResolveLinkTarget(returnFinalTarget: true) ?? throw new IOException("A link could not be resolved.");
+                current = Canonical(target.FullName, depth + 1);
+            }
+
+            return Path.TrimEndingDirectorySeparator(current);
         }
     }
 }

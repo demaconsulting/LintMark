@@ -208,6 +208,28 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
+    ///     Test that a link back to the search folder is found even when the search folder is reached through another link.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_SearchRootBehindALink_StillRecognizesTheCycle()
+    {
+        // Arrange: a folder reached through a link (as /var is on macOS), holding a file and a link back to it by its real path
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("real/docs/guide.md");
+        Assert.SkipUnless(
+            directory.TryCreateDirectoryLink("via", directory.PathOf("real"))
+            && directory.TryCreateDirectoryLink("real/docs/loop", directory.PathOf("real")),
+            "The system did not allow a directory link to be created.");
+
+        // Act: discover everything, starting from the spelling that goes through the link
+        var files = FileDiscovery.Discover([], directory.PathOf("via/docs"));
+
+        // Assert: the file is listed once
+        Assert.Single(files);
+        Assert.EndsWith("guide.md", files[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a link to a folder that is not above the search is still followed.
     /// </summary>
     [Fact]

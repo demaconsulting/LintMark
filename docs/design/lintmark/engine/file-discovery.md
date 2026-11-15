@@ -39,10 +39,12 @@ found through a directory, glob, or the default pattern are not explicit.
 
 The search itself (`CycleSafeDirectory`, private) hands the matcher a `DirectoryInfoWrapper` subclass that keeps the
 chain of real paths from the file system root down to the current directory (the folders above the search root
-included). A directory link or junction whose final target is in that chain is a cycle and is skipped, so a walk ends
-after one lap at the latest; a link to any other folder is followed, and files are always returned. A link that cannot
-be resolved is skipped, and a directory that cannot be read (`IOException`, `UnauthorizedAccessException` during
-enumeration) contributes nothing, instead of the failure escaping from the middle of the enumeration.
+included). A real path has every link along it resolved, so a root reached through a link (macOS `/var`) matches a link
+target spelled the other way. A directory link or junction whose final target is in that chain is a cycle and is
+skipped, so a walk ends after one lap at the latest; a link to any other folder is followed, and files are always
+returned. A link that cannot be resolved is skipped, and a directory that cannot be read (`IOException`,
+`UnauthorizedAccessException` during enumeration) contributes nothing, instead of the failure escaping from the middle
+of the enumeration.
 
 **IsIgnored(fullPath, ignoreRoot, patterns)**: returns true when the file lies
 below `ignoreRoot` and its relative path matches an `ignore` glob. Empty patterns, or a file outside the root (`..` or

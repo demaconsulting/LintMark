@@ -55,7 +55,9 @@ patterns for `.git`, `node_modules`, and `generated`.
 
 **A directory link back into its own tree is skipped**: A link to an ancestor
 (`FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce`) and two folders that link to each other
-(`FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates`) end after one lap and return each file once.
+(`FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates`) end after one lap and return each file once. The
+same holds when the search folder is itself reached through a link, as on macOS where `/var` is a link
+(`FileDiscovery_Discover_SearchRootBehindALink_StillRecognizesTheCycle`).
 
 **A directory link elsewhere is followed**: The Markdown files behind it are returned
 (`FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed`).

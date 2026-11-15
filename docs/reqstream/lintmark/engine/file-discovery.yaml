@@ -31,6 +31,7 @@ sections:
                   - FileDiscovery_Discover_MissingLiteralPath_PassesThrough
                   - FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce
                   - FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates
+                  - FileDiscovery_Discover_SearchRootBehindALink_StillRecognizesTheCycle
                   - FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed
                   - FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped
 
