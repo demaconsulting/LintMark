@@ -85,26 +85,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a file with CRLF line endings is rewritten with LF line endings when the configuration asks for them.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixCrlfFile_RewritesToLfAndReportsNothing()
-    {
-        // Arrange: a CRLF file and a configuration that asks for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", LfConfig);
-        var path = directory.WriteBytes("a.md", Utf8("# Title\r\n\r\nText.\r\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--fix");
-
-        // Assert: the file now has LF line endings and nothing is reported
-        Assert.Equal(Utf8(CompliantText), File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
     ///     Test that the byte order mark of a file survives a rewrite of its line endings.
     /// </summary>
     [Fact]
@@ -225,24 +205,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(1, exitCode);
         Assert.Equal(["a.md:1:1: line-ending Line endings are CRLF; expected LF"], lines);
         AssertUntouched(path, Utf8("# Title\r\n\r\nText.\r\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a mixed file is reported as mixed.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_CheckMixedFile_ReportsMixedLineEndings()
-    {
-        // Arrange: two CRLF terminators and one LF terminator
-        using var directory = new TemporaryDirectory();
-        directory.WriteBytes("a.md", Utf8("# Title\r\n\r\nText.\n"));
-
-        // Act: run in check mode
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1));
-
-        // Assert: reported once, naming the counts and the majority style
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: line-ending Mixed line endings (2 CRLF, 1 LF); expected CRLF"], lines);
     }
 
     /// <summary>

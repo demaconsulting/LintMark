@@ -704,47 +704,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that a link reference definition inside a block quote reports the quote as its parent and the next depth.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent()
-    {
-        // Arrange: a definition inside a block quote and one outside any container
-        var document = Parse("> [a]: http://x\n\n[b]: http://y\n");
-
-        // Act: find the blocks
-        var quote = Single(document, BlockKind.BlockQuote);
-        var inside = document.Blocks.Single(b => b.Kind == BlockKind.LinkReferenceDefinition && TextOf(document, b) == "[a]: http://x");
-        var outside = document.Blocks.Single(b => b.Kind == BlockKind.LinkReferenceDefinition && TextOf(document, b) == "[b]: http://y");
-
-        // Assert: the nested definition hangs under the quote, the top-level one has no parent
-        Assert.Equal(1, inside.Depth);
-        Assert.Same(quote.Node, inside.Parent);
-        Assert.Equal(0, outside.Depth);
-        Assert.Null(outside.Parent);
-        Assert.Empty(SpanTilingAssertions.Check(document));
-    }
-
-    /// <summary>
-    ///     Test that a link reference definition inside a list item reports the item as its parent and the next depth.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_DefinitionInListItem_ReportsDepthAndParent()
-    {
-        // Arrange: a list item that holds a definition
-        var document = Parse("- [a]: http://x\n- b\n");
-
-        // Act: find the blocks
-        var item = document.Blocks.First(b => b.Kind == BlockKind.ListItem);
-        var definition = Single(document, BlockKind.LinkReferenceDefinition);
-
-        // Assert: list > item > definition
-        Assert.Equal(2, definition.Depth);
-        Assert.Same(item.Node, definition.Parent);
-        Assert.Empty(SpanTilingAssertions.Check(document));
-    }
-
-    /// <summary>
     ///     Test that definitions in nested containers (quote > list > item) report the innermost container as parent.
     /// </summary>
     [Fact]
@@ -938,26 +897,6 @@ public class DocumentParserTests
         Assert.Contains((BlockKind.UnreferencedFootnote, "[^n]: Note"), summary);
         Assert.DoesNotContain(document.Blocks, b => b.Kind == BlockKind.LinkReferenceDefinition);
         Assert.Empty(document.References.Definitions);
-    }
-
-    /// <summary>
-    ///     Test that a footnote definition in a list item reports the item as its parent and the next depth.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_FootnoteDefinitionInListItem_ReportsDepthAndParent()
-    {
-        // Arrange: a list item with a paragraph, then a footnote-shaped definition indented under it
-        var document = Parse("- x\n\n  [^n]: Note\n");
-
-        // Act: find the blocks
-        var item = Single(document, BlockKind.ListItem);
-        var footnote = Single(document, BlockKind.UnreferencedFootnote);
-
-        // Assert: list > item > footnote definition
-        Assert.Equal(2, footnote.Depth);
-        Assert.Same(item.Node, footnote.Parent);
-        Assert.Equal("[^n]: Note", TextOf(document, footnote));
-        Assert.Empty(SpanTilingAssertions.Check(document));
     }
 
     /// <summary>

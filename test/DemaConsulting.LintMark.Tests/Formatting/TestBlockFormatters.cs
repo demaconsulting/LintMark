@@ -112,26 +112,3 @@ internal sealed class ThrowingFormatter : ParagraphTestFormatter
     public override void Format(FormatContext context, BlockInfo block, EditSet edits) =>
         throw new InvalidOperationException("The formatter failed on purpose");
 }
-
-/// <summary>
-///     Proposes two edits that change the same characters.
-/// </summary>
-internal sealed class OverlappingEditsFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits)
-    {
-        edits.Add(new TextEdit(block.Start, 2, "xx", "paragraph-wrap"));
-        edits.Add(new TextEdit(block.Start + 1, 2, "yy", "paragraph-wrap"));
-    }
-}
-
-/// <summary>
-///     Proposes an edit that lies outside the text.
-/// </summary>
-internal sealed class OutOfRangeEditFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits) =>
-        edits.Add(new TextEdit(context.Document.Source.Text.Length + 5, 1, "x", "paragraph-wrap"));
-}

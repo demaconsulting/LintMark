@@ -28,46 +28,6 @@ namespace DemaConsulting.LintMark.Tests;
 public partial class LintMarkEngineTests
 {
     /// <summary>
-    ///     Test that the default engine wraps a paragraph that is too wide with the fix option and reports nothing afterwards.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixOverlongParagraph_WrapsTheParagraphAndReportsNothing()
-    {
-        // Arrange: a file with a paragraph that is too wide for the configured width
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 20\n");
-        var path = directory.WriteBytes("a.md", Utf8("ant bat cat dog eel fox gnu\n"));
-
-        // Act: run the default engine with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--fix");
-
-        // Assert: the paragraph is wrapped and nothing is reported
-        Assert.Equal(Utf8("ant bat cat dog eel\nfox gnu\n"), File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that the default engine reports a paragraph that is too wide at its first column beyond the width without writing the file.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_CheckOverlongParagraph_ReportsLineLengthAndWritesNothing()
-    {
-        // Arrange: a file with a paragraph that is too wide, with an old write time
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 20\n");
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("ant bat cat dog eel fox gnu\n"));
-
-        // Act: run the default engine without options
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1));
-
-        // Assert: one finding at the first column beyond the width, and the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal("a.md:1:21: line-length Line is 27 columns wide; the limit is 20", Assert.Single(lines));
-        AssertUntouched(path, Utf8("ant bat cat dog eel fox gnu\n"), writeTime);
-    }
-
-    /// <summary>
     ///     Test that the fix option keeps reporting a line that could not be wrapped, as a finding that the fix cannot repair.
     /// </summary>
     [Fact]

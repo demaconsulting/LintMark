@@ -83,6 +83,24 @@ public class DocumentFormatterWrapTests
     }
 
     /// <summary>
+    ///     Test that a too wide last line without a line ending is found and wrapped when the final line ending is off.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_OverflowingLastLineWithoutLineEnding_IsWrapped()
+    {
+        // Act: format a paragraph that ends the file without a line ending
+        var (_, formatted) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), "# T\n\nant bat cat dog eel fox gnu", Width(20) with { FinalNewline = false });
+
+        // Assert: wrapped, and no final line ending is added
+        Assert.Equal("# T\n\nant bat cat dog eel\nfox gnu", formatted);
+
+        // Act and Assert: a last line that fits is left as written
+        var (result, kept) = BlockFormatterAssertions.Apply(BlockFormatterAssertions.ProductionFormatter(), "# T\n\nant bat", Width(20) with { FinalNewline = false });
+        Assert.Equal("# T\n\nant bat", kept);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that two paragraphs that are too wide are both wrapped and each gets its own finding.
     /// </summary>
     [Fact]

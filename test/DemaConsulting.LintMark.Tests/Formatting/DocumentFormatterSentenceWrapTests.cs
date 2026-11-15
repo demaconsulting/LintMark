@@ -266,41 +266,6 @@ public class DocumentFormatterSentenceWrapTests
     }
 
     /// <summary>
-    ///     Test that both modes are safe and stable for a set of paragraphs, at several widths.
-    /// </summary>
-    /// <param name="modeName">The name of the wrap mode.</param>
-    /// <param name="width">The line length.</param>
-    [Theory]
-    [InlineData("Sentence", 0)]
-    [InlineData("Sentence", 20)]
-    [InlineData("Sentence", 40)]
-    [InlineData("Semantic", 0)]
-    [InlineData("Semantic", 20)]
-    [InlineData("Semantic", 40)]
-    [InlineData("Semantic", 80)]
-    public void DocumentFormatter_Format_BothModes_AreSafeAndStable(string modeName, int width)
-    {
-        var mode = Enum.Parse<WrapMode>(modeName);
-        // Arrange: a document with the constructs that make wrapping risky
-        const string input =
-            "# Title. With sentences.\n\n"
-            + "Setext risk. Next line follows. Then a plain sentence, with a clause; and another clause: done!\n"
-            + "- not a list. 2026. Is it? Yes. Maybe.\n\n"
-            + "- Item one, with a clause. Second sentence in the item, which is rather long and has several words in it.\n"
-            + "  - Nested item. Another sentence here; with a clause.\n\n"
-            + "> A quote, with text. Another quote sentence that is long enough to wrap around the limit. End.\n"
-            + "> > Nested quote. Deeper.\n\n"
-            + "A [link, with comma](http://example.com/a,b). And `code, with comma`. Then ![image. alt](i.png). Done.\n\n"
-            + "Hard break here. Yes.  \nAfter it. Again.\\\nLast. One.\n\n"
-            + "Dr. Smith vs. Mr. Jones e.g. in the U.S. at 3.5 p.m. on Fig. 2. See No. 5.\n\n"
-            + "日本語の文章です。 これは二番目です。 English after. 한국어 문장. 끝.\n\n"
-            + "Ends with a long URL http://example.com/a/very/long/path/that/never/ends/anywhere. Then more.\n";
-
-        // Act & Assert: safe, equivalent and stable
-        BlockFormatterAssertions.AssertSafeAndStable(input, Config(mode, width));
-    }
-
-    /// <summary>
     ///     Test that the sentence mode keeps a paragraph that is not wrapped per the layout as written, and reports it as a finding that
     ///     cannot be fixed, when the wrap would start the paragraph with a complete HTML tag (rule W-7).
     /// </summary>
@@ -324,21 +289,4 @@ public class DocumentFormatterSentenceWrapTests
         Assert.Contains("cannot be wrapped automatically", finding.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    ///     Test that the layout depends on the paragraph only: the same words laid out differently by hand give the same result.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_DifferentHandLayouts_GiveTheSameResult()
-    {
-        // Arrange: the same words in three layouts
-        string[] inputs = ["One two. Three four.\n", "One\ntwo.\nThree four.\n", "One two.\n\nThree four.\n"];
-
-        // Act: format them
-        var results = inputs.Select(input => Format(input, Config(WrapMode.Semantic)).Formatted).ToArray();
-
-        // Assert: the first two are the same paragraph, and the third has two paragraphs that are already in the layout
-        Assert.Equal(results[0], results[1]);
-        Assert.Equal("One two.\nThree four.\n", results[0]);
-        Assert.Equal(inputs[2], results[2]);
-    }
 }

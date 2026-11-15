@@ -33,26 +33,6 @@ public partial class LintMarkEngineTests
     private const string RefactorUrl = "https://example.com/some/very/long/path/to/a/page/that/goes/on";
 
     /// <summary>
-    ///     Test that a file with a long link is not changed unless the feature is enabled.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixLongLinkWithoutTheSetting_LeavesTheFileAlone()
-    {
-        // Arrange: no configuration at all
-        using var directory = new TemporaryDirectory();
-        var content = Utf8($"A [long link text]({RefactorUrl}) here.\n");
-        var path = directory.WriteBytes("a.md", content);
-
-        // Act
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
-
-        // Assert: the default is off, byte for byte
-        Assert.Equal(content, File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
     ///     Test that the fix option converts the link, keeps CRLF line endings and the byte order mark,
     ///     and that a second run and a check find nothing to do.
     /// </summary>

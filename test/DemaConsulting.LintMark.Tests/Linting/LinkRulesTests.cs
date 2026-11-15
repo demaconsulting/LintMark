@@ -48,6 +48,15 @@ public class LinkRulesTests
     }
 
     /// <summary>
+    ///     Test that an automatic link is not checked for a destination.
+    /// </summary>
+    [Theory]
+    [InlineData("<https://example.com>\n")]
+    [InlineData("see https://example.com/a and www.example.com\n")]
+    public void LinkRules_Check_AutomaticLink_IsNotReported(string text) =>
+        Assert.Empty(LintRuleTestSupport.Findings(Rules, text));
+
+    /// <summary>
     ///     Test that an image without alternative text is reported, also as an HTML tag, and one with text is not.
     /// </summary>
     [Fact]
