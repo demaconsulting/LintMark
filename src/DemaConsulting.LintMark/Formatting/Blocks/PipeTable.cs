@@ -21,7 +21,6 @@
 using System.Collections.Immutable;
 using System.Text;
 using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Utilities;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 

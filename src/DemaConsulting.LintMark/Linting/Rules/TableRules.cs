@@ -23,7 +23,6 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
-using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Linting.Rules;
 

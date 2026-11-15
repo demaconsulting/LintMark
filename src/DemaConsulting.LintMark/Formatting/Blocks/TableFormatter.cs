@@ -22,7 +22,6 @@ using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Utilities;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 

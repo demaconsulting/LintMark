@@ -20,7 +20,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
-using DemaConsulting.LintMark.Utilities;
+using DemaConsulting.LintMark.Document;
 
 namespace DemaConsulting.LintMark.Tests;
 

@@ -20,8 +20,8 @@
 
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
+using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Inline;
-using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Tests;
 

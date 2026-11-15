@@ -420,3 +420,94 @@ internal sealed class SourceDocument
         return low;
     }
 }
+
+/// <summary>
+///     Line terminator styles that LintMark can write back to disk.
+/// </summary>
+/// <remarks>
+///     Only LF and CRLF are modeled. A bare carriage return (classic Mac style) is deliberately
+///     not representable: <see cref="SourceDocument"/> reports it as a failure instead of silently
+///     rewriting it, because the Markdown parser treats it inconsistently.
+/// </remarks>
+internal enum LineEnding
+{
+    /// <summary>
+    ///     Unix-style line feed (<c>\n</c>).
+    /// </summary>
+    Lf,
+
+    /// <summary>
+    ///     Windows-style carriage return followed by line feed (<c>\r\n</c>).
+    /// </summary>
+    CrLf
+}
+
+/// <summary>
+///     Counts of the original line terminators found in a source file.
+/// </summary>
+/// <param name="LfCount">Number of bare line feeds (<c>\n</c> not preceded by <c>\r</c>).</param>
+/// <param name="CrLfCount">Number of <c>\r\n</c> pairs.</param>
+/// <remarks>
+///     The counts (rather than a single style flag) are kept because mixed files exist in
+///     practice; the formatter needs them to decide whether a file is mixed and which style is the
+///     majority. Immutable value type; safe for concurrent use.
+/// </remarks>
+internal readonly record struct LineEndingInfo(int LfCount, int CrLfCount)
+{
+    /// <summary>
+    ///     Gets a value indicating whether the file contains both LF and CRLF terminators.
+    /// </summary>
+    public bool IsMixed => LfCount > 0 && CrLfCount > 0;
+}
+
+/// <summary>
+///     Describes a file that cannot be turned into a <see cref="SourceDocument"/>.
+/// </summary>
+/// <remarks>
+///     A typed exception (rather than a message) is used so the engine can report the failure
+///     as <c>path:line:col: rule-id message</c> without parsing text. The position is 1-based and
+///     refers to the first offending byte or character when it is known, otherwise to 1:1.
+///     Instances are immutable and safe to share between threads.
+/// </remarks>
+public sealed class SourceDocumentException : Exception
+{
+    /// <summary>
+    ///     Rule identifier reported when the file is not valid UTF-8 or carries a non-UTF-8 byte order mark.
+    /// </summary>
+    public const string EncodingRuleId = "file-encoding-error";
+
+    /// <summary>
+    ///     Rule identifier reported when the file contains a bare carriage return.
+    /// </summary>
+    public const string LineEndingRuleId = "file-line-ending-error";
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SourceDocumentException"/> class.
+    /// </summary>
+    /// <param name="ruleId">Kebab-case rule identifier to report the failure under.</param>
+    /// <param name="line">1-based line of the first offending character (1 when unknown).</param>
+    /// <param name="column">1-based column of the first offending character (1 when unknown).</param>
+    /// <param name="message">Human-readable description of the failure (single line, no path).</param>
+    public SourceDocumentException(string ruleId, int line, int column, string message)
+        : base(message)
+    {
+        RuleId = ruleId;
+        Line = line;
+        Column = column;
+    }
+
+    /// <summary>
+    ///     Gets the kebab-case rule identifier the failure is reported under.
+    /// </summary>
+    public string RuleId { get; }
+
+    /// <summary>
+    ///     Gets the 1-based line of the first offending character.
+    /// </summary>
+    public int Line { get; }
+
+    /// <summary>
+    ///     Gets the 1-based column (UTF-16 code units, tab counted as one) of the first offending character.
+    /// </summary>
+    public int Column { get; }
+}

@@ -21,7 +21,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DemaConsulting.LintMark.Utilities;
+namespace DemaConsulting.LintMark.Document;
 
 /// <summary>
 ///     Measures how many terminal columns a text occupies.
