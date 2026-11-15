@@ -1,10 +1,14 @@
 # Introduction
 
-The workflow below is a placeholder: replace its TODO boxes to show how users prepare inputs, run your
-tool locally or in a CI pipeline, get its outputs, and use them.
+The workflow below shows how you prepare inputs, run LintMark locally, in CI, or from a coding agent, read its
+results, and use them.
 
-![Placeholder workflow diagram: replace the TODO boxes to show how users prepare inputs, run your tool, get
-its outputs, and use them](workflow.svg)
+![LintMark workflow in four steps. Prepare inputs: Markdown files, an optional .lintmark.yaml, and an .editorconfig for
+line endings. Run LintMark with --check to report, or --fix or --diff to rewrite or preview, locally, in CI, or from
+coding agents. Get results: findings as file:line:col: rule-id message, rewritten files or a unified diff, and an exit
+code of 0 when clean or 1 for findings or errors. Use them as a CI quality gate, for auto-formatting, and for a
+consistent style. Tool qualification evidence comes from lintmark --validate --results
+validation-results.trx.](workflow.svg)
 
 ## Purpose
 
