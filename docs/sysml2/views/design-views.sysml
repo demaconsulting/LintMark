@@ -14,18 +14,6 @@ package LintMark {
         expose LintMarkSystem;
     }
 
-    view CliView {
-        expose CliSubsystem;
-    }
-
-    view SelfTestView {
-        expose SelfTestSubsystem;
-    }
-
-    view UtilitiesView {
-        expose UtilitiesSubsystem;
-    }
-
     view DocumentView {
         expose DocumentSubsystem;
     }
@@ -52,13 +40,5 @@ package LintMark {
 
     view InlineView {
         expose InlineSubsystem;
-    }
-
-    view SafetyView {
-        expose SafetySubsystem;
-    }
-
-    view ReportingView {
-        expose ReportingSubsystem;
     }
 }

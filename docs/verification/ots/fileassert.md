@@ -34,16 +34,12 @@ results containing both passing and failing outcomes.
 
 **Expected**: Writes a TRX results file with correctly classified pass and fail entries.
 
-**Requirement coverage**: `LintMark-OTS-FileAssert`.
-
 #### FileAssert_File
 
 **Scenario**: FileAssert self-validation exercises a test configuration using a glob pattern to
 assert file existence.
 
 **Expected**: Passes when the specified file is present.
-
-**Requirement coverage**: `LintMark-OTS-FileAssert`.
 
 #### FileAssert_Text
 
@@ -52,8 +48,6 @@ to verify file text content.
 
 **Expected**: Passes when the specified content is present.
 
-**Requirement coverage**: `LintMark-OTS-FileAssert`.
-
 #### FileAssert_Html
 
 **Scenario**: FileAssert self-validation exercises a test configuration using an XPath query to
@@ -61,13 +55,9 @@ assert HTML document structure.
 
 **Expected**: Passes when the specified HTML nodes are present.
 
-**Requirement coverage**: `LintMark-OTS-FileAssert`.
-
 #### FileAssert_Pdf
 
 **Scenario**: FileAssert self-validation exercises a test configuration asserting PDF metadata
 fields and body text content.
 
 **Expected**: Passes when the PDF contains the expected metadata and text.
-
-**Requirement coverage**: `LintMark-OTS-FileAssert`.

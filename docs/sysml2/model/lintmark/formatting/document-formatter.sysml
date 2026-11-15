@@ -17,98 +17,61 @@ package LintMark {
         item ownership : LineOwnership;
     }
 
-    // The edits are the attribute type TextEdit; the diagnostics are the Diagnostic unit.
+    // The edits are the attribute type TextEdit; the diagnostics are the Diagnostic type of the rule catalog.
     item def FormatResult {
         doc /* The outcome of formatting one document: the edits that bring it into canonical form, the line ending to write and the formatting violations found. */
 
         attribute edits : TextEdit [0..*];
         attribute lineEnding : LineEnding;
-        part diagnostics : Diagnostic [0..*];
+        item diagnostics : Diagnostic [0..*];
     }
 
     part def DocumentFormatter {
-        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, each paragraph no block formatter claims goes to the optional inline normalizer, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit of such a rule is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported; when an optional paragraph formatter is registered and the settings ask for wrapping, the paragraphs that still have a line wider than the line length are wrapped last, on the text that all the other rules produce, a wrap after which the inline normalizer or the paragraph formatter would propose another edit is withdrawn and reported as a problem that cannot be fixed, and the wraps are composed with the edits of the other rules and reported at their original positions (also documents the FormatResult and FormatContext supporting types, the IBlockFormatter contract modeled as an interface definition, and the internal helpers that the passes and the block formatters share). */
+        doc /* Turns a parsed document into the edits and line ending that bring it into canonical form without writing anything: each block goes to the first registered block formatter that accepts it unless a rule is suppressed there, each paragraph no block formatter claims goes to the optional inline normalizer, the rules that concern every document (trailing whitespace, tabs, blank lines, spacing between blocks, and the final newline) handle everything else, every edit is reported as a problem, an unsafe document is never touched, and mixed or wrong line endings are reported; the optional link refactorer converts links to reference links and the optional paragraph formatter wraps the paragraphs that are still too wide, each on the text that the other rules produce, with their edits composed with the others and reported at their original positions (also documents the FormatContext, FormatResult, and IBlockFormatter supporting types, and the line arithmetic and line ownership helpers that the passes and the block formatters share). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Formatting/DocumentFormatter.cs",
-                "src/DemaConsulting.LintMark/Formatting/FormatResult.cs",
-                "src/DemaConsulting.LintMark/Formatting/FormatContext.cs",
-                "src/DemaConsulting.LintMark/Formatting/IBlockFormatter.cs",
-                "src/DemaConsulting.LintMark/Formatting/LeafWhitespace.cs",
-                "src/DemaConsulting.LintMark/Formatting/InlineMap.cs",
                 "src/DemaConsulting.LintMark/Formatting/LineLayout.cs",
-                "src/DemaConsulting.LintMark/Formatting/LineOwnership.cs",
-                "src/DemaConsulting.LintMark/Formatting/FrontMatterGuard.cs",
-                "src/DemaConsulting.LintMark/Formatting/BlankLinePass.cs",
-                "src/DemaConsulting.LintMark/Formatting/BlockSpacingPass.cs",
-                "src/DemaConsulting.LintMark/Formatting/TrailerPass.cs");
+                "src/DemaConsulting.LintMark/Formatting/LineOwnership.cs");
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterPassTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterSupportTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Formatting/DocumentFormatterWrapTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Formatting/TestBlockFormatters.cs");
+                "test/DemaConsulting.LintMark.Tests/Formatting/RawTextElementsTests.cs");
             designFiles = ("docs/design/lintmark/formatting/document-formatter.md");
             verificationFiles = ("docs/verification/lintmark/formatting/document-formatter.md");
             requirementFiles = ("docs/reqstream/lintmark/formatting/document-formatter.yaml");
         }
 
         // The formatter walks the blocks of a parsed document, skips blocks whose rules the suppression
-        // map suppresses, and reads the line ending and counts from the source document and the
-        // configuration it is given.
-        dependency DocumentFormatter to ParsedDocument;
-        dependency DocumentFormatter to BlockInfo;
-        dependency DocumentFormatter to BlockKind;
-        dependency DocumentFormatter to SuppressionMap;
+        // map suppresses, and reads the line ending and text from the source document and the configuration
+        // it is given.
+        dependency DocumentFormatter to DocumentParser;
         dependency DocumentFormatter to SourceDocument;
-        dependency DocumentFormatter to LineEnding;
-        dependency DocumentFormatter to LineEndingInfo;
         dependency DocumentFormatter to LintMarkConfig;
 
-        // Edits are collected conflict-free in an edit set, and each block formatter is handed its context
-        // and the edit set to add to.
+        // Edits are collected conflict-free in an edit set; the text a first list of edits produces is made
+        // with the source patcher and the later edits are mapped back with the edit rebaser, both of the
+        // edit set unit.
         dependency DocumentFormatter to EditSet;
-        dependency DocumentFormatter to TextEdit;
-        dependency DocumentFormatter to IBlockFormatter;
-        dependency DocumentFormatter to FormatContext;
 
-        // Each paragraph that no block formatter claims is given to the inline normalizer, when one is
-        // registered, with the effective configuration of the file.
+        // The rules that concern every document are implemented by the whitespace passes.
+        dependency DocumentFormatter to WhitespacePasses;
+
+        // Each paragraph that no block formatter claims is given to the inline normalizer, links are
+        // converted by the link refactorer, and paragraphs that are still too wide are wrapped last by the
+        // paragraph formatter; the list formatter is recognized by type because it runs after the others.
         dependency DocumentFormatter to InlineNormalizer;
-
-        // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules
-        // produce: the text is produced with the source patcher and read again with the document parser (as a
-        // new source document), each paragraph goes to the paragraph formatter, which says whether the
-        // settings ask for wrapping and returns the outcome of each paragraph, a cheap prefilter measures the
-        // lines in display columns, and the wraps are composed with the edits of the other rules and mapped
-        // back to the original text by the edit rebaser.
+        dependency DocumentFormatter to LinkRefactorer;
         dependency DocumentFormatter to ParagraphFormatter;
-        dependency DocumentFormatter to ParagraphOutcome;
-        dependency DocumentFormatter to EditRebaser;
-        dependency DocumentFormatter to SourcePatcher;
-        dependency DocumentFormatter to DocumentParser;
-        dependency DocumentFormatter to TextWidth;
-        // The result carries the edits, the line ending and the diagnostics, whose rule identifiers and
-        // descriptions come from the rule catalog.
-        dependency DocumentFormatter to FormatResult;
-        dependency DocumentFormatter to Diagnostic;
-        dependency DocumentFormatter to DiagnosticKind;
-        dependency DocumentFormatter to RuleCatalog;
+        dependency DocumentFormatter to ListFormatter;
 
-        // The rules that concern every document are implemented by the helpers of this unit: the line
-        // arithmetic, the ownership of lines (claimed by a block formatter, protected, or free), the inline
-        // structure of a leaf block (read from the Markdown parser library), the whitespace and tab edits,
-        // the front matter guard, and the passes for blank lines, spacing between blocks, and the end of
-        // the file.
-        dependency DocumentFormatter to LineLayout;
-        dependency DocumentFormatter to LineOwnership;
-        dependency DocumentFormatter to InlineMap;
-        dependency DocumentFormatter to LeafWhitespace;
-        dependency DocumentFormatter to FrontMatterGuard;
-        dependency DocumentFormatter to BlankLinePass;
-        dependency DocumentFormatter to BlockSpacingPass;
-        dependency DocumentFormatter to TrailerPass;
+        // A cheap prefilter measures lines in display columns before a paragraph is wrapped.
+        dependency DocumentFormatter to TextWidth;
+
+        // The diagnostics carry rule identifiers and descriptions from the rule catalog, and the inline
+        // structure of a leaf block is read from the Markdown parser library.
+        dependency DocumentFormatter to RuleCatalog;
         dependency DocumentFormatter to Markdig;
     }
 
@@ -122,27 +85,11 @@ package LintMark {
         doc /* Which lines of a document belong to which leaf block, which of them a block formatter has claimed, which must never be edited, and which lie inside a container (supporting type of the document formatter). */
     }
 
-    item def InlineMap {
-        doc /* What the inline syntax tree of one leaf block says about its characters: which spans are plain text, which must never be edited, and where the line breaks are (supporting type of the document formatter). */
-    }
-
-    item def LeafWhitespace {
-        doc /* Proposes the edits that remove trailing whitespace and expand tabs on the lines of one leaf block, shared by the document formatter and the heading formatter (supporting type of the document formatter). */
+    item def RawTextElements {
+        doc /* Finds the HTML elements whose content keeps its whitespace (pre, script, style, and textarea), so that no whitespace inside them is edited (supporting type of the document formatter). */
     }
 
     item def FrontMatterGuard {
         doc /* Detects the one situation in which writing a dashes line elsewhere would turn the first line of a document into the opening of front matter (supporting type of the document formatter). */
-    }
-
-    item def BlankLinePass {
-        doc /* The document-level pass that limits runs of blank lines between blocks and empties whitespace-only lines (supporting type of the document formatter). */
-    }
-
-    item def BlockSpacingPass {
-        doc /* The document-level pass that puts a blank line between top-level blocks that must be separated: headings, fenced code blocks, lists, and tables, never between a next-line suppression directive and the block it covers (supporting type of the document formatter). */
-    }
-
-    item def TrailerPass {
-        doc /* The document-level pass that decides how the file ends, with exactly one line ending or with none (supporting type of the document formatter). */
     }
 }

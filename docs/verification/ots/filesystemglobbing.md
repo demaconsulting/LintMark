@@ -24,15 +24,11 @@ the LintMark project. The tests use a temporary directory tree and in-memory pat
 
 **Expected**: Files at every depth that match the pattern are returned.
 
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
-
 #### Exclude removes the files it matches
 
 **Scenario**: An include and an exclude pattern are executed against a tree.
 
 **Expected**: Files matched by the exclude are removed from the result.
-
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
 #### Directory exclude removes the directory at every depth
 
@@ -41,15 +37,11 @@ and nested.
 
 **Expected**: Files below the directory are removed at every depth.
 
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
-
 #### Pattern without matches gives an empty result
 
 **Scenario**: A pattern that matches nothing is executed.
 
 **Expected**: The result is empty and no error occurs.
-
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
 
 #### In-memory path list is matched with include and exclude
 
@@ -57,20 +49,14 @@ and nested.
 
 **Expected**: The include and exclude patterns are applied to the list.
 
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
-
 #### Star matches within one path segment only
 
 **Scenario**: A single-segment `*` pattern is applied to nested files.
 
 **Expected**: The wildcard matches within one path segment and does not descend.
 
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-Match`.
-
 #### Case sensitivity follows the matcher setting
 
 **Scenario**: The same pattern is executed with case-sensitive and case-insensitive comparison.
 
 **Expected**: The match result follows the comparison given to the matcher.
-
-**Requirement coverage**: `LintMark-OTS-FileSystemGlobbing-CaseSensitivity`.

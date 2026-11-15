@@ -4,183 +4,109 @@
 
 ##### Purpose
 
-`ParagraphFormatter` decides what to do about the lines of one paragraph that are wider than the line length. When a
-line can be broken, it proposes one edit that fills the paragraph up to the width (the `fill` mode of the `line-length`
-rule); it reports a line it cannot shorten safely, and it leaves every other paragraph exactly as written. It is
-overflow-only: a paragraph in which no line is too wide is never reflowed, so hand-wrapped text that fits stays as it
-is. It never changes what a paragraph renders to: the wrapped paragraph is proved to render the same before the edit is
-proposed. Its supporting type `ParagraphOutcome` (the result of one call) has no unit of its own and is described in
-this document.
+`ParagraphFormatter` decides what to do about the layout of one paragraph. In the default `fill` mode it is an
+overflow-only reflow: a paragraph is rewritten only when some line is wider than the line length and has a place where
+it can be broken, so hand-wrapped text that fits is never touched. In the `sentence` and `semantic` modes every
+eligible paragraph has one canonical layout, and a paragraph laid out differently is rewritten. It enforces
+`line-length` (fill) and `paragraph-wrap` (sentence and semantic). A line too wide that cannot be shortened is reported
+as a lint-only `line-length` finding. The supporting type `ParagraphOutcome` is described here.
 
 ##### Data Model
 
-`ParagraphFormatter` is an internal sealed class with one field and one property.
+`ParagraphFormatter` is an internal sealed class with one property. It is **not** an `IBlockFormatter` and claims no
+lines: it works on the text the other rules produce, and a claim would silence their rules for every paragraph.
 
-- `_rendersTheSame`: a `Func<string, string, bool>` that tells whether the paragraph as written and the wrapped
-  paragraph, each as stand-alone LF-normalized text, render the same. The public constructor installs the proof of the
-  tool (see *Proofs* below); an internal constructor takes the function as its only argument, so that a test can
-  simulate a wrap that the proof refuses.
-- `RuleIds`: an immutable array of `line-length`, `trailing-whitespace`, `hard-tabs`, `emphasis`, `strong`, `bare-urls`,
-  `code-span-space`, `list-indent`, `list-marker-space`, and `blockquote-space`, in this order. These are the rules that
-  edit the text of a paragraph (the first is its own); a suppression of any of them inside the paragraph keeps the
-  paragraph as written, because a wrap rewrites the whitespace, the line starts, and the container prefix of every line.
+- `RuleIds`: `line-length`, `trailing-whitespace`, `hard-tabs`, `emphasis`, `strong`, `bare-urls`, `code-span-space`,
+  `list-indent`, `list-marker-space`, `blockquote-space`, and `paragraph-wrap`. A suppression of any of them inside the
+  paragraph keeps it as written, because a wrap rewrites whitespace, line starts, and the container prefix of every
+  line. `line-length` and `paragraph-wrap` are checked separately, as the rules that ask for the wrap.
+- Constants: `Unlimited` (the width for a line length of 0, large enough that no line reaches it) and `Blanks`.
 
-The formatter is **not** an `IBlockFormatter` and claims no lines. `DocumentFormatter` holds it in its own optional
-constructor parameter and calls it in a second stage, on the text that every other rule has produced (see
-*DocumentFormatter Design*). Registering it as a block formatter would claim every paragraph and silence the whitespace
-and inline rules for it. `RuleIds` is therefore read by the formatter itself and not by the document formatter.
+**ParagraphOutcome** (sealed record) is the result of one call: `Edit` (a `TextEdit` rewriting the whole paragraph, or
+`null`), `OverflowOffset` and `OverflowWidth` (the first character beyond the line length on the first line that is
+too wide and breakable, and that line's width; -1 and 0 for none), `HasResidualOverflow` (a breakable line is still
+too wide, after the edit if there is one), and `WrapOffset` (the first line that is not in the sentence or semantic
+layout, or -1). `None` is the outcome for a paragraph that needs nothing, and `HasFinding` is true when
+`OverflowOffset` or `WrapOffset` is set. Offsets and the edit refer to the text the formatter was given, not to the
+original file; `DocumentFormatter` translates them.
 
-**ParagraphOutcome**: A sealed record, immutable, with the members `Edit` (a `TextEdit?` attributed to the rule
-`line-length`, or `null`), `OverflowOffset` (the offset, in the text the formatter was given, of the first character
-beyond the line length on the first line that is too wide and could be broken; -1 for none), `OverflowWidth` (the
-display width of that line; 0 for none), and `HasResidualOverflow` (whether a line that could be broken is still too
-wide: after the edit when there is one, otherwise because the paragraph is not rewritten). The static property `None`
-is the outcome of a paragraph that needs no report and no edit (-1, 0, no edit, no residual). The constructor rejects an
-inconsistent outcome: an offset below -1 (`ArgumentOutOfRangeException`), a negative width
-(`ArgumentOutOfRangeException`), an edit, a residual overflow, or a width without an offset, and a default `TextEdit`
-(`ArgumentException`). Offsets and the edit refer to the text that the formatter was given, not to the original file;
-the document formatter translates them.
-
-**What is wrapped, reported, and exempt**: A line is *too wide* when its display width, container prefix included and
-trailing blanks (the two spaces of a hard break among them) excluded, is greater than the `line-length` setting. A
-too-wide line is *breakable* when the tokenizer counts at least one place inside it where a break may go. The decision
-table for a paragraph:
-
-| Situation | Outcome |
-| --- | --- |
-| A breakable line is too wide, the paragraph is eligible, the wrap passes both proofs | One edit, at the first one |
-| After the wrap a line of more than one atom is still too wide | Residual overflow, also with an edit |
-| The tokenizer refuses the paragraph | Reported only (residual), no edit |
-| A continuation line of a paragraph inside a list item is lazy | Reported only (residual), no edit |
-| A line after a hard break would start with block syntax | Reported only (residual), no edit |
-| The stand-alone proof refuses the wrap | Reported only (residual), no edit |
-| The proof inside the list or quote refuses the wrap | Reported only (residual), no edit |
-| Every too-wide line is a single atom (long link, URL, autolink, code span, image) | `None` |
-| No line is too wide | `None` |
-| Setting is not `fill`, `line-length` is 0, or the rule `line-length` is switched off | `None` |
-| The paragraph is in a footnote, or its first line is protected | `None` |
-| A rule of `RuleIds` is suppressed anywhere in the paragraph | `None` |
-| The paragraph or its prefixes hold a tab | `None` |
-| A content line is Pandoc structure (see `BlockSyntaxGuard`) | `None` |
-
-Headings, tables, code, HTML, math, front matter, and link reference definitions are not paragraphs and never reach the
-formatter. Without a tokenization a line counts as breakable when its content holds a blank between two other
-characters.
-
-**Widths and positions**: Widths are display columns (`TextWidth.Of`), measured on the exact text of the line. The width
-available to the first line of the first segment is the line length minus the width of the text before the paragraph on
-its line; the width of every other line is the line length minus the width of the continuation prefix; both are at least
-one. The overflow offset is the offset of the first grapheme cluster of the first breakable too-wide line whose right
-edge lies beyond the line length (the last character of the line when none does).
-
-**Container prefixes**: The first line keeps the text before the paragraph as written. Every continuation line is
-written with the continuation prefix of the paragraph (`DocumentParser.GetContinuationPrefix`): the text before the
-paragraph on its first line with every character other than `>`, a space, and a tab replaced by a space. A list item's
-lines are therefore indented under its text and a quote's lines keep their markers. A lazy continuation line of a quote
-gets the quote markers like every other line; a lazy continuation line of a paragraph in a list item is never rewritten
-(rewriting it would make the list formatter consider the item movable in the next run and the result unstable).
-
-**Proofs**: A wrap stands only when two renderings agree. The *stand-alone proof* parses the content lines of the
-paragraph as written (without container prefixes, joined with line feeds) and the wrapped lines, requires both to be
-exactly one paragraph, and compares the pages with `HtmlEquivalenceChecker.Check`, which normalizes whitespace. The
-*container proof* parses the lines of the paragraph with their prefixes, as written and as wrapped; when the original is
-read as one block quote or one list, the wrapped text must be read as one block of the same kind and render the same.
-The second proof exists because the parser reads some first lines differently when text follows them (for example
-`>http://x y`, depending on whether the URL ends the line). Both proofs are defense in depth next to the file-level
-checks of the `Safety` subsystem, which still run on every rewrite.
+A line is *too wide* when its display width (`TextWidth`), container prefix included and trailing blanks excluded,
+exceeds the line length. It is *breakable* when the tokenizer counts a break opportunity in it.
 
 ##### Key Methods
 
-**Constructors**: The public constructor has no parameters and installs the stand-alone proof. The internal constructor
-takes `Func<string, string, bool> rendersTheSame` (the stand-alone proof) and throws `ArgumentNullException` for a null
-function. The container proof is not replaceable.
+**IsEnabled** (static): `true` when the line length is not 0 and `line-length` is on, or the wrap mode is not `fill`
+and `paragraph-wrap` is on. **IsLayoutEnforced** (static): `true` when the mode is `sentence` or `semantic` and
+`paragraph-wrap` is on; then every paragraph is checked whatever the width of its lines. A null configuration throws
+`ArgumentNullException`.
 
-**IsEnabled** (static): Tells whether the settings ask for wrapping.
+**Format**: Takes a `FormatContext` and a paragraph `BlockInfo` and returns a `ParagraphOutcome`. It is pure; nothing
+is written. A null argument throws `ArgumentNullException`; a block that is not a paragraph with inline content gives
+`None`.
 
-- *Parameters*: `LintMarkConfig config`.
-- *Returns*: `true` when `config.Wrap` is `fill`, `config.LineLength` is not 0, and the rule `line-length` is switched
-  on in `config.Rules`.
-- *Errors*: `ArgumentNullException` for a null configuration.
-
-`wrap: sentence` and `wrap: semantic` are accepted by the configuration and not applied: `IsEnabled` is false for them,
-so nothing is wrapped and nothing is reported.
-
-**Format**: Decides what to do about one paragraph.
-
-- *Parameters*: `FormatContext context`, `BlockInfo block` (a paragraph of `context.Document`).
-- *Returns*: a `ParagraphOutcome`; `ParagraphOutcome.None` when nothing is to be reported or changed.
-- *Preconditions*: neither argument is null and the block is a paragraph of the document of the context (the second
-  point is not verified).
-- *Postconditions*: nothing is written and the document is not changed; the edit, when there is one, replaces the whole
-  text of the paragraph from its first character to its last line, and every line of the replacement is at most as wide
-  as the width available to it unless it holds a single atom or the guard allowed no better break.
-- *Errors*: `ArgumentNullException` for a null argument; `ArgumentException` for a block that is not a paragraph. Any
-  other situation is an outcome, not an exception.
-
-Algorithm:
-
-1. Validate the arguments. Return `None` when the settings do not ask for wrapping (`IsEnabled`), when the block has no
-   inline content, or when the paragraph is exempt: its first line is in a footnote or protected
-   (`LineOwnership.IsInFootnote`, `IsProtected`), or a rule of `RuleIds` is suppressed over its range
-   (`SuppressionMap.IsSuppressedRange`).
-2. Read the lines with `DocumentParser.GetLines` and measure each (container prefix included, trailing blanks
-   excluded). Return `None` when none is wider than the line length.
-3. Return `None` when the text from the start of the first line to the end of the paragraph holds a tab, when the
-   continuation prefix holds a tab, or when a content line is Pandoc structure
+1. *Exempt*: `None` when the settings do not ask for a wrap, the paragraph is in a footnote or its first line is
+   protected (`LineOwnership`), or a rule of `RuleIds` other than the two wrap rules is suppressed over its range.
+2. *Trigger*: measure every line; `tooWide` needs `line-length` on and unsuppressed, and `layoutActive` needs
+   `IsLayoutEnforced` and `paragraph-wrap` unsuppressed. `None` when neither holds.
+3. *Keep as written, silently*: a tab in the text or prefixes, or a line that is Pandoc structure
    (`BlockSyntaxGuard.IsPandocStructuralLine`).
-4. Tokenize with `AtomTokenizer.Tokenize`. Find the first too-wide line that is breakable (see above). Return `None`
-   when there is none. Compute its overflow offset and width.
-5. Report without an edit (an outcome with a residual overflow) when the tokenizer refused the paragraph, when a line is
-   lazy and an ancestor of the paragraph is a list item, or when the first atom of a segment after the first (which
-   starts after a hard break) is refused by `BlockSyntaxGuard.IsGuardedLineStart`: such a line start cannot be moved.
-6. Wrap each segment with `LineWrapper.Wrap`, the first segment with the width of the first line and every other
-   segment with the continuation width for its first line, and remember whether any result has a breakable overflow. A
-   segment that ends with a hard break written with spaces gets exactly two spaces appended to its last line; one that
-   ends with a backslash keeps it as part of its last atom. The lines are joined with a line feed and the continuation
-   prefix.
-7. When the replacement equals the text of the paragraph, return the outcome without an edit (the residual flag is the
-   overflow of the wrap).
-8. Run the stand-alone proof and the container proof. When either refuses, return the outcome with a residual overflow
-   and no edit. Otherwise return the outcome with one `TextEdit` (start of the paragraph, its length, the replacement,
-   the rule `line-length`) and the residual flag of the wrap.
+4. Tokenize (`AtomTokenizer.Tokenize`) and find the first too-wide line with a break opportunity. When there is none
+   and the layout is not enforced (every too-wide line is a single link, URL, code span, or image), the result is
+   `None`.
+5. *Keep as written, reporting the overflow*: the tokenizer refused the paragraph, a continuation line is lazy and a
+   list item contains the paragraph (rewriting would let the list rule move the item next run), a line after a hard
+   break would start with block syntax, or `WrapGuard.KeepsAsWritten` applies. The outcome has `HasResidualOverflow`
+   and no edit; the layout finding is not reported because it is not known.
+6. *Wrap*: for each segment (the text between hard breaks) call `LineWrapper.Wrap` with the first-line or
+   continuation width and `config.Wrap`, which dispatches to the fill, sentence, or semantic layout. A segment that
+   ends in a double-space hard break gets exactly two spaces on its last line; a backslash break is part of its last
+   atom. The lines are joined with a line feed and the continuation prefix.
+7. When the replacement equals the original text, return without an edit (residual overflow is that of the wrap).
+8. In the layout modes `FindFirstDifference` gives the `WrapOffset`. When the first wrapped line would start a block by
+   itself (`WrapGuard.OpensBlockByItself`), return no edit and the findings. Otherwise return one `TextEdit` from the
+   start of the paragraph to its end, under `paragraph-wrap` when there is a `WrapOffset` and `line-length` otherwise.
 
-Properties of the result: it is a pure function of the text, the settings, and the suppressions, so the same input gives
-the same edit on every thread and in every stored form of the file (LF, CRLF, with or without a byte order mark, since
-the text is LF-normalized before it reaches the formatter). It depends on the atoms and the widths only, never on how
-the words were laid out before, so wrapping wrapped text proposes nothing; the document formatter additionally *settles*
-each wrap against the other inline rules (see *DocumentFormatter Design*).
+**Why it is a fixpoint.** The layout is a pure function of the atoms and the two widths, never of how the words were
+laid out. Blanks and line breaks are the only atom separators, so the wrapped text tokenizes to the same atoms and the
+wrap of its own output is identical: step 7 proposes nothing. In `fill` mode a paragraph that was wrapped has no
+breakable line wider than its width, so it does not trigger again. When the guard leaves a breakable line over width,
+the same layout is computed again, equals the text, and the overflow is reported again as a finding that rewriting
+cannot fix. Text that fits is never a trigger in `fill` mode.
 
-**RenderTheSame** and **RenderTheSameInContainer** (private): The two proofs described above.
+**Container prefixes.** The edit starts at the first character of the paragraph, so the text before it on the first
+line (list marker, quote markers) stays. Every other line is written with the continuation prefix
+(`DocumentParser.GetContinuationPrefix`): the text before the paragraph on its first line with each character other
+than `>`, a space, or a tab replaced by a space. List items therefore keep the text indented under it, and a lazy
+quote line gets its quote markers. The first-line width is the line length minus `TextWidth` of the text before the
+paragraph and the continuation width is the line length minus that of the continuation prefix, each at least 1; a line
+length of 0 gives `Unlimited`. The whole paragraph is refilled, not only the line that overflows.
 
 ##### Error Handling
 
-`ArgumentNullException` for a null argument and `ArgumentException` for a block that is not a paragraph. Everything that
-makes a paragraph unsafe to rewrite (a refused tokenization, a lazy line in a list item, block syntax after a hard
-break, a refused proof) is a result: the paragraph stays as written and the outcome says that its overflow cannot be
-fixed. A failure of the HTML comparison is a refusal of the proof, because `HtmlEquivalenceChecker` fails closed. No
-exception of the helper units is caught here; the tokenizer and the guard turn a regular expression timeout into a
-refusal themselves.
+A null argument throws `ArgumentNullException`. Every case that makes a paragraph unsafe to rewrite (refused
+tokenization, lazy line in a list item, block syntax after a hard break, a wrap guard rule, a first line that opens a
+block) is a result: the paragraph stays as written. Nothing is proved at run time; the safeguards are the guards
+above. The tokenizer and the wrap guard turn a regular expression timeout into a refusal themselves. Nothing is
+caught here.
 
 ##### Dependencies
 
-- **FormatContext**, **LineLayout**, **LineOwnership**, and **TextEdit** (`Formatting` subsystem) - the document, the
-  settings, the line arithmetic, the footnote and protected lines, and the edit.
+- **FormatContext**, **LineLayout**, and **LineOwnership** (`DocumentFormatter` unit) - the document, settings, line
+  arithmetic, and the footnote and protected lines.
+- **TextEdit** (`EditSet` unit) - the edit.
 - **AtomTokenizer**, **TokenizedParagraph**, **ParagraphSegment**, **HardBreakKind**, **LineWrapper**,
-  **WrappedLines**, and **BlockSyntaxGuard** (`Inline` subsystem) - the words, the fill, and the line starts that must
-  not be created.
-- **ParsedDocument**, **BlockInfo**, **BlockKind**, **LeafLine**, **DocumentParser**, and the suppression data of the
-  parsed document (`Document` subsystem) - the paragraph, its lines (`GetLines`), the continuation prefix
-  (`GetContinuationPrefix`), the pipeline that the proofs parse with, and the suppression ranges.
-- **LintMarkConfig** and **WrapMode** (`Configuration` subsystem) - the `line-length` and `wrap` settings and the rule
-  switch.
+  **WrappedLines**, **WrapGuard**, and **BlockSyntaxGuard** (`LineWrapper` and `AtomTokenizer` units, `Inline`
+  subsystem) - the atoms, the layouts, and the guards.
+- **ParsedDocument**, **BlockInfo**, **LeafLine**, **DocumentParser**, and **SuppressionMap** (`Document` subsystem) -
+  the paragraph, its lines, the continuation prefix, and `IsSuppressedRange`.
+- **TextWidth** (`Document` subsystem) - display widths.
+- **LintMarkConfig**, **WrapMode**, and the `BreakLinkText` link option (`LintMarkConfig` unit) - the settings.
 - **RuleCatalog** (`Linting` subsystem) - the rule identifiers.
-- **HtmlEquivalenceChecker** and **EquivalenceResult** (`Safety` subsystem) - the comparison of the two renderings.
-- **TextWidth** (`Utilities` subsystem) - the display width of a line and of a prefix.
-- **Markdig** (OTS) - the paragraph, quote, list, and list item blocks, and the parse of the two proofs.
+- **Markdig** (OTS) - `ParagraphBlock`, `ListItemBlock`, and the inline tree.
 
 ##### Callers
 
-- **DocumentFormatter** - gives every paragraph of the text that the other rules produce to `Format` in its second
-  stage, reads `IsEnabled` to decide whether the stage runs at all, and gives every wrapped paragraph to `Format` a
-  second time when it settles the wraps.
-- **LintMarkEngine** - creates the instance that the production `DocumentFormatter` is configured with.
+- **DocumentFormatter** - in its last stage (the wrap stage) reads `IsEnabled` and `IsLayoutEnforced` to decide
+  whether the stage runs, then calls `Format` for every paragraph of the text the other rules produce and turns each
+  `ParagraphOutcome` into edits and `line-length` or `paragraph-wrap` findings.
+- **LintMarkEngine** - creates the instance with which the production `DocumentFormatter` is configured.

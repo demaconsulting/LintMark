@@ -24,16 +24,12 @@ a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the build-notes HTML document.
 
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
-
 #### Pandoc_CodeQualityHtml
 
 **Scenario**: FileAssert asserts the code-quality HTML file exists, is non-trivially sized, contains
 a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the code-quality HTML document.
-
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
 
 #### Pandoc_ReviewPlanHtml
 
@@ -42,16 +38,12 @@ a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the review plan HTML document.
 
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
-
 #### Pandoc_ReviewReportHtml
 
 **Scenario**: FileAssert asserts the review report HTML file exists, is non-trivially sized,
 contains a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the review report HTML document.
-
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
 
 #### Pandoc_DesignHtml
 
@@ -60,8 +52,6 @@ contains a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the design document HTML.
 
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
-
 #### Pandoc_VerificationHtml
 
 **Scenario**: FileAssert asserts the verification HTML file exists, is non-trivially sized, contains
@@ -69,13 +59,9 @@ a valid HTML title element, and includes expected verification document content.
 
 **Expected**: FileAssert exits 0 for the verification document.
 
-**Requirement coverage**: `LintMark-OTS-Pandoc`.
-
 #### Pandoc_UserGuideHtml
 
 **Scenario**: FileAssert asserts the user guide HTML file exists, is non-trivially sized, contains
 a valid HTML title element, and includes expected document content.
 
 **Expected**: FileAssert exits 0 for the user guide HTML document.
-
-**Requirement coverage**: `LintMark-OTS-Pandoc`.

@@ -2,16 +2,12 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def DocumentSubsystem {
-        doc /* Loads Markdown files into a normalized, source-accurate document model with suppression directives and reference definitions. */
+        doc /* Reads a Markdown file into an immutable document model: the LF-normalized source text with the facts needed to write it back unchanged, the classified blocks with corrected source ranges, the link reference definitions, the suppression comments, and the display width of text. */
 
         metadata info : SoftwareInfo {
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/Document/DocumentSubsystemTests.cs",
-                "test/DemaConsulting.LintMark.Tests/Document/SpanTilingAssertions.cs",
-                "test/DemaConsulting.LintMark.Tests/Document/SyntheticDocuments.cs",
-                "test/DemaConsulting.LintMark.Tests/Document/SyntheticDocument.cs",
-                "test/DemaConsulting.LintMark.Tests/Document/RandomDocuments.cs",
-                "test/DemaConsulting.LintMark.Tests/Document/RepositoryMarkdownFiles.cs");
+                "test/DemaConsulting.LintMark.Tests/Document/SpanTilingAssertions.cs");
             designFiles = ("docs/design/lintmark/document.md");
             verificationFiles = ("docs/verification/lintmark/document.md");
             requirementFiles = ("docs/reqstream/lintmark/document.yaml");
@@ -20,6 +16,6 @@ package LintMark {
         part sourceDocument : SourceDocument;
         part documentParser : DocumentParser;
         part suppressionMap : SuppressionMap;
-        part referenceIndex : ReferenceIndex;
+        part textWidth : TextWidth;
     }
 }

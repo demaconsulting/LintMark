@@ -31,15 +31,11 @@ VersionMark did not execute correctly.
 
 **Expected**: Exits 0 and captures version data for every tool.
 
-**Requirement coverage**: `LintMark-OTS-VersionMark`.
-
 #### VersionMark_GeneratesMarkdownReport
 
 **Scenario**: VersionMark writes a versions markdown document to the release artifacts.
 
 **Expected**: Exits 0 and produces a non-empty versions markdown file.
-
-**Requirement coverage**: `LintMark-OTS-VersionMark`.
 
 #### VersionMark_LintPassesForValidConfig
 
@@ -48,13 +44,9 @@ config.
 
 **Expected**: Exits 0 and reports no errors.
 
-**Requirement coverage**: `LintMark-OTS-VersionMark`.
-
 #### VersionMark_LintReportsErrorsForInvalidConfig
 
 **Scenario**: VersionMark self-validation exercises lint mode against a malformed config with
 deliberate errors.
 
 **Expected**: Correctly identifies and reports the configuration errors.
-
-**Requirement coverage**: `LintMark-OTS-VersionMark`.

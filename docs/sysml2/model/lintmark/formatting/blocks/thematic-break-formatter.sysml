@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def ThematicBreakFormatter {
-        doc /* Proposes the edits that write each thematic break as three characters of the configured style with no trailing whitespace, and leaves a break alone where the conversion could turn text into a heading, start front matter, create a break of a list marker, or make a plus sign list marker look like the border of a grid table. */
+        doc /* Proposes the edits that write thematic breaks in the canonical form: three characters of the configured kind with no spaces between them and no trailing whitespace, leaving a break as written where the conversion could create a setext underline, front matter, or a list marker or grid table border lookalike. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Blocks/ThematicBreakFormatter.cs");
@@ -12,29 +12,17 @@ package LintMark {
             requirementFiles = ("docs/reqstream/lintmark/formatting/blocks/thematic-break-formatter.yaml");
         }
 
-        // The formatter implements the block formatter contract, receives its context, and adds edits to the
-        // edit set of the document.
-        dependency ThematicBreakFormatter to IBlockFormatter;
-        dependency ThematicBreakFormatter to FormatContext;
+        // The formatter implements the block formatter contract, receives its context, uses the line
+        // arithmetic and the front matter guard of the document formatter, and adds edits to the edit set.
+        dependency ThematicBreakFormatter to DocumentFormatter;
         dependency ThematicBreakFormatter to EditSet;
-        dependency ThematicBreakFormatter to TextEdit;
 
-        // It reads the break from the parsed document and its blocks (including the sibling before it), and the
-        // style it writes from the configuration.
-        dependency ThematicBreakFormatter to ParsedDocument;
-        dependency ThematicBreakFormatter to BlockInfo;
-        dependency ThematicBreakFormatter to BlockKind;
-        dependency ThematicBreakFormatter to SourceDocument;
-        dependency ThematicBreakFormatter to LintMarkConfig;
-        dependency ThematicBreakFormatter to ThematicBreakStyle;
-
-        // Each edit is tagged with a rule identifier from the rule catalog, and the break node comes from the
-        // Markdown parser library.
-        dependency ThematicBreakFormatter to RuleCatalog;
+        // It reads the break and its neighbors from the parsed document and the Markdown parser library,
+        // the break style from the configuration, and tags each edit with a rule identifier from the rule
+        // catalog.
+        dependency ThematicBreakFormatter to DocumentParser;
         dependency ThematicBreakFormatter to Markdig;
-
-        // The line arithmetic shared with the document formatter, and the guard against creating front matter.
-        dependency ThematicBreakFormatter to LineLayout;
-        dependency ThematicBreakFormatter to FrontMatterGuard;
+        dependency ThematicBreakFormatter to LintMarkConfig;
+        dependency ThematicBreakFormatter to RuleCatalog;
     }
 }

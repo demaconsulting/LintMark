@@ -19,14 +19,10 @@ package LintMark {
     }
 
     part def SourceDocument {
-        doc /* Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged (also documents the LineEnding and LineEndingInfo supporting types). */
+        doc /* Immutable, LF-normalized view of one Markdown file with the facts needed to write it back unchanged: the decoded text, the original line terminator counts, and whether a byte order mark and a final newline were present (also documents the LineEnding and LineEndingInfo supporting types and the exception raised for undecodable bytes). */
 
         metadata info : SoftwareInfo {
-            sourceFiles = (
-                "src/DemaConsulting.LintMark/Document/SourceDocument.cs",
-                "src/DemaConsulting.LintMark/Document/SourceDocumentException.cs",
-                "src/DemaConsulting.LintMark/Document/LineEnding.cs",
-                "src/DemaConsulting.LintMark/Document/LineEndingInfo.cs");
+            sourceFiles = ("src/DemaConsulting.LintMark/Document/SourceDocument.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Document/SourceDocumentTests.cs");
             designFiles = ("docs/design/lintmark/document/source-document.md");
             verificationFiles = ("docs/verification/lintmark/document/source-document.md");

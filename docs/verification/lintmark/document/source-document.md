@@ -2,11 +2,10 @@
 
 #### Verification Approach
 
-`SourceDocument` is verified with unit tests in `SourceDocumentTests.cs`. The class depends only on the .NET
-base class library, so no mocking is needed. Tests build documents from byte arrays through `Create` and
-from text through `FromText`, and assert on the normalized text, the terminator counts, the preserved byte
-order mark, the typed failures (rule identifier, line, and column), the position arithmetic, and the bytes
-produced by `ToBytes`.
+`SourceDocument` is verified with unit tests in `SourceDocumentTests.cs`. The unit decodes bytes, normalizes line
+endings, and maps positions, and it depends on nothing, so the tests give it byte arrays and text and assert on the
+normalized text, the recorded line endings, the byte order mark, and the positions. No mocks, files, or process-wide
+state are used.
 
 #### Test Environment
 
@@ -15,90 +14,42 @@ N/A - standard test environment.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- LF, CRLF, and mixed files normalize to LF text with correct terminator counts.
-- Invalid UTF-8, a UTF-16 byte order mark, and a bare carriage return are rejected with the documented rule
-  identifier and position.
-- A UTF-8 byte order mark is preserved and restored; a file without one gets none.
-- Unchanged text written back in the original terminator style reproduces the original bytes for files whose
-  terminators are all of one style; a mixed file is written in its majority style.
-- Positions are 1-based, count UTF-16 code units, and convert back to the same offsets.
-- The line table cannot be modified by a caller that casts it.
+- LF, CRLF, and mixed documents are normalized to LF with the counts and the majority ending recorded; a tie and a
+  document without terminators resolve to LF.
+- A UTF-8 byte order mark is stripped and restored on writing; the original bytes can be reproduced.
+- Invalid UTF-8, a UTF-16 mark, and a bare carriage return are refused with an exception that carries a position.
+- Positions count UTF-16 units, a tab counts as one column, and offsets and positions round-trip.
 
 #### Test Scenarios
 
 ##### Normal operation
 
-**Line table cannot be changed through a cast**: `LineStarts` is not a `List<int>` or an array, every attempted
-change through `IList<int>` throws `NotSupportedException`, and positions are still computed from the
-original table.
+**CRLF text is normalized and counted**: The text becomes LF and the CRLF count is recorded.
 
-**LF file keeps its text and counts LF terminators**: A file with LF terminators keeps its text and counts only
-LF terminators.
+**Mixed endings resolve to the majority**: The majority ending is chosen and the document is marked mixed.
 
-**CRLF file is normalized to LF**: A CRLF file gets LF text and counts CRLF terminators.
+**UTF-8 byte order mark is stripped and preserved**: The mark is not part of the text and is written back.
 
-**Mixed terminators are detected and the majority is resolved**: A file with both terminators reports `IsMixed`
-and resolves the majority style.
+**Writing restores the original bytes**: A BOM and CRLF document converts back to the original bytes; a mixed
+file is written in the majority style; a target ending converts on request.
 
-**Final newline is detected**: `HasFinalNewline` is true only when the text ends with a terminator.
+**Positions and offsets round-trip**: Tabs and surrogate pairs count UTF-16 units with a tab as one column.
 
-**UTF-8 byte order mark is stripped and remembered**: The mark is removed from the text, `HasBom` is true, and
-the encoding emits it again.
-
-**File without a byte order mark gets none**: Writing a file that had no mark adds none.
-
-**FromText normalizes like Create**: Text given to `FromText` is normalized and validated exactly as bytes given
-to `Create`.
-
-**Line table records every line**: `LineStarts` holds the start of every line, including the empty line after a
-final newline.
-
-**Offsets and positions convert both ways**: `OffsetOf` is the inverse of `PositionOf` for every offset.
-
-**Slice returns the requested characters**: `Slice` returns the characters of the requested range of the
-normalized text.
-
-**LF file is restored byte for byte**: An LF file written back with LF reproduces its bytes.
-
-**CRLF file is restored byte for byte**: A CRLF file written back with CRLF reproduces its bytes.
-
-**File with byte order mark and CRLF is restored byte for byte**: Both the mark and the terminators are
-reproduced.
-
-**Mixed file is written in its majority style**: A file with two LF and one CRLF terminator is written as LF, and
-one with two CRLF and one LF terminator as CRLF; both are reported mixed, and the original bytes are not restored
-(the limit of the round trip).
-
-**Normalized text is converted to the requested terminator style**: The static `ToDisk` produces LF or CRLF text
-as requested.
+**Slices return the requested characters**: A range returns exactly its text.
 
 ##### Boundary conditions
 
-**Equal LF and CRLF counts resolve to LF**: A tie gives `Lf` as the majority style.
+**Empty file has one empty line**: The text is empty and the line count is one.
 
-**File without terminators resolves to LF**: The majority style of a file with no terminator is `Lf`.
+**Tie and no terminators resolve to LF**: Equal counts and a file without a line ending give LF.
 
-**Empty file has a single empty line**: An empty file is a valid document with one empty line and no final
-newline.
-
-**Columns count UTF-16 code units and a tab counts as one**: A surrogate pair counts as two columns and a tab as
-one; positions are 1-based.
-
-**Carriage return at the very end of the text is a bare carriage return**: `FromText` rejects it as a line-ending
-failure.
+**Out-of-range positions and offsets throw**: Offsets and positions beyond the text are refused.
 
 ##### Error handling
 
-**UTF-16 byte order mark is an encoding failure**: A UTF-16 mark raises `file-encoding-error` at line 1,
-column 1.
+**UTF-16 mark is refused**: An encoding error is thrown.
 
-**Invalid UTF-8 is reported at the first bad byte**: The failure is `file-encoding-error` with the line and column
-of the byte.
+**Invalid UTF-8 is refused with a position**: The exception names the line and column of the first bad byte.
 
-**Bare carriage return is reported with its position**: The failure is `file-line-ending-error` at the line and
-column of the carriage return.
-
-**Null path is rejected**: `Create` and `FromText` throw `ArgumentNullException` for null arguments.
-
-**Positions outside the document are rejected**: Offsets, lines, and columns outside the document raise
-`ArgumentOutOfRangeException`.
+**A bare carriage return is refused with a position**: A lone CR, also at the end of text created from a string,
+throws a line-ending error.

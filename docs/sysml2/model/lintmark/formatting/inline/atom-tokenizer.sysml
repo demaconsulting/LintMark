@@ -29,27 +29,23 @@ package LintMark {
         doc /* Splits the text of one paragraph into the words that a wrap may separate, keeping every link, image, code span, autolink, bare URL, inline HTML tag, entity, math span, footnote reference, task marker, and Pandoc attribute or citation whole, cutting the words into segments at hard line breaks, never allowing a break after a backslash, counting the places each source line could be broken, and refusing a paragraph whose multi-line construct cannot be rejoined safely or whose spans do not fit its lines (also documents the TokenizedParagraph, ParagraphSegment and HardBreakKind supporting types, the tokenized paragraph, its segments, and how a segment ends). */
 
         metadata info : SoftwareInfo {
-            sourceFiles = (
-                "src/DemaConsulting.LintMark/Formatting/Inline/AtomTokenizer.cs",
-                "src/DemaConsulting.LintMark/Formatting/Inline/TokenizedParagraph.cs",
-                "src/DemaConsulting.LintMark/Formatting/Inline/ParagraphSegment.cs",
-                "src/DemaConsulting.LintMark/Formatting/Inline/HardBreakKind.cs");
+            sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Inline/AtomTokenizer.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Formatting/Inline/AtomTokenizerTests.cs");
             designFiles = ("docs/design/lintmark/formatting/inline/atom-tokenizer.md");
             verificationFiles = ("docs/verification/lintmark/formatting/inline/atom-tokenizer.md");
             requirementFiles = ("docs/reqstream/lintmark/formatting/inline/atom-tokenizer.yaml");
         }
 
-        // The tokenizer rebuilds the content of the paragraph from its lines, which the document parser locates
-        // as leaf lines, and answers with the tokenized paragraph, its segments, and how each segment ends.
+        // The tokenizer rebuilds the content of the paragraph from its lines, which the document parser
+        // locates as leaf lines.
         dependency AtomTokenizer to DocumentParser;
-        dependency AtomTokenizer to LeafLine;
-        dependency AtomTokenizer to TokenizedParagraph;
-        dependency AtomTokenizer to ParagraphSegment;
-        dependency AtomTokenizer to HardBreakKind;
 
-        // The constructs that must stay whole, and the hard line breaks that the document parser agrees with,
-        // are read from the inline syntax tree of the Markdown parser library.
+        // The constructs that must stay whole, and the hard line breaks that the document parser agrees
+        // with, are read from the inline syntax tree of the Markdown parser library.
         dependency AtomTokenizer to Markdig;
+
+        // The tail of an inline link (its destination and title) is read with the helper of the link
+        // refactorer, so that both units agree on where a link ends.
+        dependency AtomTokenizer to LinkRefactorer;
     }
 }
