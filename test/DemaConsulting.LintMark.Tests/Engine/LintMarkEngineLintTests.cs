@@ -109,6 +109,54 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
+    ///     Test that after a rewrite the remaining findings are reported at the lines of the file as it was written, not at the
+    ///     lines of the file as it was read, while a check run reports the lines of the file as it is.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_FixMovesLines_ReportsRemainingFindingsAtWrittenPositions()
+    {
+        // Arrange: blank lines and trailing spaces above an undefined reference, so that rewriting moves it up
+        using var directory = new TemporaryDirectory();
+        const string Original = "# Title   \n\n\n\n\nA paragraph.  \n\n\n\nSee [text][nope] here.\n";
+        var path = directory.WriteBytes("a.md", Utf8(Original));
+
+        // Act: check, then fix, then fix again
+        var check = Execute(directory, new LintMarkEngine(1));
+        var fix = Execute(directory, new LintMarkEngine(1), "--fix");
+        var written = File.ReadAllText(path);
+        var again = Execute(directory, new LintMarkEngine(1), "--fix");
+
+        // Assert: the check reports the undefined reference at its line in the original, the fix at its line in the written file
+        var writtenLine = Array.FindIndex(written.Split('\n'), line => line.Contains("[text][nope]", StringComparison.Ordinal)) + 1;
+        var originalLine = Array.FindIndex(Original.Split('\n'), line => line.Contains("[text][nope]", StringComparison.Ordinal)) + 1;
+        Assert.NotEqual(originalLine, writtenLine);
+        Assert.Contains(check.Lines, line => line.StartsWith($"a.md:{originalLine}:", StringComparison.Ordinal) && line.Contains("link-reference-undefined", StringComparison.Ordinal));
+        var reported = Assert.Single(fix.Lines, line => line.Contains("link-reference-undefined", StringComparison.Ordinal));
+        Assert.StartsWith($"a.md:{writtenLine}:", reported, StringComparison.Ordinal);
+        Assert.Equal(fix.Lines, again.Lines);
+    }
+
+    /// <summary>
+    ///     Test that after a rewrite of a CRLF file the remaining findings are reported at the lines of the written file.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_FixCrlfFileMovesLines_ReportsRemainingFindingsAtWrittenPositions()
+    {
+        // Arrange: a CRLF file with extra blank lines above a reversed link
+        using var directory = new TemporaryDirectory();
+        var path = directory.WriteBytes("a.md", Utf8("# Title\r\n\r\n\r\n\r\nSee (text)[https://example.com/] here.\r\n"));
+
+        // Act: fix
+        var (_, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
+
+        // Assert: the finding is on the line it has in the written file
+        var writtenLine = Array.FindIndex(File.ReadAllText(path).Split("\r\n"), line => line.Contains("(text)[", StringComparison.Ordinal)) + 1;
+        var reported = Assert.Single(lines, line => line.Contains("link-reversed", StringComparison.Ordinal));
+        Assert.StartsWith($"a.md:{writtenLine}:", reported, StringComparison.Ordinal);
+        Assert.Equal(3, writtenLine);
+    }
+
+    /// <summary>
     ///     Test that a lint-only finding does not prevent a rewrite, and a rewrite and lint-only findings are reported together.
     /// </summary>
     [Fact]
