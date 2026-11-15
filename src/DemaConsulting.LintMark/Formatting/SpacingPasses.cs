@@ -412,7 +412,8 @@ internal static class BlockSpacingPass
             // paragraph is still open, so a setext heading that starts with a list marker (an empty item, or a number other than 1,
             // cannot interrupt a paragraph) is read as a list once a blank line precedes it; a thematic-break-shaped line that
             // the parser reads as a list item right after a list item is a thematic break once a blank line precedes it; and a
-            // definition-shaped paragraph right before a table is text for the parser, a definition after a blank line
+            // paragraph that looks like a link reference definition, right before a table, is text for the parser, but after a
+            // blank line the paragraph becomes a link reference definition and is no longer rendered
             if (ReadsDifferentlyAfterBlankLine(layout, before, after, afterFirst))
             {
                 continue;
