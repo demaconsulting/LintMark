@@ -106,6 +106,20 @@ internal static class FuzzDocuments
     }
 
     /// <summary>
+    ///     Determines whether a file name is the name of a generated document.
+    /// </summary>
+    /// <param name="fileName">The file name without its folder. Must not be null.</param>
+    /// <returns><see langword="true"/> for <c>fuzz-</c>, seven digits and <c>.md</c>.</returns>
+    public static bool IsGeneratedName(string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+        return fileName.Length == "fuzz-0000000.md".Length
+            && fileName.StartsWith("fuzz-", StringComparison.Ordinal)
+            && fileName.EndsWith(".md", StringComparison.Ordinal)
+            && fileName.AsSpan(5, 7).IndexOfAnyExceptInRange('0', '9') < 0;
+    }
+
+    /// <summary>
     ///     Writes the documents of a run into a directory, one file each.
     /// </summary>
     /// <param name="directory">The directory, which must exist. Must not be null.</param>
@@ -115,6 +129,13 @@ internal static class FuzzDocuments
     public static int Write(string directory, int count, uint seed)
     {
         ArgumentNullException.ThrowIfNull(directory);
+
+        // The files of an earlier run (possibly of a larger count) are replaced
+        foreach (var stale in Directory.EnumerateFiles(directory, "fuzz-*.md").Where(static path => IsGeneratedName(Path.GetFileName(path))))
+        {
+            File.Delete(stale);
+        }
+
         var utf8 = new UTF8Encoding(false);
         var number = 0;
         foreach (var text in Generate(count, seed))

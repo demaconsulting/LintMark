@@ -83,6 +83,14 @@ internal static class VerifyApplication
             {
                 var folder = options.FuzzKeep is { } keep ? Path.GetFullPath(Path.Combine(baseDirectory, keep)) : null;
                 var generated = folder ?? Path.Combine(Path.GetTempPath(), $"lintmark-fuzz-{Guid.NewGuid():N}");
+
+                // A kept folder is the run's own: files of an earlier run are replaced, and other documents would be verified with them
+                if (folder is not null && Directory.Exists(folder)
+                    && Directory.EnumerateFiles(folder, "*.md").Any(static path => !FuzzDocuments.IsGeneratedName(Path.GetFileName(path))))
+                {
+                    throw new UsageException($"The --fuzz-keep folder '{folder}' holds Markdown files that are not generated documents; use an empty folder.");
+                }
+
                 Directory.CreateDirectory(generated);
                 fuzzDirectory = folder is null ? generated : null;
                 FuzzDocuments.Write(generated, fuzzCount, options.FuzzSeed);
@@ -139,9 +147,17 @@ internal static class VerifyApplication
         }
         finally
         {
-            if (fuzzDirectory is not null && Directory.Exists(fuzzDirectory))
+            // Best effort: a worker that timed out may still hold a generated file open, and that must not hide the result
+            if (fuzzDirectory is not null)
             {
-                Directory.Delete(fuzzDirectory, recursive: true);
+                try
+                {
+                    Directory.Delete(fuzzDirectory, recursive: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    await error.WriteLineAsync($"warning: could not delete '{fuzzDirectory}': {ex.Message}");
+                }
             }
         }
     }

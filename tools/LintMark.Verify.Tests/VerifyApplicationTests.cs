@@ -231,8 +231,9 @@ public class VerifyApplicationTests
     [Fact]
     public async Task VerifyApplication_RunAsync_Fuzz_VerifiesGeneratedDocumentsDeterministically()
     {
-        // Arrange
+        // Arrange: a folder that holds a stale document of an earlier run
         using var directory = new TemporaryDirectory();
+        directory.WriteFile("kept/fuzz-0000099.md", "stale\n");
 
         // Act
         var first = FuzzDocuments.Generate(50, 7).ToList();
@@ -242,6 +243,8 @@ public class VerifyApplicationTests
         var kept = await RunAsync(directory, null, "--fuzz", "20", "--seed", "7", "--fuzz-keep", "kept");
         var temporary = await RunAsync(directory, null, "--fuzz", "20");
         var after = Directory.GetDirectories(Path.GetTempPath(), "lintmark-fuzz-*");
+        directory.WriteFile("mixed/notes.md", "# Notes\n");
+        var mixed = await RunAsync(directory, null, "--fuzz", "5", "--fuzz-keep", "mixed");
 
         // Assert
         Assert.Equal(first, repeated);
@@ -249,9 +252,11 @@ public class VerifyApplicationTests
         Assert.All(first, static text => Assert.EndsWith("\n", text, StringComparison.Ordinal));
         Assert.Equal(VerifyApplication.Passed, kept.ExitCode);
         Assert.Contains("Verified 20 files", kept.Output, StringComparison.Ordinal);
-        Assert.Equal(20, Directory.GetFiles(Path.Combine(directory.FullPath, "kept"), "fuzz-*.md").Length);
+        Assert.Equal(20, Directory.GetFiles(Path.Combine(directory.FullPath, "kept"), "*.md").Length);
         Assert.Equal(VerifyApplication.Passed, temporary.ExitCode);
         Assert.Empty(after.Except(before));
+        Assert.Equal(VerifyApplication.UsageError, mixed.ExitCode);
+        Assert.Contains("not generated documents", mixed.Error, StringComparison.Ordinal);
     }
 
     /// <summary>
