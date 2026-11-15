@@ -63,14 +63,18 @@ nested subsystems.
 
 The structure view above shows what the system is made of, not how a run moves data between those parts. The diagram
 below follows one `lintmark` run: `Program` and `Context` hand the command line to the `Engine`, which discovers the
-files and, for each file in parallel, resolves the configuration, parses the document, formats it, and lints it, then
-reports the findings and, with `--fix`, writes the result. Look for the OTS libraries that each unit consumes and for
-the inputs and outputs at the edges. The `Validation` unit (`--validate`) is a separate path and is not shown. The
-SysML2 model remains the authority on structure; this diagram only adds the data flow.
+files and, for each file in parallel, resolves the configuration and parses the document. The formatter and the
+lint-only rules then both read that parsed document as written, so what the lint-only rules report does not depend on
+what the formatter changes; their findings are combined. Only with `--fix` is the rewritten text parsed again and
+checked again, so that the remaining findings are reported at the positions of the new file. The `Engine` then reports
+the findings and, with `--fix`, writes the result. Look for the OTS libraries that each unit consumes and for the
+inputs and outputs at the edges. The `Validation` unit (`--validate`) is a separate path and is not shown. The SysML2
+model remains the authority on structure; this diagram only adds the data flow.
 
 ![Runtime data flow of a lintmark run: the command line, Markdown files, .lintmark.yaml, and .editorconfig enter
-Program, Context, and the Engine. FileDiscovery expands the paths, then each file passes through Configuration,
-Document, Formatting, and Linting. The Reporters write findings to stderr and a unified diff to stdout,
+Program, Context, and the Engine. FileDiscovery expands the paths, then each file passes through Configuration and
+Document, and Formatting and Linting both read the parsed document. The Reporters write findings to stderr and a unified
+diff to stdout,
 AtomicFileWriter rewrites files for --fix, and Context sets the exit code. Markdig, YamlDotNet, EditorConfig, and
 FileSystemGlobbing are the OTS libraries used.](architecture.svg)
 
