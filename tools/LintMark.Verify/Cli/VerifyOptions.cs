@@ -71,7 +71,8 @@ internal sealed class VerifyOptions
           --fuzz <count>             Also verify <count> generated adversarial documents (written to a temporary
                                      folder that is deleted afterwards); the generator is deterministic.
           --seed <n>                 The seed of --fuzz (default 20260511).
-          --fuzz-keep <dir>          Write the --fuzz documents to <dir> and keep them (for a reproduction).
+          --fuzz-keep <dir>          Write the --fuzz documents to <dir> and keep them (for a reproduction); <dir> must not
+                                     exist or must be empty.
           --jobs <n>                 Degree of parallelism (default: processor count).
           --timeout <seconds>        Per file and option set (default 300).
           --max-diff-lines <n>       Longest diff shown per failure (default 60).

@@ -231,9 +231,10 @@ public class VerifyApplicationTests
     [Fact]
     public async Task VerifyApplication_RunAsync_Fuzz_VerifiesGeneratedDocumentsDeterministically()
     {
-        // Arrange: a folder that holds a stale document of an earlier run
+        // Arrange: a folder that holds a document of the user (also in a subfolder), which must be neither replaced nor verified
         using var directory = new TemporaryDirectory();
-        directory.WriteFile("kept/fuzz-0000099.md", "stale\n");
+        directory.WriteFile("mixed/fuzz-0000001.md", "mine\n");
+        directory.WriteFile("nested/sub/notes.md", "# Notes\n");
 
         // Act
         var first = FuzzDocuments.Generate(50, 7).ToList();
@@ -243,8 +244,6 @@ public class VerifyApplicationTests
         var kept = await RunAsync(directory, null, "--fuzz", "20", "--seed", "7", "--fuzz-keep", "kept");
         var temporary = await RunAsync(directory, null, "--fuzz", "20");
         var after = Directory.GetDirectories(Path.GetTempPath(), "lintmark-fuzz-*");
-        directory.WriteFile("mixed/notes.md", "# Notes\n");
-        directory.WriteFile("nested/sub/fuzz-0000001.md", "stale\n");
         var mixed = await RunAsync(directory, null, "--fuzz", "5", "--fuzz-keep", "mixed");
         var nested = await RunAsync(directory, null, "--fuzz", "5", "--fuzz-keep", "nested");
 
@@ -258,7 +257,8 @@ public class VerifyApplicationTests
         Assert.Equal(VerifyApplication.Passed, temporary.ExitCode);
         Assert.Empty(after.Except(before));
         Assert.Equal(VerifyApplication.UsageError, mixed.ExitCode);
-        Assert.Contains("not generated documents", mixed.Error, StringComparison.Ordinal);
+        Assert.Contains("is not empty", mixed.Error, StringComparison.Ordinal);
+        Assert.Equal("mine\n", await File.ReadAllTextAsync(Path.Combine(directory.FullPath, "mixed", "fuzz-0000001.md"), TestContext.Current.CancellationToken));
         Assert.Equal(VerifyApplication.UsageError, nested.ExitCode);
     }
 
