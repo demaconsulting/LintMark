@@ -578,7 +578,7 @@ internal sealed class ListPlan
 
         var blank = rest.IndexOfAny(' ', '\t');
         var word = blank < 0 ? rest : rest[..blank];
-        return !word.IsEmpty && BlockSyntaxGuard.IsCommonMarkBlockStart(word.ToString());
+        return !word.IsEmpty && WrapGuard.IsInterruptingBlockStart(word.ToString());
     }
 
     /// <summary>

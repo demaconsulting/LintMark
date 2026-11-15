@@ -684,6 +684,14 @@ public class ListFormatterTests
         AssertFormats("*   a\n    - ---\n", "-   a\n    - ---\n");
 
     /// <summary>
+    ///     Test that a continuation line that starts with an ordered marker that cannot interrupt a paragraph does not keep the
+    ///     columns of its item (rule G-2 only concerns block syntax that the indentation hides).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ContinuationLineWithNumberOtherThanOne_MovesWithItsItem() =>
+        AssertFormats("-   text\n    10. more\n", "- text\n  10. more\n");
+
+    /// <summary>
     ///     Test that the shrinking of an item and the code block of another rule happen in one run: the block that a rule rewrites
     ///     as a fence is no danger to the list, so the list does not have to wait for the second run.
     /// </summary>
