@@ -20,11 +20,10 @@
 
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
-using Markdig;
 using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Formatting.Blocks;
@@ -38,8 +37,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         The decisions are made per list and are all-or-nothing for it: the markers of a bullet list change together
 ///         or not at all, the numbers of an ordered list likewise. Marker characters and numbers that keep their width are
 ///         edits that change no column (<em>tier 1</em>) and apply at any depth, also inside block quotes. A list in the
-///         body of a footnote is left as written: the proof below renders the lines of the nest by themselves, where the
-///         four-space indent of a footnote body reads as indented code, so it cannot show that a rewrite keeps the meaning.
+///         body of a footnote is left as written: the four-space indent of a footnote body is not a column of the list.
 ///         Everything that changes a column (<em>tier 2</em>: the column of a marker, the spaces after it, a number that
 ///         gains or loses a digit) needs the columns of the lines to mean what they say, so it is only done for a nest at
 ///         the top level of the document whose items can be moved (see <see cref="ListModel"/>).
@@ -70,11 +68,6 @@ internal sealed class ListPlan
     private const long MaxNumber = 999_999_999;
 
     /// <summary>
-    ///     The number of lines after a nest that the proof of the plan renders with it.
-    /// </summary>
-    private const int ProofTailLines = 3;
-
-    /// <summary>
     ///     The document, settings and line arithmetic.
     /// </summary>
     private readonly FormatContext _context;
@@ -88,6 +81,16 @@ internal sealed class ListPlan
     ///     The edits of the plan so far; they are given to <see cref="_edits"/> only when the plan is accepted.
     /// </summary>
     private readonly List<TextEdit> _planned = [];
+
+    /// <summary>
+    ///     The items whose content column shrinks, with the new column, for the check of the line after them.
+    /// </summary>
+    private readonly List<(int LastLine, int NewContent)> _shrunk = [];
+
+    /// <summary>
+    ///     Whether a line that the plan moves is one whose meaning depends on its indentation (rules R-2 and G-2).
+    /// </summary>
+    private bool _hidesMeaning;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ListPlan"/> class.
@@ -124,23 +127,37 @@ internal sealed class ListPlan
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="outermost"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     /// <remarks>
-    ///     The columns of the nest are planned first and the plan is proved: both texts, with and without the edits of the plan
-    ///     (and with the edits that other formatters propose for the same lines), must render the same. A move that shrinks the
-    ///     content column of an item could make a line after the item belong to it, and the parser's reading of nested
-    ///     items is not always what the specification says, so the proof, not a rule of thumb, decides. A plan that fails it is made
-    ///     again without any change of columns, and that one is proved too; when it fails as well the nest stays as written.
+    ///     <para>
+    ///         The nest is read from the text as it stands after every other rule has had its say (the document formatter gives the
+    ///         list rules the text the other rules produce), so the lines around the nest are final. A nest that starts in a
+    ///         footnote is left as written (F-1: the four-space indent of a footnote body is not a list column).
+    ///     </para>
+    ///     <para>
+    ///         The columns of the nest are planned first. A plan that moves content is dropped for a plan without any change of
+    ///         columns, and that one is kept, when the move could change the meaning: an item whose content column shrinks
+    ///         would take over the next line when that line is indented to the new column (R-1); a fenced code, HTML or math
+    ///         line that is not indented exactly to the content column of its item reads differently once the item moves (R-2);
+    ///         a line of a paragraph that starts with block syntax is text only because of its indentation (G-2); a line that
+    ///         the plan changes would be a thematic break or a setext underline by itself (G-1: <c>- ---</c> at the margin); two edits
+    ///         overlap (R-3). The plan without changes of columns is dropped as well in the last case.
+    ///     </para>
     /// </remarks>
     public void Apply(ListModel outermost)
     {
         ArgumentNullException.ThrowIfNull(outermost);
-        ProcessList(outermost, frame: null, movableContext: true);
-        if (_planned.Count > 0 && !Proves(outermost))
+        if (_context.Ownership.IsInFootnote(outermost.FirstLine))
         {
-            _planned.Clear();
+            return;
+        }
+
+        ProcessList(outermost, frame: null, movableContext: true);
+        if (_planned.Count > 0 && !IsSafe())
+        {
+            Reset();
             ProcessList(outermost, frame: null, movableContext: false);
-            if (_planned.Count > 0 && !Proves(outermost))
+            if (HasOverlap(_planned))
             {
-                _planned.Clear();
+                Reset();
             }
         }
 
@@ -151,79 +168,151 @@ internal sealed class ListPlan
     }
 
     /// <summary>
-    ///     Determines whether the edits of the plan leave the rendering of the nest and of the lines after it unchanged.
+    ///     Forgets the plan made so far.
     /// </summary>
-    /// <param name="outermost">The outermost list of the nest.</param>
-    /// <returns>
-    ///     <see langword="true"/> when the text from the first line of the nest to a few lines after it renders to the same HTML
-    ///     with and without the edits of the plan, both with the edits that other formatters propose for those lines.
-    /// </returns>
-    /// <remarks>
-    ///     The edits of the other formatters are part of both texts because they are part of the result: a line after a list that
-    ///     another rule moves to the margin is no danger to the list, and one that it leaves indented is. The blocks after the list
-    ///     were formatted first, so their edits are known here. Edits that overlap (which the edit set would reject later) cannot
-    ///     be proved.
-    /// </remarks>
-    private bool Proves(ListModel outermost)
+    private void Reset()
     {
-        var layout = _context.Layout;
-        var firstLine = outermost.FirstLine;
-        var lastLine = outermost.LastLine;
-        for (var counted = 0; lastLine + 1 < layout.LineCount && counted < ProofTailLines; lastLine++)
-        {
-            if (!layout.IsBlank(lastLine + 1))
-            {
-                counted++;
-            }
-        }
-
-        var start = layout.LineStart(firstLine);
-        var end = layout.LineEnd(lastLine);
-
-        // An edit of another formatter that begins in the stretch and ends beyond it (a code block that is rewritten as a
-        // fence) is applied whole, so the stretch grows to its end
-        var snapshot = _edits.ToImmutable();
-        List<TextEdit> others;
-        bool grown;
-        do
-        {
-            others = [.. snapshot.Where(edit => edit.Start >= start && edit.Start <= end)];
-            var reach = others.Count == 0 ? end : Math.Max(end, others.Max(static edit => edit.End));
-            grown = reach > end;
-            end = reach;
-        }
-        while (grown);
-
-        var original = Render(start, end, others);
-        var combined = Render(start, end, [.. others, .. _planned.Where(edit => edit.Start >= start && edit.End <= end)]);
-        return original is not null && combined is not null && string.Equals(original, combined, StringComparison.Ordinal);
+        _planned.Clear();
+        _shrunk.Clear();
+        _hidesMeaning = false;
     }
 
     /// <summary>
-    ///     Renders a stretch of the text after applying edits to it.
+    ///     Determines whether the plan keeps the meaning of the nest and of the line after it (rules R-1 to R-3).
     /// </summary>
-    /// <param name="start">The start of the stretch.</param>
-    /// <param name="end">The end of the stretch.</param>
-    /// <param name="edits">The edits, all inside the stretch.</param>
-    /// <returns>The HTML; <see langword="null"/> when two edits overlap.</returns>
-    private string? Render(int start, int end, List<TextEdit> edits)
+    /// <returns><see langword="true"/> when no rule refuses the plan.</returns>
+    private bool IsSafe() =>
+        !_hidesMeaning
+        && !HasOverlap(_planned)
+        && _shrunk.All(item => LineAfterStaysOut(item.LastLine, item.NewContent))
+        && !ChangesLineIntoBreak();
+
+    /// <summary>
+    ///     Determines whether two edits of a plan overlap (rule R-3).
+    /// </summary>
+    /// <param name="edits">The edits.</param>
+    /// <returns><see langword="true"/> when an edit starts before the previous one ends.</returns>
+    private static bool HasOverlap(List<TextEdit> edits)
     {
         var ordered = edits.OrderBy(static edit => edit.Start).ThenBy(static edit => edit.Length).ToList();
-        var builder = new StringBuilder();
-        var position = start;
-        foreach (var edit in ordered)
+        for (var i = 1; i < ordered.Count; i++)
         {
-            if (edit.Start < position)
+            if (ordered[i].Start < ordered[i - 1].End)
             {
-                return null;
+                return true;
             }
-
-            builder.Append(Text, position, edit.Start - position).Append(edit.Replacement);
-            position = edit.End;
         }
 
-        builder.Append(Text, position, end - position);
-        return Markdown.ToHtml(builder.ToString(), DocumentParser.Pipeline);
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether the first line with content after an item stays outside it once the item has a new content column (rule R-1).
+    /// </summary>
+    /// <param name="lastLine">The last line of the item.</param>
+    /// <param name="newContent">The column from which a line is taken into the item.</param>
+    /// <returns><see langword="true"/> when there is no such line, or its indentation, as the plan leaves it, is less than the column.</returns>
+    private bool LineAfterStaysOut(int lastLine, int newContent)
+    {
+        var layout = _context.Layout;
+        var next = lastLine + 1;
+        while (next < layout.LineCount && layout.IsBlank(next))
+        {
+            next++;
+        }
+
+        if (next >= layout.LineCount)
+        {
+            return true;
+        }
+
+        // A tab in the indentation makes the column uncertain
+        var start = layout.LineStart(next);
+        var end = layout.LineEnd(next);
+        var width = 0;
+        while (start + width < end && Text[start + width] == ' ')
+        {
+            width++;
+        }
+
+        if (start + width < end && Text[start + width] == '\t')
+        {
+            return false;
+        }
+
+        // The line may be moved by this plan or by the plan of a nest after this one (the nests are planned from the end of the
+        // document): the edit of its leading blanks decides
+        bool IsLeadingBlanksEdit(TextEdit candidate) => candidate.Length <= width && candidate.Replacement.All(static c => c == ' ');
+        var edit = _planned.FirstOrDefault(candidate => candidate.Start == start && IsLeadingBlanksEdit(candidate)) is { Replacement: not null } own
+            ? own
+            : _edits.FindStartingAt(start, IsLeadingBlanksEdit);
+        var indent = edit is { } moved ? width - moved.Length + moved.Replacement.Length : width;
+        return indent < newContent;
+    }
+
+    /// <summary>
+    ///     Determines whether a line that the plan changes would be a thematic break or a setext underline by itself (rule G-1).
+    /// </summary>
+    /// <returns>
+    ///     <see langword="true"/> when, with the edits of the plan applied, a changed line outside code is three or more of one of
+    ///     <c>-</c>, <c>*</c>, <c>_</c> and <c>=</c> and blanks: <c>- ---</c> at the margin is a thematic break, although the same
+    ///     line inside a list may be an item that holds one.
+    /// </returns>
+    private bool ChangesLineIntoBreak()
+    {
+        var layout = _context.Layout;
+        foreach (var group in _planned.GroupBy(edit => layout.LineOf(edit.Start)))
+        {
+            if (_context.Ownership.LeafAt(group.Key)?.Kind is BlockKind.FencedCode or BlockKind.UnclosedFence or BlockKind.IndentedCode or BlockKind.HtmlBlock or BlockKind.MathBlock)
+            {
+                continue;
+            }
+
+            var start = layout.LineStart(group.Key);
+            var builder = new System.Text.StringBuilder();
+            var position = start;
+            foreach (var edit in group.OrderBy(static edit => edit.Start).ThenBy(static edit => edit.Length))
+            {
+                builder.Append(Text, position, edit.Start - position).Append(edit.Replacement);
+                position = edit.End;
+            }
+
+            builder.Append(Text, position, layout.LineEnd(group.Key) - position);
+            if (IsRuleShaped(builder.ToString()))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether a text is three or more of one of <c>-</c>, <c>*</c>, <c>_</c> and <c>=</c>, and blanks.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns><see langword="true"/> for a text of that shape.</returns>
+    private static bool IsRuleShaped(string text)
+    {
+        var kind = '\0';
+        var count = 0;
+        foreach (var c in text)
+        {
+            if (LineLayout.IsBlankChar(c))
+            {
+                continue;
+            }
+
+            if (c is not ('-' or '*' or '_' or '=') || (kind != '\0' && c != kind))
+            {
+                return false;
+            }
+
+            kind = c;
+            count++;
+        }
+
+        return count >= 3;
     }
 
     /// <summary>
@@ -231,7 +320,6 @@ internal sealed class ListPlan
     /// </summary>
     /// <param name="edit">The edit.</param>
     private void Plan(TextEdit edit) => _planned.Add(edit);
-
     /// <summary>
     ///     Adds the edits for one list and for the lists inside it.
     /// </summary>
@@ -262,7 +350,7 @@ internal sealed class ListPlan
             }
 
             // Tier 2: columns; the lists inside the item follow the item when it moved
-            Frame? inner = target is { } column ? MoveItem(list, item, column, digits) : null;
+            Frame? inner = target is { } column ? MoveItem(list, item, column, digits, frame) : null;
             foreach (var child in item.Lists)
             {
                 ProcessList(child, inner, movableContext: inner is not null);
@@ -327,8 +415,9 @@ internal sealed class ListPlan
     /// <param name="item">The item.</param>
     /// <param name="column">The new column of the marker.</param>
     /// <param name="digits">The new number of an ordered item; null when the numbers are left as written.</param>
+    /// <param name="parent">Where the item that holds the list stands after the change; <see langword="null"/> for the outermost list.</param>
     /// <returns>Where the item stands after the change, for the lists inside it.</returns>
-    private Frame MoveItem(ListModel list, ListItemModel item, int column, string? digits)
+    private Frame MoveItem(ListModel list, ListItemModel item, int column, string? digits, Frame? parent)
     {
         var layout = _context.Layout;
         var markerLength = list.IsOrdered ? (digits?.Length ?? item.DigitsLength) + 1 : 1;
@@ -353,12 +442,20 @@ internal sealed class ListPlan
             return frame;
         }
 
+        // A line after the item that is indented to the column where the parser lets a line continue the item is taken into the item.
+        // That column is the content column, and for a list inside an item it can be as low as the width of the marker from the
+        // content column of the item that holds it (the parser counts the indentation from there)
+        if (shift < 0)
+        {
+            _shrunk.Add((item.LastLine, Math.Min(newContent, (parent?.NewContent ?? 0) + markerLength + 1)));
+        }
+
         var rule = RuleForShift(item, column);
         var own = item.Lists
             .Where(child => MovesItself(child, frame))
             .Select(static child => (child.FirstLine, child.LastLine))
             .ToList();
-        ShiftLines(item, shift, rule, own);
+        ShiftLines(item, shift, rule, own, nested: parent is not null);
         return frame;
     }
 
@@ -385,7 +482,8 @@ internal sealed class ListPlan
     /// <param name="shift">The number of columns, positive to the right.</param>
     /// <param name="ruleId">The rule that the edits belong to.</param>
     /// <param name="skipped">The line ranges of the lists inside the item that are moved by their own plan.</param>
-    private void ShiftLines(ListItemModel item, int shift, string ruleId, List<(int First, int Last)> skipped)
+    /// <param name="nested">Whether the item is inside another item.</param>
+    private void ShiftLines(ListItemModel item, int shift, string ruleId, List<(int First, int Last)> skipped, bool nested)
     {
         var layout = _context.Layout;
         var text = layout.Text;
@@ -418,6 +516,12 @@ internal sealed class ListPlan
                 continue;
             }
 
+            // The meaning of some lines depends on their indentation relative to the content column (rules R-2 and G-2)
+            if (!blank && DependsOnIndentation(item, nested, line, start + width, end, width))
+            {
+                _hidesMeaning = true;
+            }
+
             // Lazy lines and tabs were excluded when the item was judged movable, so the new width is never negative
             var newWidth = width + shift;
             if (newWidth >= 0 && width > 0)
@@ -425,6 +529,56 @@ internal sealed class ListPlan
                 Plan(new TextEdit(start, width, new string(' ', newWidth), ruleId));
             }
         }
+    }
+
+    /// <summary>
+    ///     Determines whether the meaning of a line that moves with its item depends on how far it is indented (rules R-2 and G-2).
+    /// </summary>
+    /// <param name="item">The item that moves.</param>
+    /// <param name="nested">Whether the item is inside another item.</param>
+    /// <param name="line">The zero-based line, which is not blank.</param>
+    /// <param name="contentStart">The offset of the first character after the leading spaces.</param>
+    /// <param name="end">The offset where the line ends.</param>
+    /// <param name="width">The number of leading spaces of the line.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the line is fenced or indented code, HTML or math (the parser strips the indentation of such lines
+    ///     relative to a column that depends on the geometry of the nest, and in some nests it reads the same lines
+    ///     differently for different columns, so they are never moved), or a continuation line of a paragraph that starts with
+    ///     block syntax (it is text only because of its indentation).
+    /// </returns>
+    private bool DependsOnIndentation(ListItemModel item, bool nested, int line, int contentStart, int end, int width)
+    {
+        var leaf = _context.Ownership.LeafAt(line);
+        if (leaf is null)
+        {
+            return false;
+        }
+
+        if (leaf.Kind is BlockKind.FencedCode or BlockKind.UnclosedFence or BlockKind.IndentedCode or BlockKind.HtmlBlock or BlockKind.MathBlock)
+        {
+            // In a nested item, and for indented code in an item that holds a list, the parser measures such lines from columns
+            // that are not the content column of the item, so they stay where they are; otherwise they must be indented to the
+            // content column (plus four for indented code)
+            return leaf.Kind == BlockKind.IndentedCode
+                ? nested || !item.Lists.IsEmpty || width - item.OldContentColumn < 4
+                : nested || width != item.OldContentColumn;
+        }
+
+        if (leaf.Kind != BlockKind.Paragraph || _context.Layout.LineOf(leaf.Start) == line)
+        {
+            return false;
+        }
+
+        // The first word of a continuation line, after the quote markers of a paragraph in a quote
+        var rest = Text.AsSpan(contentStart, end - contentStart);
+        while (!rest.IsEmpty && rest[0] == '>')
+        {
+            rest = rest[1..].TrimStart(' ');
+        }
+
+        var blank = rest.IndexOfAny(' ', '\t');
+        var word = blank < 0 ? rest : rest[..blank];
+        return !word.IsEmpty && BlockSyntaxGuard.IsCommonMarkBlockStart(word.ToString());
     }
 
     /// <summary>
@@ -504,7 +658,27 @@ internal sealed class ListPlan
             }
         }
 
-        return !IsAdjacentToBulletList(list.Info);
+        return !IsAdjacentToBulletList(list.Info) && !IsFollowedByBreakLine(list);
+    }
+
+    /// <summary>
+    ///     Determines whether the first line with content after a list is shaped like a thematic break.
+    /// </summary>
+    /// <param name="list">The list.</param>
+    /// <returns>
+    ///     <see langword="true"/> when that line is three or more of one of <c>-</c>, <c>*</c>, <c>_</c> and <c>=</c> and blanks (an
+    ///     item of a list that uses the same marker character, such as <c>- ---</c>, may be read as an item of that list).
+    /// </returns>
+    private bool IsFollowedByBreakLine(ListModel list)
+    {
+        var layout = _context.Layout;
+        var next = list.LastLine + 1;
+        while (next < layout.LineCount && layout.IsBlank(next))
+        {
+            next++;
+        }
+
+        return next < layout.LineCount && IsRuleShaped(Text.Substring(layout.LineStart(next), layout.LineEnd(next) - layout.LineStart(next)).Replace('>', ' '));
     }
 
     /// <summary>

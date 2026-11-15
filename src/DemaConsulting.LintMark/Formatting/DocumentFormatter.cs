@@ -183,7 +183,7 @@ internal sealed class DocumentFormatter
         {
             var block = document.Blocks[i];
             var formatter = FindFormatter(block);
-            if (formatter is null || IsSuppressed(document, block, formatter))
+            if (formatter is null or ListFormatter || IsSuppressed(document, block, formatter))
             {
                 continue;
             }
@@ -191,9 +191,9 @@ internal sealed class DocumentFormatter
             formatter.Format(context, block, edits);
         }
 
-        // The line ending is the configured one, or else the one the file uses most
+        // Lists are planned last but one, on the text that every rule above produces, so that the lines around a list are final
         var target = config.EndOfLine ?? source.MajorityLineEnding;
-        var result = edits.ToImmutable();
+        var result = FormatLists(document, config, edits.ToImmutable());
         var reported = ReportEdits(source, result);
 
         // Long inline links become reference links before anything is wrapped, so that the wrap reads the final text
@@ -202,6 +202,50 @@ internal sealed class DocumentFormatter
         // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules produce
         var (wrapped, wrapDiagnostics) = WrapParagraphs(document, config, layout, refactored);
         return new FormatResult(wrapped, target, [.. CheckLineEndings(source, target), .. reported, .. refactorDiagnostics, .. wrapDiagnostics]);
+    }
+
+    /// <summary>
+    ///     Plans the lists on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>The edits against the original text, those of the other rules composed with the edits of the lists; unchanged when there is no list to change.</returns>
+    /// <remarks>
+    ///     A list moves items, and whether a move is safe depends on the lines around the list: whether the line after an item
+    ///     would become part of it, and what the other rules have already done to those lines (a code block that is rewritten
+    ///     as a fence is no danger, a paragraph that is rewrapped may be). The lists therefore read the text the other rules produce and are
+    ///     composed with their edits afterwards (see <see cref="EditRebaser"/>), so the result does not depend on the order
+    ///     in which the rules run and a second run finds nothing more to do.
+    /// </remarks>
+    private ImmutableArray<TextEdit> FormatLists(ParsedDocument document, LintMarkConfig config, ImmutableArray<TextEdit> edits)
+    {
+        if (!_formatters.Any(static formatter => formatter is ListFormatter))
+        {
+            return edits;
+        }
+
+        // The text the other rules produce is the document the lists are read from
+        var source = document.Source;
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, edits)));
+        if (current.IsFormatUnsafe)
+        {
+            return edits;
+        }
+
+        var layout = new LineLayout(current.Source);
+        var context = new FormatContext(current, config, layout, LineOwnership.Build(current, layout, block => FindFormatter(block) is not null));
+        var lists = new EditSet();
+        for (var i = current.Blocks.Length - 1; i >= 0; i--)
+        {
+            var block = current.Blocks[i];
+            if (FindFormatter(block) is ListFormatter formatter && !IsSuppressed(current, block, formatter))
+            {
+                formatter.Format(context, block, lists);
+            }
+        }
+
+        return lists.IsEmpty ? edits : EditRebaser.Rebase(edits, lists.ToImmutable());
     }
 
     /// <summary>
@@ -339,9 +383,6 @@ internal sealed class DocumentFormatter
             .Where(static outcome => outcome.HasFinding)
             .ToList();
 
-        // A wrap that the rules would change again is not a result a second run could leave alone, so it is not made
-        outcomes = SettleWraps(current, config, outcomes);
-
         // The wraps that stand are composed with the edits of the other rules; every paragraph with a line that is too wide is reported
         var wraps = new EditSet();
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
@@ -356,91 +397,6 @@ internal sealed class DocumentFormatter
         }
 
         return (EditRebaser.Rebase(edits, wraps.ToImmutable()), diagnostics.ToImmutable());
-    }
-
-    /// <summary>
-    ///     Withdraws the wraps after which the rules that edit paragraph text would propose a change.
-    /// </summary>
-    /// <param name="current">The document the paragraphs were read from (the text the other rules produce).</param>
-    /// <param name="config">The effective configuration of the file.</param>
-    /// <param name="outcomes">What the paragraph formatter decided for each paragraph with a line that is too wide, in document order.</param>
-    /// <returns>
-    ///     The outcomes, in which every paragraph whose wrap would be changed again is kept as written and reported as one
-    ///     that cannot be wrapped automatically.
-    /// </returns>
-    /// <remarks>
-    ///     <para>
-    ///         Wrapping moves words to the start and end of lines, and a rule may treat a word differently there (the
-    ///         inline normalizer decides about a bare URL by the character before it, which is a quote marker at the start of
-    ///         a line and a blank elsewhere). The text with every wrap applied is read again, and the paragraphs that were
-    ///         wrapped are given to the inline normalizer and to the paragraph formatter once more; a paragraph that either
-    ///         would still change was not rewritten to a form that is stable, so its wrap is withdrawn. The wraps are
-    ///         independent of each other, so withdrawing one does not affect another.
-    ///     </para>
-    ///     <para>
-    ///         When the wrapped text can no longer be read as a document that may be formatted, every wrap is withdrawn.
-    ///     </para>
-    /// </remarks>
-    private List<ParagraphOutcome> SettleWraps(ParsedDocument current, LintMarkConfig config, List<ParagraphOutcome> outcomes)
-    {
-        var wrapped = outcomes.Where(static outcome => outcome.Edit is not null).ToList();
-        if (wrapped.Count == 0)
-        {
-            return outcomes;
-        }
-
-        // Read the text with every wrap applied
-        var edits = wrapped.Select(static outcome => outcome.Edit!.Value).ToImmutableArray();
-        var settled = DocumentParser.Parse(SourceDocument.FromText(current.Source.Path, SourcePatcher.Apply(current.Source, edits)));
-        var withdrawn = new HashSet<ParagraphOutcome>(ReferenceEqualityComparer.Instance);
-        if (settled.IsFormatUnsafe)
-        {
-            withdrawn.UnionWith(wrapped);
-        }
-        else
-        {
-            var layout = new LineLayout(settled.Source);
-            var context = new FormatContext(settled, config, layout, LineOwnership.Build(settled, layout, static _ => false));
-            var shift = 0;
-            foreach (var outcome in wrapped)
-            {
-                var edit = outcome.Edit!.Value;
-                var start = edit.Start + shift;
-                shift += edit.Replacement.Length - edit.Length;
-                if (!WrapIsStable(settled, context, config, start))
-                {
-                    withdrawn.Add(outcome);
-                }
-            }
-        }
-
-        return [.. outcomes.Select(outcome => withdrawn.Contains(outcome)
-            ? new ParagraphOutcome(null, outcome.OverflowOffset, outcome.OverflowWidth, hasResidualOverflow: outcome.OverflowOffset >= 0, outcome.WrapOffset)
-            : outcome)];
-    }
-
-    /// <summary>
-    ///     Determines whether the paragraph that starts at an offset of the wrapped text is one that no rule would change again.
-    /// </summary>
-    /// <param name="settled">The document read from the wrapped text.</param>
-    /// <param name="context">The context of that document.</param>
-    /// <param name="config">The effective configuration of the file.</param>
-    /// <param name="start">The offset where the wrapped paragraph starts.</param>
-    /// <returns>
-    ///     <see langword="true"/> when a paragraph starts there and neither the inline normalizer nor the paragraph formatter
-    ///     proposes an edit for it.
-    /// </returns>
-    private bool WrapIsStable(ParsedDocument settled, FormatContext context, LintMarkConfig config, int start)
-    {
-        var block = settled.Blocks.FirstOrDefault(candidate => candidate.Kind == BlockKind.Paragraph && candidate.Start == start);
-        if (block is null)
-        {
-            return false;
-        }
-
-        var more = new EditSet();
-        _inline?.AddBlockEdits(settled, block, config, more);
-        return more.IsEmpty && _paragraphs!.Format(context, block).Edit is null;
     }
 
     /// <summary>

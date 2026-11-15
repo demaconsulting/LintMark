@@ -43,7 +43,7 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         <item><description><b>W-4</b> a literal <c>&lt;</c> with a line break before the next <c>&gt;</c>, or two unmarked <c>$</c> with a line break between: joining the lines could close a tag or a math span.</description></item>
 ///         <item><description><b>W-5</b> a continuation line that is indented more than its container needs: it may hold block syntax that only the indentation hides.</description></item>
 ///         <item><description><b>W-6</b> a task marker look-alike (<c>[</c>, blanks that are not one space, <c>]</c>) that the tokenizer would turn into <c>[ ]</c>.</description></item>
-///         <item><description><b>W-7</b> a first line that would be one complete HTML tag: that starts an HTML block (see <see cref="OpensWithHtmlTag"/>).</description></item>
+///         <item><description><b>W-7</b> a first line that would be one complete HTML tag, or one word of block syntax (<c>---</c>, <c>+---+</c>, <c>#</c>): it would start a block by itself (see <see cref="OpensBlockByItself"/>).</description></item>
 ///         <item><description><b>W-8</b> a quote marker followed by a character that is not a blank: whether the text after it is an autolink depends on the layout.</description></item>
 ///     </list>
 ///     <para>
@@ -106,19 +106,32 @@ internal static partial class WrapGuard
     }
 
     /// <summary>
-    ///     Determines whether a wrapped first line is one complete HTML tag, which would start an HTML block.
+    ///     Determines whether a wrapped first line would start a block by itself.
     /// </summary>
     /// <param name="firstLine">The first line the wrap writes, without its container prefix. Must not be null.</param>
-    /// <returns><see langword="true"/> when the line, without trailing blanks, is an open or close tag and nothing else.</returns>
-    /// <remarks>Rule W-7. The lines after the first are protected by <see cref="BlockSyntaxGuard"/>.</remarks>
+    /// <returns>
+    ///     <see langword="true"/> when the line, without trailing blanks, is one complete HTML open or close tag, or one word that
+    ///     <see cref="BlockSyntaxGuard"/> keeps from the start of a line (a thematic break, a grid table border, a heading marker).
+    /// </returns>
+    /// <remarks>
+    ///     Rule W-7. The paragraph as written has text after such a word on its first line, which is why it is a paragraph; the
+    ///     lines after the first are protected by <see cref="BlockSyntaxGuard"/>.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="firstLine"/> is null.</exception>
-    public static bool OpensWithHtmlTag(string firstLine)
+    public static bool OpensBlockByItself(string firstLine)
     {
         ArgumentNullException.ThrowIfNull(firstLine);
 
+        var line = firstLine.Trim(' ', '\t');
+        if (line.Length == 0)
+        {
+            return false;
+        }
+
         try
         {
-            return LoneTagRegex().IsMatch(firstLine.TrimEnd(' ', '\t'));
+            return LoneTagRegex().IsMatch(line)
+                || (line.AsSpan().IndexOfAny(' ', '\t') < 0 && BlockSyntaxGuard.IsGuardedLineStart(line));
         }
         catch (RegexMatchTimeoutException)
         {

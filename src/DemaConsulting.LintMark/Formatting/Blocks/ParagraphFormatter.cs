@@ -257,8 +257,8 @@ internal sealed class ParagraphFormatter
         var wrapOffset = layoutActive ? FindFirstDifference(text, lines, wrapped) : -1;
         var residual = overflowLine >= 0;
 
-        // A first line that is one complete HTML tag would start an HTML block, so the paragraph stays as written
-        if (WrapGuard.OpensWithHtmlTag(wrapped[0]))
+        // A first line that would start a block by itself (a lone HTML tag, a thematic break, a grid border) keeps the paragraph as written
+        if (WrapGuard.OpensBlockByItself(wrapped[0]))
         {
             return new ParagraphOutcome(null, offset, overflowWidth, residual, wrapOffset);
         }

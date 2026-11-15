@@ -114,6 +114,44 @@ internal sealed class EditSet
     public ImmutableArray<TextEdit> ToImmutable() => [.. _edits];
 
     /// <summary>
+    ///     Finds an edit that starts at an offset.
+    /// </summary>
+    /// <param name="start">The offset.</param>
+    /// <param name="accept">Tells whether an edit that starts there is the one looked for. Must not be null.</param>
+    /// <returns>The first edit (in set order) that starts at <paramref name="start"/> and is accepted; <see langword="null"/> when there is none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accept"/> is null.</exception>
+    public TextEdit? FindStartingAt(int start, Func<TextEdit, bool> accept)
+    {
+        ArgumentNullException.ThrowIfNull(accept);
+
+        // Binary search for the first edit that starts at the offset or later, then look at the edits that start there
+        var low = 0;
+        var high = _edits.Count;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (_edits[middle].Start < start)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        for (var i = low; i < _edits.Count && _edits[i].Start == start; i++)
+        {
+            if (accept(_edits[i]))
+            {
+                return _edits[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Throws when two edits conflict.
     /// </summary>
     /// <param name="first">The edit that sorts first.</param>

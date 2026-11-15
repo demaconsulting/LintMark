@@ -492,4 +492,25 @@ public class EditSetTests
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
         Assert.NotEqual(first, other);
     }
+
+    /// <summary>
+    ///     Test that an edit that starts at an offset is found, and only when it is the one that the predicate accepts.
+    /// </summary>
+    [Fact]
+    public void EditSet_FindStartingAt_Offset_FindsTheAcceptedEdit()
+    {
+        // Arrange: an insertion and a replacement at one offset, and an edit elsewhere
+        var set = new EditSet();
+        set.Add(new TextEdit(2, 0, "ab", "a"));
+        set.Add(new TextEdit(2, 1, "x", "b"));
+        set.Add(new TextEdit(7, 1, "y", "c"));
+
+        // Act & Assert: the predicate chooses between the two that start at 2; none starts at 3; a null predicate is rejected
+        Assert.Equal("a", set.FindStartingAt(2, static edit => edit.Length == 0)?.RuleId);
+        Assert.Equal("b", set.FindStartingAt(2, static edit => edit.Length == 1)?.RuleId);
+        Assert.Equal("c", set.FindStartingAt(7, static _ => true)?.RuleId);
+        Assert.Null(set.FindStartingAt(3, static _ => true));
+        Assert.Null(set.FindStartingAt(2, static edit => edit.Length == 5));
+        Assert.Equal("accept", Assert.Throws<ArgumentNullException>(() => set.FindStartingAt(2, null!)).ParamName);
+    }
 }

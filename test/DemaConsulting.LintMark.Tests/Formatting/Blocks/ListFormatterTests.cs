@@ -646,4 +646,48 @@ public class ListFormatterTests
             BlockFormatterAssertions.AssertSafeAndStable(fixture.Text, config, checkParallel: false);
         }
     }
+
+    /// <summary>
+    ///     Test that the list rules read the text that the other rules produce, so that one run is enough (rule R-1: the line after
+    ///     an item that shrinks stays outside it, where the nest after it moves that line to the margin).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_LineAfterMovesToTheMargin_LetsTheItemShrinkInOneRun() =>
+        BlockFormatterAssertions.AssertFormats("11. |---|---|\n-   \\\n   +   item\n", "11. |---|---|\n\n- \\\n\n+ item\n");
+
+    /// <summary>
+    ///     Test that a nest with a fenced code line below a nested item keeps its columns (rule R-2: in a nested item such a line
+    ///     is read from columns that are not the content column), and that the same fence in a plain item moves with it.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_FenceInNestedItem_KeepsTheColumns()
+    {
+        // Act & Assert: the nested item keeps its spaces, and the plain item with a fence moves
+        AssertUnitKeepsInput("-  > quote\n    11. ```\n        11. second words\n", "-  > quote\n    11. ```\n        11. second words\n");
+        AssertFormats("-   a\n    - b\n\n    ```\n    code\n    ```\n", "- a\n  - b\n\n  ```\n  code\n  ```\n");
+    }
+
+    /// <summary>
+    ///     Test that a continuation line that starts with block syntax keeps the columns of its item (rule G-2: the line is text
+    ///     only because of its indentation).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ContinuationLineStartsWithBlockSyntax_KeepsTheColumns() =>
+        AssertUnitKeepsInput("-   a\n    b\n        - c\n", "-   a\n    b\n        - c\n");
+
+    /// <summary>
+    ///     Test that an item whose marker line would be a thematic break by itself stays where it is (rule G-1), while the marker
+    ///     character of the list is still written.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_MarkerLineWouldBeThematicBreak_KeepsTheColumns() =>
+        AssertFormats("*   a\n    - ---\n", "-   a\n    - ---\n");
+
+    /// <summary>
+    ///     Test that the shrinking of an item and the code block of another rule happen in one run: the block that a rule rewrites
+    ///     as a fence is no danger to the list, so the list does not have to wait for the second run.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ItemAndCodeBlockOfAnotherRule_AreSettledInOneRun() =>
+        BlockFormatterAssertions.AssertFormats("-    one\n\n     two\n", "- one\n\n  two\n");
 }
