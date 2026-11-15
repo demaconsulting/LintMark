@@ -420,7 +420,35 @@ public class DocumentFormatterPassTests
         AssertPasses(input, expected);
 
     /// <summary>
-    ///     Test that text followed by a line that looks like a list item but cannot start a list there is not separated.
+    ///     Test that a blank line is not inserted where it would change how the first line of the block is read: a setext
+    ///     heading that starts with a list marker directly after a link reference definition (the paragraph that the
+    ///     definition leaves open is what makes the marker text). The whole formatter leaves each as written and stays stable.
+    /// </summary>
+    [Theory]
+    [InlineData("[a]:h\n1.\n1\n-\n")]
+    [InlineData("[a]:h\n3.\n1\n=\n")]
+    [InlineData("[a]:h\n9.\n1\n-\n")]
+    [InlineData("[a]:h\n1.\n*\n-\n")]
+    [InlineData("[a]:h\n2.\n\t>\n-\n")]
+    [InlineData("[a]:h\n2. text\n===\n")]
+    [InlineData("[a]:h\n-\n1\n=\n")]
+    public void DocumentFormatter_Format_BlankLineWouldChangeHowTheBlockIsRead_IsNotInserted(string input)
+    {
+        AssertPasses(input, input);
+        BlockFormatterAssertions.AssertFormats(input, input);
+    }
+
+    /// <summary>
+    ///     Test that a setext heading after a link reference definition that does not start with a list marker is still separated.
+    /// </summary>
+    [Theory]
+    [InlineData("[a]:h\ntext\nmore\n---\n", "[a]:h\n\ntext\nmore\n---\n")]
+    [InlineData("[a]:h\n1.5 text\n===\n", "[a]:h\n\n1.5 text\n===\n")]
+    public void DocumentFormatter_Format_SetextHeadingAfterDefinition_IsSeparated(string input, string expected) =>
+        AssertPasses(input, expected);
+
+    /// <summary>
+    ///     Test that a text followed by a line that looks like a list item but cannot start a list there is not separated.
     /// </summary>
     [Theory]
     [InlineData("text\n2. a\n")]

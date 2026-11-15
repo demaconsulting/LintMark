@@ -52,7 +52,9 @@ fenced or indented code block, a list, or a table, insert one blank line, attrib
 that is not suppressed (heading, fence, list, table). It decides from parsed blocks, never from the look of lines, so a
 lazy continuation or a table row is not a boundary. Only block kinds whose end the parser reports reliably are
 separated; no line is inserted next to a grid-border-like line, before a block indented by more than three columns or a
-tab, after an unclosed fence, or between a next-line suppression directive and the line it covers. Blocks inside
+tab, after an unclosed fence, between a next-line suppression directive and the line it covers, or where the blank line
+would change how the first line of the block is read: before a setext heading that starts with a list marker and
+directly follows a link reference definition (the open paragraph makes the marker text). Blocks inside
 containers are neither fixed nor reported.
 
 **TrailerPass.Apply**: Everything after the last line with content is the trailer. With `final-newline` it becomes one

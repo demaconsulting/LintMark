@@ -49,7 +49,9 @@ rule does half of its work in one run and the rest in the next.
 line, after blanks and quote markers only). A top-level heading with one text line becomes an ATX heading of the same
 level in one edit under `heading-style` (`TryConvertToAtx`), unless the text is empty, is indented by more than three
 spaces or by a tab, ends with a number sign or a backslash, starts with a plus sign, colon, backslash, or dollar sign
-(Pandoc structure), or has tabs whose spans do not fit (the same span check as above). Tabs are expanded in the same
+(Pandoc structure), has tabs whose spans do not fit (the same span check as above), or directly follows a link reference
+definition and starts with a list marker (the block spacing rule does not separate it from the definition, and the
+heading stays as it is so that a second run finds nothing to change). Tabs are expanded in the same
 edit. Any other setext heading keeps its form and only has trailing whitespace and tabs cleaned by
 `LeafWhitespace.AddBlockEdits`.
 

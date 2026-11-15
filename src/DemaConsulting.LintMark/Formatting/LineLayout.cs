@@ -266,6 +266,49 @@ internal sealed class LineLayout
     }
 
     /// <summary>
+    ///     Determines whether a line starts with a list marker after any indentation: a bullet character or an ordered
+    ///     number with its delimiter, followed by a blank or the end of the line.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the line has that shape, whether or not the parser reads it as a list item.</returns>
+    /// <remarks>
+    ///     Such a line is a list item at the start of a block, but not always inside a paragraph (an empty item, and an
+    ///     ordered item that does not start at 1, cannot interrupt one), so whether a blank line before it is harmless
+    ///     depends on the lines before it.
+    /// </remarks>
+    public bool StartsWithListMarker(int line)
+    {
+        var end = LineEnd(line);
+        var position = LineStart(line);
+        while (position < end && IsBlankChar(Text[position]))
+        {
+            position++;
+        }
+
+        if (position < end && Text[position] is '-' or '+' or '*')
+        {
+            position++;
+        }
+        else
+        {
+            var digitsStart = position;
+            while (position < end && position - digitsStart < 9 && char.IsAsciiDigit(Text[position]))
+            {
+                position++;
+            }
+
+            if (position == digitsStart || position >= end || Text[position] is not ('.' or ')'))
+            {
+                return false;
+            }
+
+            position++;
+        }
+
+        return position == end || IsBlankChar(Text[position]);
+    }
+
+    /// <summary>
     ///     Gets the column of the next tab stop after a column.
     /// </summary>
     /// <param name="column">The zero-based column.</param>
