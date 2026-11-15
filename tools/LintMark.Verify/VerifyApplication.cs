@@ -20,6 +20,7 @@
 
 using System.Text;
 using DemaConsulting.LintMark.Verify.Cli;
+using DemaConsulting.LintMark.Verify.Fuzz;
 using DemaConsulting.LintMark.Verify.Options;
 using DemaConsulting.LintMark.Verify.Reporting;
 using DemaConsulting.LintMark.Verify.Verification;
@@ -31,8 +32,9 @@ namespace DemaConsulting.LintMark.Verify;
 /// </summary>
 /// <remarks>
 ///     The exit code is 0 when every check passed (a refusal by design is a pass), 1 when at least one failed
-///     and 2 for a usage or setup error. The inputs are only ever read; the only file this class writes is the
-///     report, and it refuses to write a report over an input. Stateless and thread-safe.
+///     and 2 for a usage or setup error. The inputs are only ever read; the files this class writes are the report
+///     (it refuses to write a report over an input) and, for <c>--fuzz</c>, the generated documents in a temporary folder
+///     that is deleted afterwards. Stateless and thread-safe.
 /// </remarks>
 internal static class VerifyApplication
 {
@@ -73,8 +75,20 @@ internal static class VerifyApplication
             return Passed;
         }
 
+        string? fuzzDirectory = null;
         try
         {
+            // Generated documents are written to a temporary folder of their own and verified like any other file
+            if (options.FuzzCount is { } fuzzCount)
+            {
+                var folder = options.FuzzKeep is { } keep ? Path.GetFullPath(Path.Combine(baseDirectory, keep)) : null;
+                var generated = folder ?? Path.Combine(Path.GetTempPath(), $"lintmark-fuzz-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(generated);
+                fuzzDirectory = folder is null ? generated : null;
+                FuzzDocuments.Write(generated, fuzzCount, options.FuzzSeed);
+                options.Paths.Add(generated);
+            }
+
             // Select the files and the option sets
             var files = FileSelection.Select(options, baseDirectory);
             if (files.Count == 0)
@@ -122,6 +136,13 @@ internal static class VerifyApplication
         {
             await error.WriteLineAsync($"error: {ex.Message}");
             return UsageError;
+        }
+        finally
+        {
+            if (fuzzDirectory is not null && Directory.Exists(fuzzDirectory))
+            {
+                Directory.Delete(fuzzDirectory, recursive: true);
+            }
         }
     }
 }

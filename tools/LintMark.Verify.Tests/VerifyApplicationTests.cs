@@ -22,6 +22,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Verify.Cli;
+using DemaConsulting.LintMark.Verify.Fuzz;
 using DemaConsulting.LintMark.Verify.Options;
 using DemaConsulting.LintMark.Verify.Verification;
 
@@ -220,6 +221,37 @@ public class VerifyApplicationTests
         var (exitCode, output, _) = await RunAsync(directory, null, "--help");
         Assert.Equal(VerifyApplication.Passed, exitCode);
         Assert.Contains("--matrix", output, StringComparison.Ordinal);
+        Assert.Contains("--fuzz", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that the generated documents are the same for the same seed and different for another, and that a fuzz run verifies
+    ///     them, keeps them in the folder asked for, and leaves nothing behind when no folder is given.
+    /// </summary>
+    [Fact]
+    public async Task VerifyApplication_RunAsync_Fuzz_VerifiesGeneratedDocumentsDeterministically()
+    {
+        // Arrange
+        using var directory = new TemporaryDirectory();
+
+        // Act
+        var first = FuzzDocuments.Generate(50, 7).ToList();
+        var repeated = FuzzDocuments.Generate(50, 7).ToList();
+        var other = FuzzDocuments.Generate(50, 8).ToList();
+        var before = Directory.GetDirectories(Path.GetTempPath(), "lintmark-fuzz-*");
+        var kept = await RunAsync(directory, null, "--fuzz", "20", "--seed", "7", "--fuzz-keep", "kept");
+        var temporary = await RunAsync(directory, null, "--fuzz", "20");
+        var after = Directory.GetDirectories(Path.GetTempPath(), "lintmark-fuzz-*");
+
+        // Assert
+        Assert.Equal(first, repeated);
+        Assert.NotEqual(first, other);
+        Assert.All(first, static text => Assert.EndsWith("\n", text, StringComparison.Ordinal));
+        Assert.Equal(VerifyApplication.Passed, kept.ExitCode);
+        Assert.Contains("Verified 20 files", kept.Output, StringComparison.Ordinal);
+        Assert.Equal(20, Directory.GetFiles(Path.Combine(directory.FullPath, "kept"), "fuzz-*.md").Length);
+        Assert.Equal(VerifyApplication.Passed, temporary.ExitCode);
+        Assert.Empty(after.Except(before));
     }
 
     /// <summary>

@@ -40,7 +40,11 @@ samples, and the DEMA Consulting repositories. Diversity is preferred over quant
 configuration and with an option matrix of every combination of the wrap modes (`fill`, `sentence`, `semantic`), line
 lengths (120, 80, 40), table styles (`compact`, `aligned`), and link refactoring (off, on). A run is started with
 `dotnet run --project tools/LintMark.Verify -- <paths> [--matrix]` and writes a Markdown report; the exit code is 0
-when every check passed. The harness has its own tests (`tools/LintMark.Verify.Tests`) that run in CI with
+when every check passed. The option `--fuzz <count> [--seed <n>]` adds a deterministic set of generated adversarial
+documents (nests of lists with every marker, spacing, and indentation, block quotes, and inline syntax, often with
+blank lines at the end), which are written to a temporary folder that is deleted afterward (`--fuzz-keep <dir>` keeps
+them for a reproduction); a defect found this way is minimized and added to the unit tests of the unit that caused it.
+The harness has its own tests (`tools/LintMark.Verify.Tests`) that run in CI with
 `dotnet test`. Its results are interpreted as follows: any failure kind is a defect of the product to fix before the
 change is released, never a reason to weaken a check.
 

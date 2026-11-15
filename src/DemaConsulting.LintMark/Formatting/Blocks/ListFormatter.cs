@@ -181,11 +181,18 @@ internal sealed class ListPlan
     /// <summary>
     ///     Where a nested list stands, as seen from the item that holds it: the columns of the item after it moved.
     /// </summary>
-    /// <param name="OldContent">The content column of the item before.</param>
-    /// <param name="NewContent">The content column of the item after.</param>
+    /// <param name="OldContent">The content column of the item before, as the parser reads it.</param>
+    /// <param name="NewContent">The content column of the item after, as the parser reads it.</param>
     /// <param name="NewMarker">The column of the marker of the item after.</param>
     /// <param name="ParentIsBullet">Whether the item belongs to a bullet list.</param>
-    private readonly record struct Frame(int OldContent, int NewContent, int NewMarker, bool ParentIsBullet);
+    /// <param name="NewBase">The content column after of the item that holds this item; zero for an item of the outermost list.</param>
+    private readonly record struct Frame(int OldContent, int NewContent, int NewMarker, bool ParentIsBullet, int NewBase)
+    {
+        /// <summary>
+        ///     Gets the columns that decide how the parser reads an item inside this one after the move.
+        /// </summary>
+        public HolderColumns NewHolder => new(NewContent, NewBase);
+    }
 
     /// <summary>
     ///     Gets the text of the document.
@@ -212,7 +219,9 @@ internal sealed class ListPlan
     ///         a line of a paragraph that starts with block syntax is text only because of its indentation (G-2); a line that
     ///         the plan changes would be a thematic break or a setext underline by itself (G-1: <c>- ---</c> at the margin); two edits
     ///         overlap (R-3); an item that starts with a thematic break and has more lines moves (G-3); a nested item moves and has a
-    ///         block that starts three or more columns past its content column (G-4). The plan without changes of columns is dropped as well
+    ///         block that starts three or more columns past its content column (G-4); a nested list that moves along with its item
+    ///         would have the content column of an item, as the parser reads it, move by another number of columns than its lines
+    ///         (G-5). The plan without changes of columns is dropped as well
     ///         in the case of R-3.
     ///     </para>
     /// </remarks>
@@ -495,9 +504,10 @@ internal sealed class ListPlan
     {
         var layout = _context.Layout;
         var markerLength = list.IsOrdered ? (digits?.Length ?? item.DigitsLength) + 1 : 1;
-        var newContent = column + markerLength + 1;
+        var contentWidth = markerLength + 1;
+        var newContent = parent is { } holder ? ListModel.ParserContentColumn(column, contentWidth, holder.NewHolder) : column + contentWidth;
         var shift = newContent - item.OldContentColumn;
-        var frame = new Frame(item.OldContentColumn, newContent, column, !list.IsOrdered);
+        var frame = new Frame(item.OldContentColumn, newContent, column, !list.IsOrdered, parent?.NewContent ?? 0);
 
         // The marker line: indentation and the spaces after the marker
         if (item.MarkerColumn != column)
@@ -508,6 +518,14 @@ internal sealed class ListPlan
         if (item.SpacesAfter != 1)
         {
             Plan(new TextEdit(item.MarkerOffset + item.MarkerLength, item.SpacesAfter, " ", RuleCatalog.ListMarkerSpaceRuleId));
+        }
+
+        // A list inside the item that is not moved by its own plan moves with the item, by the same number of columns. That keeps
+        // every line where the parser reads it only when the parser reads the content of each of its items that many columns
+        // further on (rule G-5)
+        if (item.Lists.Any(child => !MovesItself(child, frame) && !FollowsItem(child, frame.NewHolder, shift)))
+        {
+            _hidesMeaning = true;
         }
 
         // The rest of the item moves with its content column, except the lists inside it that move by themselves
@@ -539,6 +557,26 @@ internal sealed class ListPlan
         ShiftLines(item, shift, rule, own, nested: parent is not null);
         return frame;
     }
+
+    /// <summary>
+    ///     Determines whether a list that moves along with its item (rather than by its own plan) keeps the content columns of its
+    ///     items, as the parser reads them, a constant number of columns from where they were (rule G-5).
+    /// </summary>
+    /// <param name="list">The list that moves along with the item that holds it.</param>
+    /// <param name="holder">The columns, after the move, of the item that holds the list.</param>
+    /// <param name="shift">The number of columns the lines of the list move by.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the content column of every item of the list and of the lists inside it moves by
+    ///     <paramref name="shift"/>. It does not when the parser counts the offset of a nested marker in the old position of the
+    ///     item and not in the new one (or the other way round): the lines inside would then be read from another column.
+    /// </returns>
+    private static bool FollowsItem(ListModel list, HolderColumns holder, int shift) =>
+        list.Items.All(item =>
+        {
+            var content = ListModel.ParserContentColumn(item.MarkerColumn + shift, item.ContentWidth, holder);
+            return content - item.OldContentColumn == shift
+                && item.Lists.All(child => FollowsItem(child, new HolderColumns(content, holder.Content), shift));
+        });
 
     /// <summary>
     ///     Determines whether a line of a nested item starts a block three or more columns beyond the content column (rule G-4).

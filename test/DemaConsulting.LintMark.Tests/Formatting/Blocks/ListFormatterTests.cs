@@ -559,7 +559,7 @@ public class ListFormatterTests
     {
         // Act & Assert: the marker character is written, the columns stay; with the line two columns in, the nest moves
         BlockFormatterAssertions.AssertFormatsSafely("  * x = 1\n     1)  x = 1\n\n            code\n", "  - x = 1\n     1)  x = 1\n\n            code\n");
-        BlockFormatterAssertions.AssertFormatsSafely("  * x = 1\n     1)  x = 1\n\n           code\n", "- x = 1\n   1) x = 1\n\n        code\n");
+        BlockFormatterAssertions.AssertFormatsSafely("  * x = 1\n     1)  x = 1\n\n           code\n", "- x = 1\n   1) x = 1\n\n       code\n");
     }
 
     /// <summary>
@@ -571,10 +571,39 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertFormatsSafely("-   text\n    10. more\n", "- text\n  10. more\n");
 
     /// <summary>
+    ///     Test that a nested list whose marker is one column past the content column of its item keeps its lines where the parser
+    ///     reads them (rule G-5, issue 22): when the marker is indented by fewer than four columns from the item around it, the
+    ///     parser counts the content of the nested item from the content column of the outer item, so the content column
+    ///     is not the sum of the marker column and the width, and a move by that sum puts a setext underline, a code line or a
+    ///     sibling item where the parser reads them as something else. The nest is moved by the columns the parser reads, or kept.
+    /// </summary>
+    [Theory]
+    [InlineData(" + x\n    01. t\n           =\n", "- x\n   01. t\n         =\n")]
+    [InlineData("   +  c\n       001.   >\n                 1.\n", "- c\n   001. >\n          1.\n")]
+    [InlineData("  -   [\n       01. -\n          1.\n", "  -   [\n       01. -\n          1.\n")]
+    [InlineData("+  #\n    1)\n          -\n", "-  #\n    1)\n          -\n")]
+    public void ListFormatter_Format_NestedMarkerOffsetByOne_KeepsTheLinesWhereTheParserReadsThem(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormatsSafely(input, expected);
+
+    /// <summary>
     ///     Test that the shrinking of an item and the code block of another rule happen in one run: the block that a rule rewrites
     ///     as a fence is no danger to the list, so the list does not have to wait for the second run.
     /// </summary>
     [Fact]
     public void ListFormatter_Format_ItemAndCodeBlockOfAnotherRule_AreSettledInOneRun() =>
         BlockFormatterAssertions.AssertFormats("-    one\n\n     two\n", "- one\n\n  two\n");
+
+    /// <summary>
+    ///     Test that the content column of a nested item is the one the parser reads: the offset of the marker counts only when the
+    ///     marker is indented by four or more columns from the content column of the item around the holder.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 4, 2, 0, 6)]
+    [InlineData(2, 4, 2, 0, 6)]
+    [InlineData(4, 4, 2, 0, 8)]
+    [InlineData(4, 4, 3, 0, 8)]
+    [InlineData(5, 4, 4, 2, 8)]
+    [InlineData(6, 4, 4, 2, 10)]
+    public void ListModel_ParserContentColumn_NestedMarker_FollowsTheRuleOfTheParser(int markerColumn, int width, int holderContent, int holderBase, int expected) =>
+        Assert.Equal(expected, ListModel.ParserContentColumn(markerColumn, width, new HolderColumns(holderContent, holderBase)));
 }

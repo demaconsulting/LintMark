@@ -100,6 +100,22 @@ public class OptionTests
     }
 
     /// <summary>
+    ///     Test that <c>--fuzz</c> alone selects something to verify, and that the seed and the folder are read.
+    /// </summary>
+    [Fact]
+    public void VerifyOptions_Parse_Fuzz_NeedsNoPathsAndReadsSeedAndFolder()
+    {
+        // Act
+        var options = VerifyOptions.Parse(["--fuzz", "100", "--seed", "7", "--fuzz-keep", "docs-fuzz"]);
+
+        // Assert
+        Assert.Equal(100, options.FuzzCount);
+        Assert.Equal(7u, options.FuzzSeed);
+        Assert.Equal("docs-fuzz", options.FuzzKeep);
+        Assert.Equal(VerifyOptions.DefaultFuzzSeed, VerifyOptions.Parse(["--fuzz", "1"]).FuzzSeed);
+    }
+
+    /// <summary>
     ///     Test that the matrix has 36 distinct sets that each parse as a real configuration.
     /// </summary>
     [Fact]

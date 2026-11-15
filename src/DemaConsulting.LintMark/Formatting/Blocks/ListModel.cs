@@ -35,7 +35,8 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 /// <param name="DigitsLength">Length of the number of an ordered item; zero for a bullet item.</param>
 /// <param name="SpacesAfter">Number of spaces between the marker and the text (or the end of the line).</param>
 /// <param name="HasText">Whether text follows the marker on its line.</param>
-/// <param name="OldContentColumn">The column at which the content of the item starts, as the parser reads it.</param>
+/// <param name="OldContentColumn">The column at which the content of the item starts, as the parser reads it (see <see cref="ListModel.ParserContentColumn"/>).</param>
+/// <param name="ContentWidth">The width of the marker and the spaces after it: what the parser adds to a column to find the content of the item.</param>
 /// <param name="FirstLine">First line of the item (the marker line).</param>
 /// <param name="LastLine">Last line of the item that has content.</param>
 /// <param name="Lists">The lists that are direct children of the item.</param>
@@ -53,10 +54,19 @@ internal sealed record ListItemModel(
     int SpacesAfter,
     bool HasText,
     int OldContentColumn,
+    int ContentWidth,
     int FirstLine,
     int LastLine,
     ImmutableArray<ListModel> Lists,
     bool IsMovable);
+
+/// <summary>
+///     The columns of the item that holds a nested list, as the parser reads them: where the content of the item starts, and where
+///     the content of the item that holds that item starts (zero for an item of the outermost list).
+/// </summary>
+/// <param name="Content">The content column of the item that holds the list.</param>
+/// <param name="Base">The content column of the item that holds that item; zero at the top level.</param>
+internal readonly record struct HolderColumns(int Content, int Base);
 
 /// <summary>
 ///     An immutable model of one list of a nest of lists: its kind, its items and whether its columns may be changed.
@@ -100,6 +110,33 @@ internal sealed class ListModel
     ///     The most digits an ordered list marker may have.
     /// </summary>
     private const int MaxDigits = 9;
+
+    /// <summary>
+    ///     The indentation, counted from the content column of the enclosing item, from which the parser takes a line for indented code.
+    /// </summary>
+    private const int CodeIndent = 4;
+
+    /// <summary>
+    ///     Computes the column at which the parser reads the content of an item that is inside another item.
+    /// </summary>
+    /// <param name="markerColumn">The column of the marker of the item.</param>
+    /// <param name="contentWidth">The width of the marker and the spaces after it.</param>
+    /// <param name="holder">The columns of the item that holds the list of the item.</param>
+    /// <returns>The content column as the parser reads it.</returns>
+    /// <remarks>
+    ///     The parser takes the indentation of a marker line from the column where the item around it ended, but only when the
+    ///     line is indented by four or more columns from where that item itself was entered. A nested marker that is indented
+    ///     from the content column of its holder by one to three columns, and by fewer than four from the content column of the
+    ///     holder's holder (the margin for a nest that starts there), is counted from the content column of the holder, so its
+    ///     own offset does not count: <c>- x</c> followed by <c>   1. y</c> reads the content of <c>y</c> at column 5, not 6.
+    ///     The same text indented by one more column reads it at column 7. Every column that the planner moves by must be
+    ///     this one, not the sum of the marker column and the width, or the lines of the item land on columns that the parser
+    ///     reads differently (a setext underline, indented code, a sibling or a child item).
+    /// </remarks>
+    public static int ParserContentColumn(int markerColumn, int contentWidth, HolderColumns holder) =>
+        markerColumn > holder.Content && markerColumn - holder.Base < CodeIndent
+            ? holder.Content + contentWidth
+            : markerColumn + contentWidth;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ListModel"/> class.
@@ -254,8 +291,9 @@ internal sealed class ListModel
         /// <param name="list">The list.</param>
         /// <param name="inMovableContext">Whether the list may have its columns changed at all (the outermost list of a nest must be at the top level of the document).</param>
         /// <param name="isOutermost">Whether the list is the outermost list of the nest.</param>
+        /// <param name="holder">The columns of the item that holds the list; <see langword="null"/> for the outermost list.</param>
         /// <returns>The model, or <see langword="null"/> when the shape of the list is not what the parser promised.</returns>
-        public ListModel? BuildList(BlockInfo list, bool inMovableContext, bool isOutermost = false)
+        public ListModel? BuildList(BlockInfo list, bool inMovableContext, bool isOutermost = false, HolderColumns? holder = null)
         {
             if (list.Node is not ListBlock listBlock
                 || !_children.TryGetValue(listBlock, out var itemInfos)
@@ -272,7 +310,7 @@ internal sealed class ListModel
             var movable = inMovableContext;
             foreach (var info in itemInfos)
             {
-                var item = BuildItem(info, listBlock.IsOrdered);
+                var item = BuildItem(info, listBlock.IsOrdered, holder);
                 if (item is null)
                 {
                     return null;
@@ -297,8 +335,9 @@ internal sealed class ListModel
         /// </summary>
         /// <param name="info">The item.</param>
         /// <param name="ordered">Whether the list of the item is ordered.</param>
+        /// <param name="holder">The columns of the item that holds the list of the item; <see langword="null"/> for the outermost list.</param>
         /// <returns>The item, or <see langword="null"/> when its marker is not where the parser says.</returns>
-        private ListItemModel? BuildItem(BlockInfo info, bool ordered)
+        private ListItemModel? BuildItem(BlockInfo info, bool ordered, HolderColumns? holder)
         {
             var layout = _context.Layout;
             var text = layout.Text;
@@ -334,7 +373,8 @@ internal sealed class ListModel
             var prefix = text.AsSpan(lineStart, info.Start - lineStart);
             var blockedHere = tabAfter || !hasText || spaces > MaxSpacesAfterMarker || prefix.ContainsAnyExcept(' ');
             var markerColumn = info.Start - lineStart;
-            var contentColumn = markerColumn + markerLength + (hasText && spaces <= MaxSpacesAfterMarker ? spaces : 1);
+            var contentWidth = markerLength + (hasText && spaces <= MaxSpacesAfterMarker ? spaces : 1);
+            var contentColumn = holder is { } held ? ParserContentColumn(markerColumn, contentWidth, held) : markerColumn + contentWidth;
 
             // The lines of the item and the lists inside it
             var (first, last) = LineOwnership.LinesOf(layout, info);
@@ -361,7 +401,7 @@ internal sealed class ListModel
             {
                 foreach (var child in childInfos)
                 {
-                    var model = BuildList(child, inMovableContext: true);
+                    var model = BuildList(child, inMovableContext: true, holder: new HolderColumns(contentColumn, holder?.Content ?? 0));
                     if (model is null)
                     {
                         return null;
@@ -381,6 +421,7 @@ internal sealed class ListModel
                 spaces,
                 hasText,
                 contentColumn,
+                contentWidth,
                 first,
                 last,
                 lists.ToImmutable(),
