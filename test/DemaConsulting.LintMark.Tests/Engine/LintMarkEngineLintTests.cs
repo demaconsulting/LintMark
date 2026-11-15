@@ -124,7 +124,7 @@ public partial class LintMarkEngineTests
         // Assert: a change exists, and both kinds of findings are present
         Assert.NotNull(result.Change);
         Assert.Equal(["heading-style", "link-empty"], result.Diagnostics.Select(d => d.RuleId));
-        Assert.Equal([true, false], result.Diagnostics.Select(d => d.Fixable));
+        Assert.Equal([DiagnosticKind.Formatting, DiagnosticKind.LintOnly], result.Diagnostics.Select(d => d.Kind));
     }
 
     /// <summary>

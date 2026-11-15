@@ -118,27 +118,18 @@ internal sealed partial class SuppressionMap
     /// <summary>
     ///     Builds the suppression map of a parsed document.
     /// </summary>
-    /// <param name="source">The LF-normalized source. Must not be null.</param>
-    /// <param name="blocks">The flattened, source-ordered blocks (used to find the block after a <c>prettier-ignore</c>). Must not be null.</param>
-    /// <param name="ast">The syntax tree used to find inline HTML comments. Must not be null.</param>
-    /// <param name="canonicalizeRuleId">
-    ///     Optional rule identifier alias-resolving function; <see langword="null"/> means identity.
-    /// </param>
+    /// <param name="source">The LF-normalized source.</param>
+    /// <param name="blocks">The flattened, source-ordered blocks (used to find the block after a <c>prettier-ignore</c>).</param>
+    /// <param name="ast">The syntax tree used to find inline HTML comments.</param>
+    /// <param name="canonicalize">The rule identifier alias-resolving function.</param>
     /// <returns>The suppression map.</returns>
     /// <remarks>Pure with respect to its inputs; thread-safe.</remarks>
-    /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
     public static SuppressionMap Build(
         SourceDocument source,
         IReadOnlyList<BlockInfo> blocks,
         MarkdownDocument ast,
-        Func<string, string>? canonicalizeRuleId = null)
+        Func<string, string> canonicalize)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(blocks);
-        ArgumentNullException.ThrowIfNull(ast);
-
-        var canonicalize = canonicalizeRuleId ?? (static id => id);
         var ranges = new List<SuppressionRange>();
 
         // Directives are processed in source order so region state evolves as a reader would see it

@@ -33,8 +33,7 @@ namespace DemaConsulting.LintMark.Linting;
 ///     <para>
 ///         The single diagnostic model exists so that every finding of the tool (read and parse failures,
 ///         configuration problems, formatting violations and format refusals) is created, ordered,
-///         de-duplicated and reported the same way. Whether a diagnostic is
-///         <see cref="Fixable"/> is derived from its <see cref="Kind"/> so the two can never disagree.
+///         de-duplicated and reported the same way.
 ///     </para>
 ///     <para>
 ///         The record is immutable and has value equality over all members, which the reporter uses to report
@@ -43,11 +42,6 @@ namespace DemaConsulting.LintMark.Linting;
 /// </remarks>
 internal sealed record Diagnostic(string RuleId, DiagnosticKind Kind, string Path, int Line, int Column, string Message)
 {
-    /// <summary>
-    ///     Gets a value indicating whether rewriting the file removes the finding.
-    /// </summary>
-    public bool Fixable => Kind == DiagnosticKind.Formatting;
-
     /// <summary>
     ///     Creates a finding that is only reported.
     /// </summary>

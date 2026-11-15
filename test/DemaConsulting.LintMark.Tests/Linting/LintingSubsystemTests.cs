@@ -42,25 +42,6 @@ public class LintingSubsystemTests
         ConfigLoader.Parse("conf/.lintmark.yaml", Encoding.UTF8.GetBytes(yaml));
 
     /// <summary>
-    ///     Test that a diagnostic of a registered formatting rule is fixable and one of a lint-only rule is not.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_Diagnostics_FormattingKind_IsFixable()
-    {
-        // Arrange: the registered kind of two rules
-        Assert.True(RuleCatalog.TryGet("line-length", out var formatting));
-        Assert.True(RuleCatalog.TryGet("link-empty", out var lintOnly));
-
-        // Act: create a diagnostic of each kind from the registry
-        var fixable = new Diagnostic(formatting.Id, formatting.Kind, "a.md", 1, 1, "A line is too long.");
-        var reportOnly = new Diagnostic(lintOnly.Id, lintOnly.Kind, "a.md", 1, 1, "A link has no destination.");
-
-        // Assert: the formatting diagnostic is fixable, the lint-only one is not
-        Assert.True(fixable.Fixable);
-        Assert.False(reportOnly.Fixable);
-    }
-
-    /// <summary>
     ///     Test that a diagnostic of a registered rule carries the rule identifier, path, position, and message it was made from.
     /// </summary>
     [Fact]

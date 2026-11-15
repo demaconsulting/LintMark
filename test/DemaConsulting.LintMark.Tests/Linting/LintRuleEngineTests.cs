@@ -193,7 +193,6 @@ public class LintRuleEngineTests
         // Assert: findings exist, and each is lint-only and not fixable
         Assert.NotEmpty(diagnostics);
         Assert.All(diagnostics, d => Assert.Equal(DiagnosticKind.LintOnly, d.Kind));
-        Assert.All(diagnostics, d => Assert.False(d.Fixable));
     }
 
     /// <summary>

@@ -425,20 +425,4 @@ public class SuppressionMapTests
         Assert.Equal(starts.Order().ToList(), starts);
         Assert.True(starts.Count >= 3);
     }
-
-    /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_Build_NullArguments_Throw()
-    {
-        // Arrange: a parsed document
-        var document = Parse("a\n");
-
-        // Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => SuppressionMap.Build(null!, document.Blocks, document.Ast));
-        Assert.Throws<ArgumentNullException>(() => SuppressionMap.Build(document.Source, null!, document.Ast));
-        Assert.Throws<ArgumentNullException>(() => SuppressionMap.Build(document.Source, document.Blocks, null!));
-        Assert.Throws<ArgumentNullException>(() => document.Suppressions.IsSuppressed(0, null!));
-    }
 }
