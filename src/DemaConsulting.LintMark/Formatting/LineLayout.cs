@@ -361,6 +361,27 @@ internal sealed class LineLayout
     }
 
     /// <summary>
+    ///     Determines whether a line starts like a link reference definition (<c>[label]:</c>) after any indentation.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the line starts with a bracket (not a footnote marker) whose label is followed by a colon.</returns>
+    /// <remarks>
+    ///     The test is deliberately wider than the syntax: it does not check the destination or the label.
+    /// </remarks>
+    public bool StartsLikeLinkDefinition(int line)
+    {
+        var end = LineEnd(line);
+        var position = LineStart(line);
+        while (position < end && IsBlankChar(Text[position]))
+        {
+            position++;
+        }
+
+        return position + 1 < end && Text[position] == '[' && Text[position + 1] != '^'
+            && Text.AsSpan(position + 1, end - position - 1).IndexOf("]:", StringComparison.Ordinal) > 0;
+    }
+
+    /// <summary>
     ///     Gets the column of the next tab stop after a column.
     /// </summary>
     /// <param name="column">The zero-based column.</param>

@@ -445,10 +445,13 @@ public class DocumentFormatterPassTests
     /// <summary>
     ///     Test that the passes and the formatters together leave a list shaped like a thematic break right after a list
     ///     where it is (the thematic break rule writes the break of an item with its own character, which must not make a
-    ///     second run insert the blank line).
+    ///     second run insert the blank line), and do not separate a definition-shaped paragraph from a table after it
+    ///     (directly before a table the parser keeps it as text, after a blank line it is a definition and vanishes).
     /// </summary>
     [Theory]
     [InlineData("1) ~~~\n   ~~~\n* ***\n", "1) ```\n   ```\n* ---\n")]
+    [InlineData("[a]: https://a\n| a | b |\n|---|---|\n", "[a]: https://a\n| a | b |\n| --- | --- |\n")]
+    [InlineData("   [a]: https://a\n| a |\n|---|\n", "   [a]: https://a\n| a |\n| --- |\n")]
     public void DocumentFormatter_Format_BlockSpacingWithOtherRules_KeepsTheBlocksTogetherInOneRun(string input, string expected)
     {
         AssertPasses(input, input);

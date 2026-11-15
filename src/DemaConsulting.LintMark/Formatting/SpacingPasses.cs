@@ -410,8 +410,9 @@ internal static class BlockSpacingPass
 
             // A blank line must not change how the first line of the second block is read: after a link reference definition a
             // paragraph is still open, so a setext heading that starts with a list marker (an empty item, or a number other than 1,
-            // cannot interrupt a paragraph) is read as a list once a blank line precedes it; and a thematic-break-shaped line that
-            // the parser reads as a list item right after a list item is a thematic break once a blank line precedes it
+            // cannot interrupt a paragraph) is read as a list once a blank line precedes it; a thematic-break-shaped line that
+            // the parser reads as a list item right after a list item is a thematic break once a blank line precedes it; and a
+            // definition-shaped paragraph right before a table is text for the parser, a definition after a blank line
             if (ReadsDifferentlyAfterBlankLine(layout, before, after, afterFirst))
             {
                 continue;
@@ -474,9 +475,12 @@ internal static class BlockSpacingPass
     /// <param name="before">The block before the boundary.</param>
     /// <param name="after">The block after the boundary.</param>
     /// <param name="afterFirst">The first line of <paramref name="after"/>.</param>
+    /// <returns>
     ///     <see langword="true"/> when <paramref name="before"/> is a link reference definition (it leaves a paragraph open) and
-    ///     <paramref name="after"/> is a setext heading whose first line starts with a list marker, or when <paramref name="after"/>
-    ///     is a list whose first line is shaped like a thematic break (or like an item that holds one).
+    ///     <paramref name="after"/> is a setext heading whose first line starts with a list marker, when <paramref name="after"/>
+    ///     is a list whose first line is shaped like a thematic break (or like an item that holds one), or when
+    ///     <paramref name="after"/> is a table and <paramref name="before"/> is a paragraph that starts like a link reference
+    ///     definition (directly before a table the parser keeps it as text, after a blank line it is a definition).
     /// </returns>
     /// <remarks>
     ///     The setext heading case is the counterpart of the rule of the heading formatter that keeps such a heading setext
@@ -484,7 +488,8 @@ internal static class BlockSpacingPass
     /// </remarks>
     private static bool ReadsDifferentlyAfterBlankLine(LineLayout layout, BlockInfo before, BlockInfo after, int afterFirst) =>
         (before.Kind == BlockKind.LinkReferenceDefinition && after.Node is HeadingBlock { IsSetext: true } && layout.StartsWithListMarker(afterFirst))
-        || (after.Kind == BlockKind.List && layout.LooksLikeThematicBreak(afterFirst));
+        || (after.Kind == BlockKind.List && layout.LooksLikeThematicBreak(afterFirst))
+        || (before.Kind == BlockKind.Paragraph && after.Kind == BlockKind.Table && layout.StartsLikeLinkDefinition(LineOwnership.LinesOf(layout, before).First));
 
     /// <summary>
     ///     Determines whether a suppression covers exactly one line, the line given: the shape of a next-line directive.
