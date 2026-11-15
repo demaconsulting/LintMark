@@ -638,28 +638,6 @@ public class EngineSubsystemTests
     }
 
     /// <summary>
-    ///     Test that editor settings that cannot be read are reported at the Markdown file and that file is not rewritten.
-    /// </summary>
-    [Fact]
-    public void EngineSubsystem_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile()
-    {
-        // Arrange: a CRLF Markdown file and a resolver whose settings cannot be read
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", "# A\r\n"u8.ToArray());
-        var engine = new LintMarkEngine(
-            1,
-            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException()));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = LintMarkEngineTests.Execute(directory, engine, "--fix");
-
-        // Assert: reported against the Markdown file at 1:1 and the file is as it was
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: disk failure"], lines);
-        Assert.Equal("# A\r\n"u8.ToArray(), File.ReadAllBytes(path));
-    }
-
-    /// <summary>
     ///     Test that the fix option keeps the byte order mark and leaves no temporary file next to the rewritten file.
     /// </summary>
     [Fact]

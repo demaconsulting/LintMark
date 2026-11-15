@@ -228,19 +228,6 @@ internal sealed partial class LinkLabelAllocator
     }
 
     /// <summary>
-    ///     Gets the label that was given to a destination and title.
-    /// </summary>
-    /// <param name="tail">The destination part of a link that was given a label by <see cref="Allocate"/>. Must not be null.</param>
-    /// <returns>The label.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tail"/> is null.</exception>
-    /// <exception cref="KeyNotFoundException">Thrown when no label was given to the destination and title.</exception>
-    public string LabelOf(InlineLinkTail tail)
-    {
-        ArgumentNullException.ThrowIfNull(tail);
-        return _targets[(tail.Url, tail.TitleText)];
-    }
-
-    /// <summary>
     ///     Turns text into a label: lower case, runs of other characters replaced by one hyphen, cut to a length.
     /// </summary>
     /// <param name="text">The text.</param>

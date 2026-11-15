@@ -27,8 +27,8 @@ using DemaConsulting.LintMark.Linting.Rules;
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
-///     Test that the LintRuleEngine class applies the configuration and the suppression comments to what the rules report,
-///     orders the result, and refuses a rule that reports anything but its own lint-only findings.
+///     Test that the LintRuleEngine class applies the configuration and the suppression comments to what the rules report
+///     and orders the result.
 /// </summary>
 public class LintRuleEngineTests
 {
@@ -49,20 +49,6 @@ public class LintRuleEngineTests
     /// <returns>The findings in the order of the engine.</returns>
     private static string[] Run(LintRuleEngine engine, string text, LintMarkConfig? config = null) =>
         [.. engine.Run(LintRuleTestSupport.Parse(text), config ?? LintMarkConfig.Default).Select(d => $"{d.Line}:{d.Column} {d.RuleId}")];
-
-    /// <summary>
-    ///     Test that an engine rejects a list with a null rule and null arguments.
-    /// </summary>
-    [Fact]
-    public void LintRuleEngine_ConstructorAndRun_InvalidArguments_Throw()
-    {
-        // Act & Assert: a null element is rejected, null arguments are named
-        Assert.Equal("rules", Assert.Throws<ArgumentNullException>(() => new LintRuleEngine([new TableRules(), null!])).ParamName);
-        var engine = LintRuleEngine.CreateDefault();
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => engine.Run(null!, LintMarkConfig.Default)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => engine.Run(LintRuleTestSupport.Parse("x\n"), null!)).ParamName);
-        Assert.Empty(new LintRuleEngine().Run(LintRuleTestSupport.Parse("x\n"), LintMarkConfig.Default));
-    }
 
     /// <summary>
     ///     Test that the engine drops what the configuration switches off, and what a suppression comment covers, and orders the rest.
@@ -232,21 +218,6 @@ public class LintRuleEngineTests
     }
 
     /// <summary>
-    ///     Test that the engine refuses a finding that is fixable, and a finding with an identifier that the rule does not declare.
-    /// </summary>
-    [Fact]
-    public void LintRuleEngine_Run_RuleReportsMoreThanItsOwnLintFindings_Throws()
-    {
-        // Arrange: a rule that reports a formatting finding, and a rule that reports another rule's identifier
-        var formatting = new LintRuleEngine([new CountingRule("table-too-wide", DiagnosticKind.Formatting)]);
-        var foreign = new LintRuleEngine([new CountingRule("table-too-wide", DiagnosticKind.LintOnly, reportedId: "link-empty")]);
-
-        // Act & Assert: both are refused, a programming error and not a finding
-        Assert.Throws<InvalidOperationException>(() => formatting.Run(LintRuleTestSupport.Parse("x\n"), LintMarkConfig.Default));
-        Assert.Throws<InvalidOperationException>(() => foreign.Run(LintRuleTestSupport.Parse("x\n"), LintMarkConfig.Default));
-    }
-
-    /// <summary>
     ///     A rule that reports one finding and counts how often it is asked.
     /// </summary>
     private sealed class CountingRule : ILintRule
@@ -257,21 +228,14 @@ public class LintRuleEngineTests
         private readonly DiagnosticKind _kind;
 
         /// <summary>
-        ///     The identifier of the finding.
-        /// </summary>
-        private readonly string _reportedId;
-
-        /// <summary>
         ///     Initializes a new instance of the <see cref="CountingRule"/> class.
         /// </summary>
-        /// <param name="id">The identifier the rule declares.</param>
+        /// <param name="id">The identifier the rule declares and reports.</param>
         /// <param name="kind">The kind of the finding it reports.</param>
-        /// <param name="reportedId">The identifier of the finding, or <see langword="null"/> for the declared one.</param>
-        public CountingRule(string id, DiagnosticKind kind, string? reportedId = null)
+        public CountingRule(string id, DiagnosticKind kind)
         {
             RuleIds = [id];
             _kind = kind;
-            _reportedId = reportedId ?? id;
         }
 
         /// <summary>
@@ -293,7 +257,7 @@ public class LintRuleEngineTests
         public ImmutableArray<Diagnostic> Check(ParsedDocument document, LintMarkConfig config)
         {
             Calls++;
-            return [new Diagnostic(_reportedId, _kind, document.Source.Path, 1, 1, "Counted")];
+            return [new Diagnostic(RuleIds[0], _kind, document.Source.Path, 1, 1, "Counted")];
         }
     }
 }

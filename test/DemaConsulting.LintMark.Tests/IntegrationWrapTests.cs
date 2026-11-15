@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 using System.Text;
-using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -44,7 +43,7 @@ public class IntegrationWrapTests
     /// </summary>
     public IntegrationWrapTests()
     {
-        _dllPath = PathHelpers.SafePathCombine(AppContext.BaseDirectory, "DemaConsulting.LintMark.dll");
+        _dllPath = Path.Combine(AppContext.BaseDirectory, "DemaConsulting.LintMark.dll");
         Assert.True(File.Exists(_dllPath), $"Could not find LintMark DLL at {_dllPath}");
     }
 

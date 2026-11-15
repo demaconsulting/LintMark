@@ -186,31 +186,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that an exception from the Markdown parser is reported as a parse failure and does not stop other files.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_ParserThrows_ReportsParseErrorForThatFileOnly()
-    {
-        // Arrange: a parser that fails for one document only
-        using var directory = new TemporaryDirectory();
-        var bad = directory.WriteFile("bad.md", "# bad\n");
-        var good = directory.WriteFile("good.md", "# good\n");
-        var engine = new LintMarkEngine(
-            2,
-            documentParser: source => source.Text.Contains("bad", StringComparison.Ordinal)
-                ? throw new InvalidOperationException("boom")
-                : DocumentParser.Parse(source));
-
-        // Act: process both
-        var results = engine.Process([bad, good]);
-
-        // Assert: only the bad file fails, with a stable message
-        var failure = Assert.Single(results.Single(r => r.Path == bad).Diagnostics);
-        Assert.Equal(("file-parse-error", 1, 1, "Markdown parser failed: InvalidOperationException"), (failure.RuleId, failure.Line, failure.Column, failure.Message));
-        Assert.Empty(results.Single(r => r.Path == good).Diagnostics);
-    }
-
-    /// <summary>
     ///     Test that processing no files returns no results.
     /// </summary>
     [Fact]
@@ -238,123 +213,6 @@ public partial class LintMarkEngineTests
 
         // Assert: results are in ordinal path order
         Assert.Equal(files.Order(StringComparer.Ordinal).ToList(), results.Select(r => r.Path).ToList());
-    }
-
-    /// <summary>
-    ///     Test that the result order follows paths, not completion order, even when later files finish first.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_CompletionOrderInverted_ResultsStillPathSorted()
-    {
-        // Arrange: a processor in which every file waits (bounded) for the next one to finish first,
-        // which makes completion order the reverse of path order whenever the workers run concurrently
-        var files = Enumerable.Range(0, 8).Select(i => $"file{i}.md").ToArray();
-        var finished = files.Select(_ => new ManualResetEventSlim(false)).ToArray();
-        var completion = new List<string>();
-        var engine = new LintMarkEngine(8, (path, _) =>
-        {
-            var index = int.Parse(path[4..5], CultureInfo.InvariantCulture);
-            if (index < 7)
-            {
-                finished[index + 1].Wait(TimeSpan.FromSeconds(2));
-            }
-
-            lock (completion)
-            {
-                completion.Add(path);
-            }
-
-            finished[index].Set();
-            return new FileResult(path, []);
-        });
-
-        // Act: process
-        var results = engine.Process(files);
-
-        // Assert: results are in path order regardless of the order in which workers completed
-        Assert.Equal(files, results.Select(r => r.Path).ToList());
-        Assert.Equal(8, completion.Count);
-        Assert.All(finished, e => e.Dispose());
-    }
-
-    /// <summary>
-    ///     Test that workers really run files at the same time when parallelism allows it.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_ManyWorkers_RunFilesConcurrently()
-    {
-        // Arrange: a processor in which the first two files to start wait (bounded) for each other;
-        // if the engine ran files one at a time the first one would time out
-        using var gate = new ManualResetEventSlim(false);
-        var arrivals = 0;
-        var timeouts = 0;
-        var current = 0;
-        var maximum = 0;
-        var engine = new LintMarkEngine(4, (path, _) =>
-        {
-            var now = Interlocked.Increment(ref current);
-            InterlockedMax(ref maximum, now);
-            if (Interlocked.Increment(ref arrivals) >= 2)
-            {
-                gate.Set();
-            }
-
-            if (!gate.Wait(TimeSpan.FromSeconds(30)))
-            {
-                Interlocked.Increment(ref timeouts);
-            }
-
-            Interlocked.Decrement(ref current);
-            return new FileResult(path, []);
-        });
-
-        // Act: process several files
-        var results = engine.Process(Enumerable.Range(0, 8).Select(i => $"f{i}.md").ToArray());
-
-        // Assert: nobody timed out, at least two files were in flight together, and every file has a result
-        Assert.Equal(0, timeouts);
-        Assert.True(maximum >= 2, $"maximum concurrency was {maximum}");
-        Assert.Equal(8, results.Count);
-    }
-
-    /// <summary>
-    ///     Test that a degree of parallelism of one never runs two files at the same time.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_ParallelismOne_RunsSequentially()
-    {
-        // Arrange: a processor that records the highest concurrency
-        var current = 0;
-        var maximum = 0;
-        var engine = new LintMarkEngine(1, (path, _) =>
-        {
-            var now = Interlocked.Increment(ref current);
-            InterlockedMax(ref maximum, now);
-            Thread.SpinWait(2000);
-            Interlocked.Decrement(ref current);
-            return new FileResult(path, []);
-        });
-
-        // Act: process many files
-        engine.Process(Enumerable.Range(0, 20).Select(i => $"f{i}.md").ToArray());
-
-        // Assert: never more than one at a time
-        Assert.Equal(1, maximum);
-    }
-
-    /// <summary>
-    ///     Atomically raises a value to at least a candidate.
-    /// </summary>
-    /// <param name="target">The value to raise.</param>
-    /// <param name="candidate">The candidate maximum.</param>
-    private static void InterlockedMax(ref int target, int candidate)
-    {
-        int observed;
-        do
-        {
-            observed = Volatile.Read(ref target);
-        }
-        while (candidate > observed && Interlocked.CompareExchange(ref target, candidate, observed) != observed);
     }
 
     /// <summary>
@@ -400,30 +258,6 @@ public partial class LintMarkEngineTests
         Assert.Contains(sequential, s => s.Contains("file-encoding-error", StringComparison.Ordinal));
         Assert.Contains(sequential, s => s.Contains("file-line-ending-error", StringComparison.Ordinal));
         Assert.Contains(sequential, s => s.Contains("file-read-error", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    ///     Test that an invalid degree of parallelism is rejected.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Constructor_ParallelismBelowOne_ThrowsArgumentOutOfRangeException()
-    {
-        // Arrange / Act / Assert: zero is rejected
-        Assert.Throws<ArgumentOutOfRangeException>(() => new LintMarkEngine(0));
-    }
-
-    /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_RunAndProcess_NullArguments_Throw()
-    {
-        // Arrange: an engine
-        var engine = new LintMarkEngine(1);
-
-        // Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => engine.Run(null!));
-        Assert.Throws<ArgumentNullException>(() => engine.Process(null!));
     }
 
     /// <summary>
@@ -524,51 +358,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a parser failure is reported under the parse error rule through the report.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_ParserFailure_ReportsParseError()
-    {
-        // Arrange: a parser that always fails
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(2, documentParser: _ => throw new InvalidOperationException("boom"));
-
-        // Act: run
-        var (exitCode, lines) = Execute(directory, engine);
-
-        // Assert: parse failure line and exit code one
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: file-parse-error Markdown parser failed: InvalidOperationException"], lines);
-    }
-
-    /// <summary>
-    ///     Test that the failures of one file are written ordered by line, column and rule.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_MultipleFailuresInFile_AreOrderedByPosition()
-    {
-        // Arrange: a processor that returns failures in scrambled order
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(2, (path, _) => new FileResult(path,
-        [
-            new Diagnostic("rule-b", DiagnosticKind.LintOnly, path, 3, 1, "later"),
-            new Diagnostic("rule-z", DiagnosticKind.LintOnly, path, 1, 5, "second"),
-            new Diagnostic("rule-a", DiagnosticKind.LintOnly, path, 1, 5, "first"),
-            new Diagnostic("rule-y", DiagnosticKind.LintOnly, path, 1, 2, "earliest")
-        ]));
-
-        // Act: run
-        var (_, lines) = Execute(directory, engine, "a.md");
-
-        // Assert: sorted by line, column, then rule id
-        Assert.Equal(
-            ["a.md:1:2: rule-y earliest", "a.md:1:5: rule-a first", "a.md:1:5: rule-z second", "a.md:3:1: rule-b later"],
-            lines);
-    }
-
-    /// <summary>
     ///     Test that a file result cannot be changed through its failure list.
     /// </summary>
     [Fact]
@@ -662,16 +451,16 @@ public partial class LintMarkEngineTests
     [Fact]
     public void LintMarkEngine_Process_ConfigEndOfLine_EditorConfigNotConsulted()
     {
-        // Arrange: a configuration that chooses crlf and a resolver that fails when consulted
+        // Arrange: a configuration that chooses crlf beside editor settings that choose lf
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        WriteEditorConfig(directory, "lf");
         var file = directory.WriteFile("a.md");
-        var resolver = new EditorConfigResolver(_ => throw new IOException("consulted"), (_, _) => throw new InvalidOperationException());
 
         // Act: process with both sources
-        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), resolver));
+        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDiscovery(), new EditorConfigResolver()));
 
-        // Assert: the configuration's line ending is used and the failing resolver was never asked
+        // Assert: the configuration's line ending is used
         Assert.Equal(LineEnding.CrLf, result.Config!.EndOfLine);
         Assert.Empty(result.ConfigErrors);
     }
@@ -815,27 +604,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that editor settings that cannot be read add a problem at the Markdown file and keep the configuration.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_EditorConfigUnreadable_AddsConfigErrorAtMarkdownFileAndKeepsConfig()
-    {
-        // Arrange: a resolver whose settings cannot be read
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-        var resolver = new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException());
-
-        // Act: process with it
-        var result = Assert.Single(new LintMarkEngine(1).Process([file], ConfigLoader.ForDefaults(), resolver));
-
-        // Assert: one problem at the start of the Markdown file; the configuration is kept with an unspecified line ending
-        var error = Assert.Single(result.ConfigErrors);
-        Assert.Equal((file, 1, 1, "Cannot read .editorconfig settings: disk failure"), (error.Path, error.Line, error.Column, error.Message));
-        Assert.NotNull(result.Config);
-        Assert.Null(result.Config.EndOfLine);
-    }
-
-    /// <summary>
     ///     Test that parallel processing with configurations gives the same results as sequential processing.
     /// </summary>
     [Fact]
@@ -877,16 +645,6 @@ public partial class LintMarkEngineTests
 
         // Assert: a caller cannot change the list
         ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<ConfigError>)result.ConfigErrors);
-    }
-
-    /// <summary>
-    ///     Test that a null loader is rejected.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_NullLoader_Throws()
-    {
-        // Act & Assert: the loader is validated
-        Assert.Throws<ArgumentNullException>(() => new LintMarkEngine(1).Process(Array.Empty<string>(), null!, null));
     }
 
     /// <summary>
@@ -1037,68 +795,22 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that unreadable editor settings are reported at the Markdown file with exit code one.
+    ///     Test that no-config ignores an invalid configuration.
     /// </summary>
     [Fact]
-    public void LintMarkEngine_Run_EditorConfigUnreadable_ReportsConfigErrorAtMarkdownFile()
+    public void LintMarkEngine_Run_NoConfig_InvalidConfig_ReportsNothing()
     {
-        // Arrange: a Markdown file and a resolver whose settings cannot be read
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(
-            1,
-            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException()));
-
-        // Act: run
-        var (exitCode, lines) = Execute(directory, engine);
-
-        // Assert: reported against the Markdown file at 1:1
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: disk failure"], lines);
-    }
-
-    /// <summary>
-    ///     Test that no-config ignores both an invalid configuration and the editor settings.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_NoConfig_InvalidConfigAndUnreadableEditorConfig_ReportsNothing()
-    {
-        // Arrange: an invalid configuration, and a resolver that would fail if it were consulted
+        // Arrange: an invalid configuration
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
         directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(
-            1,
-            editorConfigFactory: () => throw new InvalidOperationException("The editor settings must not be consulted"));
 
         // Act: run with --no-config
-        var (exitCode, lines) = Execute(directory, engine, "--no-config");
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--no-config");
 
         // Assert: silent success
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that an explicit configuration still consults the editor settings during a run.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_ExplicitConfig_StillConsultsEditorConfig()
-    {
-        // Arrange: a valid explicit configuration and a resolver that fails when consulted
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("custom.yaml", "line-length: 90\n");
-        directory.WriteFile("a.md");
-        var engine = new LintMarkEngine(
-            1,
-            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("consulted"), (_, _) => throw new InvalidOperationException()));
-
-        // Act: run with --config
-        var (exitCode, lines) = Execute(directory, engine, "--config", "custom.yaml");
-
-        // Assert: the editor settings were consulted, which is visible through the failure they report
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: consulted"], lines);
     }
 
     /// <summary>

@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -38,7 +37,7 @@ public class IntegrationTests
         // The DLL should be in the same directory as the test assembly
         // because the test project references the main project
         var baseDir = AppContext.BaseDirectory;
-        _dllPath = PathHelpers.SafePathCombine(baseDir, "DemaConsulting.LintMark.dll");
+        _dllPath = Path.Combine(baseDir, "DemaConsulting.LintMark.dll");
 
         Assert.True(File.Exists(_dllPath), $"Could not find LintMark DLL at {_dllPath}");
     }

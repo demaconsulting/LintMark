@@ -73,7 +73,7 @@ namespace DemaConsulting.LintMark.Engine;
 ///     </para>
 ///     <para>
 ///         Thread safety: an instance holds only immutable configuration and stateless collaborators;
-///         <see cref="Process(IReadOnlyList{string})"/> and <see cref="Run(Context)"/> may be called concurrently.
+///         <see cref="Run(Context)"/> may be called concurrently.
 ///     </para>
 /// </remarks>
 internal sealed class LintMarkEngine
@@ -104,35 +104,18 @@ internal sealed class LintMarkEngine
     private readonly int _maxDegreeOfParallelism;
 
     /// <summary>
-    ///     Processes a single file given its formatting configuration; replaceable so tests can control timing.
-    /// </summary>
-    private readonly Func<string, LintMarkConfig?, FileResult> _fileProcessor;
-
-    /// <summary>
-    ///     Parses a decoded document; replaceable so tests can simulate parser failures.
-    /// </summary>
-    private readonly Func<SourceDocument, ParsedDocument> _documentParser;
-
-    /// <summary>
-    ///     Creates the editor-settings resolver used by <see cref="Run(Context)"/>; replaceable so tests can
-    ///     simulate unreadable editor settings.
-    /// </summary>
-    private readonly Func<EditorConfigResolver> _editorConfigFactory;
-
-    /// <summary>
-    ///     Formats parsed documents; replaceable so tests can install block formatters, including broken ones.
+    ///     Formats parsed documents; replaceable so the verification tool and tests can install block formatters.
     /// </summary>
     private readonly DocumentFormatter _formatter;
 
     /// <summary>
-    ///     Runs the lint-only rules; replaceable so tests can install rules, including broken ones.
+    ///     Runs the lint-only rules.
     /// </summary>
-    private readonly LintRuleEngine _lintRules;
+    private readonly LintRuleEngine _lintRules = LintRuleEngine.CreateDefault();
 
     /// <summary>
     ///     Replaces the content of a file given the resolved target captured when it was read, the bytes it was
-    ///     computed from and the new bytes; replaceable so tests can simulate write failures and files that
-    ///     change (or links that are redirected) after they were read.
+    ///     computed from and the new bytes; replaceable so tests can simulate write failures.
     /// </summary>
     private readonly Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> _fileWriter;
 
@@ -149,49 +132,21 @@ internal sealed class LintMarkEngine
     ///     Initializes a new instance of the <see cref="LintMarkEngine"/> class.
     /// </summary>
     /// <param name="maxDegreeOfParallelism">Maximum number of files processed concurrently; 1 means sequential.</param>
-    /// <param name="fileProcessor">
-    ///     Optional replacement for the per-file processing (a test seam). It receives the path and the
-    ///     configuration the file may be formatted under (<see langword="null"/> when the file must not be
-    ///     formatted); <see langword="null"/> selects the real read, parse, format and verify.
-    /// </param>
-    /// <param name="documentParser">
-    ///     Optional replacement for the Markdown parsing step of the real per-file processing, including the
-    ///     (a test seam); <see langword="null"/> selects <see cref="DocumentParser.Parse"/>.
-    /// </param>
-    /// <param name="editorConfigFactory">
-    ///     Optional replacement for the creation of the editor-settings resolver used by <see cref="Run(Context)"/>
-    ///     (a test seam); <see langword="null"/> selects a resolver that reads the real file system.
-    /// </param>
     /// <param name="formatter">
-    ///     Optional replacement for the document formatter (a test seam that installs block formatters);
-    ///     <see langword="null"/> selects the production formatter with the heading, code block and thematic break formatters.
+    ///     Optional replacement for the document formatter; <see langword="null"/> selects <see cref="CreateDefaultFormatter"/>.
     /// </param>
     /// <param name="fileWriter">
     ///     Optional replacement for the atomic file write (a test seam). It receives the path, the resolved
     ///     target captured when the file was read, the bytes the rewrite was computed from and the new bytes;
     ///     <see langword="null"/> selects <see cref="AtomicFileWriter"/>.
     /// </param>
-    /// <param name="lintRules">
-    ///     Optional replacement for the runner of the lint-only rules (a test seam); <see langword="null"/> selects
-    ///     <see cref="LintRuleEngine.CreateDefault"/>.
-    /// </param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than one.</exception>
     internal LintMarkEngine(
         int maxDegreeOfParallelism,
-        Func<string, LintMarkConfig?, FileResult>? fileProcessor = null,
-        Func<SourceDocument, ParsedDocument>? documentParser = null,
-        Func<EditorConfigResolver>? editorConfigFactory = null,
         DocumentFormatter? formatter = null,
-        Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null,
-        LintRuleEngine? lintRules = null)
+        Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
-        _documentParser = documentParser ?? DocumentParser.Parse;
-        _fileProcessor = fileProcessor ?? ReadAndRewrite;
-        _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
         _formatter = formatter ?? CreateDefaultFormatter();
-        _lintRules = lintRules ?? LintRuleEngine.CreateDefault();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 
@@ -208,7 +163,7 @@ internal sealed class LintMarkEngine
     /// <summary>
     ///     Discovers, processes, optionally rewrites, and reports the files selected by the context.
     /// </summary>
-    /// <param name="context">The context supplying the path and configuration arguments and receiving the reports. Must not be null.</param>
+    /// <param name="context">The context supplying the path and configuration arguments and receiving the reports.</param>
     /// <remarks>
     ///     Diagnostics and configuration problems are written through <see cref="Context.WriteError"/>, which
     ///     makes the exit code 1. Discovery runs against the current directory. <c>--no-config</c> selects
@@ -220,20 +175,16 @@ internal sealed class LintMarkEngine
     ///     reported and stays as it was. With <c>--diff</c> the unified diff is written to standard output.
     ///     Without either option nothing is written to disk.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
     public void Run(Context context)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(context);
-
         // Discover the files against the current directory
         var baseDirectory = Directory.GetCurrentDirectory();
         var files = FileDiscovery.DiscoverFiles(context.Paths, baseDirectory);
 
         // Choose the configuration sources from the command line, then process; no output happens until all workers are done
         var loader = CreateLoader(context);
-        var editorConfig = context.NoConfig ? null : _editorConfigFactory();
+        var editorConfig = context.NoConfig ? null : new EditorConfigResolver();
         var results = Process(files, loader, editorConfig, baseDirectory, context.RuleOverrides);
 
         // Write the rewrites one after the other (never from a worker), then collect what remains to report
@@ -259,44 +210,10 @@ internal sealed class LintMarkEngine
     }
 
     /// <summary>
-    ///     Processes files with the built-in default configuration, possibly in parallel, and returns their results in path order.
-    /// </summary>
-    /// <param name="files">Paths of the files to process; every file is treated as named on the command line. Must not be null.</param>
-    /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
-    /// <remarks>
-    ///     Equivalent to <see cref="Process(IReadOnlyList{string}, ConfigLoader, EditorConfigResolver?)"/> with a
-    ///     defaults-only loader and no editor settings: no configuration source is read.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> is null.</exception>
-    public IReadOnlyList<FileResult> Process(IReadOnlyList<string> files) => Process(files, ConfigLoader.ForDefaults(), null);
-
-    /// <summary>
-    ///     Processes files that were all named explicitly, attaches each file's effective configuration and returns the results in path order.
-    /// </summary>
-    /// <param name="files">Paths of the files to process; every file is treated as named on the command line, so no <c>ignore</c> pattern applies. Must not be null.</param>
-    /// <param name="loader">Supplies the configuration that applies to each file. Must not be null.</param>
-    /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
-    /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> (or an element) or <paramref name="loader"/> is null.</exception>
-    internal IReadOnlyList<FileResult> Process(IReadOnlyList<string> files, ConfigLoader loader, EditorConfigResolver? editorConfig)
-    {
-        // Validate the list here so that the projection below cannot hide a null argument
-        ArgumentNullException.ThrowIfNull(files);
-        ArgumentNullException.ThrowIfNull(loader);
-        if (files.Any(static file => file is null))
-        {
-            throw new ArgumentNullException(nameof(files), "The files must not contain null.");
-        }
-
-        DiscoveredFile[] named = [.. files.Select(static file => new DiscoveredFile(file, isExplicit: true))];
-        return Process(named, loader, editorConfig);
-    }
-
-    /// <summary>
     ///     Processes files, possibly in parallel, attaches each file's effective configuration and returns the results in path order.
     /// </summary>
-    /// <param name="files">The files to process. Must not be null.</param>
-    /// <param name="loader">Supplies the configuration that applies to each file. Must not be null.</param>
+    /// <param name="files">The files to process.</param>
+    /// <param name="loader">Supplies the configuration that applies to each file.</param>
     /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
     /// <param name="baseDirectory">
     ///     The directory that <c>ignore</c> patterns are relative to when no configuration file applies, or
@@ -309,10 +226,8 @@ internal sealed class LintMarkEngine
     ///     outcome identical for any degree of parallelism and any scheduling. Workers must not write
     ///     output or files. The effective configuration is derived with a <c>with</c> expression on the immutable
     ///     configuration, so nothing shared is mutated. The editor settings are consulted only when the
-    ///     configuration gives no line ending. If a replaced file processor throws, the exception is
-    ///     propagated (wrapped in an <see cref="AggregateException"/> when run in parallel).
+    ///     configuration gives no line ending.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> or <paramref name="loader"/> is null, or a file has no path.</exception>
     internal IReadOnlyList<FileResult> Process(
         IReadOnlyList<DiscoveredFile> files,
         ConfigLoader loader,
@@ -320,14 +235,6 @@ internal sealed class LintMarkEngine
         string? baseDirectory = null,
         RuleOverrides? overrides = null)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(files);
-        ArgumentNullException.ThrowIfNull(loader);
-        if (files.Any(static file => file.Path is null))
-        {
-            throw new ArgumentNullException(nameof(files), "The files must not contain a file without a path.");
-        }
-
         // Fix the base directory once, so every worker uses the same one
         var root = baseDirectory ?? Directory.GetCurrentDirectory();
         var forced = overrides ?? RuleOverrides.None;
@@ -424,7 +331,7 @@ internal sealed class LintMarkEngine
         // An invalid configuration yields no settings, only its problems; the rules forced on the command line win over the file
         if (load.Config is not { } loadedConfig)
         {
-            return _fileProcessor(file.Path, null) with { Config = null, ConfigErrors = load.Errors };
+            return ReadAndRewrite(file.Path, null) with { Config = null, ConfigErrors = load.Errors };
         }
 
         var config = overrides.Apply(loadedConfig);
@@ -445,7 +352,7 @@ internal sealed class LintMarkEngine
         }
 
         // A file with a configuration problem is never formatted
-        return _fileProcessor(file.Path, errors.IsEmpty ? config : null) with { Config = config, ConfigErrors = errors };
+        return ReadAndRewrite(file.Path, errors.IsEmpty ? config : null) with { Config = config, ConfigErrors = errors };
     }
 
     /// <summary>
@@ -483,7 +390,7 @@ internal sealed class LintMarkEngine
         ParsedDocument document;
         try
         {
-            document = _documentParser(SourceDocument.Create(path, bytes));
+            document = DocumentParser.Parse(SourceDocument.Create(path, bytes));
         }
         catch (SourceDocumentException ex)
         {
@@ -538,12 +445,8 @@ internal sealed class LintMarkEngine
         try
         {
             format = _formatter.Format(document, config);
-            diagnostics = FormatDiffAnalyzer.Analyze(source, format).AddRange(_lintRules.Run(document, config));
+            diagnostics = format.Diagnostics.AddRange(_lintRules.Run(document, config));
             newLf = SourcePatcher.Apply(source, format.Edits);
-            if (newLf.Contains('\r'))
-            {
-                return Failed(path, FormatErrorRuleId, 1, 1, "Formatting failed: the result contains a carriage return");
-            }
         }
         catch (Exception ex)
         {

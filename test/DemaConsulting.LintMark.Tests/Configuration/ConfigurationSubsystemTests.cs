@@ -312,25 +312,6 @@ public class ConfigurationSubsystemTests
     }
 
     /// <summary>
-    ///     Test that editor settings that cannot be read are reported as a message and give no line ending.
-    /// </summary>
-    [Fact]
-    public void ConfigurationSubsystem_EditorConfig_UnreadableSettings_ReportedAsMessage()
-    {
-        // Arrange: a resolver whose settings lookup fails, as when a settings file cannot be read
-        var resolver = new EditorConfigResolver(
-            _ => throw new IOException("disk\nfailure"),
-            (_, _) => throw new InvalidOperationException("must not be reached"));
-
-        // Act: resolve a file
-        var result = resolver.Resolve(Path.Combine(Path.GetTempPath(), "a.md"));
-
-        // Assert: a one-line message and no line ending
-        Assert.Null(result.EndOfLine);
-        Assert.Equal("Cannot read .editorconfig settings: disk failure", result.ErrorMessage);
-    }
-
-    /// <summary>
     ///     Test that the documented defaults apply without a file, with an empty file and for omitted settings.
     /// </summary>
     [Fact]

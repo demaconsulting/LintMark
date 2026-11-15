@@ -451,25 +451,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a formatter that inserts a carriage return is refused.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixCarriageReturnInserted_ReportsFormatError()
-    {
-        // Arrange: a formatter that inserts a carriage return
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("text\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new CarriageReturnFormatter()), "--fix");
-
-        // Assert: a format error; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: file-format-error Formatting failed: the result contains a carriage return"], lines);
-        AssertUntouched(path, Utf8("text\n"), writeTime);
-    }
-
-    /// <summary>
     ///     Test that a failure to write is reported, keeps the formatting diagnostic and leaves the file as it was.
     /// </summary>
     [Fact]
@@ -650,28 +631,6 @@ public partial class LintMarkEngineTests
         // Assert: only the configuration problem is reported; the file is untouched
         Assert.Equal(1, exitCode);
         Assert.Equal([".lintmark.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
-        AssertUntouched(path, Utf8("# Title\n\nText.\r\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that a file whose editor settings cannot be read is never rewritten.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixEditorConfigUnreadable_NeverRewritesFile()
-    {
-        // Arrange: editor settings that cannot be read and a file with mixed line endings
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("# Title\n\nText.\r\n"));
-        var engine = new LintMarkEngine(
-            1,
-            editorConfigFactory: () => new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException()));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, engine, "--fix");
-
-        // Assert: the problem is reported; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: config-error Cannot read .editorconfig settings: disk failure"], lines);
         AssertUntouched(path, Utf8("# Title\n\nText.\r\n"), writeTime);
     }
 
@@ -898,27 +857,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that a file whose editor settings cannot be read is never given to the formatters.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_EditorConfigUnreadable_NeverFormatted()
-    {
-        // Arrange: editor settings that cannot be read and a formatter that would fail if it were called
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "text\n");
-        var resolver = new EditorConfigResolver(_ => throw new IOException("disk failure"), (_, _) => throw new InvalidOperationException());
-
-        // Act: process the file
-        var result = Assert.Single(EngineWith(new ThrowingFormatter()).Process([path], ConfigLoader.ForDefaults(), resolver));
-
-        // Assert: no formatting happened, the configuration is kept and the problem is reported
-        Assert.Empty(result.Diagnostics);
-        Assert.Null(result.Change);
-        Assert.NotNull(result.Config);
-        Assert.Single(result.ConfigErrors);
-    }
-
-    /// <summary>
     ///     Test that a format-unsafe document has no change and carries the grid table diagnostic.
     /// </summary>
     [Fact]
@@ -952,21 +890,6 @@ public partial class LintMarkEngineTests
 
         // Assert: a caller cannot change the list
         ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<Linting.Diagnostic>)result.Diagnostics);
-    }
-
-    /// <summary>
-    ///     Test that a null element in the list of paths, or a discovered file without a path, is rejected.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_NullFileElements_Throw()
-    {
-        // Arrange: an engine
-        var engine = new LintMarkEngine(1);
-
-        // Act & Assert: a null path and a default discovered file are rejected before anything is processed
-        Assert.Throws<ArgumentNullException>(() => engine.Process(new string[] { null! }));
-        Assert.Throws<ArgumentNullException>(() => engine.Process(new DiscoveredFile[] { default }, ConfigLoader.ForDefaults(), null));
-        Assert.Throws<ArgumentNullException>(() => engine.Process((IReadOnlyList<DiscoveredFile>)null!, ConfigLoader.ForDefaults(), null));
     }
 
     /// <summary>

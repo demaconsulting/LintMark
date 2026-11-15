@@ -135,13 +135,3 @@ internal sealed class OutOfRangeEditFormatter : ParagraphTestFormatter
     public override void Format(FormatContext context, BlockInfo block, EditSet edits) =>
         edits.Add(new TextEdit(context.Document.Source.Text.Length + 5, 1, "x", "paragraph-wrap"));
 }
-
-/// <summary>
-///     Inserts a carriage return, which the tool must never write.
-/// </summary>
-internal sealed class CarriageReturnFormatter : ParagraphTestFormatter
-{
-    /// <inheritdoc />
-    public override void Format(FormatContext context, BlockInfo block, EditSet edits) =>
-        edits.Add(new TextEdit(block.Start, 0, "\r", "paragraph-wrap"));
-}

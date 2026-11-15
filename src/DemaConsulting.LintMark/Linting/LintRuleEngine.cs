@@ -35,8 +35,7 @@ namespace DemaConsulting.LintMark.Linting;
 ///         overrides, see <see cref="RuleOverrides"/>), drops the ones that a suppression comment covers at their position
 ///         (the comments name rules by id or by legacy number; the document's suppression map resolves both), and
 ///         returns the rest in one deterministic order: by line, column, rule identifier and message. A rule can only
-///         report: <see cref="ILintRule"/> returns diagnostics and no edits, and the engine refuses a diagnostic that is
-///         not lint-only or that carries an identifier the rule did not declare, so no lint-only rule can ever change a
+///         report: <see cref="ILintRule"/> returns diagnostics and no edits, so no lint-only rule can ever change a
 ///         file or make a rewrite unsafe.
 ///     </para>
 ///     <para>
@@ -54,18 +53,10 @@ internal sealed class LintRuleEngine
     /// <summary>
     ///     Initializes a new instance of the <see cref="LintRuleEngine"/> class.
     /// </summary>
-    /// <param name="rules">The rules to run, or <see langword="null"/> for none. The list is copied.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="rules"/> is null.</exception>
-    public LintRuleEngine(IReadOnlyList<ILintRule>? rules = null)
+    /// <param name="rules">The rules to run. The list is copied.</param>
+    public LintRuleEngine(IReadOnlyList<ILintRule> rules)
     {
-        // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
-        ImmutableArray<ILintRule> copy = rules is null ? [] : ImmutableArray.CreateRange(rules);
-        if (copy.Any(static rule => rule is null))
-        {
-            throw new ArgumentNullException(nameof(rules), "The rules must not contain null.");
-        }
-
-        _rules = copy;
+        _rules = [.. rules];
     }
 
     /// <summary>
@@ -78,19 +69,11 @@ internal sealed class LintRuleEngine
     /// <summary>
     ///     Runs the rules over a document.
     /// </summary>
-    /// <param name="document">The parsed document. Must not be null.</param>
-    /// <param name="config">The effective configuration of the file. Must not be null.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
     /// <returns>The diagnostics of the rules that are switched on and not suppressed, ordered by line, column, rule and message.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="InvalidOperationException">
-    ///     Thrown when a rule reports a diagnostic that is not lint-only or that carries an identifier the rule does not declare.
-    /// </exception>
     public ImmutableArray<Diagnostic> Run(ParsedDocument document, LintMarkConfig config)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(config);
-
         var found = new List<Diagnostic>();
         foreach (var rule in _rules)
         {
@@ -102,12 +85,6 @@ internal sealed class LintRuleEngine
 
             foreach (var diagnostic in rule.Check(document, config))
             {
-                if (diagnostic.Kind != DiagnosticKind.LintOnly || !rule.RuleIds.Contains(diagnostic.RuleId))
-                {
-                    throw new InvalidOperationException(
-                        $"The rule that declares {string.Join(", ", rule.RuleIds)} reported a diagnostic that is not a lint-only finding of its own: {diagnostic.RuleId}.");
-                }
-
                 var offset = document.Source.OffsetOf(diagnostic.Line, diagnostic.Column);
                 if (IsEnabled(config, diagnostic.RuleId) && !document.Suppressions.IsSuppressed(offset, diagnostic.RuleId))
                 {

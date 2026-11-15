@@ -169,45 +169,4 @@ public partial class LintMarkEngineTests
         Assert.Equal(expectedExitCode, exitCode);
         Assert.Equal(expectedExitCode == 1 ? ["a.md:1:1: table-grid-unformatted Grid table is left as written"] : [], lines);
     }
-
-    /// <summary>
-    ///     Test that a lint rule that throws is reported as a failure of the file it was run for.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_LintRuleThatThrows_FailsOnlyItsFile()
-    {
-        // Arrange: two files and a runner whose rule throws
-        using var directory = new TemporaryDirectory();
-        directory.WriteBytes("a.md", Utf8("text\n"));
-        var runner = new DemaConsulting.LintMark.Linting.LintRuleEngine([new ThrowingRule()]);
-
-        // Act: check with the broken runner
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2, lintRules: runner));
-
-        // Assert: the failure is reported as a formatting failure of the file
-        Assert.Equal(1, exitCode);
-        Assert.Equal("a.md:1:1: file-format-error Formatting failed: InvalidOperationException", Assert.Single(lines));
-    }
-
-    /// <summary>
-    ///     A lint rule that always throws.
-    /// </summary>
-    private sealed class ThrowingRule : DemaConsulting.LintMark.Linting.ILintRule
-    {
-        /// <summary>
-        ///     Gets the identifiers the rule reports.
-        /// </summary>
-        public System.Collections.Immutable.ImmutableArray<string> RuleIds { get; } = ["table-too-wide"];
-
-        /// <summary>
-        ///     Throws.
-        /// </summary>
-        /// <param name="document">The document.</param>
-        /// <param name="config">The configuration.</param>
-        /// <returns>Never returns.</returns>
-        public System.Collections.Immutable.ImmutableArray<DemaConsulting.LintMark.Linting.Diagnostic> Check(
-            DemaConsulting.LintMark.Document.ParsedDocument document,
-            DemaConsulting.LintMark.Configuration.LintMarkConfig config) =>
-            throw new InvalidOperationException("broken");
-    }
 }

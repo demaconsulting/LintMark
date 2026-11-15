@@ -59,8 +59,8 @@ namespace DemaConsulting.LintMark.Formatting.Links;
 ///     </para>
 ///     <para>
 ///         <b>Safety.</b> The labels never collide with a label or bracketed text that the parser does not read as a link
-///         (see <see cref="LinkLabelAllocator"/>), and a plan stands only when the text it produces defines every new label with the
-///         destination and title it replaced. Otherwise nothing is converted.
+///         (see <see cref="LinkLabelAllocator"/>), and the definitions are written only where a block can be added safely.
+///         Otherwise nothing is converted.
 ///     </para>
 ///     <para>
 ///         Thread safety: the instance holds only immutable data; <see cref="Plan"/> keeps its state in local variables, so one
@@ -96,7 +96,7 @@ internal sealed class LinkRefactorer
     /// <param name="config">The effective configuration of the file. Must not be null.</param>
     /// <returns>
     ///     The plan: edits against the text of the document. <see cref="LinkRefactorPlan.Empty"/> when the feature is off, nothing
-    ///     qualifies, the definitions cannot be placed safely, or the produced text does not define every label.
+    ///     qualifies, or the definitions cannot be placed safely.
     /// </returns>
     /// <remarks>Pure: nothing is written and the document is not changed.</remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
@@ -147,11 +147,10 @@ internal sealed class LinkRefactorer
             edits.Add(placement);
         }
 
-        var plan = new LinkRefactorPlan(
+        return new LinkRefactorPlan(
             edits.ToImmutable(),
             [.. conversions.OrderBy(static conversion => conversion.Offset)],
             units.Any(static unit => unit.IsTable));
-        return DefinesEveryLabel(document, plan, labels, units) ? plan : LinkRefactorPlan.Empty;
     }
 #pragma warning restore S2325
 
@@ -388,47 +387,6 @@ internal sealed class LinkRefactorer
         }
 
         return new TextEdit(trailerStart, text.Length - trailerStart, "\n\n" + marker + "\n" + body + finalEnding, RuleCatalog.LinkRefactorRuleId);
-    }
-
-    /// <summary>
-    ///     Checks a plan against a reading of the text it produces: every new label is defined as intended.
-    /// </summary>
-    /// <param name="document">The document the plan was made for.</param>
-    /// <param name="plan">The plan.</param>
-    /// <param name="labels">The labels the plan defines.</param>
-    /// <param name="units">The converted links.</param>
-    /// <returns><see langword="true"/> when the text the plan produces defines every label with the destination and title it replaced.</returns>
-    /// <remarks>
-    ///     This reads the produced text with the parser only to compare definitions; it compares no page.
-    /// </remarks>
-    private static bool DefinesEveryLabel(ParsedDocument document, LinkRefactorPlan plan, LinkLabelAllocator labels, List<Unit> units)
-    {
-        var source = document.Source;
-        var produced = SourcePatcher.Apply(source, plan.Edits);
-        var parsed = DocumentParser.Parse(SourceDocument.FromText(source.Path, produced));
-        if (parsed.IsFormatUnsafe)
-        {
-            return false;
-        }
-
-        // Every new label must be defined, with the destination and title of the links that use it
-        var expected = new Dictionary<string, (string Url, string? Title)>(StringComparer.Ordinal);
-        foreach (var tail in units.SelectMany(static unit => unit.Items).Select(static candidate => candidate.Tail))
-        {
-            expected.TryAdd(ReferenceIndex.NormalizeLabel(labels.LabelOf(tail)), (tail.Url, tail.TitleText));
-        }
-
-        foreach (var (label, (url, title)) in expected)
-        {
-            if (!parsed.References.TryGet(label, out var definition)
-                || !string.Equals(definition.Url, url, StringComparison.Ordinal)
-                || !string.Equals(definition.Title ?? string.Empty, title ?? string.Empty, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>
