@@ -90,6 +90,24 @@ internal static partial class StructuralTokenChecker
     private static partial Regex CitationRegex();
 
     /// <summary>
+    ///     Matches one line break inside a paragraph: it follows a character that is not a line feed, and the next line has
+    ///     text after its indentation and block quote markers.
+    /// </summary>
+    /// <returns>The compiled expression.</returns>
+    [GeneratedRegex(
+        @"(?<=[^\n])\n[ \t>]*(?=[^\s>])",
+        RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
+    private static partial Regex LineBreakRegex();
+
+    /// <summary>
+    ///     Reads every line break that does not end a block as one blank.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <returns>The text with each such line break, with the indentation and quote markers of the next line, replaced by a space.</returns>
+    private static string JoinLines(string text) => LineBreakRegex().Replace(text, " ");
+
+    /// <summary>
     ///     Checks that two versions of a document have the same Pandoc structural tokens.
     /// </summary>
     /// <param name="beforeLf">The original LF-normalized text. Must not be null or contain a carriage return.</param>
@@ -172,10 +190,13 @@ internal static partial class StructuralTokenChecker
 
         try
         {
-            // The line tokens are compared as sequences, the attribute groups and citations as occurrence counts
+            // The line tokens are compared as sequences, the attribute groups and citations as occurrence counts; a bracket
+            // pair may be split over lines (a line break is a blank there), so the counts read a line break as one blank
+            var beforeJoined = JoinLines(beforeLf);
+            var afterJoined = JoinLines(afterLf);
             return CompareSequences(collectLineTokens(beforeLf), collectLineTokens(afterLf))
-                ?? CompareOccurrences("Attribute group", AttributeGroupRegex(), beforeLf, afterLf, countMatches)
-                ?? CompareOccurrences("Citation", CitationRegex(), beforeLf, afterLf, countMatches)
+                ?? CompareOccurrences("Attribute group", AttributeGroupRegex(), beforeJoined, afterJoined, countMatches)
+                ?? CompareOccurrences("Citation", CitationRegex(), beforeJoined, afterJoined, countMatches)
                 ?? EquivalenceResult.Equivalent;
         }
 

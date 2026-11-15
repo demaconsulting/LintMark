@@ -374,6 +374,39 @@ public class StructuralTokenCheckerTests
     }
 
     /// <summary>
+    ///     Test that a citation split over two lines and the same citation on one line are equivalent: a line break inside
+    ///     the brackets is a blank, also behind a block quote marker or an indentation.
+    /// </summary>
+    [Theory]
+    [InlineData("See [@key, p.\n3] now.\n", "See [@key, p. 3] now.\n")]
+    [InlineData("See [@key, p. 3] now.\n", "See [@key,\np. 3] now.\n")]
+    [InlineData("> See [@key, p.\n> 3] now.\n", "> See [@key, p. 3] now.\n")]
+    [InlineData("- See [@key, p.\n   3] now.\n", "- See [@key, p. 3] now.\n")]
+    [InlineData("A {#id\n.class} b\n", "A {#id .class} b\n")]
+    public void StructuralTokenChecker_Check_BracketsSplitOverLines_Equivalent(string before, string after)
+    {
+        // Act: compare the two readings
+        var result = StructuralTokenChecker.Check(before, after);
+
+        // Assert: no difference
+        Assert.True(result.IsEquivalent, result.Description);
+    }
+
+    /// <summary>
+    ///     Test that a blank line is not read as a blank: a citation cannot span two paragraphs.
+    /// </summary>
+    [Fact]
+    public void StructuralTokenChecker_Check_BracketsSplitByBlankLine_Different()
+    {
+        // Arrange / Act: the same words as a citation and in two paragraphs
+        var result = StructuralTokenChecker.Check("See [@key, p. 3] now.\n", "See [@key,\n\np. 3] now.\n");
+
+        // Assert: the citation is lost
+        Assert.False(result.IsEquivalent);
+        Assert.Equal("Citation \"[@key, p. 3]\" occurs 1 time(s) before and 0 after", result.Description);
+    }
+
+    /// <summary>
     ///     Test that a lost citation with a suppressed author and a locator is a difference.
     /// </summary>
     [Fact]
