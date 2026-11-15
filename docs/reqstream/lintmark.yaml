@@ -35,7 +35,8 @@ sections:
       - id: LintMark-System-DefaultBehavior
         title: >-
           The tool shall, when no path is given, print its banner and check every Markdown file below the working
-          directory except those in node_modules and .git folders.
+          directory except those in the folders that the default ignore patterns exclude (`.git`, `node_modules`,
+          `.venv`, `generated`, `thirdparty`, and `.agent-logs`).
         tags: [system]
         justification: |
           Running the tool in a repository root must do the useful thing without any arguments.
@@ -49,16 +50,19 @@ sections:
         title: >-
           The tool shall process the Markdown files named by file paths, directories, and glob patterns, minus the
           files matched by exclusion patterns, each file once, including a file named explicitly inside a folder
-          that is skipped by default.
+          that is skipped by default, and without being stopped by a link that leads back into a folder it is
+          already searching.
         tags: [system]
         justification: |
           Users must be able to target a whole repository, a folder, or a few files and exclude what they do not
-          own, while a file they name on purpose is never silently skipped.
+          own, while a file they name on purpose is never silently skipped. Repositories contain links between
+          folders, and a link that loops must not make the tool fail.
         children:
           - LintMark-Engine-Discovery
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
           - LintMark_SelectFiles_DirectoryGlobAndExclusion_SelectEachFileOnce
+          - LintMark_SelectFiles_DirectoryLinkCycle_ChecksEachFileOnceAndExitsNormally
 
       - id: LintMark-System-Check
         title: >-
@@ -166,15 +170,20 @@ sections:
           - LintMark_LogFlag_Provided_WritesOutputToFile
 
       - id: LintMark-System-SelfValidation
-        title: The tool shall run built-in self-validation tests and print a summary when the validate option is given.
+        title: >-
+          The tool shall run built-in self-validation tests and print a summary, headed at the Markdown heading
+          depth given by the depth option (one by default), when the validate option is given.
         tags: [system]
         justification: |
-          Regulated environments need evidence that the installed tool works before they rely on it.
+          Regulated environments need evidence that the installed tool works before they rely on it, and the
+          summary is pasted into documents whose heading structure the user controls.
         children:
           - LintMark-Validation-SelfTests
           - LintMark-Program-Dispatch
+          - LintMark-Context-Options
         tests:
           - LintMark_ValidateFlag_Provided_RunsValidation
+          - LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth
 
       - id: LintMark-System-ValidationResults
         title: >-
@@ -597,13 +606,15 @@ sections:
       - id: LintMark-System-FileProblems
         title: >-
           The tool shall report files it cannot read, decode, or parse as findings, and continue with the other
-          files.
+          files, including a file whose inline elements are nested too deeply for the tool to process.
         tags: [system]
         justification: |
-          One unreadable file must not hide the problems in all the others or abort a long run.
+          One unreadable file must not hide the problems in all the others or abort a long run, and a hostile or
+          generated file must not be able to crash the tool.
         children:
           - LintMark-Document-Parsing
           - LintMark-Engine-Processing
         tests:
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
           - LintMark_FileProblems_UnreadableFiles_AreReportedWithoutStoppingTheRun
+          - LintMark_FileProblems_DeeplyNestedEmphasis_IsReportedWithoutStoppingTheRun

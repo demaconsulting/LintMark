@@ -160,6 +160,94 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
+    ///     Test that a directory link back into a folder the search is already inside is skipped, and the files are found once.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce()
+    {
+        // Arrange: a folder with a link that points at the base directory, so that following it would never end
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("README.md");
+        directory.WriteFile("docs/guide.md");
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("docs/loop", directory.FullPath), "The system did not allow a directory link to be created.");
+
+        // Act: discover by default pattern, by directory and by glob
+        var byDefault = FileDiscovery.Discover([], directory.FullPath);
+        var byDirectory = FileDiscovery.Discover(["docs"], directory.FullPath);
+        var byGlob = FileDiscovery.Discover(["docs/**/*.md"], directory.FullPath);
+
+        // Assert: the cycle contributes nothing and does not throw
+        Assert.Equal(Expected(directory, "README.md", "docs/guide.md"), byDefault);
+        Assert.Equal(Expected(directory, "docs/guide.md"), byDirectory);
+        Assert.Equal(byDirectory, byGlob);
+    }
+
+    /// <summary>
+    ///     Test that two links that point at each other's folders end after one lap.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates()
+    {
+        // Arrange: folders a and b, each with a link to the other
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a/x.md");
+        directory.WriteFile("b/y.md");
+        Assert.SkipUnless(
+            directory.TryCreateDirectoryLink("a/to-b", directory.PathOf("b"))
+            && directory.TryCreateDirectoryLink("b/to-a", directory.PathOf("a")),
+            "The system did not allow a directory link to be created.");
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: every real file is found, the walk through a link is followed once, and nothing is listed twice
+        Assert.Contains(directory.PathOf("a/x.md"), files);
+        Assert.Contains(directory.PathOf("b/y.md"), files);
+        Assert.Equal(files.Count, files.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(4, files.Count);
+    }
+
+    /// <summary>
+    ///     Test that a link to a folder that is not above the search is still followed.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed()
+    {
+        // Arrange: a folder outside the base directory with a file, and a link to it inside the base directory
+        using var directory = new TemporaryDirectory();
+        using var outside = new TemporaryDirectory();
+        outside.WriteFile("shared.md");
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("docs/shared", outside.FullPath), "The system did not allow a directory link to be created.");
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: the file is found through the link
+        Assert.Equal(Expected(directory, "docs/shared/shared.md"), files);
+    }
+
+    /// <summary>
+    ///     Test that a link to a folder that no longer exists is skipped without an error.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped()
+    {
+        // Arrange: a link to a folder that is removed afterwards
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("README.md");
+        var gone = directory.PathOf("gone-target");
+        Directory.CreateDirectory(gone);
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("gone", gone), "The system did not allow a directory link to be created.");
+        Directory.Delete(gone);
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: the file next to the broken link is found and nothing is thrown
+        Assert.Equal(Expected(directory, "README.md"), files);
+    }
+
+    /// <summary>
     ///     Test that a directory argument naming <c>node_modules</c> selects nothing.
     /// </summary>
     [Fact]

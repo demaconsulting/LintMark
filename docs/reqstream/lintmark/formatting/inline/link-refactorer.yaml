@@ -16,13 +16,17 @@ sections:
                   - id: LintMark-Formatting-Inline-LinkRefactorer-Eligibility
                     title: >-
                       The LinkRefactorer unit shall convert an inline link or image wider than the threshold to a
-                      reference link only when the feature is enabled, and report each conversion at its position.
+                      reference link only when the feature is enabled, report each conversion at its position, and
+                      leave a document that formatting again does not change.
                     justification: |
                       Link conversion changes the shape of a document, so it is opt-in and limited to links where
-                      it saves width. Short links, other link forms, and suppressed text stay as written.
+                      it saves width. Short links, other link forms, and suppressed text stay as written. A second
+                      run must not find more to fix in the result of the first, for instance in the text of a link
+                      that has become a reference link.
                     tests:
                       - LinkRefactorer_Format_DisabledByDefault_LeavesLongLinksAsTheyAre
                       - LinkRefactorer_Format_LongInlineLink_BecomesReferenceWithDefinitionAtTheEnd
+                      - LinkRefactorer_Format_TabInLinkText_IsExpandedInTheFirstRun
                       - LinkRefactorer_Format_Image_BecomesReferenceImage
                       - LinkRefactorer_Format_ShortAndNonInlineLinks_AreNotTouched
                       - LinkRefactorer_Format_SuppressedParagraph_IsLeftAndTheNextOneIsConverted

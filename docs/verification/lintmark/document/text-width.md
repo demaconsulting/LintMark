@@ -18,8 +18,7 @@ N/A - standard test environment.
 - ASCII counts one column per character, wide characters (CJK, Hangul syllables, emoji) two, and ambiguous-width
   characters one.
 - Combining marks, variation selectors, zero-width characters, and control characters add no width.
-- A grapheme cluster (emoji ZWJ sequence, flag, conjoining Hangul, base with combining mark) is measured as one
-  unit.
+- A grapheme cluster (emoji ZWJ sequence, flag, conjoining Hangul, base with combining mark) is measured as one unit.
 - Mixed text is the sum of the cluster widths, and the empty string has width zero.
 
 #### Test Scenarios

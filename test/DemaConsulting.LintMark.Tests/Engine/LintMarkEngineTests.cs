@@ -119,6 +119,26 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
+    ///     Test that a document with absurdly nested emphasis is reported as a parse failure and the other files are still processed.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Process_DeeplyNestedEmphasis_ReportsParseErrorAndKeepsGoing()
+    {
+        // Arrange: a file whose emphasis nests ten thousand levels deep, and a file with a finding after it
+        using var directory = new TemporaryDirectory();
+        var nested = directory.WriteFile("a-nested.md", new string('*', 10_000) + "a" + new string('*', 10_000) + "\n");
+        var other = directory.WriteFile("b-other.md", "#Bad\n");
+
+        // Act: process both files
+        var results = new LintMarkEngine(1).Process([nested, other]);
+
+        // Assert: the first file has one parse failure, the second file was checked
+        var failure = Assert.Single(results[0].Diagnostics);
+        Assert.Equal(LintMarkEngine.ParseErrorRuleId, failure.RuleId);
+        Assert.Contains("heading-missing-space", results[1].Diagnostics.Select(d => d.RuleId));
+    }
+
+    /// <summary>
     ///     Test that a UTF-16 file is reported as an encoding error.
     /// </summary>
     [Fact]

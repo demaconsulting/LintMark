@@ -45,7 +45,9 @@ document, and lint reports a lint-only `grid-table-invalid` finding. See *Docume
 
 Suppression comments are the other cross-cutting behavior. `DocumentParser` passes the `RuleCatalog` resolver to
 `SuppressionMap`, so a comment may name a rule by its id or by a legacy rule-number alias. The `Linting` subsystem
-does not depend on `Document`, so there is no dependency cycle. Lint filters individual findings by offset; formatting
+also uses `Document` (its rules read the parsed document), so the two subsystems refer to each other. This is not a
+cycle between units: `RuleCatalog` depends on no `Document` unit except the line-ending enumeration of
+`SourceDocument`, which depends on nothing. Lint filters individual findings by offset; formatting
 skips whole blocks that intersect a suppressed range. See *SuppressionMap Design*.
 
 YAML front matter is parsed as its own block kind and treated as verbatim text: no formatter edits it and it is not

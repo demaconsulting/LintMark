@@ -14,7 +14,10 @@ and `Inline` have their own verification documents; this document covers only wh
 
 ### Test Environment
 
-N/A - the tests need only the standard test runner. They use in-memory text and no files.
+The tests need the standard test runner and use in-memory text and no files. The shared test helper
+`BlockFormatterAssertions` also calls the HTML-equivalence and structure checks of the development tool
+`tools/LintMark.Verify` as a test oracle, so the test project references that tool. The tool is not shipped and is not a
+software item; it is built with the tests and needs no network access and no Pandoc installation.
 
 ### Acceptance Criteria
 

@@ -29,7 +29,7 @@ LintMark provides:
 - 📊 **Table Formatting**: Writes pipe tables compact or column-aligned
 - 🔎 **Lint-Only Checks**: Reports heading, link, code fence, and table problems
 - 🔗 **Link Refactoring**: Turns long inline links into reference links on request
-- ⚙️ **Flexible Configuration**: Reads `.lintmark.yaml` and the `.editorconfig` line ending
+- 🗂️ **Flexible Configuration**: Reads `.lintmark.yaml` and the `.editorconfig` line ending
 - 🔄 **markdownlint Compatible**: Accepts MDxxx rule IDs and `markdownlint-disable` comments
 - 🙈 **Suppression Comments**: Leaves chosen passages or rules alone
 - ⚡ **Parallel Processing**: Handles many files quickly with stable, ordered output

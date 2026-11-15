@@ -60,8 +60,9 @@ if the bytes equal the file, return no change; otherwise return a `FileChange`.
 #### Error Handling
 
 Expected failures (read, decode, parse, formatter exceptions, invalid edits, write) become diagnostics for that file
-only; the file stays untouched. Exit codes are 0 and 1 only: every diagnostic, including lint-only findings and
-configuration problems, goes through `Context.WriteError` and makes the exit code 1. A blank path argument throws
+only; the file stays untouched. The engine causes only the exit codes 0 and 1: every diagnostic, including lint-only
+findings and configuration problems, goes through `Context.WriteError` and makes the exit code 1. A blank path argument
+throws
 `ArgumentException` to `Program`. The development-time corpus harness `tools/LintMark.Verify` checks formatter
 output; the engine runs no proof or re-check step.
 

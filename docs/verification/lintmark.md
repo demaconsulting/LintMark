@@ -53,8 +53,11 @@ change is released, never a reason to weaken a check.
   above the tree is read, and removes it afterward.
 - **Concurrency**: tests that capture the console, change the current directory, or start the tool are in the
   `Sequential` collection and run one after another.
-- **Corpus harness**: needs network access once to fetch the corpus and a Pandoc installation for the structure
-  check; it is run by a developer before a release and not by the unit test run.
+- **Test oracle**: the unit and subsystem tests of the `Formatting` subsystem use the HTML-equivalence and structure
+  checks of the non-shipping development tool `tools/LintMark.Verify` (referenced by the test project) as an oracle.
+- **Corpus harness**: needs network access once to fetch the corpus; its structure check reads the Pandoc structure
+  tokens in process and needs no Pandoc installation. It is run by a developer before a release and not by the unit
+  test run.
 - No external service, database, or credentials are needed for the tests.
 
 ## Acceptance Criteria
@@ -78,7 +81,8 @@ The scenarios are grouped by the feature of the requirements; each is an end-to-
 **Help lists every option**: `-?`, `-h`, and `--help` print the usage with every option.
 
 **Default run lints every Markdown file below the current directory**: With no paths, the banner is printed and every
-`.md` file is checked except those below `node_modules` and `.git`.
+`.md` file is checked except those in the folders that the default `ignore` setting skips (`.git`, `node_modules`,
+`.venv`, `generated`, `thirdparty`, and `.agent-logs`).
 
 **Paths, directories, globs, and exclusions select files**: Named files are always processed, each file once, and a
 `!` pattern removes matches.
@@ -101,10 +105,12 @@ usage error.
 
 **Silent and log output**: `--silent` suppresses the console; `--log <file>` also writes the output to a file.
 
-**Self-validation writes results**: `--validate` prints the summary; `--results` writes TRX or JUnit and `--depth` sets
-the heading depth.
+**Self-validation writes results**: `--validate` prints the summary; `--results` (or `--result`) writes TRX or JUnit,
+and `--depth 2` makes the report heading a second-level (`##`) heading. A `--depth` without a value is a usage error.
 
-**Exit codes**: 0 when nothing is reported; 1 for any finding, error, or usage problem.
+**Exit codes**: 0 when nothing is reported; 1 for any finding, error, or usage problem. An unexpected internal error
+is the one case outside this contract (the tool reports it and re-throws it, so the runtime sets the failure code); it
+cannot be provoked from the command line and is not covered by a system scenario.
 
 **Problem lines have a fixed format**: Each is `path:line:col: rule-id message`, in path then position order, also for
 configuration errors.
@@ -165,7 +171,9 @@ sentences and clauses.
 **Wrapping is safe**: Links, code spans, HTML, hard breaks, and container prefixes stay whole, no line starts block
 syntax, and a paragraph that cannot be fixed is reported.
 
-**Width counts display columns**: Wide characters and tabs count by their width.
+**Width counts display columns**: Wide characters count as two columns and combining marks add none. A tab has no
+width of its own (positions count it as one column and the whitespace rules expand it to four-column tab stops), so a
+paragraph that holds a tab is kept as written.
 
 ### Lint checks
 

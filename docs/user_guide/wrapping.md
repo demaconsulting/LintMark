@@ -42,7 +42,7 @@ the quote. In the `fill` mode the rule `paragraph-wrap` reports nothing.
 The width of a line is its number of display columns, not its number of characters. A letter, a digit, and a
 punctuation mark take one column; a CJK character and most emoji take two columns; a combining mark takes none. The
 prefix of a list item or a block quote (the marker and the space after it) belongs to the line and counts, and trailing
-spaces do not.
+spaces do not. A tab has no fixed width of its own, so a paragraph that holds a tab is exempt (see *What Is Exempt*).
 
 ### What is reported
 

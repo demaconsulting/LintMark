@@ -90,6 +90,26 @@ public class LinkRefactorerTests
     }
 
     /// <summary>
+    ///     Test that a tab in the text of a link that is converted is expanded in the same run, so that a second run changes nothing.
+    /// </summary>
+    [Fact]
+    public void LinkRefactorer_Format_TabInLinkText_IsExpandedInTheFirstRun()
+    {
+        // Arrange: a long link whose text holds a tab after a code span
+        var text = "See the [`fast-glob`\t options](https://github.com/mrmlnc/fast-glob#options-3) in addition.\n";
+
+        // Act: format it with a threshold that the link exceeds (the helper also proves that the result is stable)
+        var formatted = Format(text, On(threshold: 40));
+
+        // Assert: the tab is spaces up to the tab stop, and the link is a reference link
+        Assert.Equal(
+            "See the [`fast-glob`     options][fast-glob-options] in addition.\n\n"
+            + "<!-- Link References -->\n"
+            + "[fast-glob-options]: https://github.com/mrmlnc/fast-glob#options-3\n",
+            formatted);
+    }
+
+    /// <summary>
     ///     Test that two links to the same destination and title share one definition, written once.
     /// </summary>
     [Fact]

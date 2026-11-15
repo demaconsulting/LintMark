@@ -90,6 +90,35 @@ internal sealed class TemporaryDirectory : IDisposable
     }
 
     /// <summary>
+    ///     Creates a link to a directory, for tests of link handling.
+    /// </summary>
+    /// <param name="relativePath">The path of the link relative to the directory; parent directories are created.</param>
+    /// <param name="target">The full path of the directory the link points to.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the link exists; <see langword="false"/> when the system refused to create one
+    ///     (the caller skips the test then). A symbolic link is tried first; on Windows, where that needs a privilege, a
+    ///     junction is created instead, which needs none and is followed by directory enumeration in the same way.
+    /// </returns>
+    public bool TryCreateDirectoryLink(string relativePath, string target)
+    {
+        var link = PathOf(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Fall through to the junction on Windows
+        }
+
+        return OperatingSystem.IsWindows()
+               && Runner.Run(out _, "cmd", "/c", "mklink", "/J", link, target) == 0
+               && Directory.Exists(link);
+    }
+
+    /// <summary>
     ///     Deletes the directory and everything in it.
     /// </summary>
     public void Dispose()

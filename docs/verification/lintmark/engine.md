@@ -35,8 +35,7 @@ findings are reported sorted by path.
 
 **Check reports and does not write**: A file with formatting violations is reported and left byte-identical.
 
-**Fix rewrites to canonical form**: The file is rewritten, a second run reports nothing, and no temporary file
-remains.
+**Fix rewrites to canonical form**: The file is rewritten, a second run reports nothing, and no temporary file remains.
 
 **Diff prints the change and does not write**: A unified diff of the change is printed.
 

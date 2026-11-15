@@ -23,8 +23,7 @@ documentation repositories use.
   inline math, footnote links, and the task list marker, with the source span of each
 - Link reference definitions with label, destination, title, and range
 - Footnote definitions with their own range and label span, the group nodes that wrap definitions, and the fact
-  that a math block is a kind of fenced code block (so an unclosed math block is recognized like an unclosed
-  fence)
+  that a math block is a kind of fenced code block (so an unclosed math block is recognized like an unclosed fence)
 
 Not used: HTML rendering (`Markdown.ToHtml`) by the shipped tool, automatic heading identifiers, generic attributes,
 the advanced extension bundle, and trivia tracking. The development-time corpus harness `tools/LintMark.Verify`, which

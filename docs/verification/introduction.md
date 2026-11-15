@@ -73,8 +73,15 @@ LintMark does not check its own rewrites at run time. The correctness of the for
 same HTML, keeps the same structure, and is stable) is verified at development time by the corpus harness
 `tools/LintMark.Verify`. It is a non-shipping development tool: it formats a curated corpus in memory with the
 default configuration and with an option matrix and performs the HTML-equivalence, idempotency, and structure
-checks described in the system verification design. The unit and subsystem tests of the formatters use the same
-equivalence check as an oracle in two test helpers.
+checks described in the system verification design.
+
+The unit and subsystem tests of the formatters depend on this development tool as a test oracle. The test project
+`DemaConsulting.LintMark.Tests` references `tools/LintMark.Verify`. The shared helper `BlockFormatterAssertions` (used
+by the `Formatting`, `Blocks`, and `Inline` tests) calls its HTML-equivalence check and its structure check on every
+safe rewrite it asserts, and a regression test of `ParagraphFormatter` calls the HTML-equivalence check directly. The
+tool is not shipped and is not a software item, so these tests verify the shipped formatters against an independent
+oracle and the Test Environment of each affected verification document names the dependency. The checks are
+deterministic, in-process, and need neither network access nor a Pandoc installation.
 
 ## Folder Layout
 

@@ -121,6 +121,12 @@ internal static partial class DocumentParser
     private const string FootnoteBodyIndent = "    ";
 
     /// <summary>
+    ///     The deepest nesting of inline elements (emphasis, links) that a document may have; the parser's own limit for nested
+    ///     blocks is the same number, and real text nests a handful of levels at most.
+    /// </summary>
+    internal const int MaxInlineDepth = 128;
+
+    /// <summary>
     ///     Gets the fixed Markdown pipeline.
     /// </summary>
     /// <remarks>
@@ -149,13 +155,14 @@ internal static partial class DocumentParser
     ///     parse failures. Safe to call concurrently for different documents.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is null.</exception>
+    /// <exception cref="InvalidDataException">Thrown when inline elements are nested deeper than <see cref="MaxInlineDepth"/>.</exception>
     public static ParsedDocument Parse(SourceDocument source)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(source);
 
         // Parse LF-normalized text with the fixed pipeline, then derive the corrected views
-        var ast = Markdown.Parse(source.Text, Pipeline);
+        var ast = ParseChecked(source.Text, Pipeline);
         var blocks = new Flattener(source).Flatten(ast);
 
         // The grid table parser mishandles a table that turns out to be invalid; when the blocks do not
@@ -166,13 +173,72 @@ internal static partial class DocumentParser
         if (!NestsCorrectly(blocks))
         {
             fallback = LocateOffendingGridLine(source, blocks);
-            ast = Markdown.Parse(source.Text, PipelineWithoutGridTables);
+            ast = ParseChecked(source.Text, PipelineWithoutGridTables);
             blocks = new Flattener(source).Flatten(ast);
         }
 
         var suppressions = SuppressionMap.Build(source, blocks, ast, ResolveRuleName);
         var references = ReferenceIndex.Build(source, blocks);
         return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references, fallback);
+    }
+
+    /// <summary>
+    ///     Parses text and rejects a tree whose inline elements are nested deeper than <see cref="MaxInlineDepth"/>.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="pipeline">The pipeline to parse with.</param>
+    /// <returns>The syntax tree.</returns>
+    /// <remarks>
+    ///     The parser bounds the nesting of blocks (and of links) itself and fails with an <see cref="ArgumentException"/>, but
+    ///     it does not bound nested emphasis: a run of ten thousand <c>*</c> on both sides of a word becomes a tree ten thousand
+    ///     levels deep, and every recursive walk over the inlines of the tool would exhaust the stack, which ends the process
+    ///     without a chance to report the file. Checking the depth once, here and without recursion, makes every later walk
+    ///     safe, and the document fails like any other file the parser cannot read.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">Thrown when inline elements are nested deeper than <see cref="MaxInlineDepth"/>.</exception>
+    private static MarkdownDocument ParseChecked(string text, MarkdownPipeline pipeline)
+    {
+        var ast = Markdown.Parse(text, pipeline);
+
+        // Walk with an explicit stack: blocks only lead to the inline tree of their leaves, whose depth starts at zero
+        var pending = new Stack<(MarkdownObject Node, int Depth)>();
+        pending.Push((ast, 0));
+        while (pending.Count > 0)
+        {
+            var (node, depth) = pending.Pop();
+            switch (node)
+            {
+                case ContainerBlock container:
+                    foreach (var child in container.Where(static child => child is not null))
+                    {
+                        pending.Push((child, 0));
+                    }
+
+                    break;
+
+                case LeafBlock { Inline: { } inline }:
+                    pending.Push((inline, 0));
+                    break;
+
+                case ContainerInline inline:
+                    if (depth > MaxInlineDepth)
+                    {
+                        throw new InvalidDataException($"Inline elements are nested more than {MaxInlineDepth} levels deep");
+                    }
+
+                    for (var child = inline.FirstChild; child is not null; child = child.NextSibling)
+                    {
+                        if (child is ContainerInline nested)
+                        {
+                            pending.Push((nested, depth + 1));
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        return ast;
     }
 
     /// <summary>

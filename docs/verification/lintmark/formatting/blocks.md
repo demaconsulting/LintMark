@@ -15,7 +15,10 @@ what the formatters do together on one document.
 
 #### Test Environment
 
-N/A - the tests need only the standard test runner and in-memory text.
+The tests need the standard test runner and in-memory text. The shared helper `BlockFormatterAssertions` calls the
+HTML-equivalence and structure checks of the development tool `tools/LintMark.Verify` as a test oracle, so the test
+project references that tool. The tool is not shipped and is not a software item; it is built with the tests and needs
+no network access and no Pandoc installation.
 
 #### Acceptance Criteria
 

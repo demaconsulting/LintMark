@@ -52,17 +52,21 @@ public class IntegrationOptionTests
 
     /// <summary>
     ///     Test that a run without paths prints the banner and processes every Markdown file under the working
-    ///     directory except those under <c>node_modules</c> and <c>.git</c>.
+    ///     directory except those under the folders that the default ignore patterns exclude.
     /// </summary>
     [Fact]
     public void LintMark_DefaultBehavior_NoPaths_ProcessesMarkdownUnderWorkingDirectory()
     {
-        // Arrange: a heading without a space in the root, in a folder, in node_modules and in .git, and a text file
+        // Arrange: a heading without a space in the root, in a folder, in each default-ignored folder, and a text file
         using var directory = new TemporaryDirectory();
         directory.WriteFile("a.md", "#Bad\n");
         directory.WriteFile("docs/b.md", "#Bad\n");
         directory.WriteFile("node_modules/pkg/n.md", "#Bad\n");
         directory.WriteFile(".git/g.md", "#Bad\n");
+        directory.WriteFile("tools/.venv/lib/v.md", "#Bad\n");
+        directory.WriteFile("docs/generated/gen.md", "#Bad\n");
+        directory.WriteFile("vendor/thirdparty/t.md", "#Bad\n");
+        directory.WriteFile(".agent-logs/log.md", "#Bad\n");
         directory.WriteFile("notes.txt", "#Bad\n");
 
         // Act: run the tool in the directory without paths
@@ -76,6 +80,10 @@ public class IntegrationOptionTests
         Assert.Contains("docs/b.md:1:1: heading-missing-space", output);
         Assert.DoesNotContain("node_modules", output);
         Assert.DoesNotContain("g.md", output);
+        Assert.DoesNotContain("v.md", output);
+        Assert.DoesNotContain("gen.md", output);
+        Assert.DoesNotContain("t.md", output);
+        Assert.DoesNotContain("log.md", output);
         Assert.DoesNotContain("notes.txt", output);
     }
 
@@ -111,6 +119,27 @@ public class IntegrationOptionTests
         Assert.Equal(1, CountOccurrences(bothOutput, "docs/b.md:1:1"));
         Assert.Equal(1, explicitFile);
         Assert.Contains("node_modules/pkg/n.md:1:1", explicitOutput);
+    }
+
+    /// <summary>
+    ///     Test that a link back into a folder the run is already inside does not abort the run.
+    /// </summary>
+    [Fact]
+    public void LintMark_SelectFiles_DirectoryLinkCycle_ChecksEachFileOnceAndExitsNormally()
+    {
+        // Arrange: a file with a finding and a link in its folder that points at the working directory
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("docs/b.md", "#Bad\n");
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("docs/loop", directory.FullPath), "The system did not allow a directory link to be created.");
+
+        // Act: run without paths, which searches the working directory
+        var exitCode = Runner.Run(directory.FullPath, out var output, "dotnet", _dllPath);
+
+        // Assert: the file is reported once, the cycle is not an error, and the status is the one for a finding
+        Assert.Equal(1, exitCode);
+        Assert.Equal(1, CountOccurrences(output, "b.md:1:1: heading-missing-space"));
+        Assert.DoesNotContain("Unexpected error", output);
+        Assert.DoesNotContain("loop", output);
     }
 
     /// <summary>
@@ -335,6 +364,27 @@ public class IntegrationOptionTests
         Assert.Contains("cr.md:1:9: file-line-ending-error Bare carriage return", output);
         Assert.Contains("missing.md:1:1: file-read-error File not found", output);
         Assert.Contains("ok.md:1:5: emphasis-space", output);
+    }
+
+    /// <summary>
+    ///     Test that a file whose emphasis is nested far too deeply is reported and does not crash the process.
+    /// </summary>
+    [Fact]
+    public void LintMark_FileProblems_DeeplyNestedEmphasis_IsReportedWithoutStoppingTheRun()
+    {
+        // Arrange: a word wrapped in ten thousand asterisks on each side, which a recursive walk cannot survive, and a file with a finding
+        using var directory = new TemporaryDirectory();
+        var nested = directory.WriteFile("nested.md", new string('*', 10_000) + "a" + new string('*', 10_000) + "\n");
+        var reported = directory.WriteFile("ok.md", EmphasisSpaceLine);
+
+        // Act: check both files in a separate process, so that a stack overflow would end that process and not the test host
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--check", nested, reported);
+
+        // Assert: the nested file is a parse problem, the other file was still checked, and the run ended normally with status 1
+        Assert.Equal(1, exitCode);
+        Assert.Contains("nested.md:1:1: file-parse-error", output);
+        Assert.Contains("ok.md:1:5: emphasis-space", output);
+        Assert.DoesNotContain("Stack overflow", output);
     }
 
     /// <summary>

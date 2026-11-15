@@ -11,14 +11,14 @@ sections:
           - id: LintMark-OTS-Markdig-Spans
             title: >-
               Markdig shall report the source range of every block and inline element it parses, and the label,
-              destination, title, and range of every link reference definition, consistently between versions.
+              destination, title, and range of every link reference definition.
             justification: |
               LintMark reports positions and rewrites text by source range, so it needs to locate each
               construct in the source. In a few cases the library's range differs from the visible extent
               of a construct (an unclosed fenced code block, a list followed by a blank line); LintMark
               corrects those, so the difference must stay the same between versions. The tests pin both
-              the correct ranges and these deviations, so that a library update that changes either is
-              noticed.
+              the correct ranges and these deviations, so that running them against a library update
+              reveals a change in either.
             tags: [ots]
             tests:
               - Markdig_SourceSpans_BlocksAndInlines_AreSourceAccurate
@@ -44,10 +44,13 @@ sections:
               - Markdig_HtmlComments_BlockAndInline_AreRecognized
 
           - id: LintMark-OTS-Markdig-Concurrency
-            title: Markdig shall allow one built pipeline to parse documents on many threads at the same time.
+            title: >-
+              Markdig shall allow one built pipeline to parse documents on many threads at the same time, giving the
+              same syntax tree on every thread as on a single thread.
             justification: |
               LintMark builds its parser pipeline once and shares it between the threads that process
-              files in parallel. Parsing must give identical results under concurrency.
+              files in parallel. Parsing must give identical syntax trees, with identical source ranges,
+              under concurrency.
             tags: [ots]
             tests:
               - Markdig_SharedPipeline_ParallelParse_IdenticalResults

@@ -10,8 +10,7 @@ supporting type `EditorConfigResult` is described in this document.
 
 #### Data Model
 
-**EditorConfigResult** is a sealed immutable record `(LineEnding? EndOfLine, string? ErrorMessage)` with three
-outcomes:
+**EditorConfigResult** is a sealed immutable record `(LineEnding? EndOfLine, string? ErrorMessage)` with three outcomes:
 
 | EndOfLine | ErrorMessage | Meaning |
 | --- | --- | --- |

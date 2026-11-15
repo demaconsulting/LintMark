@@ -73,3 +73,16 @@ sections:
                   - DocumentParser_Parse_GridTable_IsGridTable
                   - DocumentParser_Parse_UnclosedMathBlock_ExtendsToEndOfDocument
                   - DocumentParser_Parse_InlineConstructs_AreRecognized
+
+              - id: LintMark-Document-DocumentParser-NestingLimit
+                title: >-
+                  The DocumentParser unit shall refuse, with an ordinary exception, a document whose inline elements
+                  are nested more than 128 levels deep, and shall parse every document below that limit.
+                justification: |
+                  Every walk over the inline tree of a paragraph is recursive, and a document with tens of thousands
+                  of nested emphasis marks would exhaust the stack, which ends the process without any chance to
+                  report the file or to check the other files. The limit is checked once, without recursion, so
+                  that the walks that follow are bounded; real text nests a handful of levels.
+                tests:
+                  - DocumentParser_Parse_DeeplyNestedEmphasis_ThrowsInvalidData
+                  - DocumentParser_Parse_ModeratelyNestedEmphasis_IsParsed

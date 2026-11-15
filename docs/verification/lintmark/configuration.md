@@ -25,8 +25,7 @@ for `.lintmark.yaml` never reaches a file outside the tree. Trees used with edit
   settings are merged between files.
 - A tree without a settings file gives the documented defaults, and every documented setting in a sample file is
   applied.
-- Every problem of an invalid file is returned together, each at its line and column, and the file gives no
-  settings.
+- Every problem of an invalid file is returned together, each at its line and column, and the file gives no settings.
 - The line ending is taken from `.editorconfig` per file when the configuration does not give one, and unusable
   editor settings are "not specified" and never an error.
 - Ignore patterns from the settings file are returned as given.

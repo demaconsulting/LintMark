@@ -18,7 +18,8 @@ Settings are read-only after `Create`:
 - Private state: the raw `--enable` and `--disable` values, the log file name, a `StreamWriter` for the log, an error
   flag, and one lock that guards console output, log output, the error flag and disposal.
 
-`ExitCode` is derived: 1 when an error was ever written, otherwise 0. There is no other exit code.
+`ExitCode` is derived: 1 when an error was ever written, otherwise 0. The context produces no other value; only an
+unexpected exception, which `Program.Main` re-throws, ends the process with another code.
 
 ### Key Methods
 

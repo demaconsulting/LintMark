@@ -10,7 +10,11 @@ of the verification tool as an oracle to prove that a wrap which would change th
 
 ##### Test Environment
 
-N/A - the tests need only the standard test runner and in-memory text.
+The tests need the standard test runner and in-memory text. The shared helper `BlockFormatterAssertions` calls the
+HTML-equivalence and structure checks of the development tool `tools/LintMark.Verify` as a test oracle, and
+`ParagraphFormatterTests.cs` calls the HTML-equivalence check directly, so the test project references that tool. The
+tool is not shipped and is not a software item; it is built with the tests and needs no network access and no Pandoc
+installation.
 
 ##### Acceptance Criteria
 
@@ -26,6 +30,11 @@ N/A - the tests need only the standard test runner and in-memory text.
 - Residual overflow that cannot be fixed is reported, never hidden.
 - Wide and combining characters are measured in display columns.
 - Disabled wrapping and suppressed rules keep the paragraph.
+- Wrapping is enabled by a non-zero line length with `line-length` on, or by the `sentence` or `semantic` mode with
+  `paragraph-wrap` on; the layout is enforced for every paragraph only in the second case.
+- A `sentence` or `semantic` rewrite is attributed to `paragraph-wrap` and reports where the first line that is laid
+  out differently starts; a `fill` rewrite is attributed to `line-length`.
+- A null configuration, context, or block is refused with an `ArgumentNullException`.
 
 ##### Test Scenarios
 
@@ -59,3 +68,16 @@ paragraph as written. A suppressed rule that is unrelated to wrapping does not s
 
 **Wrap guard rejects a changed rendering**: A wrap that ignored the guard rules would change the rendered text, and the
 formatter never produces it.
+
+**Layout enforcement follows the wrap mode and the paragraph-wrap rule**: The layout is enforced only when the mode is
+`sentence` or `semantic` and `paragraph-wrap` is on. It is not enforced in the `fill` mode, and not when
+`paragraph-wrap` is switched off, whatever the mode. Wrapping is enabled when either wrap rule applies: a non-zero line
+length with `line-length` on, or a layout mode with `paragraph-wrap` on.
+
+**Sentence and semantic outcomes name the rule and the first difference**: A paragraph that is not in the `sentence`
+or `semantic` layout is rewritten under `paragraph-wrap` and the outcome gives the offset of the first line laid out
+differently, also when no line is too wide and when the line length is 0 (unlimited). A paragraph already in the layout
+gives no edit and no finding.
+
+**Null arguments are refused**: A null configuration for the enabled and enforced checks, and a null context or block
+for the paragraph decision, throw an `ArgumentNullException`.

@@ -109,6 +109,29 @@ public class IntegrationTests
     }
 
     /// <summary>
+    ///     Test that the depth option sets the level of the heading that opens the self-validation summary.
+    /// </summary>
+    [Fact]
+    public void LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run self-validation with a heading depth of two
+        var exitCode = Runner.Run(
+            out var output,
+            "dotnet",
+            _dllPath,
+            "--validate",
+            "--depth",
+            "2");
+
+        // Assert: the summary opens with a second-level heading and no first-level one
+        Assert.Equal(0, exitCode);
+        Assert.Matches(@"(?m)^## DEMA Consulting LintMark\r?$", output);
+        Assert.DoesNotMatch(@"(?m)^# DEMA Consulting LintMark", output);
+    }
+
+    /// <summary>
     ///     Test that validate with --results flag generates a TRX file.
     /// </summary>
     [Fact]

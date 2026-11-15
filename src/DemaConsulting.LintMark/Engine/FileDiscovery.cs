@@ -38,7 +38,8 @@ namespace DemaConsulting.LintMark.Engine;
 ///         directories, whether the folder is named by the argument (or by the leading, wildcard-free
 ///         part of a glob) or found beneath the folder searched; only explicitly named files are exempt
 ///         from that built-in exclusion, and they are not exempt from user excludes. A pattern that
-///         matches nothing is not an error. <see cref="DiscoverFiles"/> also reports which files were named
+///         matches nothing is not an error. Links to folders are followed, except a link whose final target is
+///         a folder the search is already inside (a cycle), which is skipped. <see cref="DiscoverFiles"/> also reports which files were named
 ///         (are explicit), because the <c>ignore</c> patterns of a configuration, like the built-in exclusion,
 ///         do not apply to them (see <see cref="IsIgnored"/>).
 ///     </para>
@@ -312,7 +313,7 @@ internal static class FileDiscovery
             matcher.AddExclude(exclude);
         }
 
-        var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchRoot)));
+        var result = matcher.Execute(CycleSafeDirectory.Open(new DirectoryInfo(searchRoot)));
         foreach (var file in result.Files)
         {
             candidates.Add(Path.GetFullPath(file.Path, searchRoot));
@@ -413,6 +414,147 @@ internal static class FileDiscovery
     /// <returns><see langword="true"/> when the path climbs out of the origin or is on another drive.</returns>
     private static bool IsOutside(string relative) =>
         Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+
+    /// <summary>
+    ///     A directory for the glob matcher that does not follow a symbolic link or junction back into a directory it is
+    ///     already inside, and that skips what cannot be read.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The matcher walks the directory tree it is given, following links, so a link that points at one of its own
+    ///         ancestors (or two links that point at each other's folders) makes the walk endless until the path becomes
+    ///         too long for the system, and the resulting <see cref="IOException"/> escapes from the middle of an
+    ///         enumeration. Each directory here knows the real paths of all directories above it (the folders above the search
+    ///         root included), and a link whose final target is one of them is left out, which ends every cycle after one lap at the latest. A link to a folder
+    ///         elsewhere is still followed (its files are Markdown files of the project, as far as the user is concerned), and so
+    ///         is every file, whatever its kind of link. A directory that cannot be read, or a link that cannot be
+    ///         resolved, contributes nothing, as the matcher's own wrapper does for a directory that cannot be opened.
+    ///     </para>
+    ///     <para>
+    ///         Instances are immutable and used by one matcher at a time.
+    ///     </para>
+    /// </remarks>
+    private sealed class CycleSafeDirectory : DirectoryInfoWrapper
+    {
+        /// <summary>
+        ///     The real path of this directory last, preceded by that of every directory above it, from the file system root down.
+        /// </summary>
+        private readonly string[] _chain;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CycleSafeDirectory"/> class.
+        /// </summary>
+        /// <param name="directory">The directory.</param>
+        /// <param name="chain">The real paths of the directories from the file system root down to this one, this one last.</param>
+        private CycleSafeDirectory(DirectoryInfo directory, string[] chain)
+            : base(directory)
+        {
+            _chain = chain;
+        }
+
+        /// <summary>
+        ///     Opens the directory a search starts in.
+        /// </summary>
+        /// <param name="root">The search root.</param>
+        /// <returns>The directory.</returns>
+        public static CycleSafeDirectory Open(DirectoryInfo root)
+        {
+            // The folders above the search root count as directories the search is inside, so a link to one of them is a cycle too
+            var real = RealPathOf(root);
+            var chain = new List<string> { real };
+            for (var above = Path.GetDirectoryName(real); above is not null; above = Path.GetDirectoryName(above))
+            {
+                chain.Insert(0, Path.TrimEndingDirectorySeparator(above));
+            }
+
+            return new CycleSafeDirectory(root, [.. chain]);
+        }
+
+        /// <summary>
+        ///     Lists the entries of the directory, leaving out the links back into the directories above.
+        /// </summary>
+        /// <returns>The files and the directories that are safe to enter.</returns>
+        public override IEnumerable<FileSystemInfoBase> EnumerateFileSystemInfos()
+        {
+            // The enumeration of a directory fails when it is first read, not when it is created, so each step is guarded
+            using var entries = base.EnumerateFileSystemInfos().GetEnumerator();
+            while (true)
+            {
+                try
+                {
+                    if (!entries.MoveNext())
+                    {
+                        yield break;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    yield break;
+                }
+
+                var entry = entries.Current;
+                if (entry is not DirectoryInfoBase subdirectory)
+                {
+                    yield return entry;
+                    continue;
+                }
+
+                if (Descend(new DirectoryInfo(subdirectory.FullName)) is { } safe)
+                {
+                    yield return safe;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets a named subdirectory, as the matcher asks for it when a pattern names a folder.
+        /// </summary>
+        /// <param name="name">The name of the subdirectory, or <c>..</c>.</param>
+        /// <returns>The subdirectory; null when it does not exist or is a link back into a directory above.</returns>
+        /// <remarks>
+        ///     The matcher accepts null for a missing directory (the base wrapper returns null too) although the wrapper's signature does not say so.
+        /// </remarks>
+        public override DirectoryInfoBase GetDirectory(string name)
+        {
+            var found = base.GetDirectory(name);
+            return (found is null || name == ".." ? found : Descend(new DirectoryInfo(found.FullName)))!;
+        }
+
+        /// <summary>
+        ///     Enters a subdirectory unless it leads back into a directory above.
+        /// </summary>
+        /// <param name="subdirectory">The subdirectory, as found below this directory.</param>
+        /// <returns>The safe directory; null when it is a link whose final target is this directory or one above it, or cannot be resolved.</returns>
+        private CycleSafeDirectory? Descend(DirectoryInfo subdirectory)
+        {
+            string real;
+            try
+            {
+                // A plain subdirectory lies where its parent really is, whatever links led the walk to the parent
+                real = subdirectory.LinkTarget is null ? Path.Combine(_chain[^1], subdirectory.Name) : RealPathOf(subdirectory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+
+            return _chain.Any(above => string.Equals(above, real, PathComparison))
+                ? null
+                : new CycleSafeDirectory(subdirectory, [.. _chain, real]);
+        }
+
+        /// <summary>
+        ///     Gets the path a directory really is: the final target of a link, otherwise its own full path.
+        /// </summary>
+        /// <param name="directory">The directory.</param>
+        /// <returns>The full path without a trailing separator.</returns>
+        /// <exception cref="IOException">Thrown when the directory is a link that cannot be resolved (a link loop, for instance).</exception>
+        private static string RealPathOf(DirectoryInfo directory)
+        {
+            var target = directory.LinkTarget is null ? null : directory.ResolveLinkTarget(returnFinalTarget: true);
+            return Path.TrimEndingDirectorySeparator((target ?? directory).FullName);
+        }
+    }
 }
 
 /// <summary>

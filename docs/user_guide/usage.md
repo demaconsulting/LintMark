@@ -2,15 +2,14 @@
 
 ## Installation
 
-Install the tool globally with the .NET CLI. The tool targets .NET 10 and .NET 11 and runs on Windows, Linux, and
-macOS:
+Install the tool globally with the .NET CLI. The tool targets .NET 10 and .NET 11 and runs on Windows, Linux, and macOS:
 
 ```bash
 dotnet tool install -g DemaConsulting.LintMark
 ```
 
-The tool is then available as the `lintmark` command. To update it, run `dotnet tool update -g
-DemaConsulting.LintMark`.
+The tool is then available as the `lintmark` command. To update it, run
+`dotnet tool update -g DemaConsulting.LintMark`.
 
 ## Command Synopsis
 
@@ -111,8 +110,7 @@ notes.md:5:1: bullet A bullet list item does not use the configured marker chara
 A formatting problem is reported at the line and column where `--fix` would change the file, with the identifier of the
 rule and its description. A file whose line endings are not the ones chosen for it is reported as `line-ending` at line
 1, column 1 (see *Line Endings and .editorconfig* in *Configuration*). A rule that only reports, such as
-`heading-increment`, is
-reported with a message that describes the specific problem (see *Lint Rules*).
+`heading-increment`, gives a message that describes the specific problem (see *Lint Rules*).
 
 ## Fixing Files
 
@@ -206,8 +204,7 @@ suppresses the diff as well as the findings.
 
 `--enable <ids>` and `--disable <ids>` force rules on or off for the whole run. Each value is a comma-separated list of
 rule identifiers or rule numbers such as `MD013`, in any letter case; both options can be repeated. They win over the
-`rules`
-setting of every configuration file:
+`rules` setting of every configuration file:
 
 ```bash
 # Check the opt-in link text rule, and skip the line length rule
@@ -371,6 +368,7 @@ An option that needs a value but has none, or has an invalid one, is rejected as
 
 ```text
 Error: --config requires a configuration filename argument (Parameter 'args')
+Error: --depth requires a heading depth argument (Parameter 'args')
 Error: --depth requires an integer between 1 and 6 for a heading depth argument (Parameter 'args')
 Error: --enable requires a comma-separated list of rule ids (Parameter 'args')
 Error: --enable cannot switch rule 'bullet'; it is always applied

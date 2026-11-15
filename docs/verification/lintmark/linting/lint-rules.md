@@ -19,8 +19,7 @@ N/A - standard test environment. The tests use inline documents only and no file
 - Each rule reports its documented violation at the documented position and does not report conforming or
   uncertain input (literal asterisks, escapes, automatic links, unresolved tables, protected text).
 - The engine reports only enabled rules, honors suppression by id or number, returns findings in position order,
-  gives the same findings for any rule order and for parallel use, and produces only lint-only (never fixable)
-  findings.
+  gives the same findings for any rule order and for parallel use, and produces only lint-only (never fixable) findings.
 - Every rule id that a family declares is a registered, lint-only, configurable rule.
 - Rules never throw on awkward documents.
 

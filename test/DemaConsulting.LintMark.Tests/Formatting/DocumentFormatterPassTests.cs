@@ -218,6 +218,8 @@ public class DocumentFormatterPassTests
     [InlineData("- a\tb\n", "- a b\n")]
     [InlineData("a\t\tb\n", "a       b\n")]
     [InlineData("text\nmore\ttext\n", "text\nmore    text\n")]
+    [InlineData("[a\tb](http://x)\n", "[a  b](http://x)\n")]
+    [InlineData("[a\tb][r]\n\n[r]: http://x\n", "[a  b][r]\n\n[r]: http://x\n")]
     public void DocumentFormatter_Format_TabInText_ExpandsToTheTabStop(string input, string expected) =>
         AssertPasses(input, expected);
 
@@ -228,6 +230,7 @@ public class DocumentFormatterPassTests
     [InlineData("text\n\tmore\n")]
     [InlineData("a `b\tc` d\n")]
     [InlineData("[a](http://x\t\"t\")\n")]
+    [InlineData("[a\tb][]\n\n[a b]: http://x\n")]
     [InlineData("| a\tb |\n|---|\n| 1 | 2 |\n")]
     [InlineData("+-\t--+\n")]
     [InlineData("```\na\tb\n```\n")]

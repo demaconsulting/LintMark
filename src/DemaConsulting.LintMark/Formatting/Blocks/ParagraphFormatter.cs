@@ -267,7 +267,11 @@ internal sealed class ParagraphFormatter
     /// <param name="text">The text of the document.</param>
     /// <param name="lines">The lines of the paragraph as written.</param>
     /// <param name="wrapped">The lines the wrap writes, without container prefix.</param>
-    /// <returns>The offset of the start of the first line that differs (or, when the lines only differ in count, of the last line).</returns>
+    /// <returns>
+    ///     The offset of the start of the first line (container prefix included) whose content differs from the line the wrap writes
+    ///     at the same place. When every line they share is equal, the wrap only removes or adds lines: the offset is then that of the
+    ///     first line the wrap removes, or, when it only adds lines, of the last line of the paragraph.
+    /// </returns>
     private static int FindFirstDifference(string text, IReadOnlyList<LeafLine> lines, List<string> wrapped)
     {
         for (var i = 0; i < lines.Count && i < wrapped.Count; i++)

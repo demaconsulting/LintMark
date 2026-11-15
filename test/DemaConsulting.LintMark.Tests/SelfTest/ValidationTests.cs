@@ -74,6 +74,36 @@ public class ValidationTests
     }
 
     /// <summary>
+    ///     Test that Run heads the summary at the depth given by the depth option.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_DepthTwo_HeadsTheSummaryAtThatDepth()
+    {
+        // Arrange: setup unique log file path to capture silent context output
+        var logFile = Path.Combine(Path.GetTempPath(), $"validation_test_{Guid.NewGuid()}.log");
+        try
+        {
+            using (var context = Context.Create(["--silent", "--log", logFile, "--depth", "2"]))
+            {
+                // Act: run validation with a heading depth of two
+                Validation.Run(context);
+            }
+
+            // Assert: the heading has two number signs, not one
+            var logContent = File.ReadAllText(logFile);
+            Assert.Matches(@"(?m)^## DEMA Consulting LintMark\r?$", logContent);
+            Assert.DoesNotMatch(@"(?m)^# DEMA Consulting LintMark", logContent);
+        }
+        finally
+        {
+            if (File.Exists(logFile))
+            {
+                File.Delete(logFile);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Test that Run exits with code zero when all self-validation tests pass.
     /// </summary>
     [Fact]

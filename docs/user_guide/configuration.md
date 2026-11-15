@@ -216,8 +216,7 @@ The line ending that a file is written with is decided per file, in this order:
 
 1. The `end-of-line` setting in the configuration that applies to the file (`lf` or `crlf`).
 2. The `end_of_line` property of the `.editorconfig` settings that apply to the file.
-3. The file's own line endings: the one that occurs most often (LF when both occur equally often or the file has
-   none).
+3. The file's own line endings: the one that occurs most often (LF when both occur equally often or the file has none).
 
 The decision is applied: `--check` and `--diff` report a file whose line endings differ from it as `line-ending`, and
 `--fix` rewrites every line ending of the file to it:

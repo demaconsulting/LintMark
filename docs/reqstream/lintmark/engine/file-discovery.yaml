@@ -14,10 +14,12 @@ sections:
               - id: LintMark-Engine-FileDiscovery-Selection
                 title: >-
                   The FileDiscovery unit shall expand file paths, directories, and glob patterns into the Markdown
-                  files to process, and shall use every Markdown file below the current directory when no path is given.
+                  files to process, and shall use every Markdown file below the current directory when no path is given,
+                  following a link to a folder unless it leads back into a folder that the search is already inside.
                 justification: |
                   Users name files in the way that suits them: one file, a whole folder, or a pattern. Without
-                  arguments the tool must still know what to check.
+                  arguments the tool must still know what to check. A link that loops back would otherwise make the
+                  search fail, or never end.
                 children:
                   - LintMark-OTS-FileSystemGlobbing-Match
                 tests:
@@ -27,6 +29,10 @@ sections:
                   - FileDiscovery_Discover_SingleSegmentGlob_DoesNotDescend
                   - FileDiscovery_Discover_NoArguments_UsesDefaultPatternAndAppliesBuiltInExcludes
                   - FileDiscovery_Discover_MissingLiteralPath_PassesThrough
+                  - FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce
+                  - FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates
+                  - FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed
+                  - FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped
 
               - id: LintMark-Engine-FileDiscovery-Exclusions
                 title: >-

@@ -13,8 +13,7 @@ file reading, file writing, and the order of the whole run. It contains four uni
 - `LintMarkEngine` drives the per-file pipeline using units of the `Configuration`, `Document`, `Linting`, and
   `Formatting` subsystems, and owns the `FileResult` and `FileChange` types.
 - `AtomicFileWriter` replaces the content of a file in one step and refuses to overwrite a changed file.
-- `Reporters` writes diagnostics as text lines (`TextReporter`) and proposed rewrites as unified diffs
-  (`DiffReporter`).
+- `Reporters` writes diagnostics as text lines (`TextReporter`) and proposed rewrites as unified diffs (`DiffReporter`).
 
 ### Interfaces
 

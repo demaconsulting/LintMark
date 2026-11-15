@@ -337,8 +337,10 @@ internal sealed class InlineMap
     /// <returns>The map; <see cref="Empty"/> when <paramref name="root"/> is null.</returns>
     /// <remarks>
     ///     Literal text and line breaks are the editable parts. Emphasis and similar containers are walked
-    ///     into. A link is walked into, but its destination, title and label are protected; the parser reports the
-    ///     bracketed text of an inline link as its label, so the whitespace inside link text stays as written.
+    ///     into. A link is walked into, but its destination, title and label are protected. The parser reports the
+    ///     bracketed text of an inline link as its label, and that span is protected only for a link that refers to a
+    ///     definition (where it is the label): the text of an inline link is plain text like the text of a reference link, so
+    ///     that rewriting an inline link into a reference link (link refactoring) does not change what counts as editable.
     ///     Every other inline (code, HTML, math, autolink URLs, footnote references, task markers) is protected as a whole.
     /// </remarks>
     public static InlineMap Build(ContainerInline? root, int shift = 0)
@@ -405,11 +407,18 @@ internal sealed class InlineMap
                     breaks[lineBreak.Span.Start + shift] = lineBreak.IsHard && !lineBreak.IsBackslash;
                     break;
 
-                // A link keeps its text editable; the destination, title and label are part of what the link says
+                // A link keeps its destination, title and reference label as written; the text of an inline link is plain text,
+                // like the text of a reference link, so a link means the same whichever form it is written in (and stays
+                // stable when the link refactoring turns an inline link into a reference link).
+                // The parser reports the bracketed text of an inline link as its label, so that span is protected only for a reference
                 case LinkInline link:
                     AddSpan(guarded, link.UrlSpan.Start, link.UrlSpan.End, shift);
                     AddSpan(guarded, link.TitleSpan.Start, link.TitleSpan.End, shift);
-                    AddSpan(guarded, link.LabelSpan.Start, link.LabelSpan.End, shift);
+                    if (link.IsAutoLink || link.Reference is not null || !string.IsNullOrEmpty(link.Label))
+                    {
+                        AddSpan(guarded, link.LabelSpan.Start, link.LabelSpan.End, shift);
+                    }
+
                     Visit(link, shift, text, guarded, breaks);
                     break;
 

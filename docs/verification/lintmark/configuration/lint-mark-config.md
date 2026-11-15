@@ -18,8 +18,7 @@ N/A - standard test environment. The tests use no files and no process-wide stat
 - All unit tests pass with zero failures.
 - A link-definitions marker that is exactly one HTML comment on one line is accepted, including the shortest one.
 - Any other marker is rejected.
-- The built-in default holds the documented value for every setting (verified through the loader scenarios named
-  above).
+- The built-in default holds the documented value for every setting (verified through the loader scenarios named above).
 
 #### Test Scenarios
 

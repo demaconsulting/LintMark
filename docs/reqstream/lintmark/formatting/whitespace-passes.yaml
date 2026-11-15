@@ -21,6 +21,7 @@ sections:
                 tests:
                   - DocumentFormatter_Format_TrailingWhitespaceInParagraph_IsRemoved
                   - DocumentFormatter_Format_TabInText_ExpandsToTheTabStop
+                  - DocumentFormatter_Format_TabsThatMustStay_AreKept
                   - DocumentFormatter_Format_BackslashAndMixedBreaks_AreKept
                   - DocumentFormatter_Format_LiteralBlocks_KeepTheirWhitespace
                   - DocumentFormatter_Format_FrontMatter_KeepsItsWhitespace

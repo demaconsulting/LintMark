@@ -23,6 +23,8 @@ sections:
               - Context_Create_PathsMixedWithFlags_ParsesBoth
               - Context_Create_UnknownArgument_ThrowsArgumentException
               - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
+              - Context_Create_DepthFlag_SetsHeadingDepth
+              - Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException
               - Context_Create_ValueOutOfRange_Throws
 
           - id: LintMark-Context-Output

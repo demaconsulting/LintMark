@@ -23,30 +23,45 @@ flowchart TD
     Program --> Validation
     Program --> Engine
     Validation --> Program
+    Validation --> Context
+    Engine --> Context
     Engine --> Configuration
     Engine --> Document
     Engine --> Linting
     Engine --> Formatting
+    Configuration --> Document
     Configuration --> Linting
     Document --> Linting
     Linting --> Document
     Linting --> Configuration
+    Linting --> Formatting
     Formatting --> Document
     Formatting --> Configuration
     Formatting --> Linting
 ```
 
+The arrows show which items use types of another item. The subsystems are layers of one assembly, not separately
+deployed components, and the diagram shows that they are not strictly layered. The mutual arrows between `Linting` and
+`Document`, `Configuration`, and `Formatting` are intended and come from three shared pieces that live in `Linting`:
+the rule registry (`RuleCatalog`, used by `Document` to resolve the rule named in a suppression comment, and by
+`Configuration` to validate and default the rule settings), the diagnostic model (`Diagnostic`, produced by
+`Formatting`), and `RuleOverrides`, which applies command-line overrides to a `LintMarkConfig`. In return, the lint
+rules read the parsed document and the settings, and the table rules reuse a few read-only layout helpers of
+`Formatting`. At unit level no unit depends on a unit that depends on it, except that `LintMarkConfig` and
+`RuleCatalog` refer to each other (the default rule states and `RuleOverrides.Apply`). `Validation` uses `Program` to
+run the version and help actions of the tool; `Engine` does not use `Program`.
+
 Design principle: a document is never modified in place while it is analyzed. The `Formatting` subsystem and the
 lint rules only produce edits and diagnostics for an immutable parsed document; the `Engine` composes the edits into
-new text and is the only place that writes a file. Each file is processed independently, so files can run in
+new text and is the only place that writes a Markdown file. Each file is processed independently, so files can run in
 parallel. Subsystem relationships are detailed in the subsystem designs; see *Engine Design* for the orchestration.
 
 ## External Interfaces
 
 - **Command line** (in): `lintmark [options] [paths...]`. A path is a file, directory, glob, or `!` exclude. Options:
   `-v/--version`, `-?/-h/--help`, `--check` (default), `--fix`, `--diff`, `--config <file>`, `--no-config`,
-  `--enable <ids>`, `--disable <ids>`, `--silent`, `--validate`, `--results <file>`, `--depth <n>`, and
-  `--log <file>`. Contradictory combinations are rejected (see *Context Design*).
+  `--enable <ids>`, `--disable <ids>`, `--silent`, `--validate`, `--results <file>` (also spelled `--result`),
+  `--depth <n>`, and `--log <file>`. Contradictory combinations are rejected (see *Context Design*).
 - **`.lintmark.yaml`** (in): a YAML mapping of settings and `rules`. The nearest file above each Markdown file is
   used and files are never merged. Unknown keys and invalid values are reported as problems with line and column (see
   *ConfigLoader Design*).
@@ -58,8 +73,11 @@ parallel. Subsystem relationships are detailed in the subsystem designs; see *En
 - **Standard output** (out): banner, help, version, the `--diff` unified diff, and the self-validation report;
   suppressed by `--silent`.
 - **Log file** (out): `--log <file>` receives the same lines as the console.
-- **Results file** (out): `--results <file>` receives the self-validation results as TRX (`.trx`) or JUnit (`.xml`).
-- **Exit code** (out): 0 when no finding, problem, or error was reported, 1 otherwise. No other value is produced.
+- **Results file** (out): `--results <file>` (or `--result <file>`) receives the self-validation results as TRX
+  (`.trx`) or JUnit (`.xml`).
+- **Exit code** (out): 0 when no finding, problem, or error was reported, 1 otherwise (including an invalid command
+  line). The one exception is an unexpected internal error: `Program` writes `Unexpected error: ...` to standard error
+  and re-throws it, so the process ends with the failure code of the runtime.
 
 Rule identifiers are kebab-case names with legacy rule-number aliases (such as `MD013`) accepted wherever a rule is
 named.
@@ -115,5 +133,7 @@ Engine: discover files (FileDiscovery)
 - Determinism: output ordering and rewrite results do not depend on thread scheduling or the machine; formatting is
   idempotent.
 - Encoding: UTF-8 input and output; a byte order mark and the dominant line ending are preserved unless configured.
-- Security: no network access; files are only read and written within the paths selected by the user.
+- Security: no network access; Markdown files are only read and written within the paths selected by the user, and the
+  tool otherwise reads only the configuration files it discovers or is given and writes only the `--log` and
+  `--results` files it is given.
 - Side effects: a run without `--fix` writes no Markdown file.

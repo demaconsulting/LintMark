@@ -47,8 +47,8 @@ sections:
               - id: LintMark-Engine-LintMarkEngine-FileProblems
                 title: >-
                   The LintMarkEngine unit shall report an unreadable file, a file that is not valid UTF-8 or that
-                  contains a bare carriage return, and a document with an invalid grid table as findings without
-                  stopping the run.
+                  contains a bare carriage return, a document with an invalid grid table, and a document whose inline
+                  elements are nested too deeply to process as findings without stopping the run.
                 justification: |
                   One bad file must not hide the results for the rest of the repository, and a document that cannot
                   be rewritten safely must be named instead of silently skipped.
@@ -57,6 +57,7 @@ sections:
                   - LintMarkEngine_Process_DirectoryAsFile_ReportsReadError
                   - LintMarkEngine_Process_InvalidUtf8_ReportsEncodingError
                   - LintMarkEngine_Process_LoneCr_ReportsLineEndingError
+                  - LintMarkEngine_Process_DeeplyNestedEmphasis_ReportsParseErrorAndKeepsGoing
                   - LintMarkEngine_Run_CheckGridFallbackDocument_ReportsOffendingLineAndExitsOne
                   - LintMarkEngine_Run_FixGridFallbackDocument_ByteIdenticalAndGridDiagnostic
 

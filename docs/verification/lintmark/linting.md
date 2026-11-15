@@ -31,8 +31,7 @@ N/A - standard test environment. The tests use in-memory documents only and no f
 **Findings of several families are returned together in position order**: A document with a heading skip, an unused
 definition, a fence without a language, and a table with a short row reports each once in order.
 
-**Every id a check emits is registered**: The ids declared by the checks are lint-only configurable ids of the
-catalog.
+**Every id a check emits is registered**: The ids declared by the checks are lint-only configurable ids of the catalog.
 
 **Alias and id resolve to the same rule**: A suppression by `MDxxx` number silences the rule that the id names.
 

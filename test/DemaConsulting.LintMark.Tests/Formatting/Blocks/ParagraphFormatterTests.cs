@@ -454,6 +454,177 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
+    ///     Creates a configuration for the sentence or semantic layout.
+    /// </summary>
+    /// <param name="mode">The wrap mode.</param>
+    /// <param name="width">The line length.</param>
+    /// <param name="lineLength">Whether the line-length rule is on.</param>
+    /// <param name="paragraphWrap">Whether the paragraph-wrap rule is on.</param>
+    /// <returns>The configuration.</returns>
+    private static LintMarkConfig Layout(WrapMode mode, int width = 40, bool lineLength = true, bool paragraphWrap = true) =>
+        LintMarkConfig.Default with
+        {
+            Wrap = mode,
+            LineLength = width,
+            Rules = LintMarkConfig.Default.Rules.SetItem("line-length", lineLength).SetItem("paragraph-wrap", paragraphWrap)
+        };
+
+    /// <summary>
+    ///     Test that every layout of the sentence and semantic modes is checked only when the paragraph-wrap rule is on, and the fill mode never is.
+    /// </summary>
+    /// <param name="modeName">The name of the wrap mode.</param>
+    /// <param name="paragraphWrap">Whether the paragraph-wrap rule is on.</param>
+    /// <param name="expected">Whether the layout is enforced.</param>
+    [Theory]
+    [InlineData("Fill", true, false)]
+    [InlineData("Fill", false, false)]
+    [InlineData("Sentence", true, true)]
+    [InlineData("Sentence", false, false)]
+    [InlineData("Semantic", true, true)]
+    [InlineData("Semantic", false, false)]
+    public void ParagraphFormatter_IsLayoutEnforced_WrapModeAndRule_DecideWhetherTheLayoutIsChecked(string modeName, bool paragraphWrap, bool expected) =>
+        Assert.Equal(expected, ParagraphFormatter.IsLayoutEnforced(Layout(Enum.Parse<WrapMode>(modeName), paragraphWrap: paragraphWrap)));
+
+    /// <summary>
+    ///     Test that the settings ask for wrapping when the line length rule has a limit to apply or the layout is enforced, and not otherwise.
+    /// </summary>
+    /// <param name="modeName">The name of the wrap mode.</param>
+    /// <param name="width">The line length.</param>
+    /// <param name="lineLength">Whether the line-length rule is on.</param>
+    /// <param name="paragraphWrap">Whether the paragraph-wrap rule is on.</param>
+    /// <param name="expected">Whether wrapping is asked for.</param>
+    [Theory]
+    [InlineData("Fill", 20, true, true, true)]
+    [InlineData("Fill", 0, true, true, false)]
+    [InlineData("Fill", 20, false, true, false)]
+    [InlineData("Sentence", 0, false, true, true)]
+    [InlineData("Sentence", 0, true, false, false)]
+    [InlineData("Sentence", 20, false, false, false)]
+    [InlineData("Semantic", 0, false, true, true)]
+    [InlineData("Semantic", 20, true, false, true)]
+    public void ParagraphFormatter_IsEnabled_LengthRuleOrLayoutRule_EitherOneAsksForWrapping(string modeName, int width, bool lineLength, bool paragraphWrap, bool expected) =>
+        Assert.Equal(expected, ParagraphFormatter.IsEnabled(Layout(Enum.Parse<WrapMode>(modeName), width, lineLength, paragraphWrap)));
+
+    /// <summary>
+    ///     Test that a missing argument is refused with an ArgumentNullException by every public member.
+    /// </summary>
+    [Fact]
+    public void ParagraphFormatter_Format_NullArguments_ThrowArgumentNullException()
+    {
+        // Arrange: a document with a paragraph, and a context for it
+        var document = BlockFormatterAssertions.Parse("ant bat\n");
+        var block = Assert.Single(document.Blocks, candidate => candidate.Kind == BlockKind.Paragraph);
+        var context = new FormatContext(document, Width(20));
+
+        // Act & Assert: each missing argument is named in the exception
+        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => ParagraphFormatter.IsEnabled(null!)).ParamName);
+        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => ParagraphFormatter.IsLayoutEnforced(null!)).ParamName);
+        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block)).ParamName);
+        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!)).ParamName);
+    }
+
+    /// <summary>
+    ///     Test that sentences on one line that fits are a finding of the layout only: the edit is credited to the paragraph-wrap rule
+    ///     and the finding is at the first line that differs.
+    /// </summary>
+    /// <param name="modeName">The name of the wrap mode.</param>
+    [Theory]
+    [InlineData("Sentence")]
+    [InlineData("Semantic")]
+    public void ParagraphFormatter_Format_SentencesOnOneLineThatFits_ProposeTheLayoutAsParagraphWrap(string modeName)
+    {
+        // Act: lay out a paragraph with two sentences that fit in the width
+        var (outcome, laidOut) = Run("One two. Three four.\n", Layout(Enum.Parse<WrapMode>(modeName), 80));
+
+        // Assert: one sentence per line, no overflow, the layout finding at the start of the paragraph
+        Assert.Equal("One two.\nThree four.\n", laidOut);
+        Assert.Equal("paragraph-wrap", outcome.Edit!.Value.RuleId);
+        Assert.Equal(-1, outcome.OverflowOffset);
+        Assert.Equal(0, outcome.OverflowWidth);
+        Assert.False(outcome.HasResidualOverflow);
+        Assert.Equal(0, outcome.WrapOffset);
+        Assert.True(outcome.HasFinding);
+    }
+
+    /// <summary>
+    ///     Test that a paragraph that is already in the layout gives no outcome, with a width that would be exceeded by the joined sentences.
+    /// </summary>
+    /// <param name="modeName">The name of the wrap mode.</param>
+    [Theory]
+    [InlineData("Sentence")]
+    [InlineData("Semantic")]
+    public void ParagraphFormatter_Format_ParagraphAlreadyInTheLayout_ProposesNothing(string modeName)
+    {
+        // Act & Assert: a sentence per line is a fixed point, whatever the width
+        var mode = Enum.Parse<WrapMode>(modeName);
+        AssertKept("One two.\nThree four.\n", Layout(mode, 80));
+        AssertKept("One two.\nThree four.\n", Layout(mode, 12));
+    }
+
+    /// <summary>
+    ///     Test that a paragraph with a line that is too wide and a layout that differs reports both, at the places they start.
+    /// </summary>
+    [Fact]
+    public void ParagraphFormatter_Format_WideParagraphInTheSentenceMode_ReportsOverflowAndLayout()
+    {
+        // Act: lay out a first sentence that is too wide for twenty columns, followed by a short one
+        var (outcome, laidOut) = Run("ant bat cat dog eel fox gnu. Hen ink.\n", Layout(WrapMode.Sentence, 20));
+
+        // Assert: the layout rule owns the edit; the overflow is at the first column beyond the width and is not left over
+        Assert.Equal("ant bat cat dog eel\nfox gnu.\nHen ink.\n", laidOut);
+        Assert.Equal("paragraph-wrap", outcome.Edit!.Value.RuleId);
+        Assert.Equal(20, outcome.OverflowOffset);
+        Assert.Equal(37, outcome.OverflowWidth);
+        Assert.False(outcome.HasResidualOverflow);
+        Assert.Equal(0, outcome.WrapOffset);
+    }
+
+    /// <summary>
+    ///     Test that the finding of the layout is at the first line that differs, not at the first line of the paragraph.
+    /// </summary>
+    [Fact]
+    public void ParagraphFormatter_Format_SecondLineDiffers_LayoutFindingIsAtThatLine()
+    {
+        // Act: the first line is a complete sentence; the second line holds two
+        var (outcome, laidOut) = Run("One two.\nThree four. Five six.\n", Layout(WrapMode.Sentence, 80));
+
+        // Assert: the finding is at the start of the second line (offset 9)
+        Assert.Equal("One two.\nThree four.\nFive six.\n", laidOut);
+        Assert.Equal(9, outcome.WrapOffset);
+    }
+
+    /// <summary>
+    ///     Test that a layout that is not the one of the mode, and cannot be written without opening an HTML block, is a finding without an edit.
+    /// </summary>
+    [Fact]
+    public void ParagraphFormatter_Format_LayoutThatWouldOpenAnHtmlBlock_IsAFindingWithoutAnEdit()
+    {
+        // Act: the first line of the layout would be a complete tag
+        var (outcome, kept) = Run("<span class=\"a b\"> One. Two.\n", Layout(WrapMode.Sentence, 18));
+
+        // Assert: nothing is written, and the layout finding stays at the first line
+        Assert.Equal("<span class=\"a b\"> One. Two.\n", kept);
+        Assert.Null(outcome.Edit);
+        Assert.Equal(0, outcome.WrapOffset);
+        Assert.True(outcome.HasFinding);
+    }
+
+    /// <summary>
+    ///     Test that the semantic mode breaks only a sentence that is too wide, at the latest clause start that fits the new line, and keeps the other sentences whole.
+    /// </summary>
+    [Fact]
+    public void ParagraphFormatter_Format_WideSentenceInTheSemanticMode_BreaksAtTheLatestFittingClause()
+    {
+        // Act: lay out a long sentence with clauses, and a short one, in 30 columns
+        var (outcome, laidOut) = Run("One two three, four five six, seven eight nine. Ten.\n", Layout(WrapMode.Semantic, 30));
+
+        // Assert: the full line breaks before the latest clause start that fits the next line ("four", then "seven"), the short sentence stands alone
+        Assert.Equal("One two three,\nfour five six,\nseven eight nine.\nTen.\n", laidOut);
+        Assert.Equal("paragraph-wrap", outcome.Edit!.Value.RuleId);
+        Assert.False(outcome.HasResidualOverflow);
+    }
+
+    /// <summary>
     ///     Test that the HTML check catches a wrap that breaks lines at every blank, ignoring the block syntax guard and the
     ///     constructs that must stay whole, and that the real formatter does not produce such a rewrite.
     /// </summary>

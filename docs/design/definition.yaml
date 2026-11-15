@@ -10,6 +10,7 @@ resource-path:
   - docs/design/lintmark/formatting/inline
   - docs/design/lintmark/linting
   - docs/design/ots
+  - docs/design/generated
   - docs/images
   - docs/template
 

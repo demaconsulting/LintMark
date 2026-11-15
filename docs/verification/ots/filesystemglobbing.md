@@ -7,8 +7,7 @@ FileSystemGlobbing OTS Software Requirements document.
 ### Required Functionality
 
 FileSystemGlobbing provides include and exclude glob matching. LintMark depends on it to expand the glob
-arguments of the command line, to apply built-in and user exclusions, and to honor a caller-selected case
-sensitivity.
+arguments of the command line, to apply built-in and user exclusions, and to honor a caller-selected case sensitivity.
 
 ### Verification Approach
 
@@ -32,8 +31,7 @@ the LintMark project. The tests use a temporary directory tree and in-memory pat
 
 #### Directory exclude removes the directory at every depth
 
-**Scenario**: An exclude of the form `**/name/**` is executed against a tree with the directory at the root
-and nested.
+**Scenario**: An exclude of the form `**/name/**` is executed against a tree with the directory at the root and nested.
 
 **Expected**: Files below the directory are removed at every depth.
 

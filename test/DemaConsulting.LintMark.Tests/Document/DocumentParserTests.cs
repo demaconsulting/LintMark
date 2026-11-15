@@ -1445,6 +1445,35 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that emphasis nested far beyond any real text is rejected before a recursive walk could exhaust the stack.
+    /// </summary>
+    /// <param name="marker">The emphasis delimiter written ten thousand times on each side of a word.</param>
+    [Theory]
+    [InlineData('*')]
+    [InlineData('_')]
+    public void DocumentParser_Parse_DeeplyNestedEmphasis_ThrowsInvalidData(char marker)
+    {
+        // Arrange: a word wrapped in ten thousand delimiters on each side, which the parser reads as thousands of nested nodes
+        var text = new string(marker, 10_000) + "a" + new string(marker, 10_000) + "\n";
+
+        // Act / Assert: the parse is refused with an ordinary exception
+        Assert.Throws<InvalidDataException>(() => Parse(text));
+    }
+
+    /// <summary>
+    ///     Test that a document with a depth of nested emphasis that real text could have is parsed.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_Parse_ModeratelyNestedEmphasis_IsParsed()
+    {
+        // Arrange / Act: sixty levels of strong emphasis, within the limit
+        var document = Parse(string.Concat(Enumerable.Repeat("**", 60)) + "a" + string.Concat(Enumerable.Repeat("**", 60)) + "\n");
+
+        // Assert: the paragraph is there
+        Assert.Contains(document.Blocks, block => block.Kind == BlockKind.Paragraph);
+    }
+
+    /// <summary>
     ///     Test that a fallback whose offending line cannot be located is reported at line 1, column 1.
     /// </summary>
     [Fact]

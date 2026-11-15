@@ -12,12 +12,14 @@ sections:
           - id: LintMark-Validation-SelfTests
             title: >-
               The Validation unit shall run the built-in self-tests against the tool itself and report the total,
-              passed, and failed counts, ending with exit status 0 when every test passes.
+              passed, and failed counts under a heading at the depth the context gives, ending with exit status 0
+              when every test passes.
             justification: |
               Users in regulated environments must be able to show that the installed tool works, without any
-              external test setup.
+              external test setup, and to place the report under the headings of their own documents.
             tests:
               - Validation_Run_WithSilentContext_PrintsSummary
+              - Validation_Run_DepthTwo_HeadsTheSummaryAtThatDepth
               - Validation_Run_WithSilentContext_ExitCodeIsZero
               - Validation_Run_NullContext_ThrowsArgumentNullException
 

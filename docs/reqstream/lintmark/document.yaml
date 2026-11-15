@@ -24,6 +24,7 @@ sections:
               - LintMark-Document-DocumentParser-References
               - LintMark-Document-DocumentParser-GridTableFallback
               - LintMark-Document-DocumentParser-Extensions
+              - LintMark-Document-DocumentParser-NestingLimit
             tests:
               - DocumentSubsystem_Parsing_Utf8CrlfBytes_BecomeBlockTreeAndUnreadableInputIsReported
 
