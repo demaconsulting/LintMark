@@ -25,6 +25,7 @@ using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
+using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
@@ -312,32 +313,21 @@ internal sealed partial class LinkRules : ILintRule
     }
 
     /// <summary>
-    ///     Reports unresolved reference links and reversed links in the plain text of paragraphs and headings.
+    ///     Reports unresolved reference links and reversed links in the plain text of every block that holds inline text:
+    ///     paragraphs, headings (ATX and setext) and table cells, wherever they are nested.
     /// </summary>
     /// <param name="document">The parsed document.</param>
     /// <param name="found">Receives the findings.</param>
     private static void CheckPlainTextLinks(ParsedDocument document, ImmutableArray<Diagnostic>.Builder found)
     {
         var source = document.Source;
-        foreach (var block in document.Blocks)
+        foreach (var (inline, start, end) in InlineLeaves(document))
         {
-            // A setext heading of several lines has inline spans that are not exact, so only paragraphs and ATX headings are read
-            var inline = block switch
-            {
-                { Kind: BlockKind.Paragraph, Node: ParagraphBlock paragraph } => paragraph.Inline,
-                { Kind: BlockKind.Heading, Node: HeadingBlock { HeaderChar: '#' } heading } => heading.Inline,
-                _ => null
-            };
-            if (inline is null || block.Start < 0 || block.EndInclusive >= source.Text.Length)
-            {
-                continue;
-            }
-
             var map = InlineMap.Build(inline);
 
             // A reference that resolves is never reported (its label is defined), so what is protected (code, HTML, link
             // destinations and labels) is the only part that has to be left out of both searches
-            var plain = MaskedText(source.Text, block, offset => !map.IsProtected(offset));
+            var plain = MaskedText(source.Text, start, end, offset => !map.IsProtected(offset));
             foreach (Match match in ReferenceUseRegex().Matches(plain))
             {
                 var text = match.Groups["text"].Value;
@@ -351,7 +341,7 @@ internal sealed partial class LinkRules : ILintRule
                 found.Add(RuleSupport.Finding(
                     source,
                     RuleCatalog.LinkReferenceUndefinedRuleId,
-                    block.Start + match.Index,
+                    start + match.Index,
                     $"Reference link uses the label '{RuleSupport.CollapseWhitespace(name)}', which has no definition"));
             }
 
@@ -360,11 +350,66 @@ internal sealed partial class LinkRules : ILintRule
                 found.Add(RuleSupport.Finding(
                     source,
                     RuleCatalog.LinkReversedRuleId,
-                    block.Start + match.Index,
+                    start + match.Index,
                     $"Link is written backwards; use [{Shorten(match.Groups["text"].Value)}]({Shorten(match.Groups["url"].Value)})"));
             }
         }
     }
+
+    /// <summary>
+    ///     Gets the leaf blocks that hold inline text, with the range of the text that belongs to them.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <returns>
+    ///     The inline content and the first and last offset of the text of each paragraph, ATX or setext heading and
+    ///     table cell of the document, in document order. A grid table is not read: it is never rewritten, and its cells
+    ///     are not contiguous in the source.
+    /// </returns>
+    private static IEnumerable<(ContainerInline Inline, int Start, int End)> InlineLeaves(ParsedDocument document)
+    {
+        var length = document.Source.Text.Length;
+        foreach (var block in document.Blocks)
+        {
+            switch (block)
+            {
+                case { Kind: BlockKind.Paragraph, Node: ParagraphBlock { Inline: { } inline } }:
+                    if (block.Start >= 0 && block.EndInclusive < length)
+                    {
+                        yield return (inline, block.Start, block.EndInclusive);
+                    }
+
+                    break;
+
+                // A setext heading ends with its underline, which is not text; the last inline of the heading ends the text
+                case { Kind: BlockKind.Heading, Node: HeadingBlock { Inline: { } inline } heading }:
+                    var end = heading.HeaderChar == '#' ? block.EndInclusive : Math.Min(block.EndInclusive, LastInlineEnd(inline));
+                    if (block.Start >= 0 && end >= block.Start && end < length)
+                    {
+                        yield return (inline, block.Start, end);
+                    }
+
+                    break;
+
+                case { Kind: BlockKind.Table, Node: Table table }:
+                    foreach (var leaf in table.Descendants<LeafBlock>())
+                    {
+                        if (leaf.Inline is { } cell && leaf.Span.Start >= 0 && leaf.Span.End >= leaf.Span.Start && leaf.Span.End < length)
+                        {
+                            yield return (cell, leaf.Span.Start, leaf.Span.End);
+                        }
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets the last offset that an inline of a tree covers.
+    /// </summary>
+    /// <param name="root">The inline content of a leaf block.</param>
+    /// <returns>The greatest end offset of the inlines; -1 when there are none.</returns>
+    private static int LastInlineEnd(ContainerInline root) => root.Descendants().Select(static node => node.Span.End).DefaultIfEmpty(-1).Max();
 
     /// <summary>
     ///     Reports footnote definitions that no reference uses.
@@ -389,16 +434,17 @@ internal sealed partial class LinkRules : ILintRule
     }
 
     /// <summary>
-    ///     Gets the text of a block with every character that fails a test, and every escaped bracket, replaced by the mask.
+    ///     Gets the text of a range with every character that fails a test, and every escaped bracket, replaced by the mask.
     /// </summary>
     /// <param name="text">The LF-normalized text of the document.</param>
-    /// <param name="block">The block.</param>
+    /// <param name="start">The first offset of the range.</param>
+    /// <param name="end">The last offset of the range (inclusive).</param>
     /// <param name="keep">Decides, by offset, whether a character takes part in a match.</param>
-    /// <returns>The masked text of the block; an index into it plus the block start is an offset into the document.</returns>
-    private static string MaskedText(string text, BlockInfo block, Func<int, bool> keep)
+    /// <returns>The masked text of the range; an index into it plus <paramref name="start"/> is an offset into the document.</returns>
+    private static string MaskedText(string text, int start, int end, Func<int, bool> keep)
     {
-        var builder = new StringBuilder(block.EndInclusive - block.Start + 1);
-        for (var offset = block.Start; offset <= block.EndInclusive; offset++)
+        var builder = new StringBuilder(end - start + 1);
+        for (var offset = start; offset <= end; offset++)
         {
             var c = text[offset];
             var escaped = c is '[' or ']' && IsEscaped(text, offset);

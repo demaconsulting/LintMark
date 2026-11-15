@@ -172,6 +172,66 @@ public class LinkRulesTests
             "text[^1]\n\n[^1]: see [a][r]\n\n| x |\n| --- |\n| [b][s] |\n\n[r]: http://r\n[s]: http://s\n"));
 
     /// <summary>
+    ///     Test that an undefined reference and a reversed link are found in the text of every block that holds inline text:
+    ///     paragraphs, ATX and setext headings, table cells, list items and block quotes, also nested in each other.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    /// <param name="expected">The findings, as line, column and rule.</param>
+    [Theory]
+    [InlineData("see [a][nope] here\n", "1:5 link-reference-undefined")]
+    [InlineData("# Head [a][nope]\n", "1:8 link-reference-undefined")]
+    [InlineData("Head [a][nope]\n===\n", "1:6 link-reference-undefined")]
+    [InlineData("Head [a][nope]\n---\n", "1:6 link-reference-undefined")]
+    [InlineData("First line\nsecond [a][nope]\n---\n", "2:8 link-reference-undefined")]
+    [InlineData("Intro `[c][d]` text\n   indented [a][nope]\n===\n", "2:13 link-reference-undefined")]
+    [InlineData("Intro\n   `[c][d]` [a][nope]\n===\n", "2:13 link-reference-undefined")]
+    [InlineData("| [a][nope] | b |\n| --- | --- |\n| c | d |\n", "1:3 link-reference-undefined")]
+    [InlineData("| a | b |\n| --- | --- |\n| x | [c][nope] |\n", "3:7 link-reference-undefined")]
+    [InlineData("| a | b |\n| --- | --- |\n| x | [c][] |\n", "3:7 link-reference-undefined")]
+    [InlineData("- item [a][nope]\n- other\n", "1:8 link-reference-undefined")]
+    [InlineData("1. one\n2. two [a][nope]\n", "2:8 link-reference-undefined")]
+    [InlineData("- a\n  - b [a][nope]\n", "2:7 link-reference-undefined")]
+    [InlineData("- a\n\n  second [a][nope]\n", "3:10 link-reference-undefined")]
+    [InlineData("> see [a][nope]\n", "1:7 link-reference-undefined")]
+    [InlineData("> - item [a][nope]\n", "1:10 link-reference-undefined")]
+    [InlineData("- > quoted [a][nope]\n", "1:12 link-reference-undefined")]
+    [InlineData("> > deep [a][nope]\n", "1:10 link-reference-undefined")]
+    [InlineData("see (a)[url] here\n", "1:5 link-reversed")]
+    [InlineData("# Head (a)[url]\n", "1:8 link-reversed")]
+    [InlineData("Head (a)[url]\n===\n", "1:6 link-reversed")]
+    [InlineData("| (a)[url] | b |\n| --- | --- |\n", "1:3 link-reversed")]
+    [InlineData("| a | b |\n| --- | --- |\n| x | (c)[url] |\n", "3:7 link-reversed")]
+    [InlineData("- item (a)[url]\n", "1:8 link-reversed")]
+    [InlineData("> see (a)[url]\n", "1:7 link-reversed")]
+    [InlineData("> - item (a)[url]\n", "1:10 link-reversed")]
+    public void LinkRules_Check_InlineTextOfEveryBlock_IsReadForReferenceAndReversedLinks(string text, string expected) =>
+        Assert.Equal([expected], LintRuleTestSupport.Findings(Rules, text));
+
+    /// <summary>
+    ///     Test that what is not plain text is left alone in every block that holds inline text.
+    /// </summary>
+    /// <param name="text">The document.</param>
+    [Theory]
+    [InlineData("Head `[a][b]` and \\[c\\]\\[d\\]\n===\n")]
+    [InlineData("Head [ok][x] and `(a)[b]`\n---\n\n[x]: http://x\n")]
+    [InlineData("| `[a][b]` | [ok][x] |\n| --- | --- |\n| \\[c\\]\\[d\\] | `(a)[b]` |\n\n[x]: http://x\n")]
+    [InlineData("- item `[a][b]` [ok][x]\n\n> quote `(a)[b]` [ok][X]\n\n# Head [ok][x]\n\n[x]: http://x\n")]
+    [InlineData("| a | [short] | [^1] |\n| --- | --- | --- |\n\n[^1]: note\n")]
+    public void LinkRules_Check_ProtectedAndResolvedTextInEveryBlock_IsNotReported(string text) =>
+        Assert.Empty(LintRuleTestSupport.Findings(Rules, text));
+
+    /// <summary>
+    ///     Test that every cell and every nested block of one document is read, in document order.
+    /// </summary>
+    [Fact]
+    public void LinkRules_Check_ManyBlocksOfOneDocument_AreAllReadInOrder() =>
+        Assert.Equal(
+            ["1:3 link-reference-undefined", "1:13 link-reference-undefined", "3:7 link-reversed", "5:3 link-reference-undefined", "7:8 link-reference-undefined", "10:5 link-reference-undefined", "12:3 link-reversed"],
+            LintRuleTestSupport.Findings(
+                Rules,
+                "| [a][n1] | [b][n2] |\n| --- | --- |\n| x | (c)[u] |\n\n- [d][n3]\n\nSetext [g][n5]\n===\n\n> - [e][n4]\n>\n> (f)[u]\n"));
+
+    /// <summary>
     ///     Test that a reversed link is reported, and that function calls and real links are not.
     /// </summary>
     [Fact]
