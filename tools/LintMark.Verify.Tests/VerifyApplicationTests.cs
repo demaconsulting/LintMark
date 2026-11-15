@@ -244,7 +244,9 @@ public class VerifyApplicationTests
         var temporary = await RunAsync(directory, null, "--fuzz", "20");
         var after = Directory.GetDirectories(Path.GetTempPath(), "lintmark-fuzz-*");
         directory.WriteFile("mixed/notes.md", "# Notes\n");
+        directory.WriteFile("nested/sub/fuzz-0000001.md", "stale\n");
         var mixed = await RunAsync(directory, null, "--fuzz", "5", "--fuzz-keep", "mixed");
+        var nested = await RunAsync(directory, null, "--fuzz", "5", "--fuzz-keep", "nested");
 
         // Assert
         Assert.Equal(first, repeated);
@@ -257,6 +259,7 @@ public class VerifyApplicationTests
         Assert.Empty(after.Except(before));
         Assert.Equal(VerifyApplication.UsageError, mixed.ExitCode);
         Assert.Contains("not generated documents", mixed.Error, StringComparison.Ordinal);
+        Assert.Equal(VerifyApplication.UsageError, nested.ExitCode);
     }
 
     /// <summary>

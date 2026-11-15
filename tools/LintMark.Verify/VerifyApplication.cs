@@ -84,9 +84,10 @@ internal static class VerifyApplication
                 var folder = options.FuzzKeep is { } keep ? Path.GetFullPath(Path.Combine(baseDirectory, keep)) : null;
                 var generated = folder ?? Path.Combine(Path.GetTempPath(), $"lintmark-fuzz-{Guid.NewGuid():N}");
 
-                // A kept folder is the run's own: files of an earlier run are replaced, and other documents would be verified with them
+                // A kept folder is the run's own: files of an earlier run are replaced, and other documents (also in a subfolder, which
+                // is searched too) would be verified with them
                 if (folder is not null && Directory.Exists(folder)
-                    && Directory.EnumerateFiles(folder, "*.md").Any(static path => !FuzzDocuments.IsGeneratedName(Path.GetFileName(path))))
+                    && Directory.EnumerateFiles(folder, "*.md", SearchOption.AllDirectories).Any(path => !IsGeneratedIn(folder, path)))
                 {
                     throw new UsageException($"The --fuzz-keep folder '{folder}' holds Markdown files that are not generated documents; use an empty folder.");
                 }
@@ -161,4 +162,14 @@ internal static class VerifyApplication
             }
         }
     }
+
+    /// <summary>
+    ///     Determines whether a file is a generated document directly in the folder of a run.
+    /// </summary>
+    /// <param name="folder">The full path of the folder.</param>
+    /// <param name="path">The full path of the file.</param>
+    /// <returns><see langword="true"/> for a file in the folder itself whose name is that of a generated document.</returns>
+    private static bool IsGeneratedIn(string folder, string path) =>
+        string.Equals(Path.GetDirectoryName(path), folder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
+        && FuzzDocuments.IsGeneratedName(Path.GetFileName(path));
 }
