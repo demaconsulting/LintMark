@@ -52,8 +52,8 @@ line directive; an unsuppressed neighbor is still handled.
 **File end is normalized**: A missing line ending is added, several are reduced to one, and a closed comment as the last
 line reports the final newline. The setting for none removes it. An unclosed fence or HTML block is left alone.
 
-**Whitespace-only lines become empty**: Whitespace lines become empty, but a wide whitespace line that ends indented code
-stays part of the code.
+**Whitespace-only lines become empty**: Whitespace lines become empty, but a wide whitespace line that ends indented
+code stays part of the code.
 
 **Edits are reported by rule and line**: The edits are reported per rule at their place, and an edit of a configurable
 rule is not reported twice.

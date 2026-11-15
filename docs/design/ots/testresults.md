@@ -31,5 +31,5 @@ initialization, configuration file, or disposal is required, and the library hol
 the results file is reported by `Validation` as an error and does not affect the other tests. See *Validation Design*.
 
 TestResults has no self-validation mode. The evidence for the behavior LintMark depends on is the integration test
-project `test/OtsSoftwareTests`, which serializes results to both formats and checks the content, and the self-validation
-tests that run the tool itself.
+project `test/OtsSoftwareTests`, which serializes results to both formats and checks the content, and the
+self-validation tests that run the tool itself.

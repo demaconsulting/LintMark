@@ -41,8 +41,8 @@ stay.
 that equals bracketed text elsewhere is avoided, and a text without letters uses the destination. A configured marker is
 written.
 
-**Definitions are shared or separate**: The same destination twice shares one definition, another title gets another, and
-an existing definition is reused only when destination and title agree.
+**Definitions are shared or separate**: The same destination twice shares one definition, another title gets another,
+and an existing definition is reused only when destination and title agree.
 
 **Definitions block is placed after existing ones**: New definitions follow the last definition of an existing block or
 a badge block, and front matter is kept.
@@ -53,8 +53,9 @@ with certainty is left.
 **Link text with other content is handled**: Link text with brackets, emphasis, and code stays whole, text split across
 lines is converted, and the break-text option breaks the text and keeps the destination whole.
 
-**Lists, quotes, and tables are converted**: Links in lists and quotes are converted, and in a table only the row that is
-too wide is converted. A table that cannot fit or is excluded stays, and an aligned table that fits is aligned in one run.
+**Lists, quotes, and tables are converted**: Links in lists and quotes are converted, and in a table only the row that
+is too wide is converted. A table that cannot fit or is excluded stays, and an aligned table that fits is aligned in one
+run.
 
 **Conversion happens before the wrap**: A long link in an overlong paragraph is converted and then wrapped, and a
 suppressed paragraph stays while the next one is converted.

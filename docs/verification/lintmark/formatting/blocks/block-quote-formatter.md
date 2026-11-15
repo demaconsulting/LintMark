@@ -2,9 +2,9 @@
 
 ##### Verification Approach
 
-`BlockQuoteFormatter` is verified with unit tests in `BlockQuoteFormatterTests.cs`. The real parser, `LintMarkConfig`, and
-`EditSet` are used; nothing is replaced by a double. `BlockFormatterAssertions` formats each input and asserts the exact
-text and a stable second run. Tests of quoted blocks use real documents with code, HTML, math, tables, lists, and
+`BlockQuoteFormatter` is verified with unit tests in `BlockQuoteFormatterTests.cs`. The real parser, `LintMarkConfig`,
+and `EditSet` are used; nothing is replaced by a double. `BlockFormatterAssertions` formats each input and asserts the
+exact text and a stable second run. Tests of quoted blocks use real documents with code, HTML, math, tables, lists, and
 footnotes inside the quote.
 
 ##### Test Environment

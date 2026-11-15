@@ -19,7 +19,8 @@ found through a directory, glob, or the default pattern are not explicit.
 
 #### Key Methods
 
-**DiscoverFiles(patterns, baseDirectory)**: takes `IReadOnlyList<string>` and a string; returns `IReadOnlyList<DiscoveredFile>`.
+**DiscoverFiles(patterns, baseDirectory)**: takes `IReadOnlyList<string>` and a string; returns
+`IReadOnlyList<DiscoveredFile>`.
 
 1. Validate: null arguments throw `ArgumentNullException`; a blank pattern (after removing a leading `!`) throws
    `ArgumentException`. Backslashes are converted to `/` in every argument on every platform.

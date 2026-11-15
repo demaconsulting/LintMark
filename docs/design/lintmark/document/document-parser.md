@@ -16,7 +16,8 @@ flattened, source-ordered block list whose ranges can be trusted. It also owns t
 - **BlockInfo** (record): `Node` (Markdig block; null only for a footnote found by line scan), `Kind` (`BlockKind`),
   `Start` and `EndInclusive` (offsets; the end is the last visible character, never a line feed), `Depth` and `Parent`.
 - **BlockKind**: Heading, Paragraph, FencedCode, UnclosedFence, IndentedCode, HtmlBlock, ThematicBreak, BlockQuote,
-  List, ListItem, Table, GridTable, FrontMatter, LinkReferenceDefinition, Footnote, UnreferencedFootnote, MathBlock, Other.
+  List, ListItem, Table, GridTable, FrontMatter, LinkReferenceDefinition, Footnote, UnreferencedFootnote, MathBlock,
+  Other.
 - **GridTableFallback** (record struct): 1-based `Line` and `Column` of the first line that looks like a grid table
   border but is not part of a valid table (1:1 when it cannot be located).
 - **LeafLine** (record): `Line`, `LineStart`, `ContentStart`, `ContentEnd`, `IsLazy` for one line of a leaf block.

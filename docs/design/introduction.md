@@ -116,8 +116,9 @@ Local software items have corresponding artifacts in parallel directory trees:
 - Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
 
 A unit keeps the folder of its parent subsystem in every artifact tree, whatever the source folder is. For example, the
-`LintMarkEngine` unit of the `Engine` subsystem has the design document `docs/design/lintmark/engine/lint-mark-engine.md`,
-the requirements file `docs/reqstream/lintmark/engine/lint-mark-engine.yaml`, the verification document
+`LintMarkEngine` unit of the `Engine` subsystem has the design document
+`docs/design/lintmark/engine/lint-mark-engine.md`, the requirements file
+`docs/reqstream/lintmark/engine/lint-mark-engine.yaml`, the verification document
 `docs/verification/lintmark/engine/lint-mark-engine.md`, and the source file `Engine/LintMarkEngine.cs`; the `Reporters`
 unit has the same artifact folders but its source is in `Reporting/`. A nested subsystem keeps the folder of its parent:
 the `Blocks` subsystem has `docs/design/lintmark/formatting/blocks.md` and its units are under

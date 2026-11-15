@@ -15,10 +15,10 @@ N/A - the tests need only the standard test runner and in-memory text.
 ##### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- A paragraph that fits the width is kept as written. A paragraph with a line beyond the width and a break opportunity is
-  filled up to the width, and the result is stable.
-- `sentence` puts each sentence on its own line, and `semantic` breaks only as needed, at clauses; both leave a paragraph
-  as written when the layout is already right.
+- A paragraph that fits the width is kept as written. A paragraph with a line beyond the width and a break opportunity
+  is filled up to the width, and the result is stable.
+- `sentence` puts each sentence on its own line, and `semantic` breaks only as needed, at clauses; both leave a
+  paragraph as written when the layout is already right.
 - Code spans, links, and URLs are never split, hard breaks stay, and quote and list prefixes are repeated on every line.
 - A line never starts with block syntax, and a lazy line gets the quote marker.
 - Shapes whose meaning depends on their breaks (definitions, footnote paragraphs, Pandoc structure, tabs, forced block
@@ -45,9 +45,9 @@ line gets the quote marker.
 **Block syntax never starts a line**: A break before text that looks like a marker, a heading, a fence, or a fancy list
 marker moves earlier, and text that looks like a marker in the middle of a line is still wrapped.
 
-**Kept as written and reported**: Definition-like lines, footnote paragraphs, Pandoc structural paragraphs, tabs, a forced
-line start that is block syntax, a lazy list line, a quote marker without a blank, and a shape that depends on its breaks
-are not changed.
+**Kept as written and reported**: Definition-like lines, footnote paragraphs, Pandoc structural paragraphs, tabs, a
+forced line start that is block syntax, a lazy list line, a quote marker without a blank, and a shape that depends on
+its breaks are not changed.
 
 **Sentence and semantic modes lay out**: Paragraphs are laid out one sentence per line or by clauses, and a second run
 changes nothing.

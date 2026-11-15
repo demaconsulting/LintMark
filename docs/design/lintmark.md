@@ -61,7 +61,8 @@ parallel. Subsystem relationships are detailed in the subsystem designs; see *En
 - **Results file** (out): `--results <file>` receives the self-validation results as TRX (`.trx`) or JUnit (`.xml`).
 - **Exit code** (out): 0 when no finding, problem, or error was reported, 1 otherwise. No other value is produced.
 
-Rule identifiers are kebab-case names with legacy rule-number aliases (such as `MD013`) accepted wherever a rule is named.
+Rule identifiers are kebab-case names with legacy rule-number aliases (such as `MD013`) accepted wherever a rule is
+named.
 
 ## Dependencies
 

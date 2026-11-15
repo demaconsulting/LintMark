@@ -3,9 +3,9 @@
 ##### Verification Approach
 
 `HeadingFormatter` is verified with unit tests in `HeadingFormatterTests.cs`. The real parser, `LintMarkConfig`,
-`EditSet`, and `RuleCatalog` are used; nothing is replaced by a double. `BlockFormatterAssertions` formats each input and
-asserts the exact text, that the result renders the same, and that a second run is stable. Edits are checked by the rule
-they are credited to.
+`EditSet`, and `RuleCatalog` are used; nothing is replaced by a double. `BlockFormatterAssertions` formats each input
+and asserts the exact text, that the result renders the same, and that a second run is stable. Edits are checked by the
+rule they are credited to.
 
 ##### Test Environment
 
@@ -46,4 +46,5 @@ the result is stable after a paragraph without a blank line.
 
 **Each edit is credited to its rule**: Each edit of a non-canonical heading is reported under its own rule.
 
-**Suppressed rule leaves the heading**: A suppressed rule keeps the heading, and a heading after the region is formatted.
+**Suppressed rule leaves the heading**: A suppressed rule keeps the heading, and a heading after the region is
+formatted.

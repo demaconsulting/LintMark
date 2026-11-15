@@ -5,8 +5,9 @@
 The `Inline` subsystem is verified by integration tests in `InlineSubsystemTests.cs`. The tests drive the inline units
 through their composition with the real `DocumentParser`, `DocumentFormatter`, `InlineNormalizer`, `ParagraphFormatter`
 (which uses `AtomTokenizer` and `LineWrapper`), and `LinkRefactorer`, and apply the edits with `SourcePatcher`. Nothing
-is replaced by a double. Each test builds a small document inline and asserts the exact text and the reported violations.
-The units of the subsystem have their own verification documents; this document covers what they do together.
+is replaced by a double. Each test builds a small document inline and asserts the exact text and the reported
+violations. The units of the subsystem have their own verification documents; this document covers what they do
+together.
 
 #### Test Environment
 
@@ -24,8 +25,8 @@ N/A - the tests need only the standard test runner and in-memory text.
 
 #### Test Scenarios
 
-**Inline styles are normalized**: A paragraph with underscore emphasis, asterisk strong emphasis, a bare URL, and a padded
-code span is written with the configured delimiters, angle brackets, and no padding.
+**Inline styles are normalized**: A paragraph with underscore emphasis, asterisk strong emphasis, a bare URL, and a
+padded code span is written with the configured delimiters, angle brackets, and no padding.
 
 **Protected inline content is kept**: Delimiters inside code, HTML, math, and link destinations, and URLs already
 linked, are not changed.
@@ -45,5 +46,5 @@ the definitions block at the end of the document, and a link that is short, in a
 **Wrap and link refactor compose**: A long link in an overlong paragraph is converted before the wrap, and the result is
 stable.
 
-**Suppression leaves a part alone**: A suppressed rule, by identifier or alias, keeps its part, and the other rules still
-apply.
+**Suppression leaves a part alone**: A suppressed rule, by identifier or alias, keeps its part, and the other rules
+still apply.

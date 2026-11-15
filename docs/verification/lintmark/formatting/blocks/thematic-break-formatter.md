@@ -4,8 +4,8 @@
 
 `ThematicBreakFormatter` is verified with unit tests in `ThematicBreakFormatterTests.cs`. The real parser,
 `LintMarkConfig`, and `EditSet` are used; nothing is replaced by a double. `BlockFormatterAssertions` formats each input
-and asserts the exact text and a stable second run. Tests of the guards use real documents in which a changed break would
-read as a setext underline or a list marker.
+and asserts the exact text and a stable second run. Tests of the guards use real documents in which a changed break
+would read as a setext underline or a list marker.
 
 ##### Test Environment
 
@@ -31,8 +31,8 @@ count as text, and a break after a complete block is converted.
 **Break next to a list marker stays**: A break after a dash or an asterisk list marker, and after a plus marker when
 dashes are wanted, stays. After an ordered marker or with another character it is converted.
 
-**Break on the first line stays**: A break on the first line stays when it could open front matter. It is converted after
-front matter or when the configuration makes it safe.
+**Break on the first line stays**: A break on the first line stays when it could open front matter. It is converted
+after front matter or when the configuration makes it safe.
 
 **Break after a border-shaped line stays**: A break after a border-shaped line keeps its text.
 

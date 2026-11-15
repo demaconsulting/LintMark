@@ -3,10 +3,10 @@
 ##### Verification Approach
 
 `TableFormatter` (with the `PipeTable` model) is verified with unit tests in `TableFormatterTests.cs`. The real parser,
-`LintMarkConfig`, and `EditSet` are used; nothing is replaced by a double. `PipeTable` is tested directly (parsing cells,
-pipes, and alignment, composing the compact and aligned text, and stability of the composed text), and `TableFormatter`
-is tested through `BlockFormatterAssertions`, which asserts the exact text, that the result renders the same, and that a
-second run is stable. Most scenarios are theories with several tables, including wide characters.
+`LintMarkConfig`, and `EditSet` are used; nothing is replaced by a double. `PipeTable` is tested directly (parsing
+cells, pipes, and alignment, composing the compact and aligned text, and stability of the composed text), and
+`TableFormatter` is tested through `BlockFormatterAssertions`, which asserts the exact text, that the result renders the
+same, and that a second run is stable. Most scenarios are theories with several tables, including wide characters.
 
 ##### Test Environment
 

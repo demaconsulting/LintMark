@@ -14,11 +14,11 @@ N/A - the tests need only the standard test runner and in-memory text.
 ##### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- Fill mode puts as many atoms on a line as fit the display width and moves the rest to the next line. An atom wider than
-  the width stands alone and is reported, and a line exactly as wide as the width stays.
+- Fill mode puts as many atoms on a line as fit the display width and moves the rest to the next line. An atom wider
+  than the width stands alone and is reported, and a line exactly as wide as the width stays.
 - The first line may have its own width, and an unlimited width writes one sentence per line.
-- Sentence mode starts each sentence on its own line, and a sentence that is too wide is filled. Uncertain places are not
-  split.
+- Sentence mode starts each sentence on its own line, and a sentence that is too wide is filled. Uncertain places are
+  not split.
 - Semantic mode breaks a too-wide sentence at the latest fitting clause, keeps an atom with an inner comma whole, and
   falls back to fill when there is no clause start.
 - A line never starts with block syntax: bullets, numbers, quotes, headings, fences, definitions, HTML block starts,
@@ -36,8 +36,8 @@ over width and is reported.
 
 **First line has its own width**: A smaller first width applies to the first line only.
 
-**Sentences get their own lines**: In sentence mode every sentence starts a line, a too-wide sentence is filled, and with
-unlimited width every sentence is one line.
+**Sentences get their own lines**: In sentence mode every sentence starts a line, a too-wide sentence is filled, and
+with unlimited width every sentence is one line.
 
 **Sentences are found safely**: Terminators with closing marks and capitals with opening marks end and start sentences,
 uncertain places are not split, and a single atom or empty text has no start.
@@ -47,12 +47,12 @@ uncertain places are not split, and a single atom or empty text has no start.
 **Semantic mode breaks at clauses**: A too-wide sentence breaks at the latest fitting clause, a guarded clause start is
 skipped, a clause beyond the width or none is filled, and an atom with an inner comma is not split.
 
-**Block syntax is kept off the line start**: A break before guarded syntax moves earlier. A sentence that starts with block
-syntax stays on the line before, and guarded atoms in a row keep the line and report the overflow.
+**Block syntax is kept off the line start**: A break before guarded syntax moves earlier. A sentence that starts with
+block syntax stays on the line before, and guarded atoms in a row keep the line and report the overflow.
 
-**Guard classifies line starts**: Bullets, numbers, quote, heading, fence, definition, HTML, table, thematic, setext, and
-Pandoc starts are guarded. Code spans, strikethrough, links, task markers, heading lookalikes, inline HTML, numbers that
-are not markers, and ordinary text are not. A null line to the Pandoc check throws.
+**Guard classifies line starts**: Bullets, numbers, quote, heading, fence, definition, HTML, table, thematic, setext,
+and Pandoc starts are guarded. Code spans, strikethrough, links, task markers, heading lookalikes, inline HTML, numbers
+that are not markers, and ordinary text are not. A null line to the Pandoc check throws.
 
 **Width is measured in columns**: Wide and combining characters are counted by display width in every mode.
 

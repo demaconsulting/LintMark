@@ -3,8 +3,8 @@
 ##### Verification Approach
 
 `AtomTokenizer` is verified with unit tests in `AtomTokenizerTests.cs`. The real parser, which supplies the inline spans
-of the paragraph, is used; nothing is replaced by a double. Each test tokenizes the lines of a real paragraph and asserts
-the atoms (their text and the segments they form) or the refusal.
+of the paragraph, is used; nothing is replaced by a double. Each test tokenizes the lines of a real paragraph and
+asserts the atoms (their text and the segments they form) or the refusal.
 
 ##### Test Environment
 
@@ -20,8 +20,8 @@ N/A - the tests need only the standard test runner and in-memory text.
 - A hard break, with spaces or a backslash, ends a segment.
 - Container prefixes are not part of the atoms.
 - A multi-line code span or link text joins its lines where that is safe.
-- Input that cannot be tokenized with certainty is refused: lines that do not fit the spans, padded multi-line code spans,
-  and multi-line constructs that cannot be joined.
+- Input that cannot be tokenized with certainty is refused: lines that do not fit the spans, padded multi-line code
+  spans, and multi-line constructs that cannot be joined.
 
 ##### Test Scenarios
 

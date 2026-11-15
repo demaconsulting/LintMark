@@ -38,12 +38,13 @@ at the end of a replacement is accepted.
 
 **Edit can be found by offset**: An accepted edit is found by its start offset.
 
-**Patch applies replace, delete, and insert**: A mix of edits produces the expected text, including an edit at the end of
-the text and Unicode text patched by UTF-16 offsets.
+**Patch applies replace, delete, and insert**: A mix of edits produces the expected text, including an edit at the end
+of the text and Unicode text patched by UTF-16 offsets.
 
 **Patch rejects bad edits**: Overlapping edits and an edit beyond the text throw.
 
-**Rebase translates edits outside each other**: Edits that do not meet are moved by the length changes of the first list.
+**Rebase translates edits outside each other**: Edits that do not meet are moved by the length changes of the first
+list.
 
 **Rebase merges edits that meet**: A second edit inside the output of a first edit extends to its ends, two second edits
 in one output merge, and touching insertions merge.

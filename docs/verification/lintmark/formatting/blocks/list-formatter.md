@@ -19,7 +19,8 @@ N/A - the tests need only the standard test runner and in-memory text.
 - All unit tests pass with zero failures.
 - Only the outermost list of a nest is accepted, and null arguments are rejected.
 - Every bullet is written with the configured marker at any depth, and lists that stand next to each other are never
-  merged. A marker that would make a thematic break, or a plus sign that would look like a grid border, is never written.
+  merged. A marker that would make a thematic break, or a plus sign that would look like a grid border, is never
+  written.
 - An ordered list keeps its first number and delimiter and counts up or repeats it as configured. A first number with
   leading zeros, or a count that needs more than nine digits, is left as written.
 - A number that gains or loses a digit moves its item content with it, except in a quote, where the numbers stay.

@@ -31,8 +31,8 @@ N/A - the tests need only the standard test runner and in-memory text.
 #### Test Scenarios
 
 **Leaf blocks are brought into canonical form**: A document with setext and closed headings, an indented code block, a
-tilde fence, and a long thematic break is formatted. Headings are ATX, code is fenced, breaks are `---`, and a second run
-changes nothing.
+tilde fence, and a long thematic break is formatted. Headings are ATX, code is fenced, breaks are `---`, and a second
+run changes nothing.
 
 **Containers are brought into canonical form**: A document with an asterisk list, repeated ordered numbers, wide marker
 gaps, and quote markers with extra spaces is formatted. Lists use the default marker and counting numbers, quotes have

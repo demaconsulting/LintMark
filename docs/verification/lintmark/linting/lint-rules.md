@@ -37,8 +37,8 @@ links are not reported.
 
 **Fragment links are checked against headings and anchors**: A heading is slugified before the comparison.
 
-**Unused and repeated definitions and unused footnotes are reported**: A definition used in a footnote or table counts as
-used.
+**Unused and repeated definitions and unused footnotes are reported**: A definition used in a footnote or table counts
+as used.
 
 **Reversed links, spaces in link text, and non-descriptive link text are reported**: Allowed spaces are not.
 

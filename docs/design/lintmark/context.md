@@ -38,8 +38,8 @@ Settings are read-only after `Create`:
 - `--config <file>`: the next token must be non-blank and must not start with `-`. `--no-config`: ignore the
   configuration and the editor settings.
 - `--enable <ids>` and `--disable <ids>`: repeatable; each takes the next token, a comma-separated list of rule ids or
-  legacy rule-number aliases. `--log <file>`: takes the next token. `--results <file>` (also spelled `--result`): the next
-  token.
+  legacy rule-number aliases. `--log <file>`: takes the next token. `--results <file>` (also spelled `--result`): the
+  next token.
 - `--depth <n>`: an integer from 1 to 6, the heading depth of the validation report.
 - Any token that does not start with `-` is a path (file, directory, glob or `!` exclude). Every other dashed
   token, including a lone `-` and an empty string, throws `Unsupported argument`.
