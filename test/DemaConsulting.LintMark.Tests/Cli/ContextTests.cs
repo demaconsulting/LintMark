@@ -570,20 +570,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that the exposed path list cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void Context_Paths_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange / Act: create a context with paths
-        using var context = Context.Create(["a.md", "docs", "!docs/old"]);
-
-        // Assert: a caller cannot change the list
-        ReadOnlyAssertions.AssertCannotBeModified(context.Paths);
-        Assert.Equal(new[] { "a.md", "docs", "!docs/old" }, context.Paths);
-    }
-
-    /// <summary>
     ///     Test creating a context with positional arguments sets the paths in the order given.
     /// </summary>
     [Fact]

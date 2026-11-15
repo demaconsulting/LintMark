@@ -23,7 +23,7 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
-using DemaConsulting.LintMark.Formatting.Links;
+using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Verify.Checks;
 using DemaConsulting.LintMark.Verify.Reporting;

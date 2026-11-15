@@ -21,7 +21,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Security;
-using System.Text;
+using DemaConsulting.LintMark.Document;
 
 namespace DemaConsulting.LintMark.Configuration;
 
@@ -77,11 +77,6 @@ internal sealed class ConfigLoader
     ///     Size of the buffer used to read a configuration file.
     /// </summary>
     private const int ReadBufferSize = 8192;
-
-    /// <summary>
-    ///     Strict UTF-8 decoding: invalid bytes are reported instead of replaced.
-    /// </summary>
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>
     ///     The result shared by every load that finds no configuration.
@@ -288,26 +283,15 @@ internal sealed class ConfigLoader
             return Failure(path, "The configuration file is larger than 1 MiB");
         }
 
-        // Strip the byte order mark and decode strictly
-        if (HasUnsupportedByteOrderMark(content))
-        {
-            return Failure(path, "Unsupported byte order mark (only UTF-8 is supported)");
-        }
-
-        if (content.Length >= 3 && content[0] == 0xEF && content[1] == 0xBB && content[2] == 0xBF)
-        {
-            content = content[3..];
-        }
-
+        // Strip the byte order mark and decode strictly, like a Markdown file
         string text;
         try
         {
-            text = StrictUtf8.GetString(content);
+            text = SourceDocument.Decode(content, out _);
         }
-        catch (DecoderFallbackException ex)
+        catch (SourceDocumentException ex)
         {
-            var (line, column) = LocateByte(content, ex.Index);
-            return new ConfigLoadResult(null, path, [new ConfigError(path, line, column, "Invalid UTF-8 byte sequence")]);
+            return new ConfigLoadResult(null, path, [new ConfigError(path, ex.Line, ex.Column, ex.Message)]);
         }
 
         return ConfigParser.Parse(path, text);
@@ -400,52 +384,6 @@ internal sealed class ConfigLoader
         }
 
         return null;
-    }
-
-    /// <summary>
-    ///     Determines whether content starts with a UTF-16 or UTF-32 byte order mark.
-    /// </summary>
-    /// <param name="bytes">The content.</param>
-    /// <returns><see langword="true"/> for an unsupported mark.</returns>
-    private static bool HasUnsupportedByteOrderMark(ReadOnlySpan<byte> bytes)
-    {
-        // UTF-16 LE/BE (FF FE / FE FF; the first also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
-        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
-        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
-        return isUtf16 || isUtf32Be;
-    }
-
-    /// <summary>
-    ///     Finds the line and column of a byte offset in UTF-8 content.
-    /// </summary>
-    /// <param name="content">The content without byte order mark.</param>
-    /// <param name="index">The byte index reported by the decoder; out-of-range values fall back to 1:1.</param>
-    /// <returns>The 1-based line and column of the byte.</returns>
-    private static (int Line, int Column) LocateByte(ReadOnlySpan<byte> content, int index)
-    {
-        if (index < 0 || index > content.Length)
-        {
-            return (1, 1);
-        }
-
-        // Count line breaks before the bad byte (LF, CRLF or a lone CR, as in the nesting scan and in YAML),
-        // then measure the partial line in UTF-16 units
-        var before = content[..index];
-        var line = 1;
-        var lineStart = 0;
-        for (var i = 0; i < before.Length; i++)
-        {
-            // A CR directly before an LF belongs to the same line break; the LF is the one counted
-            var isBreak = before[i] == (byte)'\n'
-                          || (before[i] == (byte)'\r' && (i + 1 >= content.Length || content[i + 1] != (byte)'\n'));
-            if (isBreak)
-            {
-                line++;
-                lineStart = i + 1;
-            }
-        }
-
-        return (line, Encoding.UTF8.GetCharCount(before[lineStart..]) + 1);
     }
 }
 

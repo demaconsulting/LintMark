@@ -23,7 +23,6 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
-using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Formatting;
@@ -656,4 +655,96 @@ internal sealed class DocumentFormatter
     /// <param name="ending">The line ending.</param>
     /// <returns><c>CRLF</c> or <c>LF</c>.</returns>
     private static string Describe(LineEnding ending) => ending == LineEnding.CrLf ? "CRLF" : "LF";
+}
+
+/// <summary>
+///     What a block formatter needs to know about the document and the settings it formats under.
+/// </summary>
+/// <param name="Document">The parsed document the block belongs to. Never format-unsafe.</param>
+/// <param name="Config">The effective configuration of the file.</param>
+/// <param name="Layout">The line arithmetic of the document (where a line starts and ends, which lines are blank).</param>
+/// <param name="Ownership">Which lines belong to which leaf block, which are protected and which lie inside a container.</param>
+/// <remarks>
+///     Immutable and shared by every formatter of one document. The line arithmetic and the line ownership map
+///     are the same objects that the document-level passes use, so a formatter of a container (a list or a block
+///     quote) knows which lines hold code or other protected content.
+/// </remarks>
+internal sealed record FormatContext(ParsedDocument Document, LintMarkConfig Config, LineLayout Layout, LineOwnership Ownership)
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FormatContext"/> class with its own line arithmetic and a
+    ///     line ownership map in which no block formatter has claimed a line.
+    /// </summary>
+    /// <param name="document">The parsed document the block belongs to.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    public FormatContext(ParsedDocument document, LintMarkConfig config)
+        : this(document, config, new LineLayout(document.Source))
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FormatContext"/> class with the line arithmetic of the document.
+    /// </summary>
+    /// <param name="document">The parsed document the block belongs to.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    private FormatContext(ParsedDocument document, LintMarkConfig config, LineLayout layout)
+        : this(document, config, layout, LineOwnership.Build(document, layout))
+    {
+    }
+}
+
+/// <summary>
+///     The outcome of formatting one document: the text edits, the line ending to write, and the formatting
+///     violations that rewriting would remove.
+/// </summary>
+/// <param name="Edits">The edits to the LF-normalized text, ordered and conflict-free; empty when nothing changes.</param>
+/// <param name="LineEnding">The line ending the file is written with.</param>
+/// <param name="Diagnostics">The formatting violations found (the findings that applying the result removes).</param>
+internal sealed record FormatResult(ImmutableArray<TextEdit> Edits, LineEnding LineEnding, ImmutableArray<Diagnostic> Diagnostics);
+
+/// <summary>
+///     Formats one kind of block by proposing edits to the document text.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The interface is the extension point of the formatting subsystem: <see cref="DocumentFormatter"/>
+///         walks the blocks of a document and hands each block to the first formatter that accepts it. A block
+///         that no formatter accepts is left to the document-level rules that apply to every document
+///         (whitespace, blank lines, block spacing, the end of the file), which never touch protected content such
+///         as code. The text of a document is only ever changed through edits, so everything that no edit touches
+///         is preserved by construction.
+///     </para>
+///     <para>
+///         A formatter must be a pure function of the block, the document and the configuration: no state kept
+///         between calls and no side effects other than adding edits, so that formatting is deterministic and
+///         it can be run again, for instance by the verification tool. Implementations must be safe for concurrent use, because one
+///         instance serves every worker thread.
+///     </para>
+/// </remarks>
+internal interface IBlockFormatter
+{
+    /// <summary>
+    ///     Gets the identifiers of the rules that this formatter enforces.
+    /// </summary>
+    /// <remarks>
+    ///     A block is left verbatim when any of these rules is suppressed anywhere inside the block, so that a
+    ///     suppression comment is honored at block granularity.
+    /// </remarks>
+    ImmutableArray<string> RuleIds { get; }
+
+    /// <summary>
+    ///     Determines whether this formatter formats a block.
+    /// </summary>
+    /// <param name="block">The block to test.</param>
+    /// <returns><see langword="true"/> when <see cref="Format"/> should be called for the block.</returns>
+    bool CanFormat(BlockInfo block);
+
+    /// <summary>
+    ///     Proposes the edits that bring a block into canonical form.
+    /// </summary>
+    /// <param name="context">The document and settings.</param>
+    /// <param name="block">The block to format; <see cref="CanFormat"/> returned true for it.</param>
+    /// <param name="edits">Receives the edits; adding an edit that conflicts with another throws <see cref="InvalidOperationException"/>.</param>
+    void Format(FormatContext context, BlockInfo block, EditSet edits);
 }

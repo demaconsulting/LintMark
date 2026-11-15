@@ -22,7 +22,6 @@ using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Formatting.Links;
 using Markdig.Extensions.Footnotes;
 using Markdig.Extensions.Mathematics;
 using Markdig.Extensions.TaskLists;
@@ -698,4 +697,144 @@ internal static partial class AtomTokenizer
                 : -1;
         }
     }
+}
+
+/// <summary>
+///     The words (atoms) of a paragraph between two hard line breaks, and how the segment ends.
+/// </summary>
+/// <remarks>
+///     Supporting type of <see cref="AtomTokenizer"/>. A hard line break is a fixed point of the paragraph: the words
+///     before it and the words after it are never joined, so each segment is wrapped on its own. Immutable; safe for
+///     concurrent use.
+/// </remarks>
+internal sealed record ParagraphSegment
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ParagraphSegment"/> class.
+    /// </summary>
+    /// <param name="atoms">The atoms of the segment in order, none empty. Must not be a default array or contain null.</param>
+    /// <param name="end">How the segment ends. Must be a defined value.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array or holds an empty atom.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="end"/> is not a defined value.</exception>
+    public ParagraphSegment(ImmutableArray<string> atoms, HardBreakKind end)
+    {
+        // Validate every argument so that an invalid segment can never be created
+        if (atoms.IsDefault)
+        {
+            throw new ArgumentException("The atoms must not be a default array.", nameof(atoms));
+        }
+
+        if (atoms.Any(static atom => atom is null))
+        {
+            throw new ArgumentNullException(nameof(atoms), "The atoms must not contain null.");
+        }
+
+        if (atoms.Any(static atom => atom.Length == 0))
+        {
+            throw new ArgumentException("The atoms must not contain an empty atom.", nameof(atoms));
+        }
+
+        if (!Enum.IsDefined(end))
+        {
+            throw new ArgumentOutOfRangeException(nameof(end), end, "Not a defined HardBreakKind value.");
+        }
+
+        Atoms = atoms;
+        End = end;
+    }
+
+    /// <summary>
+    ///     Gets the atoms of the segment in order.
+    /// </summary>
+    public ImmutableArray<string> Atoms { get; }
+
+    /// <summary>
+    ///     Gets how the segment ends.
+    /// </summary>
+    public HardBreakKind End { get; }
+}
+
+/// <summary>
+///     A paragraph cut into the words (atoms) that a wrap may move, with what a wrap needs to know about the lines it started from.
+/// </summary>
+/// <remarks>
+///     Supporting type of <see cref="AtomTokenizer"/>. Immutable, including its collections; safe for concurrent use.
+/// </remarks>
+internal sealed record TokenizedParagraph
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TokenizedParagraph"/> class.
+    /// </summary>
+    /// <param name="segments">The segments between hard line breaks, at least one. Must not be a default array or contain null.</param>
+    /// <param name="breakOpportunitiesPerLine">
+    ///     For each source line, the number of places inside the line where it could be broken. Must not be a default
+    ///     array and must not contain a negative number.
+    /// </param>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when an array is a default array, <paramref name="segments"/> is empty, or a count is negative.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="segments"/> holds a null element.</exception>
+    public TokenizedParagraph(ImmutableArray<ParagraphSegment> segments, ImmutableArray<int> breakOpportunitiesPerLine)
+    {
+        // Validate every argument so that an invalid paragraph can never be created
+        if (segments.IsDefault)
+        {
+            throw new ArgumentException("The segments must not be a default array.", nameof(segments));
+        }
+
+        if (segments.IsEmpty)
+        {
+            throw new ArgumentException("The segments must not be empty.", nameof(segments));
+        }
+
+        if (segments.Any(static segment => segment is null))
+        {
+            throw new ArgumentNullException(nameof(segments), "The segments must not contain null.");
+        }
+
+        if (breakOpportunitiesPerLine.IsDefault)
+        {
+            throw new ArgumentException("The break opportunities must not be a default array.", nameof(breakOpportunitiesPerLine));
+        }
+
+        if (breakOpportunitiesPerLine.Any(static count => count < 0))
+        {
+            throw new ArgumentException("The break opportunities must not be negative.", nameof(breakOpportunitiesPerLine));
+        }
+
+        Segments = segments;
+        BreakOpportunitiesPerLine = breakOpportunitiesPerLine;
+    }
+
+    /// <summary>
+    ///     Gets the segments of the paragraph between hard line breaks, in order.
+    /// </summary>
+    public ImmutableArray<ParagraphSegment> Segments { get; }
+
+    /// <summary>
+    ///     Gets, for each source line of the paragraph, the number of places inside the line where it could be broken
+    ///     (the gaps between two atoms on that line that a wrap may turn into a line break).
+    /// </summary>
+    public ImmutableArray<int> BreakOpportunitiesPerLine { get; }
+}
+
+/// <summary>
+///     How a segment of a paragraph ends: with nothing, or with a hard line break written in one of its two forms.
+/// </summary>
+/// <remarks>
+///     Supporting type of <see cref="AtomTokenizer"/>. A wrapped paragraph keeps each hard line break in the form it
+///     was written in, because the two forms are equal to the parser but the choice between them belongs to the
+///     <c>trailing-whitespace</c> rule, not to the wrap.
+/// </remarks>
+internal enum HardBreakKind
+{
+    /// <summary>The segment is the end of the paragraph.</summary>
+    None,
+
+    /// <summary>The segment ends with a line break written as two or more spaces at the end of the line.</summary>
+    Spaces,
+
+    /// <summary>The segment ends with a line break written as a backslash at the end of the line.</summary>
+    Backslash
 }

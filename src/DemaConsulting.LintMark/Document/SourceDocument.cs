@@ -153,23 +153,60 @@ internal sealed class SourceDocument
         // Validate input
         ArgumentNullException.ThrowIfNull(path);
 
-        // Detect and strip the byte order mark; only the UTF-8 mark is supported
-        var content = StripBom(bytes, out var hasBom);
+        // Detect and strip the byte order mark, then decode strictly
+        var decoded = Decode(bytes, out var hasBom);
+        return Build(path, decoded, hasBom);
+    }
 
-        // Decode strictly, translating a decoder failure into a positioned failure
-        string decoded;
+    /// <summary>
+    ///     Decodes the bytes of a file as strict UTF-8: removes a UTF-8 byte order mark, and reports the other
+    ///     Unicode byte order marks and invalid UTF-8 at their position.
+    /// </summary>
+    /// <param name="bytes">Complete file content.</param>
+    /// <param name="hasBom">Receives whether a UTF-8 mark was present.</param>
+    /// <returns>The decoded text, without the mark and with the original line terminators.</returns>
+    /// <exception cref="SourceDocumentException">
+    ///     Thrown (rule <see cref="SourceDocumentException.EncodingRuleId"/>) for a UTF-16 or UTF-32 byte order mark
+    ///     or for invalid UTF-8; the configuration loader reuses it for the same checks of a configuration file.
+    /// </exception>
+    internal static string Decode(ReadOnlySpan<byte> bytes, out bool hasBom)
+    {
+        // UTF-8 mark: EF BB BF
+        hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+        var content = hasBom ? bytes[3..] : bytes;
+
+        // UTF-16 LE/BE (FF FE / FE FF; also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
+        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
+        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
+        if (isUtf16 || isUtf32Be)
+        {
+            throw new SourceDocumentException(
+                SourceDocumentException.EncodingRuleId, 1, 1, "Unsupported byte order mark (only UTF-8 is supported)");
+        }
+
         try
         {
-            decoded = StrictUtf8.GetString(content);
+            return StrictUtf8.GetString(content);
         }
         catch (DecoderFallbackException ex)
         {
-            var (line, column) = LocateByte(content, ex.Index);
-            throw new SourceDocumentException(
-                SourceDocumentException.EncodingRuleId, line, column, "Invalid UTF-8 byte sequence");
-        }
+            // Count the line breaks before the bad byte (LF, CRLF or a lone CR), then measure the partial line in UTF-16 units
+            var before = content[..Math.Clamp(ex.Index, 0, content.Length)];
+            var line = 1;
+            var lineStart = 0;
+            for (var i = 0; i < before.Length; i++)
+            {
+                // A CR directly before an LF belongs to the same line break; the LF is the one counted
+                if (before[i] == (byte)'\n' || (before[i] == (byte)'\r' && (i + 1 >= content.Length || content[i + 1] != (byte)'\n')))
+                {
+                    line++;
+                    lineStart = i + 1;
+                }
+            }
 
-        return Build(path, decoded, hasBom);
+            throw new SourceDocumentException(
+                SourceDocumentException.EncodingRuleId, line, Encoding.UTF8.GetCharCount(before[lineStart..]) + 1, "Invalid UTF-8 byte sequence");
+        }
     }
 
     /// <summary>
@@ -333,65 +370,6 @@ internal sealed class SourceDocument
         // Normalize CRLF to LF only when there is something to normalize
         var normalized = crLfCount > 0 ? text.Replace("\r\n", "\n", StringComparison.Ordinal) : text;
         return new SourceDocument(path, normalized, new LineEndingInfo(lfCount, crLfCount), hasBom);
-    }
-
-    /// <summary>
-    ///     Removes a UTF-8 byte order mark and rejects the other Unicode byte order marks.
-    /// </summary>
-    /// <param name="bytes">Complete file content.</param>
-    /// <param name="hasBom">Receives whether a UTF-8 mark was present.</param>
-    /// <returns>The content without the UTF-8 mark.</returns>
-    /// <exception cref="SourceDocumentException">Thrown for a UTF-16 or UTF-32 byte order mark.</exception>
-    private static ReadOnlySpan<byte> StripBom(ReadOnlySpan<byte> bytes, out bool hasBom)
-    {
-        hasBom = false;
-
-        // UTF-8 mark: EF BB BF
-        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
-        {
-            hasBom = true;
-            return bytes[3..];
-        }
-
-        // UTF-16 LE/BE (FF FE / FE FF; also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
-        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
-        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
-        if (isUtf16 || isUtf32Be)
-        {
-            throw new SourceDocumentException(
-                SourceDocumentException.EncodingRuleId, 1, 1, "Unsupported byte order mark (only UTF-8 is supported)");
-        }
-
-        return bytes;
-    }
-
-    /// <summary>
-    ///     Finds the line and column of a byte offset in UTF-8 content.
-    /// </summary>
-    /// <param name="content">Decoded content (without byte order mark).</param>
-    /// <param name="index">Byte index reported by the decoder; out-of-range values fall back to 1:1.</param>
-    /// <returns>The 1-based line and column of the byte.</returns>
-    private static (int Line, int Column) LocateByte(ReadOnlySpan<byte> content, int index)
-    {
-        if (index < 0 || index > content.Length)
-        {
-            return (1, 1);
-        }
-
-        // Count line feeds before the bad byte, then measure the partial line in UTF-16 units
-        var before = content[..index];
-        var line = 1;
-        var lineStartByte = 0;
-        for (var i = 0; i < before.Length; i++)
-        {
-            if (before[i] == (byte)'\n')
-            {
-                line++;
-                lineStartByte = i + 1;
-            }
-        }
-
-        return (line, Encoding.UTF8.GetCharCount(before[lineStartByte..]) + 1);
     }
 
     /// <summary>

@@ -419,3 +419,43 @@ internal sealed class ParagraphFormatter
     private static bool StartsLineWithBlockSyntax(TokenizedParagraph tokenized) =>
         tokenized.Segments.Skip(1).Any(static segment => !segment.Atoms.IsEmpty && BlockSyntaxGuard.IsGuardedLineStart(segment.Atoms[0]));
 }
+
+/// <summary>
+///     What the paragraph formatter found out about one paragraph: the edit that wraps it, where its first line that
+///     is too wide is, and whether a line that could be broken stays too wide.
+/// </summary>
+/// <param name="Edit">The edit that wraps the paragraph, or <see langword="null"/> when none is proposed.</param>
+/// <param name="OverflowOffset">
+///     The offset of the first character beyond the line length on the first line that is too wide and could be
+///     broken, or -1 when there is none.
+/// </param>
+/// <param name="OverflowWidth">The display width of that line; 0 when <paramref name="OverflowOffset"/> is -1.</param>
+/// <param name="HasResidualOverflow">Whether a line that could be broken is still too wide (after the edit, when there is one).</param>
+/// <param name="WrapOffset">
+///     The offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
+///     the paragraph is laid out that way or the mode does not apply. With an edit the finding is one that the edit fixes;
+///     without one it is a finding that cannot be fixed automatically.
+/// </param>
+/// <remarks>
+///     <para>
+///         Supporting type of <see cref="ParagraphFormatter"/>. The offsets and the edit refer to the text that the
+///         formatter was given (the document after the other rules have been applied), not to the original file; the
+///         document formatter translates them. A paragraph that has no line that is too wide and could be broken, and
+///         a paragraph that is exempt from the rule, give the outcome <see cref="None"/>.
+///     </para>
+///     <para>
+///         Immutable; safe for concurrent use.
+///     </para>
+/// </remarks>
+internal sealed record ParagraphOutcome(TextEdit? Edit, int OverflowOffset, int OverflowWidth, bool HasResidualOverflow, int WrapOffset = -1)
+{
+    /// <summary>
+    ///     Gets the outcome for a paragraph that needs no report and no edit.
+    /// </summary>
+    public static ParagraphOutcome None { get; } = new(null, -1, 0, false);
+
+    /// <summary>
+    ///     Gets a value indicating whether the outcome has a finding or an edit: the paragraph is too wide somewhere or not laid out as the mode asks.
+    /// </summary>
+    public bool HasFinding => OverflowOffset >= 0 || WrapOffset >= 0;
+}

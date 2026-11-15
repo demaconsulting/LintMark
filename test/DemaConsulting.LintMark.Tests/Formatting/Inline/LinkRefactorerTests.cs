@@ -22,7 +22,6 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
-using DemaConsulting.LintMark.Formatting.Links;
 using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;

@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using System.Text;
+using DemaConsulting.LintMark.Document;
 
 namespace DemaConsulting.LintMark.Formatting;
 
@@ -162,5 +164,87 @@ internal sealed class EditSet
             throw new InvalidOperationException(
                 $"Edit of rule '{second.RuleId}' at {second.Start}..{second.End} conflicts with edit of rule '{first.RuleId}' at {first.Start}..{first.End}.");
         }
+    }
+}
+
+/// <summary>
+///     One change to the LF-normalized text of a document: replace <see cref="Length"/> characters starting
+///     at <see cref="Start"/> with <see cref="Replacement"/>.
+/// </summary>
+/// <param name="Start">Offset of the first replaced character. May equal the text length (an insertion at the end).</param>
+/// <param name="Length">Number of replaced characters. Zero makes the edit an insertion.</param>
+/// <param name="Replacement">The new text; empty for a deletion.</param>
+/// <param name="RuleId">Identifier of the rule that makes the change, for reporting.</param>
+/// <remarks>
+///     <para>
+///         Formatters express every change as edits against the original text instead of producing new text,
+///         because edits can be checked for conflicts (two formatters changing the same characters), ordered
+///         deterministically and applied in one pass, and because text that no edit touches is guaranteed to
+///         stay byte for byte as it was. A deletion has an empty replacement; an insertion has a length of zero.
+///     </para>
+///     <para>
+///         Immutable value type with value equality; safe for concurrent use.
+///     </para>
+/// </remarks>
+internal readonly record struct TextEdit(int Start, int Length, string Replacement, string RuleId)
+{
+    /// <summary>
+    ///     Gets the exclusive end offset of the replaced range.
+    /// </summary>
+    public int End => Start + Length;
+}
+
+/// <summary>
+///     Applies an ordered set of edits to the text of a document.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The patcher is a pure function of its arguments: the result is built in one ascending pass, so
+///         characters that no edit covers are copied unchanged and the cost is linear in the text length
+///         plus the replacement lengths. It refuses an edit that lies outside the text or starts inside the edit before
+///         it, because a wrong edit would silently corrupt the user's file.
+///     </para>
+///     <para>
+///         Thread safety: static and stateless; safe for concurrent use.
+///     </para>
+/// </remarks>
+internal static class SourcePatcher
+{
+    /// <summary>
+    ///     Applies edits to the text of a document.
+    /// </summary>
+    /// <param name="source">The document whose LF-normalized text is patched.</param>
+    /// <param name="edits">
+    ///     The edits, ordered by start offset and then length, without conflicts (the order that
+    ///     <see cref="EditSet.ToImmutable"/> produces).
+    /// </param>
+    /// <returns>The patched text; the very same string instance as the source text when there are no edits.</returns>
+    /// <exception cref="ArgumentException">Thrown when an edit lies outside the text or the edits are not ordered or conflict.</exception>
+    public static string Apply(SourceDocument source, ImmutableArray<TextEdit> edits)
+    {
+        // Without edits the text is returned as it is
+        var text = source.Text;
+        if (edits.IsEmpty)
+        {
+            return text;
+        }
+
+        // Copy the untouched text between edits and write each replacement
+        var builder = new StringBuilder(text.Length);
+        var position = 0;
+        foreach (var edit in edits)
+        {
+            if (edit.End > text.Length || edit.Start < position)
+            {
+                throw new ArgumentException($"The edit at {edit.Start}..{edit.End} lies outside the text or conflicts with the edit before it.", nameof(edits));
+            }
+
+            builder.Append(text, position, edit.Start - position);
+            builder.Append(edit.Replacement);
+            position = edit.End;
+        }
+
+        builder.Append(text, position, text.Length - position);
+        return builder.ToString();
     }
 }
