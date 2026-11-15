@@ -65,7 +65,7 @@ public class FileVerifierTests
     private static Outcome Verify(TemporaryDirectory directory, string path, DocumentFormatter? formatter = null, OptionSet? set = null)
     {
         set ??= new OptionSet("test", []);
-        return new FileVerifier(formatter).Verify(new DiscoveredFile(path, isExplicit: true), set.Label, set.CreateLoader(), null, directory.FullPath);
+        return new FileVerifier(formatter).Verify(new DiscoveredFile(path, IsExplicit: true), set.Label, set.CreateLoader(), null, directory.FullPath);
     }
 
     /// <summary>
@@ -331,7 +331,7 @@ public class FileVerifierTests
 
         // Act
         var outcome = new FileVerifier().Verify(
-            new DiscoveredFile(path, isExplicit: false),
+            new DiscoveredFile(path, IsExplicit: false),
             "repo",
             OptionSet.RepoConfiguration().CreateLoader(),
             null,

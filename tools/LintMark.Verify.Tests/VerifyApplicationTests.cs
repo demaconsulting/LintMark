@@ -234,7 +234,7 @@ public class VerifyApplicationTests
         var runner = new VerifyRunner(new FileVerifier(new DocumentFormatter([new SleepingFormatter()])), 2, TimeSpan.FromMilliseconds(300));
 
         // Act
-        var summary = await runner.RunAsync([new DiscoveredFile(slow, isExplicit: true)], [new OptionSet("t", [])], directory.FullPath);
+        var summary = await runner.RunAsync([new DiscoveredFile(slow, IsExplicit: true)], [new OptionSet("t", [])], directory.FullPath);
 
         // Assert
         Assert.Equal(1, summary.KindCounts[OutcomeKind.Timeout]);

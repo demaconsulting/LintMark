@@ -910,8 +910,8 @@ public class FileDiscoveryTests
     public void DiscoveredFile_Constructor_ValidArguments_KeepsValues()
     {
         // Arrange / Act: an explicit and an implicit file
-        var named = new DiscoveredFile("a.md", isExplicit: true);
-        var found = new DiscoveredFile("b.md", isExplicit: false);
+        var named = new DiscoveredFile("a.md", IsExplicit: true);
+        var found = new DiscoveredFile("b.md", IsExplicit: false);
 
         // Assert: the values are kept
         Assert.Equal("a.md", named.Path);

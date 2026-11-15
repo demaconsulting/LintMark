@@ -95,7 +95,7 @@ internal static class FileSelection
             {
                 foreach (var path in Walk(repository))
                 {
-                    found.TryAdd(path, new DiscoveredFile(path, isExplicit: false));
+                    found.TryAdd(path, new DiscoveredFile(path, IsExplicit: false));
                 }
             }
         }
@@ -189,7 +189,7 @@ internal static class FileSelection
         // A directory is walked by this class, which also prunes the excluded folders early
         if (Directory.Exists(full))
         {
-            return Walk(full).Select(static p => new DiscoveredFile(p, isExplicit: false));
+            return Walk(full).Select(static p => new DiscoveredFile(p, IsExplicit: false));
         }
 
         // Everything else is a file or a glob; the product's discovery expands it

@@ -24,7 +24,7 @@ using DemaConsulting.LintMark.Document;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace DemaConsulting.LintMark.Linting.Rules;
+namespace DemaConsulting.LintMark.Linting;
 
 /// <summary>
 ///     Lint-only rules about headings and about text that is used where a heading is meant: a heading that skips a level,

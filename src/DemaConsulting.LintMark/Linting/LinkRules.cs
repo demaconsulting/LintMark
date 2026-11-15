@@ -28,7 +28,7 @@ using DemaConsulting.LintMark.Formatting;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace DemaConsulting.LintMark.Linting.Rules;
+namespace DemaConsulting.LintMark.Linting;
 
 /// <summary>
 ///     Lint-only rules about links, images and reference definitions.

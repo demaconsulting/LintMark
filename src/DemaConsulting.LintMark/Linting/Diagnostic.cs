@@ -47,4 +47,37 @@ internal sealed record Diagnostic(string RuleId, DiagnosticKind Kind, string Pat
     ///     Gets a value indicating whether rewriting the file removes the finding.
     /// </summary>
     public bool Fixable => Kind == DiagnosticKind.Formatting;
+
+    /// <summary>
+    ///     Creates a finding that is only reported.
+    /// </summary>
+    /// <param name="path">Path of the file.</param>
+    /// <param name="ruleId">Rule identifier.</param>
+    /// <param name="line">1-based line.</param>
+    /// <param name="column">1-based column.</param>
+    /// <param name="message">Description; line breaks are replaced so the report stays one line per finding.</param>
+    /// <returns>The finding.</returns>
+    public static Diagnostic LintOnly(string path, string ruleId, int line, int column, string message) =>
+        new(ruleId, DiagnosticKind.LintOnly, path, line, column, message.ReplaceLineEndings(" "));
+}
+
+/// <summary>
+///     Whether a diagnostic can be removed by rewriting the file or can only be reported.
+/// </summary>
+/// <remarks>
+///     The kind is what makes the fix option's contract checkable: a <see cref="Formatting"/> diagnostic is
+///     one that the formatter removes when it rewrites the file, a <see cref="LintOnly"/> diagnostic is
+///     reported and stays until a person changes the file.
+/// </remarks>
+internal enum DiagnosticKind
+{
+    /// <summary>
+    ///     A problem that is only reported (file problems, configuration problems, format refusals and lint rules).
+    /// </summary>
+    LintOnly,
+
+    /// <summary>
+    ///     A violation of canonical form that rewriting the file removes.
+    /// </summary>
+    Formatting
 }

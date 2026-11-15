@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 using DemaConsulting.LintMark.Configuration;
-using DemaConsulting.LintMark.Linting.Rules;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 

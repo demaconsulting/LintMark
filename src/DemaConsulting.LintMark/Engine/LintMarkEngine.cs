@@ -193,8 +193,7 @@ internal sealed class LintMarkEngine
             .SelectMany(static r => r.ConfigErrors)
             .Concat(loader.InitialErrors)
             .Distinct()
-            .Select(static e => new Diagnostic(
-                ConfigLoader.ErrorRuleId, DiagnosticKind.LintOnly, e.Path, e.Line, e.Column, e.Message.ReplaceLineEndings(" "))));
+            .Select(static e => Diagnostic.LintOnly(e.Path, ConfigLoader.ErrorRuleId, e.Line, e.Column, e.Message)));
 
         // Report in one deterministic order; the diff goes to standard output after the findings
         TextReporter.Report(diagnostics, baseDirectory, context);
@@ -295,7 +294,7 @@ internal sealed class LintMarkEngine
             catch (Exception ex)
             {
                 remaining.AddRange(result.Diagnostics);
-                remaining.Add(Problem(result.Path, WriteErrorRuleId, 1, 1, $"Cannot write file: {ex.Message}"));
+                remaining.Add(Diagnostic.LintOnly(result.Path, WriteErrorRuleId, 1, 1, $"Cannot write file: {ex.Message}"));
             }
         }
 
@@ -494,7 +493,7 @@ internal sealed class LintMarkEngine
 
         return
         [
-            Problem(path, rule, grid.Line, grid.Column, "Line looks like a grid table border but the table is not valid; the file is never rewritten")
+            Diagnostic.LintOnly(path, rule, grid.Line, grid.Column, "Line looks like a grid table border but the table is not valid; the file is never rewritten")
         ];
     }
 
@@ -508,19 +507,7 @@ internal sealed class LintMarkEngine
     /// <param name="message">Description (line breaks are replaced so the report stays one line per diagnostic).</param>
     /// <returns>The result.</returns>
     private static FileResult Failed(string path, string ruleId, int line, int column, string message) =>
-        new(path, [Problem(path, ruleId, line, column, message)]);
-
-    /// <summary>
-    ///     Creates a diagnostic that is only reported.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="ruleId">Rule identifier.</param>
-    /// <param name="line">1-based line.</param>
-    /// <param name="column">1-based column.</param>
-    /// <param name="message">Description (line breaks are replaced so the report stays one line per diagnostic).</param>
-    /// <returns>The diagnostic.</returns>
-    private static Diagnostic Problem(string path, string ruleId, int line, int column, string message) =>
-        new(ruleId, DiagnosticKind.LintOnly, path, line, column, message.ReplaceLineEndings(" "));
+        new(path, [Diagnostic.LintOnly(path, ruleId, line, column, message)]);
 
     /// <summary>
     ///     Describes a read failure without leaking machine-specific text where a stable message exists.
@@ -534,3 +521,73 @@ internal sealed class LintMarkEngine
         _ => $"Cannot read file: {ex.Message}"
     };
 }
+
+/// <summary>
+///     The outcome of processing one file.
+/// </summary>
+/// <param name="Path">The path of the file as it was given to the engine.</param>
+/// <param name="Diagnostics">The findings about the file (empty when it was read, parsed and found compliant).</param>
+/// <param name="Config">
+///     The effective configuration of the file (the configuration that applies to it, with the line ending
+///     filled in from the editor settings when the configuration gives none), or <see langword="null"/> when
+///     the file's configuration is invalid or has not been attached.
+/// </param>
+/// <remarks>
+///     Workers return results and never write output; the engine emits them later in path order so
+///     output does not depend on scheduling. Immutable once created.
+/// </remarks>
+internal sealed record FileResult(string Path, ImmutableArray<Diagnostic> Diagnostics, LintMarkConfig? Config = null)
+{
+    /// <summary>
+    ///     Gets the configuration problems that apply to the file (empty when its configuration is valid).
+    /// </summary>
+    /// <remarks>
+    ///     The same problem is shared by every file that uses the same configuration; the engine reports each
+    ///     distinct problem once.
+    /// </remarks>
+    public ImmutableArray<ConfigError> ConfigErrors { get; init; } = ImmutableArray<ConfigError>.Empty;
+
+    /// <summary>
+    ///     Gets the rewrite that is ready to be written, or <see langword="null"/> when the file is not to be rewritten.
+    /// </summary>
+    /// <remarks>
+    ///     Set only for a rewrite that changes the bytes of the file; never set for a file with an invalid
+    ///     configuration, a format-unsafe document or a failure.
+    /// </remarks>
+    public FileChange? Change { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the file was skipped because an <c>ignore</c> pattern of its configuration matches it.
+    /// </summary>
+    /// <remarks>
+    ///     An ignored file is not read, produces no diagnostic and is never rewritten.
+    /// </remarks>
+    public bool Ignored { get; init; }
+}
+
+/// <summary>
+///     A rewrite of one file that is ready to be written.
+/// </summary>
+/// <param name="OriginalLf">The LF-normalized text as it is on disk.</param>
+/// <param name="NewLf">The LF-normalized text after rewriting.</param>
+/// <param name="OriginalEndings">The counts of the line terminators in the file as it is on disk.</param>
+/// <param name="TargetEnding">The line ending the file is written with.</param>
+/// <param name="OriginalBytes">The exact bytes the rewrite was computed from.</param>
+/// <param name="NewBytes">The exact bytes to write (byte order mark and line endings restored).</param>
+/// <param name="ResolvedTarget">The full path of the file the original bytes were read from, with symbolic links resolved at read time.</param>
+/// <remarks>
+///     A change exists only for a rewrite that differs from the file: for a file that must not be rewritten
+///     (an invalid configuration, a format-unsafe document, a failure) the result carries no change, so
+///     nothing downstream can write the file by mistake. The original bytes travel with the change so the
+///     writer can refuse to replace a file that changed after it was read, and so does the resolved target
+///     (the file that the path referred to through symbolic links when it was read), so the writer can also
+///     refuse when a link was redirected to a file with the same bytes. Immutable, including the byte arrays.
+/// </remarks>
+internal sealed record FileChange(
+    string OriginalLf,
+    string NewLf,
+    LineEndingInfo OriginalEndings,
+    LineEnding TargetEnding,
+    ImmutableArray<byte> OriginalBytes,
+    ImmutableArray<byte> NewBytes,
+    string ResolvedTarget);

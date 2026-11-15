@@ -50,5 +50,5 @@ internal static class LintMarkEngineTestExtensions
         IReadOnlyList<string> files,
         ConfigLoader loader,
         EditorConfigResolver? editorConfig) =>
-        engine.Process([.. files.Select(static file => new DiscoveredFile(file, isExplicit: true))], loader, editorConfig);
+        engine.Process([.. files.Select(static file => new DiscoveredFile(file, IsExplicit: true))], loader, editorConfig);
 }

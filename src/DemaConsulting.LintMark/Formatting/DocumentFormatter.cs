@@ -411,10 +411,9 @@ internal sealed class DocumentFormatter
             const string description = "Paragraph is not wrapped per the configured sentence or semantic style";
             diagnostics.Add(outcome.Edit is not null
                 ? new Diagnostic(RuleCatalog.ParagraphWrapRuleId, DiagnosticKind.Formatting, source.Path, wrapLine, wrapColumn, description)
-                : new Diagnostic(
-                    RuleCatalog.ParagraphWrapRuleId,
-                    DiagnosticKind.LintOnly,
+                : Diagnostic.LintOnly(
                     source.Path,
+                    RuleCatalog.ParagraphWrapRuleId,
                     wrapLine,
                     wrapColumn,
                     description + " and the paragraph cannot be wrapped automatically"));
@@ -434,10 +433,9 @@ internal sealed class DocumentFormatter
 
         if (outcome.HasResidualOverflow)
         {
-            diagnostics.Add(new Diagnostic(
-                RuleCatalog.LineLengthRuleId,
-                DiagnosticKind.LintOnly,
+            diagnostics.Add(Diagnostic.LintOnly(
                 source.Path,
+                RuleCatalog.LineLengthRuleId,
                 line,
                 column,
                 message + " and the paragraph cannot be wrapped automatically"));

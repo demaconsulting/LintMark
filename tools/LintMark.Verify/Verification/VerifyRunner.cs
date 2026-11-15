@@ -136,7 +136,7 @@ internal sealed class VerifyRunner
         {
             var (file, index) = item;
             var set = sets[index];
-            var target = set.DiscoverPerFile ? file : new DiscoveredFile(file.Path, isExplicit: true);
+            var target = set.DiscoverPerFile ? file : new DiscoveredFile(file.Path, IsExplicit: true);
 
             // Run the pair on a pool thread under the time limit
             var work = Task.Run(() => _verifier.Verify(target, set.Label, loaders[index], editorConfigs[index], baseDirectory), CancellationToken.None);

@@ -170,7 +170,7 @@ public class FileSelectionTests
     public void FileSelection_Sample_IsDeterministicSubset()
     {
         // Arrange: 100 files
-        var files = Enumerable.Range(0, 100).Select(i => new DiscoveredFile($"/x/f{i:D3}.md", isExplicit: true)).ToList();
+        var files = Enumerable.Range(0, 100).Select(i => new DiscoveredFile($"/x/f{i:D3}.md", IsExplicit: true)).ToList();
 
         // Act
         var first = FileSelection.Sample(files, 10);

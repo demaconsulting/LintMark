@@ -48,7 +48,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as a file that was found, not named
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
 
         // Assert: skipped without a report
         Assert.True(result.Ignored);
@@ -68,7 +68,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as a file that was found
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
 
         // Assert: skipped, nothing read, nothing reported
         Assert.True(result.Ignored);
@@ -87,7 +87,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as an explicit file
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: true)], ConfigLoader.ForDefaults(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: true)], ConfigLoader.ForDefaults(), null, directory.FullPath));
 
         // Assert: read and reported
         Assert.False(result.Ignored);
@@ -107,7 +107,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as a file that was found
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDiscovery(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: false)], ConfigLoader.ForDiscovery(), null, directory.FullPath));
 
         // Assert: the file was read and reported, the configuration problem is carried, and it is not ignored
         Assert.False(result.Ignored);

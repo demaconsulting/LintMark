@@ -24,7 +24,7 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 
-namespace DemaConsulting.LintMark.Linting.Rules;
+namespace DemaConsulting.LintMark.Linting;
 
 /// <summary>
 ///     The lint-only rules about tables: a table too wide for the line length, rows with the wrong number of cells, and
@@ -81,13 +81,7 @@ internal sealed class TableRules : ILintRule
             if (block.Kind == BlockKind.GridTable)
             {
                 var (line, column) = source.PositionOf(block.Start);
-                found.Add(new Diagnostic(
-                    RuleCatalog.TableGridUnformattedRuleId,
-                    DiagnosticKind.LintOnly,
-                    source.Path,
-                    line,
-                    column,
-                    "Grid table is left as written"));
+                found.Add(Diagnostic.LintOnly(source.Path, RuleCatalog.TableGridUnformattedRuleId, line, column, "Grid table is left as written"));
             }
             else if (block.Kind == BlockKind.Table && PipeTable.TryParse(layout, block) is { } table)
             {
@@ -114,13 +108,7 @@ internal sealed class TableRules : ILintRule
             if (row.Cells.Length != table.ColumnCount)
             {
                 var (line, column) = source.PositionOf(row.ContentStart);
-                found.Add(new Diagnostic(
-                    RuleCatalog.TableColumnCountRuleId,
-                    DiagnosticKind.LintOnly,
-                    source.Path,
-                    line,
-                    column,
-                    $"Table row has {row.Cells.Length} cells; the header has {table.ColumnCount}"));
+                found.Add(Diagnostic.LintOnly(source.Path, RuleCatalog.TableColumnCountRuleId, line, column, $"Table row has {row.Cells.Length} cells; the header has {table.ColumnCount}"));
             }
         }
     }
@@ -147,13 +135,7 @@ internal sealed class TableRules : ILintRule
             if (width > limit)
             {
                 var (line, column) = source.PositionOf(row.ContentStart);
-                found.Add(new Diagnostic(
-                    RuleCatalog.TableTooWideRuleId,
-                    DiagnosticKind.LintOnly,
-                    source.Path,
-                    line,
-                    column,
-                    $"Table is {width} columns wide even when compact; the limit is {limit}"));
+                found.Add(Diagnostic.LintOnly(source.Path, RuleCatalog.TableTooWideRuleId, line, column, $"Table is {width} columns wide even when compact; the limit is {limit}"));
                 return;
             }
         }

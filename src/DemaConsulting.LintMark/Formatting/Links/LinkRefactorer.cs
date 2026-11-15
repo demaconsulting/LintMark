@@ -24,7 +24,6 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Linting;
-using DemaConsulting.LintMark.Linting.Rules;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;

@@ -26,7 +26,7 @@ using DemaConsulting.LintMark.Formatting;
 using Markdig.Extensions.Mathematics;
 using Markdig.Syntax;
 
-namespace DemaConsulting.LintMark.Linting.Rules;
+namespace DemaConsulting.LintMark.Linting;
 
 /// <summary>
 ///     Lint-only rules about the structure of a document and about marker characters that the parser read as plain text:

@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Linting.Rules;
+using Markdig.Syntax.Inlines;
 
 namespace DemaConsulting.LintMark.Linting;
 
@@ -111,4 +112,140 @@ internal sealed class LintRuleEngine
     /// <returns><see langword="true"/> unless the configuration switches the rule off; an identifier that is not configurable is always on.</returns>
     private static bool IsEnabled(LintMarkConfig config, string ruleId) =>
         !config.Rules.TryGetValue(ruleId, out var enabled) || enabled;
+}
+
+/// <summary>
+///     A rule that only reports: it finds a problem that formatting cannot fix and never proposes an edit.
+/// </summary>
+/// <remarks>
+///     <para>
+///         A lint rule reads a parsed document and returns diagnostics of kind <see cref="DiagnosticKind.LintOnly"/>.
+///         It does not look at suppression comments or at whether it is switched off in the configuration: the
+///         <see cref="LintRuleEngine"/> filters its diagnostics by the rule identifier they carry.
+///     </para>
+///     <para>
+///         Thread safety: an implementation must be stateless (or immutable) so that one instance serves every worker.
+///     </para>
+/// </remarks>
+internal interface ILintRule
+{
+    /// <summary>
+    ///     Gets the identifiers of the rules whose diagnostics this implementation reports.
+    /// </summary>
+    ImmutableArray<string> RuleIds { get; }
+
+    /// <summary>
+    ///     Finds the problems of a document.
+    /// </summary>
+    /// <param name="document">The parsed document. Must not be null.</param>
+    /// <param name="config">The effective configuration of the file. Must not be null.</param>
+    /// <returns>The problems, in any order; each one carries one of <see cref="RuleIds"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    ImmutableArray<Diagnostic> Check(ParsedDocument document, LintMarkConfig config);
+}
+
+/// <summary>
+///     Helpers shared by the lint-only rule units: creating a finding at an offset and reading the plain text of an inline tree.
+/// </summary>
+/// <remarks>
+///     Thread safety: static and stateless; safe for concurrent use.
+/// </remarks>
+internal static class RuleSupport
+{
+    /// <summary>
+    ///     Creates a lint-only finding at an offset of the document.
+    /// </summary>
+    /// <param name="source">The source document that holds the offset and the path.</param>
+    /// <param name="ruleId">The canonical rule identifier.</param>
+    /// <param name="offset">The offset into the LF-normalized text; a value outside the text is moved to the nearest end.</param>
+    /// <param name="message">The message; line breaks are replaced by blanks so that the report keeps one line per finding.</param>
+    /// <returns>The finding.</returns>
+    public static Diagnostic Finding(SourceDocument source, string ruleId, int offset, string message)
+    {
+        var (line, column) = source.PositionOf(Math.Clamp(offset, 0, source.Text.Length));
+        return Diagnostic.LintOnly(source.Path, ruleId, line, column, message);
+    }
+
+    /// <summary>
+    ///     Reads the plain text of an inline tree: the text, the content of code spans and the text of links and emphasis.
+    /// </summary>
+    /// <param name="root">The inline content, or <see langword="null"/> when there is none.</param>
+    /// <param name="includeImages">Whether the alternative text of an image is part of the text; <see langword="false"/> gives an image no text at all.</param>
+    /// <returns>The text; line breaks are blanks and inline HTML contributes nothing.</returns>
+    public static string PlainText(ContainerInline? root, bool includeImages = true)
+    {
+        var builder = new StringBuilder();
+        if (root is not null)
+        {
+            Append(root, builder, includeImages);
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Collapses every run of whitespace to one blank and trims the ends.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The normalized text.</returns>
+    public static string CollapseWhitespace(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+        var pending = false;
+        foreach (var c in text)
+        {
+            if (char.IsWhiteSpace(c))
+            {
+                pending = builder.Length > 0;
+            }
+            else
+            {
+                if (pending)
+                {
+                    builder.Append(' ');
+                    pending = false;
+                }
+
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Appends the plain text of an inline to a builder.
+    /// </summary>
+    /// <param name="inline">The inline.</param>
+    /// <param name="builder">The builder.</param>
+    /// <param name="includeImages">Whether the alternative text of an image is read.</param>
+    private static void Append(Inline inline, StringBuilder builder, bool includeImages)
+    {
+        switch (inline)
+        {
+            case LiteralInline literal:
+                builder.Append(literal.Content.ToString());
+                break;
+            case CodeInline code:
+                builder.Append(code.Content);
+                break;
+            case LineBreakInline:
+                builder.Append(' ');
+                break;
+            case HtmlEntityInline entity:
+                builder.Append(entity.Transcoded.ToString());
+                break;
+            case LinkInline { IsImage: true } when !includeImages:
+                break;
+            case ContainerInline container:
+                foreach (var child in container)
+                {
+                    Append(child, builder, includeImages);
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
 }

@@ -422,3 +422,18 @@ internal static class FileDiscovery
     private static bool IsOutside(string relative) =>
         Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 }
+
+/// <summary>
+///     A file selected for processing, and whether the command line named it.
+/// </summary>
+/// <param name="Path">The full path of the file.</param>
+/// <param name="IsExplicit">
+///     <see langword="true"/> when the file was named on the command line (as an existing file, or as a path
+///     without wildcards); <see langword="false"/> when it was found through a directory, a glob or the default pattern.
+/// </param>
+/// <remarks>
+///     The distinction exists because a file the user names is a deliberate request: the built-in exclusion of
+///     <c>node_modules</c> and <c>.git</c> and the <c>ignore</c> patterns of the configuration do not apply to
+///     it (only <c>!</c> excludes on the command line do). Immutable value type; safe for concurrent use.
+/// </remarks>
+internal readonly record struct DiscoveredFile(string Path, bool IsExplicit);
