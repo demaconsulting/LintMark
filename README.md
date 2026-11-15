@@ -12,12 +12,15 @@
 LintMark is a .NET tool, distributed as a NuGet tool package, for linting and optionally reformatting markdown files
 into a preferred format, with optional tweaks via a .lintmark.yaml configuration file.
 
-The diagram below is a placeholder workflow diagram: replace its TODO boxes (in `docs/images/workflow.svg`,
-then re-render `docs/images/workflow.png`) to show how users prepare inputs, run your tool, get its outputs,
-and use them.
+The diagram below shows the workflow: you give LintMark Markdown files and optional settings, run it in one of three
+modes, and use its findings, rewrites, and exit code.
 
-![Placeholder workflow diagram: replace the TODO boxes to show how users prepare inputs, run your tool, get
-its outputs, and use them][workflow]
+![LintMark workflow in four steps. Prepare inputs: Markdown files, an optional .lintmark.yaml, and an .editorconfig for
+line endings. Run LintMark with --check to report, or --fix or --diff to rewrite or preview, locally, in CI, or from
+coding agents. Get results: findings as file:line:col: rule-id message, rewritten files or a unified diff, and an exit
+code of 0 when clean or 1 for findings or errors. Use them as a CI quality gate, for auto-formatting, and for a
+consistent style. Tool qualification evidence comes from lintmark --validate --results
+validation-results.trx.][workflow]
 
 ## Features
 

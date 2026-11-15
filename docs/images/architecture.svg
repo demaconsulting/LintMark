@@ -1,81 +1,153 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" font-family="Segoe UI, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="720" viewBox="0 0 1340 720" font-family="Segoe UI, Arial, sans-serif">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect x="14" y="16" width="935" height="495" rx="28" fill="#d5dce6"/>
-  <rect x="10" y="10" width="935" height="495" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- Runtime data flow of one lintmark run: inputs, Program/Context, Engine (discovery, per-file pipeline, reporting, writing), outputs -->
+  <rect x="14" y="16" width="1320" height="690" rx="28" fill="#d5dce6"/>
+  <rect x="10" y="10" width="1320" height="690" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
 
   <g transform="translate(30,30)">
-    <rect x="170" y="0" width="520" height="60" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
-    <text x="430" y="27" font-size="16" font-family="Consolas, monospace" font-weight="600" fill="#92400e" text-anchor="middle">TODO: your-tool (Program)</text>
-    <text x="430" y="47" font-size="13" fill="#92400e" text-anchor="middle">Replace with the tool command name and a one-line purpose</text>
-    <line x1="430" y1="64" x2="430" y2="100" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
-    <text x="442" y="86" font-size="12" fill="#334155">TODO: describe the entry point</text>
+    <!-- LintMark system frame -->
+    <rect x="220" y="0" width="820" height="624" rx="14" fill="#f8fafc" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 5"/>
+    <text x="236" y="24" font-size="14" font-weight="600" fill="#1d4ed8">LintMark: the shipped tool</text>
 
-    <rect x="170" y="104" width="520" height="248" rx="14" fill="#f8fafc" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 5"/>
-    <text x="186" y="126" font-size="14" font-weight="600" fill="#2563eb">TODO: DemaConsulting.YourTool</text>
+    <!-- Row A: Program, Context -->
+    <rect x="240" y="40" width="200" height="56" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="340" y="64" font-size="14" font-weight="600" fill="#14532d" text-anchor="middle">Program</text>
+    <text x="340" y="83" font-size="12" fill="#166534" text-anchor="middle">entry point and dispatch</text>
+    <rect x="480" y="40" width="200" height="56" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="580" y="64" font-size="14" font-weight="600" fill="#14532d" text-anchor="middle">Context</text>
+    <text x="580" y="83" font-size="12" fill="#166534" text-anchor="middle">options, output, exit code</text>
+    <line x1="442" y1="68" x2="478" y2="68" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
 
-    <rect x="190" y="136" width="480" height="48" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
-    <text x="430" y="157" font-size="16" font-weight="600" fill="#166534" text-anchor="middle">TODO: Cli</text>
-    <text x="430" y="175" font-size="12" fill="#166534" text-anchor="middle">Replace with argument parsing and command routing</text>
+    <!-- Engine frame -->
+    <rect x="236" y="116" width="788" height="492" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2" stroke-dasharray="8 5"/>
+    <text x="252" y="138" font-size="14" font-weight="600" fill="#92400e">Engine subsystem (LintMarkEngine.Run)</text>
 
-    <g font-size="11" fill="#5b21b6" text-anchor="middle">
-      <rect x="190" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-      <text x="266" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem A</text>
-      <text x="266" y="242">Replace with a main</text>
-      <text x="266" y="256">subsystem and its role</text>
-      <rect x="353" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-      <text x="429" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem B</text>
-      <text x="429" y="242">Replace with a main</text>
-      <text x="429" y="256">subsystem and its role</text>
-      <rect x="516" y="196" width="153" height="68" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-      <text x="592" y="222" font-size="14" font-weight="600" fill="#4c1d95">TODO: Subsystem C</text>
-      <text x="592" y="242">Replace with a main</text>
-      <text x="592" y="256">subsystem and its role</text>
-    </g>
+    <!-- Row B: FileDiscovery -->
+    <rect x="480" y="156" width="200" height="56" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="580" y="180" font-size="14" font-weight="600" fill="#92400e" text-anchor="middle">FileDiscovery</text>
+    <text x="580" y="199" font-size="12" fill="#92400e" text-anchor="middle">expands paths, globs, ignore</text>
+    <line x1="580" y1="98" x2="580" y2="154" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="680" y1="184" x2="730" y2="184" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <rect x="730" y="170" width="150" height="28" rx="14" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="805" y="189" font-size="12" fill="#334155" text-anchor="middle">FileSystemGlobbing</text>
 
-    <g font-size="11" fill="#1e40af" text-anchor="middle">
-      <rect x="190" y="276" width="236" height="60" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-      <text x="308" y="302" font-size="14" font-weight="600" fill="#1e3a8a">TODO: Support unit</text>
-      <text x="308" y="322">Replace with a supporting unit</text>
-      <rect x="436" y="276" width="233" height="60" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-      <text x="552" y="302" font-size="14" font-weight="600" fill="#1e3a8a">TODO: Support unit</text>
-      <text x="552" y="322">Replace with a supporting unit</text>
-    </g>
+    <!-- Per-file pipeline frame -->
+    <line x1="580" y1="214" x2="580" y2="230" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="252" y="232" width="756" height="252" rx="12" fill="#faf5ff" stroke="#7c3aed" stroke-width="2" stroke-dasharray="8 5"/>
+    <text x="268" y="254" font-size="14" font-weight="600" fill="#5b21b6">Per file, in parallel (one worker per file; no file is changed here)</text>
 
-    <line x1="430" y1="356" x2="430" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
-    <text x="442" y="372" font-size="12" fill="#334155">TODO: built on</text>
+    <!-- Stage 1: Configuration -->
+    <rect x="260" y="268" width="164" height="160" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="342" y="292" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">1. Configuration</text>
+    <text x="342" y="318" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">ConfigLoader</text>
+    <text x="342" y="333" font-size="11" fill="#5b21b6" text-anchor="middle">nearest .lintmark.yaml</text>
+    <text x="342" y="364" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">EditorConfigResolver</text>
+    <text x="342" y="379" font-size="11" fill="#5b21b6" text-anchor="middle">line ending (end_of_line)</text>
+    <text x="342" y="414" font-size="11" font-style="italic" fill="#5b21b6" text-anchor="middle">→ settings for the file</text>
+    <line x1="426" y1="348" x2="450" y2="348" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
 
-    <g text-anchor="middle">
-      <rect x="170" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
-      <text x="253" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
-      <text x="253" y="430" font-size="12" fill="#475569">Replace with a library</text>
-      <rect x="347" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
-      <text x="430" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
-      <text x="430" y="430" font-size="12" fill="#475569">Replace with a library</text>
-      <rect x="524" y="384" width="166" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
-      <text x="607" y="410" font-size="15" font-weight="600" fill="#334155">TODO: Dependency</text>
-      <text x="607" y="430" font-size="12" fill="#475569">Replace with a library</text>
-    </g>
+    <!-- Stage 2: Document -->
+    <rect x="452" y="268" width="164" height="160" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="534" y="292" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">2. Document</text>
+    <text x="534" y="318" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">SourceDocument</text>
+    <text x="534" y="333" font-size="11" fill="#5b21b6" text-anchor="middle">decodes the file bytes</text>
+    <text x="534" y="364" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">DocumentParser</text>
+    <text x="534" y="379" font-size="11" fill="#5b21b6" text-anchor="middle">blocks, SuppressionMap</text>
+    <text x="534" y="414" font-size="11" font-style="italic" fill="#5b21b6" text-anchor="middle">→ immutable parsed document</text>
+    <line x1="618" y1="348" x2="642" y2="348" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
 
-    <text x="70" y="181" font-size="13" font-weight="600" fill="#475569" text-anchor="middle">Inputs</text>
-    <rect x="0" y="195" width="140" height="66" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
-    <text x="70" y="222" font-size="15" font-weight="600" fill="#334155" text-anchor="middle">TODO: Inputs</text>
-    <text x="70" y="243" font-size="12" fill="#475569" text-anchor="middle">Replace with real inputs</text>
-    <line x1="144" y1="228" x2="166" y2="228" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <!-- Stage 3: Formatting -->
+    <rect x="644" y="268" width="164" height="160" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="726" y="292" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">3. Formatting</text>
+    <text x="726" y="318" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">DocumentFormatter</text>
+    <text x="726" y="333" font-size="11" fill="#5b21b6" text-anchor="middle">whitespace passes, Blocks,</text>
+    <text x="726" y="347" font-size="11" fill="#5b21b6" text-anchor="middle">Inline, link refactor</text>
+    <text x="726" y="372" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">EditSet</text>
+    <text x="726" y="387" font-size="11" fill="#5b21b6" text-anchor="middle">composes the edits</text>
+    <text x="726" y="414" font-size="11" font-style="italic" fill="#5b21b6" text-anchor="middle">→ fixable findings, new text</text>
+    <line x1="810" y1="348" x2="834" y2="348" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
 
-    <rect x="720" y="163" width="165" height="130" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
-    <text x="802" y="189" font-size="16" font-weight="600" fill="#166534" text-anchor="middle">Outputs</text>
-    <g font-size="13" fill="#14532d" text-anchor="middle">
-      <rect x="734" y="201" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
-      <text x="802" y="219">TODO: Output 1</text>
-      <rect x="734" y="231" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
-      <text x="802" y="249">TODO: Output 2</text>
-      <rect x="734" y="261" width="137" height="26" rx="5" fill="#ffffff" stroke="#16a34a"/>
-      <text x="802" y="279">TODO: Output 3</text>
-    </g>
-    <line x1="694" y1="228" x2="716" y2="228" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <!-- Stage 4: Linting -->
+    <rect x="836" y="268" width="164" height="160" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="918" y="292" font-size="14" font-weight="600" fill="#4c1d95" text-anchor="middle">4. Linting</text>
+    <text x="918" y="318" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">LintRules</text>
+    <text x="918" y="333" font-size="11" fill="#5b21b6" text-anchor="middle">lint-only rules</text>
+    <text x="918" y="364" font-size="12" font-weight="600" fill="#4c1d95" text-anchor="middle">RuleCatalog</text>
+    <text x="918" y="379" font-size="11" fill="#5b21b6" text-anchor="middle">rules on or off, aliases</text>
+    <text x="918" y="414" font-size="11" font-style="italic" fill="#5b21b6" text-anchor="middle">→ lint-only findings</text>
+
+    <!-- OTS chips -->
+    <line x1="300" y1="428" x2="300" y2="440" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <rect x="260" y="440" width="80" height="26" rx="13" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="300" y="458" font-size="12" fill="#334155" text-anchor="middle">YamlDotNet</text>
+    <line x1="384" y1="428" x2="384" y2="440" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <rect x="344" y="440" width="80" height="26" rx="13" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="384" y="458" font-size="12" fill="#334155" text-anchor="middle">EditorConfig</text>
+    <line x1="534" y1="428" x2="534" y2="440" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <rect x="494" y="440" width="80" height="26" rx="13" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="534" y="458" font-size="12" fill="#334155" text-anchor="middle">Markdig</text>
+
+    <!-- Bottom row: AtomicFileWriter, Reporters -->
+    <line x1="410" y1="486" x2="410" y2="514" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="810" y1="486" x2="810" y2="514" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="610" y="505" font-size="12" font-style="italic" fill="#475569" text-anchor="middle">results gathered in path order</text>
+    <rect x="260" y="516" width="300" height="76" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="410" y="540" font-size="14" font-weight="600" fill="#92400e" text-anchor="middle">AtomicFileWriter</text>
+    <text x="410" y="560" font-size="12" fill="#92400e" text-anchor="middle">--fix only: replaces the file in one step</text>
+    <text x="410" y="576" font-size="12" fill="#92400e" text-anchor="middle">and refuses to overwrite a changed file</text>
+    <rect x="620" y="516" width="380" height="76" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="810" y="540" font-size="14" font-weight="600" fill="#92400e" text-anchor="middle">Reporters</text>
+    <text x="810" y="560" font-size="12" fill="#92400e" text-anchor="middle">TextReporter: sorted findings</text>
+    <text x="810" y="576" font-size="12" fill="#92400e" text-anchor="middle">DiffReporter: unified diff (--diff)</text>
+
+    <!-- Inputs (left) -->
+    <rect x="0" y="40" width="190" height="56" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="95" y="64" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Command line</text>
+    <text x="95" y="83" font-size="11" fill="#1e40af" text-anchor="middle">lintmark [options] [paths]</text>
+    <line x1="192" y1="68" x2="238" y2="68" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="0" y="156" width="190" height="56" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="95" y="180" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Markdown files</text>
+    <text x="95" y="199" font-size="11" fill="#1e40af" text-anchor="middle">*.md paths, directories, globs</text>
+    <line x1="192" y1="184" x2="478" y2="184" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="0" y="300" width="190" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="95" y="322" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">.lintmark.yaml</text>
+    <text x="95" y="340" font-size="11" fill="#1e40af" text-anchor="middle">optional style settings</text>
+    <line x1="192" y1="325" x2="258" y2="325" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="0" y="366" width="190" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="95" y="388" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">.editorconfig</text>
+    <text x="95" y="406" font-size="11" fill="#1e40af" text-anchor="middle">optional line ending</text>
+    <line x1="192" y1="391" x2="258" y2="391" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Rewritten files (left, bottom) -->
+    <rect x="0" y="516" width="190" height="76" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="95" y="540" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Markdown files</text>
+    <text x="95" y="560" font-size="11" fill="#1e40af" text-anchor="middle">rewritten in place</text>
+    <text x="95" y="575" font-size="11" fill="#1e40af" text-anchor="middle">(only with --fix)</text>
+    <line x1="258" y1="554" x2="192" y2="554" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Outputs (right) -->
+    <rect x="1070" y="40" width="200" height="56" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="1170" y="64" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Exit code</text>
+    <text x="1170" y="83" font-size="11" fill="#1e40af" text-anchor="middle">0 clean, 1 findings or errors</text>
+    <line x1="682" y1="68" x2="1068" y2="68" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="1070" y="506" width="200" height="44" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="1170" y="526" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Findings (stderr)</text>
+    <text x="1170" y="542" font-size="11" fill="#1e40af" text-anchor="middle">path:line:col: rule-id message</text>
+    <line x1="1002" y1="528" x2="1068" y2="528" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="1070" y="562" width="200" height="44" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="1170" y="582" font-size="14" font-weight="600" fill="#1e3a8a" text-anchor="middle">Unified diff (stdout)</text>
+    <text x="1170" y="598" font-size="11" fill="#1e40af" text-anchor="middle">only with --diff</text>
+    <line x1="1002" y1="584" x2="1068" y2="584" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <text x="0" y="652" font-size="12" font-style="italic" fill="#475569">Arrows show the flow of data. Grey rounded labels are third-party (OTS) libraries used by the unit above them.</text>
   </g>
 </svg>
