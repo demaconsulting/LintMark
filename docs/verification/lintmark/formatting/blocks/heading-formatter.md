@@ -32,7 +32,8 @@ no network access and no Pandoc installation.
 **Blanks after the marker become one space**: Several blanks after the marker become one.
 
 **Closing sequence is removed**: A closed ATX heading loses its closing sequence, but number signs in text stay, and an
-empty closed heading keeps its marker only.
+empty closed heading keeps its marker only. A closing sequence after text that ends in number signs (`# # #`) is kept
+(issue 25).
 
 **Indentation and trailing whitespace are removed**: An indented heading and a heading with trailing whitespace are
 written without them.

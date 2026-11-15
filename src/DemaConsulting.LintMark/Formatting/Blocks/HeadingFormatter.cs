@@ -171,6 +171,15 @@ internal sealed class HeadingFormatter : IBlockFormatter
             contentEnd--;
         }
 
+        // The parser strips one closing sequence only: when the text before it ends in a run of number signs that
+        // looks like a closing sequence itself (# # #), removing the real one would turn that run into the closing
+        // sequence and drop it from the text, so the closing sequence is left as written
+        if (closingStart >= 0 && FindClosingSequence(text, contentStart, contentEnd) >= 0)
+        {
+            closingStart = -1;
+            contentEnd = trimmedEnd;
+        }
+
         // Tabs in the heading text are found first: a heading whose inline spans cannot be matched to its line is left
         // as it is, so that no rule of the formatter does half of its work in one run and the rest in the next
         var markerColumn = indented ? 0 : ColumnOf(text, lineStart, marker);

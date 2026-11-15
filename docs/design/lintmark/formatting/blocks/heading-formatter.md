@@ -33,7 +33,9 @@ or the end of the line, or when the indentation of a top-level heading is not sp
 
 1. A top-level heading loses its indentation (`heading-start-left`); a heading in a container keeps its prefix.
 2. A closing sequence (number signs at the end, preceded by a blank or filling the whole content) is removed with the
-   blanks before it (`heading-style`); `C#` and `\#` are text.
+   blanks before it (`heading-style`); `C#` and `\#` are text. The parser strips one closing sequence only, so a
+   closing sequence that follows text ending in number signs (`# # #`) is kept: removing it would make the text the
+   closing sequence.
 3. The blanks after the number signs become one space; an empty heading keeps its number signs only (`heading-space`).
 4. Trailing whitespace is removed (`trailing-whitespace`).
 5. Tabs in the text become spaces up to the next four-column tab stop, counted from the column the text has in the
