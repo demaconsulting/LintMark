@@ -24,6 +24,18 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///     What the paragraph formatter found out about one paragraph: the edit that wraps it, where its first line that
 ///     is too wide is, and whether a line that could be broken stays too wide.
 /// </summary>
+/// <param name="Edit">The edit that wraps the paragraph, or <see langword="null"/> when none is proposed.</param>
+/// <param name="OverflowOffset">
+///     The offset of the first character beyond the line length on the first line that is too wide and could be
+///     broken, or -1 when there is none.
+/// </param>
+/// <param name="OverflowWidth">The display width of that line; 0 when <paramref name="OverflowOffset"/> is -1.</param>
+/// <param name="HasResidualOverflow">Whether a line that could be broken is still too wide (after the edit, when there is one).</param>
+/// <param name="WrapOffset">
+///     The offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
+///     the paragraph is laid out that way or the mode does not apply. With an edit the finding is one that the edit fixes;
+///     without one it is a finding that cannot be fixed automatically.
+/// </param>
 /// <remarks>
 ///     <para>
 ///         Supporting type of <see cref="ParagraphFormatter"/>. The offsets and the edit refer to the text that the
@@ -35,58 +47,8 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         Immutable; safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed record ParagraphOutcome
+internal sealed record ParagraphOutcome(TextEdit? Edit, int OverflowOffset, int OverflowWidth, bool HasResidualOverflow, int WrapOffset = -1)
 {
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="ParagraphOutcome"/> class.
-    /// </summary>
-    /// <param name="edit">The edit that wraps the paragraph, or <see langword="null"/> when none is proposed.</param>
-    /// <param name="overflowOffset">
-    ///     The offset of the first character beyond the line length on the first line that is too wide and could be
-    ///     broken, or -1 when there is none.
-    /// </param>
-    /// <param name="overflowWidth">The display width of that line; 0 when <paramref name="overflowOffset"/> is -1.</param>
-    /// <param name="hasResidualOverflow">Whether a line that could be broken is still too wide (after the edit, when there is one).</param>
-    /// <param name="wrapOffset">
-    ///     The offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
-    ///     the paragraph is laid out that way or the mode does not apply. With an edit the finding is one that the edit fixes;
-    ///     without one it is a finding that cannot be fixed automatically.
-    /// </param>
-    /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when <paramref name="overflowOffset"/> or <paramref name="wrapOffset"/> is less than -1 or <paramref name="overflowWidth"/> is negative.
-    /// </exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when a residual overflow is given without an overflow offset, a width without an offset, or an edit without
-    ///     any offset.
-    /// </exception>
-    public ParagraphOutcome(TextEdit? edit, int overflowOffset, int overflowWidth, bool hasResidualOverflow, int wrapOffset = -1)
-    {
-        // Validate every argument so that an inconsistent outcome can never be created
-        ArgumentOutOfRangeException.ThrowIfLessThan(overflowOffset, -1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(wrapOffset, -1);
-        ArgumentOutOfRangeException.ThrowIfNegative(overflowWidth);
-        if (overflowOffset < 0 && (hasResidualOverflow || overflowWidth != 0))
-        {
-            throw new ArgumentException("A residual overflow and a width need the offset of the overflow.", nameof(overflowOffset));
-        }
-
-        if (edit is not null && overflowOffset < 0 && wrapOffset < 0)
-        {
-            throw new ArgumentException("An edit needs the offset of the overflow or of the wrap finding.", nameof(overflowOffset));
-        }
-
-        if (edit is { } proposed && (proposed.Replacement is null || proposed.RuleId is null))
-        {
-            throw new ArgumentException("The edit must be created with its constructor.", nameof(edit));
-        }
-
-        Edit = edit;
-        OverflowOffset = overflowOffset;
-        OverflowWidth = overflowWidth;
-        HasResidualOverflow = hasResidualOverflow;
-        WrapOffset = wrapOffset;
-    }
-
     /// <summary>
     ///     Gets the outcome for a paragraph that needs no report and no edit.
     /// </summary>
@@ -96,32 +58,4 @@ internal sealed record ParagraphOutcome
     ///     Gets a value indicating whether the outcome has a finding or an edit: the paragraph is too wide somewhere or not laid out as the mode asks.
     /// </summary>
     public bool HasFinding => OverflowOffset >= 0 || WrapOffset >= 0;
-
-    /// <summary>
-    ///     Gets the offset of the first line that is not laid out the way the sentence or semantic wrap mode asks for, or -1 when
-    ///     there is none.
-    /// </summary>
-    public int WrapOffset { get; }
-
-    /// <summary>
-    ///     Gets the edit that wraps the paragraph, or <see langword="null"/> when none is proposed.
-    /// </summary>
-    public TextEdit? Edit { get; }
-
-    /// <summary>
-    ///     Gets the offset of the first character beyond the line length on the first line that is too wide and could
-    ///     be broken, or -1 when there is none.
-    /// </summary>
-    public int OverflowOffset { get; }
-
-    /// <summary>
-    ///     Gets the display width of the first line that is too wide and could be broken; 0 when there is none.
-    /// </summary>
-    public int OverflowWidth { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether a line that could be broken is still too wide after the edit (or without
-    ///     one, when the paragraph is not rewritten).
-    /// </summary>
-    public bool HasResidualOverflow { get; }
 }

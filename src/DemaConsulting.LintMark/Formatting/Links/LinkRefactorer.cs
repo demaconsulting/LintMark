@@ -113,7 +113,7 @@ internal sealed class LinkRefactorer
 
         var source = document.Source;
         var layout = new LineLayout(source);
-        var ownership = LineOwnership.Build(document, layout, static _ => false);
+        var ownership = LineOwnership.Build(document, layout);
         var units = CollectUnits(document, config, layout, ownership);
         if (units.Count == 0)
         {

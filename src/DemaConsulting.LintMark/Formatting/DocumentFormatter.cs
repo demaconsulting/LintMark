@@ -117,21 +117,13 @@ internal sealed class DocumentFormatter
     ///     The refactorer that converts long inline links to reference links when the configuration asks for it, or
     ///     <see langword="null"/> for none (then no link is converted).
     /// </param>
-    /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="formatters"/> is null.</exception>
     public DocumentFormatter(
         IReadOnlyList<IBlockFormatter>? formatters = null,
         InlineNormalizer? inline = null,
         ParagraphFormatter? paragraphs = null,
         LinkRefactorer? links = null)
     {
-        // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
-        ImmutableArray<IBlockFormatter> copy = formatters is null ? [] : ImmutableArray.CreateRange(formatters);
-        if (copy.Any(static formatter => formatter is null))
-        {
-            throw new ArgumentNullException(nameof(formatters), "The formatters must not contain null.");
-        }
-
-        _formatters = copy;
+        _formatters = formatters is null ? [] : [.. formatters];
         _inline = inline;
         _paragraphs = paragraphs;
         _links = links;
@@ -140,21 +132,16 @@ internal sealed class DocumentFormatter
     /// <summary>
     ///     Formats a document.
     /// </summary>
-    /// <param name="document">The parsed document. Must not be null.</param>
-    /// <param name="config">The effective configuration of the file. Must not be null.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
     /// <returns>The edits, the line ending to write and the formatting violations found.</returns>
     /// <remarks>
     ///     Pure: nothing is written and the document is not changed. The edits are not applied here, so the
     ///     caller can still verify the result before anything reaches a file.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when two formatters propose conflicting edits (a defect of a formatter).</exception>
     public FormatResult Format(ParsedDocument document, LintMarkConfig config)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(config);
-
         // A document that cannot be trusted is never touched
         var source = document.Source;
         if (document.IsFormatUnsafe)
@@ -164,7 +151,7 @@ internal sealed class DocumentFormatter
 
         // Find out which lines a block formatter claims, which are protected, and which lie in containers
         var layout = new LineLayout(source);
-        var ownership = LineOwnership.Build(document, layout, block => FindFormatter(block) is not null);
+        var ownership = LineOwnership.Build(document, layout);
 
         // The passes handle what no block formatter claims: whitespace, inline text, blank lines, block spacing and the end of the
         // file. They run first, so that a block formatter that depends on the lines around its block sees their edits too
@@ -234,7 +221,7 @@ internal sealed class DocumentFormatter
         }
 
         var layout = new LineLayout(current.Source);
-        var context = new FormatContext(current, config, layout, LineOwnership.Build(current, layout, block => FindFormatter(block) is not null));
+        var context = new FormatContext(current, config, layout, LineOwnership.Build(current, layout));
         var lists = new EditSet();
         for (var i = current.Blocks.Length - 1; i >= 0; i--)
         {
@@ -317,7 +304,7 @@ internal sealed class DocumentFormatter
     private ImmutableArray<TextEdit> FormatTables(ParsedDocument document, LintMarkConfig config)
     {
         var layout = new LineLayout(document.Source);
-        var context = new FormatContext(document, config, layout, LineOwnership.Build(document, layout, block => FindFormatter(block) is not null));
+        var context = new FormatContext(document, config, layout, LineOwnership.Build(document, layout));
         var edits = new EditSet();
         foreach (var block in document.Blocks.Where(static block => block.Kind == BlockKind.Table))
         {
@@ -376,7 +363,7 @@ internal sealed class DocumentFormatter
         }
 
         var currentLayout = edits.IsEmpty ? layout : new LineLayout(current.Source);
-        var context = new FormatContext(current, config, currentLayout, LineOwnership.Build(current, currentLayout, static _ => false));
+        var context = new FormatContext(current, config, currentLayout, LineOwnership.Build(current, currentLayout));
         var outcomes = current.Blocks
             .Where(static block => block.Kind == BlockKind.Paragraph)
             .Select(block => _paragraphs.Format(context, block))

@@ -238,20 +238,6 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that an edit that was not created with its constructor is rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_DefaultEdit_Throws()
-    {
-        // Arrange: an empty set
-        var set = new EditSet();
-
-        // Act / Assert: a default instance has no replacement and no rule
-        Assert.Throws<ArgumentException>(() => set.Add(default));
-        Assert.True(set.IsEmpty);
-    }
-
-    /// <summary>
     ///     Test that the snapshot is the same for every order in which the edits were added.
     /// </summary>
     [Fact]
@@ -372,96 +358,6 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that the constructor stores every argument.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_AllArguments_ExposesValues()
-    {
-        // Arrange / Act: create an edit
-        var edit = new TextEdit(3, 4, "new", "paragraph-wrap");
-
-        // Assert: every value is exposed
-        Assert.Equal(3, edit.Start);
-        Assert.Equal(4, edit.Length);
-        Assert.Equal("new", edit.Replacement);
-        Assert.Equal("paragraph-wrap", edit.RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a negative start offset is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NegativeStart_Throws()
-    {
-        // Arrange / Act / Assert: a negative start is out of range
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(-1, 0, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that a negative length is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NegativeLength_Throws()
-    {
-        // Arrange / Act / Assert: a negative length is out of range
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(0, -1, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that a null replacement is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NullReplacement_Throws()
-    {
-        // Arrange / Act / Assert: the replacement must not be null
-        Assert.Throws<ArgumentNullException>(() => new TextEdit(0, 0, null!, Rule));
-    }
-
-    /// <summary>
-    ///     Test that a null rule identifier is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NullRuleId_Throws()
-    {
-        // Arrange / Act / Assert: the rule identifier must not be null
-        Assert.Throws<ArgumentNullException>(() => new TextEdit(0, 0, "x", null!));
-    }
-
-    /// <summary>
-    ///     Test that an empty rule identifier is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_EmptyRuleId_Throws()
-    {
-        // Arrange / Act / Assert: the rule identifier must not be empty
-        Assert.Throws<ArgumentException>(() => new TextEdit(0, 0, "x", string.Empty));
-    }
-
-    /// <summary>
-    ///     Test that a start and length whose sum overflows are rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_StartPlusLengthOverflow_Throws()
-    {
-        // Arrange / Act / Assert: the end offset cannot be represented
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(int.MaxValue, 1, "x", Rule));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(1, int.MaxValue, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that the largest representable range is accepted.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_RangeEndingAtMaxValue_Accepted()
-    {
-        // Arrange / Act: an edit whose end is exactly int.MaxValue
-        var edit = new TextEdit(1, int.MaxValue - 1, "x", Rule);
-
-        // Assert: the end is representable
-        Assert.Equal(int.MaxValue, edit.End);
-    }
-
-    /// <summary>
     ///     Test that the end offset is the start plus the length.
     /// </summary>
     [Fact]
@@ -477,23 +373,6 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that edits with the same values are equal and edits with different values are not.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Equals_SameValues_AreEqual()
-    {
-        // Arrange: two edits with the same values and one with another rule
-        var first = new TextEdit(1, 2, "x", "paragraph-wrap");
-        var second = new TextEdit(1, 2, "x", "paragraph-wrap");
-        var other = new TextEdit(1, 2, "x", "heading-style");
-
-        // Act / Assert: value equality covers every member
-        Assert.Equal(first, second);
-        Assert.Equal(first.GetHashCode(), second.GetHashCode());
-        Assert.NotEqual(first, other);
-    }
-
-    /// <summary>
     ///     Test that an edit that starts at an offset is found, and only when it is the one that the predicate accepts.
     /// </summary>
     [Fact]
@@ -505,12 +384,11 @@ public class EditSetTests
         set.Add(new TextEdit(2, 1, "x", "b"));
         set.Add(new TextEdit(7, 1, "y", "c"));
 
-        // Act & Assert: the predicate chooses between the two that start at 2; none starts at 3; a null predicate is rejected
+        // Act & Assert: the predicate chooses between the two that start at 2; none starts at 3
         Assert.Equal("a", set.FindStartingAt(2, static edit => edit.Length == 0)?.RuleId);
         Assert.Equal("b", set.FindStartingAt(2, static edit => edit.Length == 1)?.RuleId);
         Assert.Equal("c", set.FindStartingAt(7, static _ => true)?.RuleId);
         Assert.Null(set.FindStartingAt(3, static _ => true));
         Assert.Null(set.FindStartingAt(2, static edit => edit.Length == 5));
-        Assert.Equal("accept", Assert.Throws<ArgumentNullException>(() => set.FindStartingAt(2, null!)).ParamName);
     }
 }

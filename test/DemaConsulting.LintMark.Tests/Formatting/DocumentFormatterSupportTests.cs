@@ -332,23 +332,21 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that the ownership map knows which lines are claimed, protected, in containers and the top-level blocks.
+    ///     Test that the ownership map knows which lines are protected, in containers and the top-level blocks.
     /// </summary>
     [Fact]
     public void LineOwnership_Build_MixedDocument_ClassifiesTheLines()
     {
-        // Arrange: a heading, code, a list with a paragraph, and a paragraph; the formatter claims headings only
+        // Arrange: a heading, code, a list with a paragraph, and a paragraph
         var document = BlockFormatterAssertions.Parse("# H\n\n```\ncode\n```\n\n- item\n\ntext\n");
         var layout = new LineLayout(document.Source);
 
         // Act: build the map
-        var ownership = LineOwnership.Build(document, layout, block => block.Kind == BlockKind.Heading);
+        var ownership = LineOwnership.Build(document, layout);
 
-        // Assert: the heading is claimed, the fence is protected, the list item is in a container, the rest is free
-        Assert.True(ownership.IsClaimed(0));
+        // Assert: the fence is protected, the list item is in a container, the rest is free
         Assert.False(ownership.IsProtected(0));
         Assert.True(ownership.IsProtected(3));
-        Assert.False(ownership.IsClaimed(3));
         Assert.True(ownership.IsInContainer(6));
         Assert.False(ownership.IsInContainer(8));
         Assert.Null(ownership.LeafAt(1));
@@ -410,7 +408,7 @@ public class DocumentFormatterSupportTests
         var layout = new LineLayout(document.Source);
 
         // Act: build the map
-        var ownership = LineOwnership.Build(document, layout, _ => false);
+        var ownership = LineOwnership.Build(document, layout);
 
         // Assert: every line before the heading is protected
         Assert.All(Enumerable.Range(0, 5), line => Assert.True(ownership.IsProtected(line), $"line {line}"));

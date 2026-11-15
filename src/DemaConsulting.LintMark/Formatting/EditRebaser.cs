@@ -54,17 +54,12 @@ internal static class EditRebaser
     /// <summary>
     ///     Composes two lists of edits into one list against the original text.
     /// </summary>
-    /// <param name="first">The edits against the original text, ordered and without conflicts. Must not be a default array or hold a default edit.</param>
-    /// <param name="second">The edits against the text that <paramref name="first"/> produces, ordered and without conflicts. Must not be a default array or hold a default edit.</param>
+    /// <param name="first">The edits against the original text, ordered and without conflicts.</param>
+    /// <param name="second">The edits against the text that <paramref name="first"/> produces, ordered and without conflicts.</param>
     /// <returns>The edits against the original text, ordered by start offset and then length.</returns>
-    /// <exception cref="ArgumentException">Thrown when an array is a default array, holds a default edit, or its edits are not ordered or conflict.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the composition produces conflicting edits (a defect of the caller's edits).</exception>
     public static ImmutableArray<TextEdit> Rebase(ImmutableArray<TextEdit> first, ImmutableArray<TextEdit> second)
     {
-        // Validate input: both lists must be usable edits in order
-        Validate(first, nameof(first));
-        Validate(second, nameof(second));
-
         // An edit that replaces nothing with nothing changes nothing and only gets in the way of the translation
         var changes = first.RemoveAll(IsNoOp);
         var followUps = second.RemoveAll(IsNoOp);
@@ -116,20 +111,14 @@ internal static class EditRebaser
     /// <summary>
     ///     Maps an offset of the text that a list of edits produces back to an offset of the original text.
     /// </summary>
-    /// <param name="first">The edits against the original text, ordered and without conflicts. Must not be a default array or hold a default edit.</param>
-    /// <param name="offset">An offset in the produced text. Must not be negative.</param>
+    /// <param name="first">The edits against the original text, ordered and without conflicts.</param>
+    /// <param name="offset">An offset in the produced text.</param>
     /// <returns>
     ///     The offset of the same character in the original text when the character was not written by an edit; for
     ///     an offset inside text that an edit wrote, the start of the range that edit replaced.
     /// </returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="first"/> is a default array, holds a default edit, or its edits are not ordered or conflict.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="offset"/> is negative.</exception>
     public static int MapOffset(ImmutableArray<TextEdit> first, int offset)
     {
-        // Validate input
-        Validate(first, nameof(first));
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-
         var outputs = new Outputs(first);
         var inside = outputs.FindStrictlyInside(offset);
         return inside >= 0 ? first[inside].Start : outputs.ToOriginalStart(offset);
@@ -141,47 +130,6 @@ internal static class EditRebaser
     /// <param name="edit">The edit.</param>
     /// <returns><see langword="true"/> when the edit has no length and no replacement.</returns>
     private static bool IsNoOp(TextEdit edit) => edit.Length == 0 && edit.Replacement.Length == 0;
-
-    /// <summary>
-    ///     Checks that a list of edits is usable.
-    /// </summary>
-    /// <param name="edits">The edits.</param>
-    /// <param name="name">The name of the parameter for the exception.</param>
-    /// <exception cref="ArgumentException">Thrown when the array is a default array, holds a default edit, or its edits are not ordered or conflict.</exception>
-    private static void Validate(ImmutableArray<TextEdit> edits, string name)
-    {
-        if (edits.IsDefault)
-        {
-            throw new ArgumentException("The edits must not be a default array.", name);
-        }
-
-        // Adding the edits in the given order to a set checks that none is a default instance and that they do not conflict
-        var set = new EditSet();
-        TextEdit? previous = null;
-        foreach (var edit in edits)
-        {
-            if (edit.Replacement is null || edit.RuleId is null)
-            {
-                throw new ArgumentException("The edits must not contain a default edit.", name);
-            }
-
-            if (previous is { } before && (edit.Start < before.Start || (edit.Start == before.Start && edit.Length < before.Length)))
-            {
-                throw new ArgumentException("The edits must be ordered by start offset and then length.", name);
-            }
-
-            try
-            {
-                set.Add(edit);
-            }
-            catch (InvalidOperationException ex)
-            {
-                throw new ArgumentException(ex.Message, name, ex);
-            }
-
-            previous = edit;
-        }
-    }
 
     /// <summary>
     ///     Extends the edits of the second list to whole outputs of the first list and merges those that overlap.

@@ -28,68 +28,7 @@ namespace DemaConsulting.LintMark.Formatting;
 ///     The outcome of formatting one document: the text edits, the line ending to write, and the formatting
 ///     violations that rewriting would remove.
 /// </summary>
-/// <remarks>
-///     Immutable, including its collections.
-/// </remarks>
-internal sealed record FormatResult
-{
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="FormatResult"/> class.
-    /// </summary>
-    /// <param name="edits">The edits to the LF-normalized text, ordered and conflict-free; empty when nothing changes. Must not be a default array or contain a default edit.</param>
-    /// <param name="lineEnding">The line ending the file is written with. Must be a defined value.</param>
-    /// <param name="diagnostics">The formatting violations found (the findings that applying the result removes). Must not be a default array or contain null.</param>
-    /// <exception cref="ArgumentException">Thrown when an array is a default array or <paramref name="edits"/> contains a default edit.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="diagnostics"/> contains a null element.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="lineEnding"/> is not a defined value.</exception>
-    public FormatResult(
-        ImmutableArray<TextEdit> edits,
-        LineEnding lineEnding,
-        ImmutableArray<Diagnostic> diagnostics)
-    {
-        // Validate the arguments so that an incomplete result can never be created
-        if (edits.IsDefault)
-        {
-            throw new ArgumentException("The edits must not be a default array.", nameof(edits));
-        }
-
-        if (edits.Any(static edit => edit.RuleId is null))
-        {
-            throw new ArgumentException("The edits must not contain a default edit.", nameof(edits));
-        }
-
-        if (!Enum.IsDefined(lineEnding))
-        {
-            throw new ArgumentOutOfRangeException(nameof(lineEnding), lineEnding, "The line ending is not a defined value.");
-        }
-
-        if (diagnostics.IsDefault)
-        {
-            throw new ArgumentException("The diagnostics must not be a default array.", nameof(diagnostics));
-        }
-
-        if (diagnostics.Any(static diagnostic => diagnostic is null))
-        {
-            throw new ArgumentNullException(nameof(diagnostics), "The diagnostics must not contain null.");
-        }
-
-        Edits = edits;
-        LineEnding = lineEnding;
-        Diagnostics = diagnostics;
-    }
-
-    /// <summary>
-    ///     Gets the edits to the LF-normalized text.
-    /// </summary>
-    public ImmutableArray<TextEdit> Edits { get; }
-
-    /// <summary>
-    ///     Gets the line ending the file is written with.
-    /// </summary>
-    public LineEnding LineEnding { get; }
-
-    /// <summary>
-    ///     Gets the formatting violations found.
-    /// </summary>
-    public ImmutableArray<Diagnostic> Diagnostics { get; }
-}
+/// <param name="Edits">The edits to the LF-normalized text, ordered and conflict-free; empty when nothing changes.</param>
+/// <param name="LineEnding">The line ending the file is written with.</param>
+/// <param name="Diagnostics">The formatting violations found (the findings that applying the result removes).</param>
+internal sealed record FormatResult(ImmutableArray<TextEdit> Edits, LineEnding LineEnding, ImmutableArray<Diagnostic> Diagnostics);

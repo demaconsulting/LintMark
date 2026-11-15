@@ -497,16 +497,6 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that a null element in the formatter list is rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Constructor_NullFormatterElement_Throws()
-    {
-        // Arrange / Act / Assert: the list must not contain null
-        Assert.Throws<ArgumentNullException>(() => new DocumentFormatter([null!]));
-    }
-
-    /// <summary>
     ///     Test that a null formatter list means no formatters.
     /// </summary>
     [Fact]
@@ -541,109 +531,6 @@ public class DocumentFormatterTests
 
         // Assert: the original formatter is still used
         Assert.Equal("a b\n", Patch(document, result));
-    }
-
-    /// <summary>
-    ///     Test that a format context keeps its document and configuration.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_ValidArguments_KeepsValues()
-    {
-        // Arrange / Act: a context for a document
-        var document = Parse("a\n");
-        var context = new FormatContext(document, LintMarkConfig.Default);
-
-        // Assert: both are kept
-        Assert.Same(document, context.Document);
-        Assert.Same(LintMarkConfig.Default, context.Config);
-    }
-
-    /// <summary>
-    ///     Test that a format context built with its own line arithmetic and ownership keeps them, and builds both when they are not given.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt()
-    {
-        // Arrange: a document and its own layout and ownership
-        var document = Parse("a\n");
-        var layout = new LineLayout(document.Source);
-        var ownership = LineOwnership.Build(document, layout, static _ => false);
-
-        // Act: build a context with them and one without
-        var given = new FormatContext(document, LintMarkConfig.Default, layout, ownership);
-        var built = new FormatContext(document, LintMarkConfig.Default);
-
-        // Assert: the given ones are kept and the built ones describe the document
-        Assert.Same(layout, given.Layout);
-        Assert.Same(ownership, given.Ownership);
-        Assert.NotNull(built.Layout);
-        Assert.NotNull(built.Ownership);
-        Assert.Equal(1, built.Layout.LineCount);
-    }
-
-    /// <summary>
-    ///     Test that a format context without a document or configuration is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_NullArguments_Throw()
-    {
-        // Arrange / Act / Assert: neither argument may be null
-        Assert.Throws<ArgumentNullException>(() => new FormatContext(null!, LintMarkConfig.Default));
-        Assert.Throws<ArgumentNullException>(() => new FormatContext(Parse("a\n"), null!));
-    }
-
-    /// <summary>
-    ///     Test that a format result keeps its values when they are valid.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_ValidArguments_KeepsValues()
-    {
-        // Arrange / Act: a result with one edit and no diagnostics
-        var edit = new TextEdit(0, 1, "b", "blank-lines");
-        var result = new FormatResult([edit], LineEnding.CrLf, []);
-
-        // Assert: the values are kept
-        Assert.Equal(edit, Assert.Single(result.Edits));
-        Assert.Equal(LineEnding.CrLf, result.LineEnding);
-        Assert.Empty(result.Diagnostics);
-    }
-
-    /// <summary>
-    ///     Test that a format result with a default list of edits is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultEditList_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult(default, LineEnding.Lf, []));
-
-    /// <summary>
-    ///     Test that a format result with a default edit is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultEdit_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult([default], LineEnding.Lf, []));
-
-    /// <summary>
-    ///     Test that a format result with a default list of diagnostics is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultDiagnosticList_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult([], LineEnding.Lf, default));
-
-    /// <summary>
-    ///     Test that a format result with a missing diagnostic is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_NullDiagnostic_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => new FormatResult([], LineEnding.Lf, [null!]));
-
-    /// <summary>
-    ///     Test that a format result with an undefined line ending is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_UndefinedLineEnding_Throws()
-    {
-        // Arrange / Act / Assert: the line ending must be a defined value
-        Assert.Throws<ArgumentOutOfRangeException>(() => new FormatResult([], (LineEnding)99, []));
     }
 
     /// <summary>
@@ -683,21 +570,6 @@ public class DocumentFormatterTests
         // Assert: only the claiming formatter acted on the first, and nothing happened to the second
         Assert.Equal("a__b_\n", Patch(claimed, claimedResult));
         Assert.Empty(suppressedResult.Edits);
-    }
-
-    /// <summary>
-    ///     Test that a null argument of Format is rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a formatter and a document
-        var formatter = new DocumentFormatter();
-        var document = Parse("a\n");
-
-        // Act / Assert: neither argument may be null
-        Assert.Throws<ArgumentNullException>(() => formatter.Format(null!, LintMarkConfig.Default));
-        Assert.Throws<ArgumentNullException>(() => formatter.Format(document, null!));
     }
 
     /// <summary>

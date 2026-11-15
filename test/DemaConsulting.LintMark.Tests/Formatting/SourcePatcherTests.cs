@@ -178,20 +178,6 @@ public class SourcePatcherTests
     }
 
     /// <summary>
-    ///     Test that two insertions at one offset are rejected.
-    /// </summary>
-    [Fact]
-    public void SourcePatcher_Apply_TwoInsertionsSameOffset_Throws()
-    {
-        // Arrange: two insertions at offset 2
-        var source = Source("abcdefgh");
-        ImmutableArray<TextEdit> edits = [Edit(2, 0, "x"), Edit(2, 0, "y")];
-
-        // Act / Assert: their order would be arbitrary
-        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
-    }
-
-    /// <summary>
     ///     Test that an insertion strictly inside a replaced range is rejected.
     /// </summary>
     [Fact]
@@ -248,43 +234,6 @@ public class SourcePatcherTests
 
         // Act / Assert: every edit is checked, not only the first
         Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
-    }
-
-    /// <summary>
-    ///     Test that an uninitialized array is rejected.
-    /// </summary>
-    [Fact]
-    public void SourcePatcher_Apply_DefaultArray_Throws()
-    {
-        // Arrange: a document and the default (uninitialized) array
-        var source = Source("abc");
-
-        // Act / Assert: the array must be initialized
-        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, default));
-    }
-
-    /// <summary>
-    ///     Test that an edit that was not created with its constructor is rejected.
-    /// </summary>
-    [Fact]
-    public void SourcePatcher_Apply_DefaultEdit_Throws()
-    {
-        // Arrange: an array holding a default edit
-        var source = Source("abc");
-        ImmutableArray<TextEdit> edits = [default];
-
-        // Act / Assert: the default edit has no replacement and no rule
-        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
-    }
-
-    /// <summary>
-    ///     Test that a null document is rejected.
-    /// </summary>
-    [Fact]
-    public void SourcePatcher_Apply_NullSource_Throws()
-    {
-        // Arrange / Act / Assert: the source must not be null
-        Assert.Throws<ArgumentNullException>(() => SourcePatcher.Apply(null!, []));
     }
 
     /// <summary>

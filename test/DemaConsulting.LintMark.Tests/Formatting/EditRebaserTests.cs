@@ -49,36 +49,6 @@ public class EditRebaserTests
         SourcePatcher.Apply(SourceDocument.FromText("a.md", text), edits);
 
     /// <summary>
-    ///     Test that missing, unordered and conflicting lists of edits are rejected and named.
-    /// </summary>
-    [Fact]
-    public void EditRebaser_Rebase_InvalidLists_Throw()
-    {
-        // Arrange: a valid list
-        ImmutableArray<TextEdit> valid = [Edit(0, 1, "x")];
-
-        // Act & Assert: a default array is rejected for either list
-        Assert.Equal("first", Assert.Throws<ArgumentException>(() => EditRebaser.Rebase(default, valid)).ParamName);
-        Assert.Equal("second", Assert.Throws<ArgumentException>(() => EditRebaser.Rebase(valid, default)).ParamName);
-
-        // Act & Assert: a default edit, an unordered list and a conflict are rejected
-        Assert.Equal("first", Assert.Throws<ArgumentException>(() => EditRebaser.Rebase([default], valid)).ParamName);
-        Assert.Equal("second", Assert.Throws<ArgumentException>(() => EditRebaser.Rebase(valid, [Edit(5, 1, "a"), Edit(1, 1, "b")])).ParamName);
-        Assert.Equal("first", Assert.Throws<ArgumentException>(() => EditRebaser.Rebase([Edit(0, 3, "a"), Edit(1, 1, "b")], valid)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a missing or invalid argument of the offset mapping is rejected.
-    /// </summary>
-    [Fact]
-    public void EditRebaser_MapOffset_InvalidArguments_Throw()
-    {
-        // Act & Assert: a default array and a negative offset are rejected
-        Assert.Equal("first", Assert.Throws<ArgumentException>(() => EditRebaser.MapOffset(default, 0)).ParamName);
-        Assert.Equal("offset", Assert.Throws<ArgumentOutOfRangeException>(() => EditRebaser.MapOffset([], -1)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that edits against the same text need no translation when one list is empty.
     /// </summary>
     [Fact]

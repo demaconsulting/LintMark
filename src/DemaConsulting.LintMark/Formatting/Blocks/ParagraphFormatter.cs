@@ -218,7 +218,7 @@ internal sealed class ParagraphFormatter
             || StartsLineWithBlockSyntax(tokenized)
             || WrapGuard.KeepsAsWritten(document, block, inline, lines, continuationPrefix, config.LinkRefactor.BreakLinkText))
         {
-            return overflowLine >= 0 ? new ParagraphOutcome(null, offset, overflowWidth, hasResidualOverflow: true) : ParagraphOutcome.None;
+            return overflowLine >= 0 ? new ParagraphOutcome(null, offset, overflowWidth, HasResidualOverflow: true) : ParagraphOutcome.None;
         }
 
         // Wrap every segment in the layout of the mode, each with the widths of the lines it starts

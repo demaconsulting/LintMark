@@ -25,16 +25,14 @@ using Markdig.Syntax;
 namespace DemaConsulting.LintMark.Formatting;
 
 /// <summary>
-///     Which lines of a document belong to which leaf block, which of them a block formatter has claimed, which
-///     must never be edited, and which lie inside a container.
+///     Which lines of a document belong to which leaf block, which must never be edited, and which lie inside a container.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The document-level passes and the block formatters must never propose edits to the same characters.
-///         This map is how they agree: a line that a block formatter accepts is <em>claimed</em> (even when the
-///         block is suppressed) and only that formatter edits it; a line of code, HTML, math, front matter, a
+///         This map is how they agree: a line of code, HTML, math, front matter, a
 ///         grid table or any block the tool does not model is <em>protected</em> and nobody edits its content; the
-///         remaining lines belong to the passes.
+///         remaining lines belong to the passes and the block formatters that accept the block.
 ///     </para>
 ///     <para>
 ///         Every range is measured up to the last line with content, not up to the parser's span, because the
@@ -55,11 +53,6 @@ internal sealed class LineOwnership
     ///     The leaf block of each line, or <see langword="null"/> for a line that no leaf block covers.
     /// </summary>
     private readonly BlockInfo?[] _owner;
-
-    /// <summary>
-    ///     Whether a block formatter has claimed the line.
-    /// </summary>
-    private readonly bool[] _claimed;
 
     /// <summary>
     ///     Whether the content of the line is protected.
@@ -84,7 +77,6 @@ internal sealed class LineOwnership
     private LineOwnership(int lineCount, ImmutableArray<BlockInfo> topLevel)
     {
         _owner = new BlockInfo?[lineCount];
-        _claimed = new bool[lineCount];
         _protected = new bool[lineCount];
         _container = new bool[lineCount];
         _footnote = new bool[lineCount];
@@ -99,17 +91,11 @@ internal sealed class LineOwnership
     /// <summary>
     ///     Builds the ownership map of a document.
     /// </summary>
-    /// <param name="document">The parsed document. Must not be null.</param>
-    /// <param name="layout">The line arithmetic of the document. Must not be null.</param>
-    /// <param name="isClaimed">Tells whether a block formatter accepts a block. Must not be null.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
     /// <returns>The map.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    public static LineOwnership Build(ParsedDocument document, LineLayout layout, Func<BlockInfo, bool> isClaimed)
+    public static LineOwnership Build(ParsedDocument document, LineLayout layout)
     {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(layout);
-        ArgumentNullException.ThrowIfNull(isClaimed);
-
         var topLevel = document.Blocks.Where(static block => block.Parent is null && block.Depth == 0).ToImmutableArray();
         var map = new LineOwnership(layout.LineCount, topLevel);
         if (layout.LineCount == 0)
@@ -133,7 +119,6 @@ internal sealed class LineOwnership
             }
 
             // A leaf block owns its lines; the later (inner) block wins where ranges meet
-            var claimed = isClaimed(block);
             var guarded = IsProtectedBlock(block, first, last) || rawText.Contains(block);
             if (block.Kind is BlockKind.UnclosedFence or BlockKind.UnreferencedFootnote)
             {
@@ -143,7 +128,6 @@ internal sealed class LineOwnership
             for (var line = first; line <= last; line++)
             {
                 map._owner[line] = block;
-                map._claimed[line] = claimed;
                 map._protected[line] = guarded;
             }
         }
@@ -326,13 +310,6 @@ internal sealed class LineOwnership
     /// <param name="line">The zero-based line.</param>
     /// <returns>The block, or <see langword="null"/> when no leaf block covers the line.</returns>
     public BlockInfo? LeafAt(int line) => _owner[line];
-
-    /// <summary>
-    ///     Determines whether a block formatter has claimed a line.
-    /// </summary>
-    /// <param name="line">The zero-based line.</param>
-    /// <returns><see langword="true"/> when the leaf block of the line is accepted by a block formatter.</returns>
-    public bool IsClaimed(int line) => _claimed[line];
 
     /// <summary>
     ///     Determines whether a line lies inside a footnote definition.

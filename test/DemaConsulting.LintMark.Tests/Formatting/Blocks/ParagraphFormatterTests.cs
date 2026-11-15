@@ -566,23 +566,6 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
-    ///     Test that the outcome rejects inconsistent arguments.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Outcome_InconsistentArguments_Throw()
-    {
-        // Act & Assert: an offset below -1, a negative width, and an edit, a residual or a width without an offset are rejected
-        var edit = new TextEdit(0, 1, "x", "line-length");
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ParagraphOutcome(null, -2, 0, false));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ParagraphOutcome(null, 0, -1, false));
-        Assert.Throws<ArgumentException>(() => new ParagraphOutcome(edit, -1, 0, false));
-        Assert.Throws<ArgumentException>(() => new ParagraphOutcome(null, -1, 0, true));
-        Assert.Throws<ArgumentException>(() => new ParagraphOutcome(null, -1, 5, false));
-        Assert.Throws<ArgumentException>(() => new ParagraphOutcome(default(TextEdit), 0, 1, false));
-        Assert.Equal(-1, ParagraphOutcome.None.OverflowOffset);
-    }
-
-    /// <summary>
     ///     Test that the HTML check catches a wrap that breaks lines at every blank, ignoring the block syntax guard and the
     ///     constructs that must stay whole, and that the real formatter does not produce such a rewrite.
     /// </summary>

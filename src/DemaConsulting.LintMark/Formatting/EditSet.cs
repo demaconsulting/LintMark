@@ -58,11 +58,6 @@ internal sealed class EditSet
     private readonly List<TextEdit> _edits = [];
 
     /// <summary>
-    ///     Gets the number of edits in the set.
-    /// </summary>
-    public int Count => _edits.Count;
-
-    /// <summary>
     ///     Gets a value indicating whether the set holds no edit.
     /// </summary>
     public bool IsEmpty => _edits.Count == 0;
@@ -70,22 +65,15 @@ internal sealed class EditSet
     /// <summary>
     ///     Adds an edit.
     /// </summary>
-    /// <param name="edit">The edit to add; must have been created with the constructor (a default instance is rejected).</param>
+    /// <param name="edit">The edit to add.</param>
     /// <remarks>
     ///     Only the neighbors of the insertion point need to be compared: the set never holds conflicting
     ///     edits, so an edit that conflicts with any member also conflicts with the member just before or just
     ///     after its position.
     /// </remarks>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="edit"/> is a default instance.</exception>
     /// <exception cref="InvalidOperationException">Thrown when <paramref name="edit"/> conflicts with an edit already in the set.</exception>
     public void Add(TextEdit edit)
     {
-        // A default instance has no replacement and no rule
-        if (edit.Replacement is null || edit.RuleId is null)
-        {
-            throw new ArgumentException("The edit must be created with its constructor.", nameof(edit));
-        }
-
         // Find the insertion point and compare with the neighbors
         var index = _edits.BinarySearch(edit, PositionOrder);
         if (index < 0)
@@ -117,13 +105,10 @@ internal sealed class EditSet
     ///     Finds an edit that starts at an offset.
     /// </summary>
     /// <param name="start">The offset.</param>
-    /// <param name="accept">Tells whether an edit that starts there is the one looked for. Must not be null.</param>
+    /// <param name="accept">Tells whether an edit that starts there is the one looked for.</param>
     /// <returns>The first edit (in set order) that starts at <paramref name="start"/> and is accepted; <see langword="null"/> when there is none.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accept"/> is null.</exception>
     public TextEdit? FindStartingAt(int start, Func<TextEdit, bool> accept)
     {
-        ArgumentNullException.ThrowIfNull(accept);
-
         // Binary search for the first edit that starts at the offset or later, then look at the edits that start there
         var low = 0;
         var high = _edits.Count;
