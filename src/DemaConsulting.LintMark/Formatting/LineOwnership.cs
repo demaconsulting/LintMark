@@ -117,6 +117,7 @@ internal sealed class LineOwnership
             return map;
         }
 
+        var rawText = RawTextElements.FindProtectedBlocks(document);
         foreach (var block in document.Blocks)
         {
             var (first, last) = LinesOf(layout, block);
@@ -133,7 +134,7 @@ internal sealed class LineOwnership
 
             // A leaf block owns its lines; the later (inner) block wins where ranges meet
             var claimed = isClaimed(block);
-            var guarded = IsProtectedBlock(block, first, last);
+            var guarded = IsProtectedBlock(block, first, last) || rawText.Contains(block);
             if (block.Kind is BlockKind.UnclosedFence or BlockKind.UnreferencedFootnote)
             {
                 last = Math.Max(last, RegionLastLine(layout, topLevel, block));
