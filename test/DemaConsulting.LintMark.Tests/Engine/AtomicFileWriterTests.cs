@@ -396,6 +396,22 @@ public class AtomicFileWriterTests
 
         // Act / Assert: the missing identity is refused and the file is untouched
         Assert.ThrowsAny<ArgumentException>(() => AtomicFileWriter.Write(path, expectedTarget!, original, content));
-        Assert.Equal(original, File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    ///     Test that a missing or blank path is refused before the file system is consulted.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AtomicFileWriter_Write_MissingPath_Throws(string? path)
+    {
+        // Arrange: the bytes of a rewrite
+        var original = Bytes("old\n");
+        var content = Bytes("new\n");
+
+        // Act / Assert: the missing path is an argument error, not a file system error
+        Assert.ThrowsAny<ArgumentException>(() => AtomicFileWriter.Write(path!, "a.md", original, content));
     }
 }

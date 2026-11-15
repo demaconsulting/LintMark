@@ -100,6 +100,11 @@ internal static class AtomicFileWriter
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(expectedTarget);
 
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("The path must not be blank.", nameof(path));
+        }
+
         if (string.IsNullOrWhiteSpace(expectedTarget))
         {
             throw new ArgumentException("The expected target must not be blank.", nameof(expectedTarget));

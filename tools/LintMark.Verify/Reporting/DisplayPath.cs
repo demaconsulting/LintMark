@@ -34,7 +34,13 @@ internal static class DisplayPath
     public static string Of(string path, string baseDirectory)
     {
         var relative = Path.GetRelativePath(baseDirectory, path);
-        var shown = relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative) ? path : relative;
+
+        // A path below the directory stays relative, even when its first segment merely starts with two dots (..data)
+        var outside = relative == ".."
+            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal)
+            || Path.IsPathRooted(relative);
+        var shown = outside ? path : relative;
         return shown.Replace('\\', '/');
     }
 }
