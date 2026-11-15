@@ -659,6 +659,13 @@ public class ListFormatterTests
         AssertFormats("*   a\n    - ---\n", "-   a\n    - ---\n");
 
     /// <summary>
+    ///     Test that an item whose text mixes the characters of a thematic break is an ordinary item.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_MarkerLineWithMixedBreakCharacters_IsAnOrdinaryItem() =>
+        AssertFormats("*   -*-\n", "- -*-\n");
+
+    /// <summary>
     ///     Test that an item that starts with a thematic break and has more lines, or a nest that holds such an item, keeps its columns
     ///     (rule G-3: the reading of a later line at a relative indent of three depends on the absolute column).
     /// </summary>
