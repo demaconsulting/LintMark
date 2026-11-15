@@ -393,6 +393,26 @@ public class StructuralTokenCheckerTests
     }
 
     /// <summary>
+    ///     Test that a break before a new block is not read as a blank: a citation cannot span two blocks.
+    /// </summary>
+    /// <param name="before">The text with one citation.</param>
+    /// <param name="after">The text with the citation split by a block boundary.</param>
+    [Theory]
+    [InlineData("- [@key, p. 3]\n", "- [@key,\n- p. 3]\n")]
+    [InlineData("- [@key, p. 3]\n", "- [@key,\n  - p. 3]\n")]
+    [InlineData("1. [@key, p. 3]\n", "1. [@key,\n2. p. 3]\n")]
+    [InlineData("[@key, p. 3]\n", "[@key,\n# p. 3]\n")]
+    [InlineData("[@key, p. 3]\n", "[@key,\n```\np. 3]\n")]
+    public void StructuralTokenChecker_Check_BracketsSplitByBlockBoundary_Different(string before, string after)
+    {
+        // Act: compare the two readings
+        var result = StructuralTokenChecker.Check(before, after);
+
+        // Assert: the citation is lost
+        Assert.False(result.IsEquivalent);
+    }
+
+    /// <summary>
     ///     Test that a blank line is not read as a blank: a citation cannot span two paragraphs.
     /// </summary>
     [Fact]

@@ -91,11 +91,12 @@ internal static partial class StructuralTokenChecker
 
     /// <summary>
     ///     Matches one line break inside a paragraph: it follows a character that is not a line feed, and the next line has
-    ///     text after its indentation and block quote markers.
+    ///     text after its indentation and block quote markers, and does not start a list item, a heading, a fence or a
+    ///     fenced div (those begin a new block, so the break is not a blank).
     /// </summary>
     /// <returns>The compiled expression.</returns>
     [GeneratedRegex(
-        @"(?<=[^\n])\n[ \t>]*(?=[^\s>])",
+        @"(?<=[^\n])\n(?>[ \t>]*)(?=[^\s>])(?!(?:[-+*]|\d{1,9}[.)])[ \t]|#{1,6}[ \t]|`{3}|~{3}|:::)",
         RegexOptions.CultureInvariant,
         matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
     private static partial Regex LineBreakRegex();

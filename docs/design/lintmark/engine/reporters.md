@@ -39,8 +39,9 @@ The diff is for display only: whether a file is written never depends on it.
 
 #### Error Handling
 
-N/A - the reporters perform no fallible work. Null arguments are programming errors and throw; the context serializes
-its own output. `GetDisplayPath` throws `ArgumentException` for an empty base directory.
+N/A - the reporters perform no fallible work. Their callers are internal and pass valid arguments, so the reporters do
+not validate them (a null argument fails with the incidental exception); the context serializes its own output.
+`GetDisplayPath` throws `ArgumentException` for an empty base directory.
 
 #### Dependencies
 
