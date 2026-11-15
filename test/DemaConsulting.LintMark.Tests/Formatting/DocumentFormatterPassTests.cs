@@ -248,6 +248,8 @@ public class DocumentFormatterPassTests
     [InlineData("- t\n\n-\n\n\n- v\n", "- t\n\n-\n\n\n- v\n")]
     [InlineData("- t\n  -\n\n\n  - v\n", "- t\n  -\n\n\n  - v\n")]
     [InlineData("> - t\n> -\n>\n>\n> - v\n", "> - t\n> -\n>\n>\n> - v\n")]
+    [InlineData("+ t\n+\n\n\n+ v\n", "+ t\n+\n\n\n+ v\n")]
+    [InlineData("* t\n*\n\n\n* v\n", "* t\n*\n\n\n* v\n")]
     public void DocumentFormatter_Format_BlankRunAfterEmptyListItem_IsKept(string input, string expected) =>
         AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
 
@@ -391,6 +393,15 @@ public class DocumentFormatterPassTests
     [InlineData("text\n2. a\n")]
     [InlineData("text\n    not code\n")]
     public void DocumentFormatter_Format_TextBeforeListLookalike_IsNotSeparated(string input) =>
+        AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that a footnote definition next to a heading is not separated from it.
+    /// </summary>
+    [Theory]
+    [InlineData("# t\n[^1]: note\n\ntext[^1]\n")]
+    [InlineData("text[^1]\n\n[^1]: note\n# t\n")]
+    public void DocumentFormatter_Format_FootnoteNextToHeading_IsNotSeparated(string input) =>
         AssertPasses(input, input);
 
     /// <summary>

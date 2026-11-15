@@ -69,6 +69,20 @@ public class DocumentFormatterWrapTests
     }
 
     /// <summary>
+    ///     Test that the width of a line is measured in display columns, not characters.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_WideCharacters_AreMeasuredInDisplayColumns()
+    {
+        // Act: format a paragraph of three words of two wide characters each (14 columns) with a limit of 10
+        var (result, formatted) = Format("你好 你好 你好\n", 10);
+
+        // Assert: wrapped at the column limit, with the measured width reported
+        Assert.Equal("你好 你好\n你好\n", formatted);
+        Assert.Equal("Line is 14 columns wide; the limit is 10", Assert.Single(result.Diagnostics).Message);
+    }
+
+    /// <summary>
     ///     Test that two paragraphs that are too wide are both wrapped and each gets its own finding.
     /// </summary>
     [Fact]

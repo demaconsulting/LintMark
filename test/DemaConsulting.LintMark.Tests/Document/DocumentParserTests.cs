@@ -1156,6 +1156,19 @@ public class DocumentParserTests
     }
 
     /// <summary>
+    ///     Test that the last line of a paragraph that ends the file without a line ending has exact content.
+    /// </summary>
+    [Fact]
+    public void DocumentParser_GetLines_LastLineWithoutLineEnding_HasExactContent()
+    {
+        // Arrange: a paragraph at the end of a file without a final line ending
+        var document = Parse("alpha\nbeta");
+
+        // Act and Assert: the last line is read up to the end of the text
+        Assert.Equal(["alpha", "beta"], LineContents(document, Single(document, BlockKind.Paragraph)));
+    }
+
+    /// <summary>
     ///     Test that the content of continuation lines in nested containers excludes the container prefix.
     /// </summary>
     [Fact]
