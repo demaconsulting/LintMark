@@ -594,6 +594,26 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertFormats("-    one\n\n     two\n", "- one\n\n  two\n");
 
     /// <summary>
+    ///     Test that a nested ordered marker with two spaces after it that does not move by its own plan (it starts a list on its marker
+    ///     line) keeps its spacing and the meaning of its continuation lines while the nest around it moves, or keeps its columns
+    ///     (rule G-5; answers the review of the guard, which modeled the width of the marker as written). The rewrite renders the same.
+    /// </summary>
+    [Theory]
+    [InlineData("-   a\n    1.  - x\n          c\n", "- a\n  1.  - x\n        c\n")]
+    [InlineData(" -  x\n    1.  - t\n        c\n", "- x\n  1.  - t\n      c\n")]
+    [InlineData("  -   x\n       01.  - t\n              =\n", "  -   x\n       01.  - t\n              =\n")]
+    [InlineData(" + x\n    01.  - t\n            =\n", " - x\n    01.  - t\n            =\n")]
+    public void ListFormatter_Format_NestedMarkerWithTwoSpacesNotMovedByItself_KeepsItsSpacingAndMeaning(string input, string expected)
+    {
+        // Act
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(input);
+
+        // Assert: the verifier-equivalent HTML is identical (checked by AssertSafeAndStable), the spacing of the marker is as written
+        Assert.Equal(expected, formatted);
+        Assert.Matches(@"\d+\.  - ", formatted);
+    }
+
+    /// <summary>
     ///     Test that the content column of a nested item is the one the parser reads: the offset of the marker counts only when the
     ///     marker is indented by four or more columns from the content column of the item around the holder.
     /// </summary>
