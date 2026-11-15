@@ -89,10 +89,11 @@ internal static class BlockSpacingPass
                 continue;
             }
 
-            // Only blocks that follow each other directly are a violation
+            // Only blocks that follow each other directly are a violation; a block whose reported start is a blank line (the parser's
+            // span of a paragraph that looks like a grid table border can include the blank lines before it) is not placed reliably
             var beforeLast = LineOwnership.LinesOf(layout, before).Last;
             var afterFirst = LineOwnership.LinesOf(layout, after).First;
-            if (afterFirst != beforeLast + 1)
+            if (afterFirst != beforeLast + 1 || layout.IsBlank(afterFirst))
             {
                 continue;
             }

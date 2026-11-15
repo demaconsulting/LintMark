@@ -292,6 +292,14 @@ public class DocumentFormatterPassTests
         AssertPasses("  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", "  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
+    ///     Test that no blank line is inserted at the blank line before a paragraph that the parser reports as starting there (a
+    ///     paragraph that looks like a grid table border): formatting again would insert another one.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_ParagraphReportedToStartAtABlankLine_GetsNoBlankLine() =>
+        AssertPasses("   + [x]: /u\n\n   +---+\n", "   + [x]: /u\n\n   +---+\n");
+
+    /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
     /// </summary>
     [Theory]
