@@ -53,6 +53,9 @@ a badge block, and front matter is kept.
 **Destination forms are copied**: Titles and destination forms are copied as written, and a destination that is not read
 with certainty is left.
 
+**Link text stays stable when a link is converted**: A long inline link whose text holds a tab is expanded and
+converted in one run, and a second run changes nothing (`LinkRefactorer_Format_TabInLinkText_IsExpandedInTheFirstRun`).
+
 **Link text with other content is handled**: Link text with brackets, emphasis, and code stays whole, text split across
 lines is converted, and the break-text option breaks the text and keeps the destination whole.
 

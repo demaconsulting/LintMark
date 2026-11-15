@@ -71,6 +71,8 @@ How the files are selected:
 - Files that match an `ignore` pattern of the configuration are left alone unless they are named explicitly. By
   default `.git`, `node_modules`, `.venv`, `generated`, `thirdparty`, and `.agent-logs` folders are ignored.
 - A file selected by several arguments is processed once.
+- A link to a folder (symbolic link or junction) is followed, except a link back into a folder that the search is
+  already inside, which is skipped so that the search ends. A folder that cannot be read is skipped.
 - A pattern that matches no file is not an error. A name that matches no wildcard pattern and does not exist is
   reported as a `file-read-error`.
 - On Windows and macOS, patterns ignore letter case; on other systems they do not. Where case is ignored and one file
@@ -249,7 +251,7 @@ The failures that LintMark reports about files, formatting, and configuration ar
 | `file-read-error` | The file does not exist, cannot be accessed, or cannot be read (1:1) |
 | `file-encoding-error` | The file is not valid UTF-8, or starts with a UTF-16 or UTF-32 byte order mark |
 | `file-line-ending-error` | The file contains a carriage return that is not part of a CRLF line ending |
-| `file-parse-error` | The Markdown parser failed for the file (1:1) |
+| `file-parse-error` | The Markdown parser failed for the file, or inline markup is nested over 128 levels (1:1) |
 | `file-format-error` | Formatting the file failed (1:1) |
 | `file-write-error` | The rewritten file could not be written (1:1) |
 | `config-error` | A configuration file or `.editorconfig` problem (see *Configuration*) |

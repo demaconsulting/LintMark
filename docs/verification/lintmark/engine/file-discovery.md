@@ -23,6 +23,8 @@ Each test creates and removes a temporary directory tree, including folders name
   named explicitly.
 - Exclusion arguments remove matches, also named files, and everything beneath an excluded directory name.
 - Overlapping arguments and case variants return each file once, in a stable order.
+- A directory link or junction back into a folder the search is inside is skipped, so each file is found once and
+  the search ends; a link to another folder is followed; a broken link is skipped.
 - A blank pattern is refused; a missing literal path passes through for the engine to report.
 - Ignore patterns match relative to the configuration folder at any depth with the platform's case rule.
 
@@ -50,6 +52,17 @@ patterns for `.git`, `node_modules`, and `generated`.
 **Search root inside `node_modules` still finds its files**: The folder is skipped only below the root.
 
 **Glob without matches returns empty**: No exception.
+
+**A directory link back into its own tree is skipped**: A link to an ancestor
+(`FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce`) and two folders that link to each other
+(`FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates`) end after one lap and return each file once.
+
+**A directory link elsewhere is followed**: The Markdown files behind it are returned
+(`FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed`).
+
+**A broken directory link is skipped**: No exception, the other files are returned
+(`FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped`). The link tests create a symbolic link, fall back to a Windows
+junction, and pass without a check when neither can be created.
 
 **A missing literal path passes through**: It is marked explicit.
 

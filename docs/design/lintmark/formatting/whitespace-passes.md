@@ -19,9 +19,12 @@ All passes are static and stateless; they read a `LineLayout`, a `LineOwnership`
 **InlineMap**: Immutable per leaf block, built from the inline tree by `Build(ContainerInline?, shift)`. It stores
 sorted spans of plain text, sorted spans that must never be edited, and the line breaks by the offset of their line
 feed with a flag that tells a hard break written with spaces from a backslash break. Literal text and breaks are
-editable; code,
-inline HTML, math, autolink URLs, link destinations, titles and labels, footnote references, and task markers are
-protected as a whole. Queries: `IsText`, `IsProtected`, `IsBreakAt`, `IsSpaceBreakAt`. `Empty` has no text.
+editable; code, inline HTML, math, autolink URLs, link destinations, titles, footnote references, and task markers
+are protected as a whole, and so is the label of a link that refers to a definition (the `[label]` of a reference
+link; for a collapsed link the label is its text). The parser reports the bracketed text of an inline link as its
+label; that span is not protected for an inline link, so its text is plain text like the text of a reference link,
+and link refactoring does not change what is editable. Queries: `IsText`, `IsProtected`, `IsBreakAt`,
+`IsSpaceBreakAt`. `Empty` has no text.
 
 #### Key Methods
 

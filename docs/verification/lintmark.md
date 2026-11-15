@@ -82,10 +82,12 @@ The scenarios are grouped by the feature of the requirements; each is an end-to-
 
 **Default run lints every Markdown file below the current directory**: With no paths, the banner is printed and every
 `.md` file is checked except those in the folders that the default `ignore` setting skips (`.git`, `node_modules`,
-`.venv`, `generated`, `thirdparty`, and `.agent-logs`).
+`.venv`, `generated`, `thirdparty`, and `.agent-logs`); a Markdown file in each of those folders is proven to be left
+out (`LintMark_DefaultBehavior_NoPaths_ProcessesMarkdownUnderWorkingDirectory`).
 
 **Paths, directories, globs, and exclusions select files**: Named files are always processed, each file once, and a
-`!` pattern removes matches.
+`!` pattern removes matches. A directory link back into the tree searched is skipped, so each file is checked once and
+the run exits normally (`LintMark_SelectFiles_DirectoryLinkCycle_ChecksEachFileOnceAndExitsNormally`).
 
 **Check reports and never writes**: `--check` (the default) reports findings and leaves every file unchanged.
 
@@ -106,7 +108,8 @@ usage error.
 **Silent and log output**: `--silent` suppresses the console; `--log <file>` also writes the output to a file.
 
 **Self-validation writes results**: `--validate` prints the summary; `--results` (or `--result`) writes TRX or JUnit,
-and `--depth 2` makes the report heading a second-level (`##`) heading. A `--depth` without a value is a usage error.
+and `--depth 2` makes the report heading a second-level (`##`) heading
+(`LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth`). A `--depth` without a value is a usage error.
 
 **Exit codes**: 0 when nothing is reported; 1 for any finding, error, or usage problem. An unexpected internal error
 is the one case outside this contract (the tool reports it and re-throws it, so the runtime sets the failure code); it
@@ -137,7 +140,9 @@ findings always show ids.
 named rules over the range they cover.
 
 **Unreadable, non-UTF-8, bare-CR, and unparsable files are reported without stopping the run**: Other files are still
-processed.
+processed. An unparsable file includes one whose emphasis is nested thousands of levels deep, which is reported as
+`file-parse-error` instead of crashing the process
+(`LintMark_FileProblems_DeeplyNestedEmphasis_IsReportedWithoutStoppingTheRun`).
 
 ### Safe rewriting
 

@@ -25,6 +25,7 @@ N/A - standard test environment. The tests use inline text only and no files.
 - A grid table border that is not part of a valid grid table marks the document format-unsafe at that line, and
   blocks are still produced.
 - Suppression comments, by id or alias, are collected with the parse.
+- Inline elements nested deeper than 128 levels are refused with `InvalidDataException`; moderate nesting is parsed.
 
 #### Test Scenarios
 
@@ -55,10 +56,18 @@ dropped footnote before a definition on the same line, keep disjoint ranges.
 
 **Tabs keep exact spans**: Lists, code, and text with tabs report correct columns.
 
+**Moderate inline nesting is parsed**: Emphasis nested far below the limit gives a normal result
+(`DocumentParser_Parse_ModeratelyNestedEmphasis_IsParsed`).
+
 ##### Error handling
 
 **Invalid grid border marks the document format-unsafe**: The location is the offending line; a border in a fence or
 other literal block is not marked, and a plain document is never marked.
+
+**Over-deep inline nesting is refused**: Thousands of nested `*` or `_` throw `InvalidDataException` instead of
+exhausting the stack (`DocumentParser_Parse_DeeplyNestedEmphasis_ThrowsInvalidData`); the engine and system tests
+(`LintMarkEngine_Process_DeeplyNestedEmphasis_ReportsParseErrorAndKeepsGoing`,
+`LintMark_FileProblems_DeeplyNestedEmphasis_IsReportedWithoutStoppingTheRun`) show it reported as `file-parse-error`.
 
 **A grid-table fallback still produces blocks**: Parsing never fails because of the fallback; an unknown location
 falls back to line 1, column 1.

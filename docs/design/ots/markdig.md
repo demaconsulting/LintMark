@@ -25,9 +25,10 @@ documentation repositories use.
 - Footnote definitions with their own range and label span, the group nodes that wrap definitions, and the fact
   that a math block is a kind of fenced code block (so an unclosed math block is recognized like an unclosed fence)
 
-Not used: HTML rendering (`Markdown.ToHtml`) by the shipped tool, automatic heading identifiers, generic attributes,
+Not used by the shipped tool: HTML rendering (`Markdown.ToHtml`), automatic heading identifiers, generic attributes,
 the advanced extension bundle, and trivia tracking. The development-time corpus harness `tools/LintMark.Verify`, which
-is not a software item, renders HTML to compare documents; that use is not part of the shipped tool.
+is not a software item, renders HTML to compare documents; that use is not part of the shipped tool and has no
+evidence in the OTS tests.
 
 Grid table behavior: Markdig's grid table parser mishandles a line that looks like a grid table row but is not
 a valid grid table (it rebuilds a paragraph without a proper start, parses the following line twice, and can
@@ -46,9 +47,12 @@ destination and ends the dropped footnote before it.
 Markdig is consumed as a NuGet package reference of the main project. `DocumentParser` builds one immutable
 pipeline when the type is first used and shares it read-only between all threads; each file is parsed with
 `Markdown.Parse` on LF-normalized text. No initialization, configuration file, or disposal is required.
-Markdig exceptions propagate to the engine, which reports them as parse failures of the affected file.
+Markdig exceptions propagate to the engine, which reports them as parse failures of the affected file. Markdig bounds
+the nesting of blocks and links (128 levels, with an `ArgumentException`) but not of emphasis, so `DocumentParser`
+refuses inline nesting deeper than 128 levels itself.
 
 Markdig has no self-validation mode. The evidence for the behaviors LintMark depends on is the integration
 test project `test/OtsSoftwareTests`, which exercises the library directly (source ranges, the required
 extensions, the known unclosed-fence and trailing-newline range quirks, link reference definitions, HTML
-comments, the parsing of grid tables and pipe tables, and parallel parsing with one shared pipeline).
+comments, the parsing of grid tables and pipe tables, and parallel parsing with one shared pipeline, which must give
+identical syntax trees).

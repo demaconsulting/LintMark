@@ -37,6 +37,13 @@ found through a directory, glob, or the default pattern are not explicit.
 6. Group by path under `PathComparison`, keep the smallest ordinal spelling, mark the group explicit if any spelling
    was named, and sort by ordinal path order.
 
+The search itself (`CycleSafeDirectory`, private) hands the matcher a `DirectoryInfoWrapper` subclass that keeps the
+chain of real paths from the file system root down to the current directory (the folders above the search root
+included). A directory link or junction whose final target is in that chain is a cycle and is skipped, so a walk ends
+after one lap at the latest; a link to any other folder is followed, and files are always returned. A link that cannot
+be resolved is skipped, and a directory that cannot be read (`IOException`, `UnauthorizedAccessException` during
+enumeration) contributes nothing, instead of the failure escaping from the middle of the enumeration.
+
 **IsIgnored(fullPath, ignoreRoot, patterns)**: returns true when the file lies
 below `ignoreRoot` and its relative path matches an `ignore` glob. Empty patterns, or a file outside the root (`..` or
 another drive), give false. Pure; no file system access. The caller (`LintMarkEngine`) consults it only for files that
@@ -47,7 +54,8 @@ are not explicit.
 #### Error Handling
 
 Argument errors throw as described above and reach `Program` as usage errors. A pattern that matches nothing is not
-an error. Directory enumeration failures propagate as exceptions. A missing named file is not detected here; it
+an error. An unreadable directory below the search root, or a link that cannot be resolved, is skipped rather than
+reported. A missing named file is not detected here; it
 becomes a read-error diagnostic in `LintMarkEngine`.
 
 #### Dependencies

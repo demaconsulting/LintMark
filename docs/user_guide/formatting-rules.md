@@ -85,9 +85,11 @@ the other: a hard break keeps the form that it has.
 ### hard-tabs (MD010)
 
 Replaces each tab in the text of a paragraph or heading by spaces up to the next tab stop of four columns. A tab in
-the indentation of a line, in code (also inline code), in a table, in a link destination or title, at the end of a line
+the indentation of a line, in code (also inline code), in a table, in a link destination or title, in the label of a
+reference link, at the end of a line
 (the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block
-that LintMark does not rewrite stays as it is.
+that LintMark does not rewrite stays as it is. A tab in the text of a link, inline or reference, is replaced like any
+other tab in the text.
 
 - **Setting**: none; the tab stops are four columns wide.
 - **Before**: `a→b` and `abc→d`

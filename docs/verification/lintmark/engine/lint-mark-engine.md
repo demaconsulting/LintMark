@@ -71,6 +71,10 @@ as remaining.
 **Invalid UTF-8, UTF-16, bare CR, missing file, and directory in place of a file are reported**: The matching finding
 is produced and the run continues.
 
+**A file the parser rejects is reported and the run continues**: Over-deeply nested emphasis gives `file-parse-error`
+for that file while other files are still processed
+(`LintMarkEngine_Process_DeeplyNestedEmphasis_ReportsParseErrorAndKeepsGoing`).
+
 **A formatter or write failure is reported for that file**: The file is left as it was, other files are still
 written, and the diagnostics of the failed file are kept.
 

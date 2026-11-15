@@ -7,9 +7,9 @@ are defined in the Markdig OTS Software Requirements document.
 
 Markdig is the Markdown parsing library used by the `Document` subsystem. LintMark depends on it to report exact
 source ranges for every block and inline element, to recognize the fixed set of Markdown extensions, and to parse on
-many threads with one shared pipeline. Its HTML renderer is also used by the development-time corpus harness
-`tools/LintMark.Verify` to compare the rendering of a text before and after formatting; the renderer is deterministic
-and thread-safe for that purpose.
+many threads with one shared pipeline. Its HTML renderer is not used by the shipped tool. The development-time corpus
+harness `tools/LintMark.Verify` renders HTML to compare a text before and after formatting, but the harness is not a
+software item and its use of the renderer is not verified here.
 
 ### Verification Approach
 
@@ -17,10 +17,10 @@ Markdig has no self-validation mode. It is verified by integration tests in the 
 `test/OtsSoftwareTests` (`MarkdigTests.cs`), which reference the Markdig package directly and not the LintMark
 project. Each scenario describes a behavior that LintMark relies on and that the tests confirm. Scenarios that record
 known deviations of the library (an unclosed fence reporting only its opening line, a list reporting its trailing line
-feed, reference definitions grouped in a shell block, a rejected next-line title kept in a definition's span, a
-definition that survives inside a dropped footnote, and a code span that renders differently for CRLF and LF text) pin
+feed, reference definitions grouped in a shell block, a rejected next-line title kept in a definition's span, and a
+definition that survives inside a dropped footnote) pin
 the behavior that the `DocumentParser` unit compensates for, so that a library update that changes it is noticed. The
-corrections themselves are verified in the `DocumentParser` unit tests.
+corrections themselves are verified in the `DocumentParser` unit tests. The tests only parse; no test renders HTML.
 
 ### Test Scenarios
 
@@ -96,36 +96,7 @@ automatic links are all recognized.
 
 #### One shared pipeline parses on many threads with identical results
 
-**Scenario**: Many threads parse documents at the same time with one shared pipeline.
+**Scenario**: Many tasks parse the same document at the same time with one shared pipeline.
 
-**Expected**: Every result equals the result of a sequential parse.
-
-#### The same text and pipeline render to identical HTML
-
-**Scenario**: A document with a heading, emphasis, a code span, a link with a title, a list, and a pipe table is
-rendered repeatedly with one pipeline and once with a second pipeline built the same way.
-
-**Expected**: All renderings are identical.
-
-#### A multi-line code span renders differently for CRLF and LF text
-
-**Scenario**: A code span whose content is framed by line breaks is rendered with LF and with CRLF line endings.
-
-**Expected**: With LF the line breaks become stripped spaces (`<p><code>bb</code></p>`); with CRLF the spaces stay
-(`<p><code> bb </code></p>`). The corpus harness therefore compares renderings with the real line endings as well as
-with normalized ones.
-
-#### One shared pipeline renders on many threads with identical results
-
-**Scenario**: Five different documents are rendered once on one thread, then 128 renderings of them are made from up
-to 16 threads through the same shared pipeline.
-
-**Expected**: Every result equals the single-threaded HTML of its document.
-
-#### Grid tables and pipe tables render as tables
-
-**Scenario**: A pipeline with only the pipe table and grid table extensions renders a grid table followed by a pipe
-table.
-
-**Expected**: The HTML holds two tables, the grid table with plain cells and the pipe table with a header row and body
-cells.
+**Expected**: The syntax tree of every parse (the type and source range of each block and inline element) equals that
+of a sequential parse.

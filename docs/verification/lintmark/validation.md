@@ -33,6 +33,9 @@ and needs no network or external service.
 
 **An XML results file is written**: Requesting an `.xml` results file creates it.
 
+**The heading depth is honored**: With a depth of two the summary is headed by a second-level heading
+(`Validation_Run_DepthTwo_HeadsTheSummaryAtThatDepth`).
+
 #### Boundary conditions
 
 N/A - the self-validation has no numeric or size limits.

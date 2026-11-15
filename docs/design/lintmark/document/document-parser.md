@@ -36,6 +36,12 @@ lies inside its parent. These hold by construction for computed ranges and by th
   auto links, strikethrough only, alert blocks and math. Auto identifiers, generic attributes, advanced extensions and
   pipe table column width inference are excluded because they inject nodes or break equivalence. YAML front matter
   (only at the start of the file) becomes a `FrontMatter` block and stays verbatim text.
+- `ParseChecked(text, pipeline)` (private): runs `Markdown.Parse` and then checks the nesting of the inline elements
+  once, with an explicit stack and no recursion. The depth of every inline tree is counted from zero at its leaf
+  block. More than `MaxInlineDepth` (128, the library's own limit for nested blocks) throws `InvalidDataException`.
+  The library bounds nested blocks and links itself but not nested emphasis, and every later recursive walk over the
+  inlines would exhaust the stack and end the process. Both parses of `Parse` (including the grid table fallback)
+  use it.
 - Flattener (private): walks the tree and drops synthetic shells (definition and footnote groups, empty-span nodes).
   It classifies each node, clamps ranges, and trims trailing line feeds. An unclosed fence extends to the end of its
   parent (or file). A footnote start moves back to its `[^label]:` marker. A definition whose title was rejected ends
@@ -66,7 +72,9 @@ lies inside its parent. These hold by construction for computed ranges and by th
 
 #### Error Handling
 
-Markdig exceptions are not caught; the engine reports them as parse failures. A null argument throws
+Markdig exceptions are not caught; the engine reports them as parse failures. Inline elements nested deeper than
+`MaxInlineDepth` throw `InvalidDataException`, which the engine also reports as a parse failure while the run
+continues. A null argument throws
 `ArgumentNullException`, and a block that is not a paragraph or heading of the document is a precondition violation that
 is not verified. Out-of-range or inverted Markdig spans are clamped or skipped. The only recovered condition is a
 nesting failure, handled by the grid table fallback; a document that still does not nest is not detected further.

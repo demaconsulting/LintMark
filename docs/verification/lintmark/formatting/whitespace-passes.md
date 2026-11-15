@@ -19,7 +19,7 @@ no network access and no Pandoc installation.
 
 - All unit tests pass with zero failures.
 - Trailing whitespace and tabs are removed only where they are not part of the content: code, HTML, math, front matter,
-  grid tables, link titles, and exact hard breaks stay.
+  grid tables, link titles and destinations, reference labels, and exact hard breaks stay.
 - Blank-line runs shrink to the configured maximum, and blank lines inside blocks stay.
 - Headings, fences, lists, and tables get one blank line from their neighbors, except where a line would then change the
   meaning of the text.
@@ -36,8 +36,11 @@ and grid tables keep it.
 **Hard break keeps exactly two spaces**: A hard break with several spaces is written with two. A backslash break and
 mixed breaks are kept.
 
-**Tabs expand to the tab stop**: A tab in text expands, a tab after a code span expands, and tabs in code or protected
-spans stay.
+**Tabs expand to the tab stop**: A tab in text expands, a tab after a code span expands, a tab in the text of an inline
+link or of a reference link expands in the first run (`DocumentFormatter_Format_TabInText_ExpandsToTheTabStop`,
+`LinkRefactorer_Format_TabInLinkText_IsExpandedInTheFirstRun`), and tabs in code or protected spans, a link
+destination or title, and the text of a collapsed reference link (its label) stay
+(`DocumentFormatter_Format_TabsThatMustStay_AreKept`).
 
 **Blank-line runs collapse**: Runs collapse to the configured maximum. Runs inside containers keep their prefix without
 whitespace, and runs inside blocks stay.

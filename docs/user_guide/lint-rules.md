@@ -537,7 +537,7 @@ finding, and the exit code is `1`.
 | `file-read-error` | A file cannot be read. |
 | `file-encoding-error` | A file is not valid UTF-8 or has an unsupported byte order mark. |
 | `file-line-ending-error` | A file contains a bare carriage return. |
-| `file-parse-error` | The Markdown parser failed on a file. |
+| `file-parse-error` | The Markdown parser failed, or inline markup is nested over 128 levels. |
 | `file-format-error` | Formatting a file failed. |
 | `file-write-error` | A rewritten file could not be written. |
 | `config-error` | A configuration source has a problem. |
