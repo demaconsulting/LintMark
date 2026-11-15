@@ -582,6 +582,13 @@ internal static class TrailerPass
         // The trailer starts where the last content line ends
         var text = layout.Text;
         var trailerStart = layout.LineEnd(lastContent);
+
+        // A blank line after a line shaped like a grid table border is read by the rules of the grid table extension (it can make a list loose), so it stays
+        if (layout.LooksLikeGridBorder(lastContent) && owner?.Kind is not (BlockKind.IndentedCode or BlockKind.GridTable) && HasBlankLine(text.AsSpan(trailerStart)))
+        {
+            return;
+        }
+
         var wanted = config.FinalNewline ? "\n" : string.Empty;
         if (text.AsSpan(trailerStart).SequenceEqual(wanted))
         {
@@ -595,5 +602,22 @@ internal static class TrailerPass
         }
 
         edits.Add(new TextEdit(trailerStart, text.Length - trailerStart, wanted, RuleCatalog.FinalNewlineRuleId));
+    }
+
+    /// <summary>
+    ///     Determines whether a trailer holds a blank line: something after its first line ending.
+    /// </summary>
+    /// <param name="trailer">The text after the last content line.</param>
+    /// <returns><see langword="true"/> when anything follows the first line ending of the trailer.</returns>
+    private static bool HasBlankLine(ReadOnlySpan<char> trailer)
+    {
+        var first = trailer.IndexOfAny('\r', '\n');
+        if (first < 0)
+        {
+            return false;
+        }
+
+        var rest = first + 1 < trailer.Length && trailer[first] == '\r' && trailer[first + 1] == '\n' ? first + 2 : first + 1;
+        return rest < trailer.Length;
     }
 }

@@ -312,6 +312,26 @@ public class DocumentFormatterPassTests
         AssertPassesSafely("   + [x]: /u\n\n   +---+\n", "   + [x]: /u\n\n   +---+\n");
 
     /// <summary>
+    ///     Test that the blank lines at the end of the file are kept after a line shaped like the border of a grid table, because the
+    ///     parser reads the blank line by the rules of the grid table extension (it makes the list before it loose).
+    /// </summary>
+    [Theory]
+    [InlineData("001.    |-|-|\n        - ===\n        2.  [x]: /u\n        +---+\n\n")]
+    [InlineData("para\n+---+\n\n\n")]
+    public void DocumentFormatter_Format_BlankLinesAfterBorderShapedLastLine_AreKept(string input) =>
+        BlockFormatterAssertions.AssertFormats(input, input, LintMarkConfig.Default);
+
+    /// <summary>
+    ///     Test that the blank lines at the end of the file are still removed after a real grid table and after an indented code line
+    ///     that is shaped like a border.
+    /// </summary>
+    [Theory]
+    [InlineData("+---+---+\n| a | b |\n+---+---+\n\n\n", "+---+---+\n| a | b |\n+---+---+\n")]
+    [InlineData("text\n\n    +---+\n\n\n", "text\n\n```\n+---+\n```\n")]
+    public void DocumentFormatter_Format_BlankLinesAfterGridTableOrCode_AreRemoved(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected, LintMarkConfig.Default);
+
+    /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
     /// </summary>
     [Theory]
