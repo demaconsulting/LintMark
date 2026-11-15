@@ -50,13 +50,12 @@ public class ParagraphFormatterTests
     /// <param name="text">The LF-normalized text.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for a line length of 20.</param>
     /// <param name="paragraph">The zero-based index of the paragraph in the document.</param>
-    /// <param name="formatter">The formatter, or <see langword="null"/> for the shipped one.</param>
     /// <returns>The outcome and the text after the edit.</returns>
-    private static (ParagraphOutcome Outcome, string Text) Run(string text, LintMarkConfig? config = null, int paragraph = 0, ParagraphFormatter? formatter = null)
+    private static (ParagraphOutcome Outcome, string Text) Run(string text, LintMarkConfig? config = null, int paragraph = 0)
     {
         var document = BlockFormatterAssertions.Parse(text);
         var block = document.Blocks.Where(candidate => candidate.Kind == BlockKind.Paragraph).ElementAt(paragraph);
-        var outcome = (formatter ?? Formatter).Format(new FormatContext(document, config ?? Width(20)), block);
+        var outcome = Formatter.Format(new FormatContext(document, config ?? Width(20)), block);
         var patched = outcome.Edit is { } edit ? SourcePatcher.Apply(document.Source, [edit]) : text;
         return (outcome, patched);
     }
@@ -97,10 +96,9 @@ public class ParagraphFormatterTests
     /// </summary>
     /// <param name="text">The LF-normalized text.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for a line length of 20.</param>
-    /// <param name="formatter">The formatter, or <see langword="null"/> for the shipped one.</param>
-    private static void AssertKeptAndReported(string text, LintMarkConfig? config = null, ParagraphFormatter? formatter = null)
+    private static void AssertKeptAndReported(string text, LintMarkConfig? config = null)
     {
-        var (outcome, kept) = Run(text, config, 0, formatter);
+        var (outcome, kept) = Run(text, config, 0);
         Assert.Equal(text, kept);
         Assert.Null(outcome.Edit);
         Assert.True(outcome.HasResidualOverflow);
@@ -122,7 +120,6 @@ public class ParagraphFormatterTests
         Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block)).ParamName);
         Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!)).ParamName);
         Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => ParagraphFormatter.IsEnabled(null!)).ParamName);
-        Assert.Equal("rendersTheSame", Assert.Throws<ArgumentNullException>(() => new ParagraphFormatter(null!)).ParamName);
     }
 
     /// <summary>
@@ -431,49 +428,64 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
-    ///     Test that a wrap that the proof refuses leaves the paragraph as written and reports the overflow.
+    ///     Test that a paragraph with a shape whose meaning depends on its line breaks is kept as written and its overflow is
+    ///     reported: an alert marker (W-1), a line that starts with block syntax (W-2), a line break at the edge of link text
+    ///     (W-3), a literal angle bracket or dollar sign across a break (W-4), extra indentation (W-5), a task marker look-alike
+    ///     (W-6), a first line that is one HTML tag (W-7) and a quote marker without a blank (W-8).
     /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_ProofRefusesTheWrap_KeepsTheParagraphAndReportsIt() =>
-        AssertKeptAndReported("ant bat cat dog eel fox gnu\n", null, new ParagraphFormatter(static (_, _) => false));
+    /// <param name="text">The paragraph.</param>
+    [Theory]
+    [InlineData("> [!NOTE] ant bat cat dog eel fox gnu\n")]
+    [InlineData("> ant bat cat dog eel fox gnu\n===\n")]
+    [InlineData("a [b\n](c) ant bat cat dog eel fox\n")]
+    [InlineData("a [\nlink\n](u) ant bat cat dog eel fox\n")]
+    [InlineData("[foo](<\nbar>) ant bat cat dog eel fox\n")]
+    [InlineData("$math\ninline$ ant bat cat dog eel fox gnu\n")]
+    [InlineData("ant bat cat\n  dog eel fox gnu hen\n")]
+    [InlineData("- [  ] ant bat cat dog eel fox gnu\n")]
+    [InlineData("<span class=\"a b\"> ant bat cat dog eel fox gnu\n")]
+    [InlineData(">http://a.b/c ant bat cat dog eel\n")]
+    public void ParagraphFormatter_Format_ShapeThatDependsOnItsBreaks_KeepsTheParagraphAndReportsIt(string text) =>
+        AssertKeptAndReported(text);
 
     /// <summary>
-    ///     Test that the proof receives the stand-alone paragraph as written and as wrapped.
+    ///     Test that ordinary paragraphs are still wrapped (the controls of the rules W-1 to W-8): the same shapes without the
+    ///     part that depends on the line breaks.
     /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_Proof_ReceivesTheParagraphBeforeAndAfter()
+    /// <param name="text">The paragraph.</param>
+    [Theory]
+    [InlineData("> [NOTE] ant bat cat dog eel fox gnu\n")]
+    [InlineData("> ant bat cat dog eel fox gnu\ncat\n")]
+    [InlineData("a [b c](d) ant bat cat dog eel fox\n")]
+    [InlineData("a < b ant bat cat dog eel fox gnu\n")]
+    [InlineData("costs $5 ant bat cat dog eel fox gnu\n")]
+    [InlineData("- ant bat cat dog eel fox gnu\n  hen ink\n")]
+    [InlineData("- [ ] ant bat cat dog eel fox gnu\n")]
+    [InlineData("<span class=\"a b\">ant</span> bat cat dog eel fox gnu\n")]
+    [InlineData("> ant bat cat dog eel fox gnu\n")]
+    public void ParagraphFormatter_Format_OrdinaryShape_IsStillWrapped(string text)
     {
-        // Arrange: a proof that records its arguments
-        string? before = null;
-        string? after = null;
-        var formatter = new ParagraphFormatter((original, wrapped) =>
-        {
-            before = original;
-            after = wrapped;
-            return true;
-        });
+        // Act
+        var (outcome, wrapped) = Run(text);
 
-        // Act: wrap a paragraph in a quote
-        var (outcome, _) = Run("> ant bat cat dog eel fox gnu\n", null, 0, formatter);
-
-        // Assert: both texts are stand-alone, without the quote markers
+        // Assert: an edit is proposed, and wrapping its result proposes nothing more
         Assert.NotNull(outcome.Edit);
-        Assert.Equal("ant bat cat dog eel fox gnu", before);
-        Assert.Equal("ant bat cat dog\neel fox gnu", after);
+        Assert.NotEqual(text, wrapped);
+        Assert.Null(Run(wrapped).Outcome.Edit);
     }
 
     /// <summary>
-    ///     Test that a wrap that makes the parser read the paragraph differently inside its quote is refused, so that the paragraph is
-    ///     kept as written and the overflow is reported.
+    ///     Test that a quote marker without a blank, followed by a URL that the parser links only when the URL ends the line, keeps the
+    ///     paragraph as written and the overflow is reported (rule W-8).
     /// </summary>
     [Fact]
-    public void ParagraphFormatter_Format_QuoteReadDifferentlyAfterTheWrap_KeepsTheParagraphAndReportsIt()
+    public void ParagraphFormatter_Format_QuoteMarkerWithoutBlank_KeepsTheParagraphAndReportsIt()
     {
         // Arrange: a quote without a space after its marker, whose first line starts with a URL that the parser links
         // only when the URL ends the line
         var text = ">http://a.b/c " + new string('x', 24) + " yak\n";
 
-        // Act & Assert: the stand-alone paragraph renders the same either way, but the quote does not, so nothing is rewritten
+        // Act & Assert: nothing is rewritten
         AssertKeptAndReported(text);
     }
 

@@ -189,6 +189,41 @@ internal static partial class BlockSyntaxGuard
     }
 
     /// <summary>
+    ///     Determines whether a word starts a CommonMark or GFM block: the test of <see cref="IsGuardedLineStart"/> without the
+    ///     Pandoc and fancy list words.
+    /// </summary>
+    /// <param name="word">The first blank-delimited word of a line. Must not be null or empty.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the word could be read as a bullet or ordered list marker, thematic break or setext
+    ///     underline, heading marker, quote, code fence, definition, block-level HTML, or table row or delimiter.
+    /// </returns>
+    /// <remarks>A pattern that times out counts as a match, the safe answer.</remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="word"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="word"/> is empty.</exception>
+    public static bool IsCommonMarkBlockStart(string word)
+    {
+        // Validate input
+        ArgumentException.ThrowIfNullOrEmpty(word);
+
+        try
+        {
+            return word[0] is '>' or '|'
+                || word.StartsWith("```", StringComparison.Ordinal)
+                || word.StartsWith("~~~", StringComparison.Ordinal)
+                || BulletOrRuleRegex().IsMatch(word)
+                || NumberMarkerRegex().IsMatch(word)
+                || HeadingMarkerRegex().IsMatch(word)
+                || DefinitionRegex().IsMatch(word)
+                || HtmlBlockRegex().IsMatch(word)
+                || TableDelimiterRegex().IsMatch(word);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
     ///     Determines whether a content line makes its paragraph Pandoc structure that must be left as written.
     /// </summary>
     /// <param name="line">The content of one line of a paragraph, without its container prefix. Must not be null.</param>

@@ -619,6 +619,20 @@ internal static partial class DocumentParser
         actual.Count(c => c == '>') < expected.Count(c => c == '>') || VisualWidth(actual) < VisualWidth(expected);
 
     /// <summary>
+    ///     Determines whether an actual continuation prefix is longer than the expected one (a line indented more than its container needs).
+    /// </summary>
+    /// <param name="actual">The text before the content of a continuation line. Must not be null.</param>
+    /// <param name="expected">The prefix the container requires (see <see cref="GetContinuationPrefix"/>). Must not be null.</param>
+    /// <returns><see langword="true"/> when, with the optional space after each quote marker removed, the actual prefix is wider.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public static bool IsLongerPrefix(string actual, string expected)
+    {
+        ArgumentNullException.ThrowIfNull(actual);
+        ArgumentNullException.ThrowIfNull(expected);
+        return VisualWidth(RemoveOptionalQuoteSpaces(actual)) > VisualWidth(RemoveOptionalQuoteSpaces(expected));
+    }
+
+    /// <summary>
     ///     Measures the visual width of a prefix, advancing tabs to the next multiple of four.
     /// </summary>
     /// <param name="prefix">The prefix.</param>

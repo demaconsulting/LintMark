@@ -302,24 +302,25 @@ public class DocumentFormatterSentenceWrapTests
 
     /// <summary>
     ///     Test that the sentence mode keeps a paragraph that is not wrapped per the layout as written, and reports it as a finding that
-    ///     cannot be fixed, when the wrap is not accepted by the proof.
+    ///     cannot be fixed, when the wrap would start the paragraph with a complete HTML tag (rule W-7).
     /// </summary>
     [Fact]
-    public void DocumentFormatter_Format_WrapRefusedByTheProof_IsReportedAsParagraphWrapThatCannotBeFixed()
+    public void DocumentFormatter_Format_WrapThatWouldOpenAnHtmlBlock_IsReportedAsParagraphWrapThatCannotBeFixed()
     {
-        // Arrange: a formatter whose paragraph formatter refuses every wrap
+        // Arrange: a formatter with the paragraph formatter, and a first sentence whose first 18 columns are one tag
         var formatter = new DocumentFormatter(
             [new DemaConsulting.LintMark.Formatting.Blocks.HeadingFormatter()],
             null,
-            new DemaConsulting.LintMark.Formatting.Blocks.ParagraphFormatter(static (_, _) => false));
+            new DemaConsulting.LintMark.Formatting.Blocks.ParagraphFormatter());
+        const string input = "<span class=\"a b\"> One. Two.\n";
 
-        // Act: format two sentences on one line
-        var (result, formatted) = BlockFormatterAssertions.Apply(formatter, "One. Two.\n", Config(WrapMode.Sentence));
+        // Act: format it into 18 columns
+        var (result, formatted) = BlockFormatterAssertions.Apply(formatter, input, Config(WrapMode.Sentence, 18));
 
         // Assert: unchanged, one lint-only finding
-        Assert.Equal("One. Two.\n", formatted);
-        var finding = Assert.Single(result.Diagnostics);
-        Assert.Equal(("paragraph-wrap", DiagnosticKind.LintOnly), (finding.RuleId, finding.Kind));
+        Assert.Equal(input, formatted);
+        var finding = Assert.Single(result.Diagnostics, static diagnostic => diagnostic.RuleId == "paragraph-wrap");
+        Assert.Equal(DiagnosticKind.LintOnly, finding.Kind);
         Assert.Contains("cannot be wrapped automatically", finding.Message, StringComparison.Ordinal);
     }
 

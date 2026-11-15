@@ -20,14 +20,11 @@
 
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Inline;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Utilities;
-using Markdig;
 using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Formatting.Blocks;
@@ -61,8 +58,8 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         command or a display math fence), lies in a footnote, or holds a tab. It also leaves a paragraph as written, and
 ///         reports its overflow as a problem that cannot be fixed, when it cannot be rewritten safely: the tokenizer
 ///         refuses it, a continuation line of a list item is lazy (rewriting would let the list rule move the item on
-///         the next run), a line after a hard break would start with block syntax, or the stand-alone paragraph does not
-///         render the same after the wrap.
+///         the next run), a line after a hard break would start with block syntax, or the paragraph holds a shape whose
+///         meaning depends on its line breaks (see <see cref="WrapGuard"/>).
 ///     </para>
 ///     <para>
 ///         Thread safety: the instance holds only immutable data; <see cref="Format"/> keeps its state in local variables, so one
@@ -85,37 +82,6 @@ internal sealed class ParagraphFormatter
     ///     The characters that separate the words of a line and that never count towards its width at its end.
     /// </summary>
     private static readonly char[] Blanks = [' ', '\t'];
-
-    /// <summary>
-    ///     Decides whether the paragraph as written and the wrapped paragraph, each read on its own, render the same.
-    /// </summary>
-    private readonly Func<string, string, bool> _rendersTheSame;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="ParagraphFormatter"/> class.
-    /// </summary>
-    public ParagraphFormatter()
-        : this(RenderTheSame)
-    {
-    }
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="ParagraphFormatter"/> class with the proof of a wrap supplied by the caller.
-    /// </summary>
-    /// <param name="rendersTheSame">
-    ///     Tells whether the paragraph as written (first argument) and the wrapped paragraph (second argument), each as stand-alone
-    ///     LF-normalized text, render the same. Must not be null.
-    /// </param>
-    /// <remarks>
-    ///     A seam for tests, so that a wrap that the proof refuses can be simulated; the shipped tool uses the proof of the
-    ///     parameterless constructor, which renders both texts with the pipeline of the tool and compares the pages.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="rendersTheSame"/> is null.</exception>
-    internal ParagraphFormatter(Func<string, string, bool> rendersTheSame)
-    {
-        ArgumentNullException.ThrowIfNull(rendersTheSame);
-        _rendersTheSame = rendersTheSame;
-    }
 
     /// <summary>
     ///     Gets the identifiers of the rules that edit the text of a paragraph, so that a suppression of any of them keeps the
@@ -247,7 +213,10 @@ internal sealed class ParagraphFormatter
         var overflowWidth = overflowLine >= 0 ? widths[overflowLine] : 0;
 
         // A paragraph that cannot be rewritten safely is reported and left as written (its layout is not reported: it is not known)
-        if (tokenized is null || IsLazyInListItem(block, lines) || StartsLineWithBlockSyntax(tokenized))
+        if (tokenized is null
+            || IsLazyInListItem(block, lines)
+            || StartsLineWithBlockSyntax(tokenized)
+            || WrapGuard.KeepsAsWritten(document, block, inline, lines, continuationPrefix, config.LinkRefactor.BreakLinkText))
         {
             return overflowLine >= 0 ? new ParagraphOutcome(null, offset, overflowWidth, hasResidualOverflow: true) : ParagraphOutcome.None;
         }
@@ -288,10 +257,8 @@ internal sealed class ParagraphFormatter
         var wrapOffset = layoutActive ? FindFirstDifference(text, lines, wrapped) : -1;
         var residual = overflowLine >= 0;
 
-        // The wrap stands only when the stand-alone paragraph renders the same afterwards, and so does the paragraph inside
-        // its list or quote (a parser may read the first line of a quote differently when it is followed by more text)
-        if (!_rendersTheSame(StandAloneText(text, lines), string.Join('\n', wrapped))
-            || !RenderTheSameInContainer(text[firstLineStart..end], firstPrefix + replacement))
+        // A first line that is one complete HTML tag would start an HTML block, so the paragraph stays as written
+        if (WrapGuard.OpensWithHtmlTag(wrapped[0]))
         {
             return new ParagraphOutcome(null, offset, overflowWidth, residual, wrapOffset);
         }
@@ -452,66 +419,4 @@ internal sealed class ParagraphFormatter
     /// </returns>
     private static bool StartsLineWithBlockSyntax(TokenizedParagraph tokenized) =>
         tokenized.Segments.Skip(1).Any(static segment => !segment.Atoms.IsEmpty && BlockSyntaxGuard.IsGuardedLineStart(segment.Atoms[0]));
-
-    /// <summary>
-    ///     Rebuilds the paragraph as written as a stand-alone text: the content of each line, without container prefix, joined with line feeds.
-    /// </summary>
-    /// <param name="text">The text of the document.</param>
-    /// <param name="lines">The lines of the paragraph.</param>
-    /// <returns>The text.</returns>
-    private static string StandAloneText(string text, IReadOnlyList<LeafLine> lines)
-    {
-        var builder = new StringBuilder();
-        for (var i = 0; i < lines.Count; i++)
-        {
-            builder.Append(i > 0 ? "\n" : string.Empty).Append(text, lines[i].ContentStart, lines[i].ContentEnd - lines[i].ContentStart);
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    ///     Proves that the wrapped paragraph, read inside its list or block quote, renders the same as the paragraph it replaces.
-    /// </summary>
-    /// <param name="original">The lines of the paragraph as written, with their container prefixes.</param>
-    /// <param name="wrapped">The wrapped lines, with their container prefixes.</param>
-    /// <returns>
-    ///     <see langword="false"/> when the original is read as one list or one block quote and the wrapped text is read as
-    ///     anything else or renders differently; <see langword="true"/> otherwise (a paragraph that is not inside a list or a
-    ///     quote, or whose prefixes make the lines read as code on their own, is decided by the stand-alone proof).
-    /// </returns>
-    private static bool RenderTheSameInContainer(string original, string wrapped)
-    {
-        var pipeline = DocumentParser.Pipeline;
-        var before = Markdown.Parse(original, pipeline);
-        if (before is not ([QuoteBlock] or [ListBlock]))
-        {
-            return true;
-        }
-
-        var after = Markdown.Parse(wrapped, pipeline);
-        return after.Count == 1
-            && after[0].GetType() == before[0].GetType()
-            && HtmlEquivalenceChecker.Check(original, wrapped).IsEquivalent;
-    }
-
-    /// <summary>
-    ///     Proves that the wrapped paragraph, read on its own, renders the same as the paragraph it replaces.
-    /// </summary>
-    /// <param name="original">The paragraph as written, as stand-alone text.</param>
-    /// <param name="wrapped">The wrapped paragraph, as stand-alone text.</param>
-    /// <returns>
-    ///     <see langword="true"/> when both texts are read as exactly one paragraph and render to the same HTML after
-    ///     whitespace is normalized.
-    /// </returns>
-    private static bool RenderTheSame(string original, string wrapped)
-    {
-        var pipeline = DocumentParser.Pipeline;
-        if (Markdown.Parse(original, pipeline) is not [ParagraphBlock] || Markdown.Parse(wrapped, pipeline) is not [ParagraphBlock])
-        {
-            return false;
-        }
-
-        return HtmlEquivalenceChecker.Check(original, wrapped).IsEquivalent;
-    }
 }
