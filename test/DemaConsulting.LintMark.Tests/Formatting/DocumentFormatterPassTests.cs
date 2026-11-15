@@ -284,6 +284,14 @@ public class DocumentFormatterPassTests
         BlockFormatterAssertions.AssertFormats(input, input, LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
+    ///     Test that a run of blank lines inside an item whose marker line is empty is kept (the parser ends the list at two blank
+    ///     lines there too).
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_BlankRunInItemWithEmptyMarkerLine_IsKept() =>
+        AssertPasses("  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", "  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
     /// </summary>
     [Theory]

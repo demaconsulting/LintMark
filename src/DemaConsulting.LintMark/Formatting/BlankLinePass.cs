@@ -21,6 +21,7 @@
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Linting;
+using Markdig.Syntax;
 
 namespace DemaConsulting.LintMark.Formatting;
 
@@ -101,12 +102,40 @@ internal static class BlankLinePass
                 continue;
             }
 
-            // Two blank lines after an empty list item end the list for the parser, so a run there is not shortened
+            // Two blank lines after an empty list item end the list for the parser, so a run there is not shortened; the same
+            // holds for the content of an item whose marker line is empty
             var afterEmptyItem = first > 0
-                && ownership.LeafAt(first - 1) is null
-                && IsEmptyItemLine(layout.Text.AsSpan(layout.LineStart(first - 1), layout.LineEnd(first - 1) - layout.LineStart(first - 1)));
+                && ((ownership.LeafAt(first - 1) is null
+                        && IsEmptyItemLine(layout.Text.AsSpan(layout.LineStart(first - 1), layout.LineEnd(first - 1) - layout.LineStart(first - 1))))
+                    || InItemWithEmptyMarkerLine(layout, ownership.LeafAt(first - 1)));
             HandleRun(document, layout, ownership, config.MaxBlankLines, first, last, afterEmptyItem, edits);
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a block lies in a list item whose marker line has no content.
+    /// </summary>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="leaf">The leaf block before a run of blank lines, or <see langword="null"/> when there is none.</param>
+    /// <returns>
+    ///     <see langword="true"/> when an enclosing list item starts with a marker and nothing else on its line (its content
+    ///     starts on a later line): the parser ends the list at two blank lines inside such an item as well.
+    /// </returns>
+    private static bool InItemWithEmptyMarkerLine(LineLayout layout, BlockInfo? leaf)
+    {
+        for (var parent = leaf?.Node?.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is ListItemBlock item && item.Span.Start >= 0 && item.Span.Start < layout.Text.Length)
+            {
+                var line = layout.LineOf(item.Span.Start);
+                if (IsEmptyItemLine(layout.Text.AsSpan(layout.LineStart(line), layout.LineEnd(line) - layout.LineStart(line))))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
