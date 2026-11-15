@@ -241,6 +241,26 @@ public class ThematicBreakFormatterTests
         AssertFormats(input, input);
 
     /// <summary>
+    ///     Test that a break after a line that ends in the shape of a grid table border is not written as dashes, also across a
+    ///     blank line: the parser reads the dashes as an underline of that line.
+    /// </summary>
+    [Theory]
+    [InlineData("9. +---+\n\n   ***\n")]
+    [InlineData("1. +---+\n\n   - - - -\n")]
+    [InlineData("+ ---\n\n***\n")]
+    public void ThematicBreakFormatter_Format_BreakAfterBorderShapedLine_StaysAsWritten(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a break after a line that does not look like a border is still converted, and one after code that holds a border.
+    /// </summary>
+    [Theory]
+    [InlineData("9. +x\n\n   ***\n", "9. +x\n\n   ---\n")]
+    [InlineData("```\n+---+\n```\n\n***\n", "```\n+---+\n```\n\n---\n")]
+    public void ThematicBreakFormatter_Format_BreakAfterOtherLine_IsConverted(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
     ///     Test that a break under text that carries trailing whitespace only loses the whitespace.
     /// </summary>
     [Fact]

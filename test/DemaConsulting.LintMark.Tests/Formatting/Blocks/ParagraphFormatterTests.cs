@@ -447,6 +447,8 @@ public class ParagraphFormatterTests
     [InlineData("+---+ xxxxxxxxxxxxxxxxxxx ant bat\n")]
     [InlineData("--- xxxxxxxxxxxxxxxxxxxxxx ant bat\n")]
     [InlineData(">http://a.b/c ant bat cat dog eel\n")]
+    [InlineData("ant bat cat dog eel fox gnu hen\nink +---+\n")]
+    [InlineData("ant bat cat dog eel fox gnu hen\nink + ----\n")]
     public void ParagraphFormatter_Format_ShapeThatDependsOnItsBreaks_KeepsTheParagraphAndReportsIt(string text) =>
         AssertKeptAndReported(text);
 
@@ -465,6 +467,8 @@ public class ParagraphFormatterTests
     [InlineData("- [ ] ant bat cat dog eel fox gnu\n")]
     [InlineData("<span class=\"a b\">ant</span> bat cat dog eel fox gnu\n")]
     [InlineData("> ant bat cat dog eel fox gnu\n")]
+    [InlineData("ant bat cat dog eel fox gnu hen\nink +x+\n")]
+    [InlineData("ant bat cat dog eel fox gnu hen\nink + x\n")]
     public void ParagraphFormatter_Format_OrdinaryShape_IsStillWrapped(string text)
     {
         // Act

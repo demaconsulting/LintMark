@@ -45,6 +45,7 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         <item><description><b>W-6</b> a task marker look-alike (<c>[</c>, blanks that are not one space, <c>]</c>) that the tokenizer would turn into <c>[ ]</c>.</description></item>
 ///         <item><description><b>W-7</b> a first line that would be one complete HTML tag, or one word of block syntax (<c>---</c>, <c>+---+</c>, <c>#</c>): it would start a block by itself (see <see cref="OpensBlockByItself"/>).</description></item>
 ///         <item><description><b>W-8</b> a quote marker followed by a character that is not a blank: whether the text after it is an autolink depends on the layout.</description></item>
+///         <item><description><b>W-9</b> a line that ends with the shape of a grid table border (<c>+---+</c>, <c>+ ---</c>): the parser reads the text next to it by rules of its own.</description></item>
 ///     </list>
 ///     <para>
 ///         Every scan is linear in the size of the paragraph. A pattern that times out counts as a match, the safe answer.
@@ -102,7 +103,36 @@ internal static partial class WrapGuard
             || HasConstructAcrossBreak(text, block.Start, end, inline)
             || HasExtraIndent(text, lines, continuationPrefix)
             || HasBlankTaskMarker(text, block.Start, end)
-            || HasQuoteMarkerWithoutBlank(text, lines);
+            || HasQuoteMarkerWithoutBlank(text, lines)
+            || EndsInBorder(text, lines);
+    }
+
+    /// <summary>
+    ///     W-9: a line that ends with something shaped like the border of a grid table.
+    /// </summary>
+    /// <param name="text">The text of the document.</param>
+    /// <param name="lines">The lines of the paragraph.</param>
+    /// <returns>
+    ///     <see langword="true"/> when a line ends with a plus sign followed only by dashes, equal signs, colons, plus signs and blanks,
+    ///     at least one of them a dash or an equal sign (<c>+---+</c>, <c>+ ---</c>): the parser reads text next to such a line by rules
+    ///     of its own (a table, an underline), and joining or moving the lines changes which one applies.
+    /// </returns>
+    private static bool EndsInBorder(string text, IReadOnlyList<LeafLine> lines)
+    {
+        foreach (var line in lines)
+        {
+            var content = text.AsSpan(line.ContentStart, line.ContentEnd - line.ContentStart);
+
+            // The border characters at the end of the line, and a plus sign among them with a dash or an equal sign after it
+            var tail = content[(content.LastIndexOfAnyExcept("-=:+ \t") + 1)..];
+            var plus = tail.IndexOf('+');
+            if (plus >= 0 && tail[(plus + 1)..].ContainsAny('-', '='))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -180,7 +210,7 @@ internal static partial class WrapGuard
     ///     <see langword="true"/> when the word starts a CommonMark block, except an ordered list marker with a number other than 1:
     ///     such a marker cannot interrupt a paragraph, so it is only text wherever the line is.
     /// </returns>
-    private static bool IsInterruptingBlockStart(string word)
+    internal static bool IsInterruptingBlockStart(string word)
     {
         if (!BlockSyntaxGuard.IsCommonMarkBlockStart(word))
         {
