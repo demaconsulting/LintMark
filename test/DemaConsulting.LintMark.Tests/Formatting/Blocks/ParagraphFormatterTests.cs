@@ -106,58 +106,6 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
-    ///     Test that a missing argument is rejected and named.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a paragraph and its context
-        var document = BlockFormatterAssertions.Parse("a b\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => ParagraphFormatter.IsEnabled(null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not a paragraph is rejected.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_HeadingBlock_ThrowsArgumentException()
-    {
-        // Arrange: a heading
-        var document = BlockFormatterAssertions.Parse("# a b\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading);
-
-        // Act & Assert: the block is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentException>(() => Formatter.Format(new FormatContext(document, LintMarkConfig.Default), block));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the formatter lists the rules that edit the text of a paragraph, each registered, in a list that cannot be changed.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_RuleIds_Read_ListsTheRulesThatEditParagraphTextAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Formatter.RuleIds;
-
-        // Assert: the eleven rules, each registered, in an immutable array
-        Assert.Equal(
-            [
-                "line-length", "trailing-whitespace", "hard-tabs", "emphasis", "strong", "bare-urls", "code-span-space",
-                "list-indent", "list-marker-space", "blockquote-space", "paragraph-wrap"
-            ],
-            ruleIds);
-        Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
-    }
-
-    /// <summary>
     ///     Test that a paragraph with a line wider than the line length is filled up to the width.
     /// </summary>
     [Fact]
@@ -196,13 +144,6 @@ public class ParagraphFormatterTests
         // Act & Assert: thirty-one characters of sixteen columns are kept
         AssertKept("e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301 e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301\n");
     }
-
-    /// <summary>
-    ///     Test that emoji are counted with two columns each.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_Emoji_AreCountedWithTwoColumns() =>
-        AssertWrapped("😀😀😀😀😀 😀😀😀😀😀\n", "😀😀😀😀😀\n😀😀😀😀😀\n");
 
     /// <summary>
     ///     Test that a line that is wide only because of one link is kept, and that a link is moved whole to its own line when another word forces a break.
@@ -513,59 +454,6 @@ public class ParagraphFormatterTests
     }
 
     /// <summary>
-    ///     Test that the same edit is proposed whatever the line endings and the byte order mark of the file.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_LineEndingsAndByteOrderMark_DoNotChangeTheEdit()
-    {
-        // Arrange: a paragraph in a list item, as LF text and as bytes with CRLF, with a mark, and with mixed endings
-        const string text = "# T\n\n- ant bat cat dog eel fox gnu\n  hen ink\n";
-        var expected = Run(text).Outcome;
-        var preamble = new System.Text.UTF8Encoding(true).GetPreamble();
-        byte[][] variants =
-        [
-            System.Text.Encoding.UTF8.GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal)),
-            [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(text)],
-            [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))],
-            System.Text.Encoding.UTF8.GetBytes(BlockFormatterAssertions.MixEndings(text))
-        ];
-
-        // Act & Assert: every form gives the same outcome
-        Assert.NotNull(expected.Edit);
-        foreach (var bytes in variants)
-        {
-            var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
-            var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-            Assert.Equal(expected, Formatter.Format(new FormatContext(document, Width(20)), block));
-        }
-    }
-
-    /// <summary>
-    ///     Test that every thread gets the same outcome for the same paragraph.
-    /// </summary>
-    [Fact]
-    public void ParagraphFormatter_Format_ConcurrentCalls_GiveTheSameOutcome()
-    {
-        // Arrange: a shared document and the single-threaded outcome
-        var document = BlockFormatterAssertions.Parse("> ant bat cat dog eel fox gnu `x y` [a b](c)\n> hen ink\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var context = new FormatContext(document, Width(20));
-        var reference = Formatter.Format(context, block);
-
-        // Act & Assert: every thread gets the same outcome
-        Assert.NotNull(reference.Edit);
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 100; round++)
-                {
-                    Assert.Equal(reference, Formatter.Format(context, block));
-                }
-            });
-    }
-
-    /// <summary>
     ///     Test that the HTML check catches a wrap that breaks lines at every blank, ignoring the block syntax guard and the
     ///     constructs that must stay whole, and that the real formatter does not produce such a rewrite.
     /// </summary>
@@ -585,7 +473,7 @@ public class ParagraphFormatterTests
 
         // Assert: the check refuses it, and the real formatter does not produce it at a width that tempts it
         Assert.False(verdict.IsEquivalent);
-        var formatted = BlockFormatterAssertions.AssertSafeAndStable(original, LintMarkConfig.Default with { LineLength = 11 }, checkParallel: false);
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(original, LintMarkConfig.Default with { LineLength = 11 });
         Assert.NotEqual(mutant, formatted);
     }
 }

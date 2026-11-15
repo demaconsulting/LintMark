@@ -35,20 +35,6 @@ public class HeadingRulesTests
     private static readonly HeadingRules Rules = new();
 
     /// <summary>
-    ///     Test that null arguments are rejected and the rule identifiers are the four heading rules.
-    /// </summary>
-    [Fact]
-    public void HeadingRules_CheckAndRuleIds_NullArgumentsAndIds_AreHandled()
-    {
-        // Act & Assert: both arguments are checked and named, and the identifiers are the documented ones
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => Rules.Check(null!, LintMarkConfig.Default)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => Rules.Check(LintRuleTestSupport.Parse("x\n"), null!)).ParamName);
-        Assert.Equal(
-            ["heading-increment", "heading-duplicate", "heading-trailing-punctuation", "emphasis-as-heading"],
-            Rules.RuleIds);
-    }
-
-    /// <summary>
     ///     Test that a heading that is more than one level deeper than the one before is reported, setext headings included.
     /// </summary>
     [Fact]

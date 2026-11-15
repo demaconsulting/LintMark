@@ -94,10 +94,6 @@ internal sealed class TableFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a pipe table, not {block.Kind}.", nameof(block));
-        }
 
         // A table that cannot be read with certainty, or that lies where the container rules are unreliable, is left as written
         var layout = context.Layout;
@@ -625,104 +621,29 @@ internal sealed class PipeTable
 /// <remarks>
 ///     Supporting type of <see cref="PipeTable"/>. Immutable; safe for concurrent use.
 /// </remarks>
-internal sealed record PipeTableRow
+/// <param name="Line">The zero-based line of the row.</param>
+/// <param name="Prefix">The text of the line before its content: quote markers, list markers and indentation.</param>
+/// <param name="ContentStart">The offset where the content of the line starts, just after the prefix.</param>
+/// <param name="ContentEnd">The offset just after the last character of the content that is not a blank.</param>
+/// <param name="LineEnd">The offset where the line ends (its line feed or the end of the text).</param>
+/// <param name="Cells">The text of every cell, without the blanks around it and without the delimiting pipes.</param>
+/// <param name="HasLeadingPipe">Whether the content starts with a pipe.</param>
+/// <param name="HasTrailingPipe">Whether the content ends with a pipe that is not also its leading pipe.</param>
+internal sealed record PipeTableRow(
+    int Line,
+    string Prefix,
+    int ContentStart,
+    int ContentEnd,
+    int LineEnd,
+    ImmutableArray<string> Cells,
+    bool HasLeadingPipe,
+    bool HasTrailingPipe)
 {
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="PipeTableRow"/> class.
-    /// </summary>
-    /// <param name="line">The zero-based line of the row.</param>
-    /// <param name="prefix">The text of the line before its content: quote markers, list markers and indentation.</param>
-    /// <param name="contentStart">The offset where the content of the line starts, just after the prefix.</param>
-    /// <param name="contentEnd">The offset just after the last character of the content that is not a blank.</param>
-    /// <param name="lineEnd">The offset where the line ends (its line feed or the end of the text).</param>
-    /// <param name="cells">The text of every cell, without the blanks around it and without the delimiting pipes.</param>
-    /// <param name="hasLeadingPipe">Whether the content starts with a pipe.</param>
-    /// <param name="hasTrailingPipe">Whether the content ends with a pipe that does not start it.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="prefix"/> or an element of <paramref name="cells"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="cells"/> is a default array.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when an offset or the line is negative or the offsets are not in order.</exception>
-    public PipeTableRow(
-        int line,
-        string prefix,
-        int contentStart,
-        int contentEnd,
-        int lineEnd,
-        ImmutableArray<string> cells,
-        bool hasLeadingPipe,
-        bool hasTrailingPipe)
-    {
-        // Validate every argument so that an inconsistent row can never be created
-        ArgumentOutOfRangeException.ThrowIfNegative(line);
-        ArgumentNullException.ThrowIfNull(prefix);
-        ArgumentOutOfRangeException.ThrowIfNegative(contentStart);
-        ArgumentOutOfRangeException.ThrowIfLessThan(contentEnd, contentStart);
-        ArgumentOutOfRangeException.ThrowIfLessThan(lineEnd, contentEnd);
-        if (cells.IsDefault)
-        {
-            throw new ArgumentException("The cells must not be a default array.", nameof(cells));
-        }
-
-        if (cells.Any(static cell => cell is null))
-        {
-            throw new ArgumentNullException(nameof(cells), "The cells must not contain null.");
-        }
-
-        Line = line;
-        Prefix = prefix;
-        ContentStart = contentStart;
-        ContentEnd = contentEnd;
-        LineEnd = lineEnd;
-        Cells = cells;
-        HasLeadingPipe = hasLeadingPipe;
-        HasTrailingPipe = hasTrailingPipe;
-    }
-
-    /// <summary>
-    ///     Gets the zero-based line of the row.
-    /// </summary>
-    public int Line { get; }
-
-    /// <summary>
-    ///     Gets the text of the line before its content.
-    /// </summary>
-    public string Prefix { get; }
-
-    /// <summary>
-    ///     Gets the offset where the content of the line starts.
-    /// </summary>
-    public int ContentStart { get; }
-
-    /// <summary>
-    ///     Gets the offset just after the last character of the content that is not a blank.
-    /// </summary>
-    public int ContentEnd { get; }
-
-    /// <summary>
-    ///     Gets the offset where the line ends.
-    /// </summary>
-    public int LineEnd { get; }
-
-    /// <summary>
-    ///     Gets the text of every cell, trimmed of blanks.
-    /// </summary>
-    public ImmutableArray<string> Cells { get; }
-
     /// <summary>
     ///     Gets a value indicating whether the content has no pipe at all (a line of text that the parser takes as a row of one cell).
     /// </summary>
     public bool HasNoPipe => !HasLeadingPipe && !HasTrailingPipe && Cells.Length == 1;
-
-    /// <summary>
-    ///     Gets a value indicating whether the content starts with a pipe.
-    /// </summary>
-    public bool HasLeadingPipe { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether the content ends with a pipe that is not also its leading pipe.
-    /// </summary>
-    public bool HasTrailingPipe { get; }
 }
-
 /// <summary>
 ///     How the cells of a pipe table column are aligned, as the delimiter row says.
 /// </summary>

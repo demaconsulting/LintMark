@@ -92,10 +92,6 @@ internal sealed class InlineNormalizer
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(edits);
-        if (block.Kind != BlockKind.Paragraph)
-        {
-            throw new ArgumentException($"The block must be a paragraph, not {block.Kind}.", nameof(block));
-        }
 
         // Only a paragraph with inline content can be rewritten, and only by the rules that are not suppressed in it
         if (block.Node is not ParagraphBlock { Inline: { } inline })

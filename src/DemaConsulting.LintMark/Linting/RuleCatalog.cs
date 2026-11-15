@@ -743,10 +743,6 @@ internal sealed class RuleOverrides
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var value in values)
         {
-            if (value is null)
-            {
-                throw new ArgumentNullException(nameof(values), "The values must not contain null.");
-            }
             if (string.IsNullOrWhiteSpace(value))
             {
                 throw new ArgumentException($"{option} requires a comma-separated list of rule ids");

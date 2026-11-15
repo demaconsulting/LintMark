@@ -86,10 +86,6 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a thematic break, not {block.Kind}.", nameof(block));
-        }
 
         // Find the break characters on the line: the first is at the block start, the last is followed only by blanks
         var layout = new LineLayout(context.Document.Source);

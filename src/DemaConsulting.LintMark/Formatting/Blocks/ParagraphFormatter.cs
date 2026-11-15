@@ -156,10 +156,6 @@ internal sealed class ParagraphFormatter
         // Validate input
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
-        if (block.Kind != BlockKind.Paragraph)
-        {
-            throw new ArgumentException($"The block must be a paragraph, not {block.Kind}.", nameof(block));
-        }
 
         // Only a paragraph with inline content, outside a footnote and with no suppressed rule that edits its text
         var document = context.Document;

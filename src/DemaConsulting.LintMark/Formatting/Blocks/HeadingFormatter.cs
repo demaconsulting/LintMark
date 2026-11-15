@@ -103,10 +103,6 @@ internal sealed class HeadingFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a heading, not {block.Kind}.", nameof(block));
-        }
 
         var layout = new LineLayout(context.Document.Source);
         var heading = (HeadingBlock)block.Node!;

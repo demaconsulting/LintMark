@@ -101,10 +101,6 @@ internal sealed class CodeBlockFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a closed fenced or an indented code block, not {block.Kind}.", nameof(block));
-        }
 
         var layout = new LineLayout(context.Document.Source);
         var target = context.Config.CodeFence == FenceMarker.Tilde ? '~' : '`';

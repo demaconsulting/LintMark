@@ -262,21 +262,16 @@ internal static partial class DocumentParser
     ///     link) or that carry no inline (a setext underline) fall back to stripping one quote marker per
     ///     enclosing block quote and then whitespace. Each continuation line is flagged lazy when its
     ///     container prefix is shorter than the one the container requires (see
-    ///     <see cref="GetContinuationPrefix"/>). The kind and range of <paramref name="leaf"/> are
-    ///     validated; that it is one of the blocks of <paramref name="document"/> is a precondition that
-    ///     is not verified (checking would cost a search of the block list on every call).
+    ///     <see cref="GetContinuationPrefix"/>). That <paramref name="leaf"/> is a paragraph or heading of
+    ///     <paramref name="document"/> is a precondition that is not verified.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
-    ///     inside the text of <paramref name="document"/>.
-    /// </exception>
     public static IReadOnlyList<LeafLine> GetLines(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
-        ValidateLeaf(document, leaf);
+
 
         var source = document.Source;
         var text = source.Text;
@@ -326,16 +321,12 @@ internal static partial class DocumentParser
     ///     Same preconditions as <see cref="GetLines"/>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
-    ///     inside the text of <paramref name="document"/>.
-    /// </exception>
     public static string GetContinuationPrefix(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
-        ValidateLeaf(document, leaf);
+
 
         // Take the text before the block on its first line
         var source = document.Source;
@@ -351,29 +342,6 @@ internal static partial class DocumentParser
         }
 
         return BlankMarkers(prefix);
-    }
-
-    /// <summary>
-    ///     Checks the preconditions shared by <see cref="GetLines"/> and <see cref="GetContinuationPrefix"/>.
-    /// </summary>
-    /// <param name="document">The parsed document.</param>
-    /// <param name="leaf">The block to check.</param>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when the block is not a paragraph or heading or its range is outside the document text.
-    /// </exception>
-    private static void ValidateLeaf(ParsedDocument document, BlockInfo leaf)
-    {
-        if (leaf.Kind is not (BlockKind.Paragraph or BlockKind.Heading))
-        {
-            throw new ArgumentException($"The block must be a paragraph or heading, not {leaf.Kind}.", nameof(leaf));
-        }
-
-        if (leaf.Start < 0 || leaf.Start > leaf.EndInclusive || leaf.EndInclusive >= document.Source.Text.Length)
-        {
-            throw new ArgumentException(
-                $"The block range [{leaf.Start}..{leaf.EndInclusive}] is outside the document text.",
-                nameof(leaf));
-        }
     }
 
     /// <summary>

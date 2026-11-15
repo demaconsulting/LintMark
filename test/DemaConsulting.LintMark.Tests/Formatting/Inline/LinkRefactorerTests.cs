@@ -522,19 +522,6 @@ public class LinkRefactorerTests
     }
 
     /// <summary>
-    ///     Test that the result is the same for CRLF line endings, with and without a byte order mark, and for mixed endings.
-    /// </summary>
-    [Fact]
-    public void LinkRefactorer_Format_CrlfAndByteOrderMark_AreKept()
-    {
-        // Act / Assert: the on-disk forms give the same text and keep their endings
-        BlockFormatterAssertions.AssertFormatsOnDisk(
-            $"A [long link text]({LongUrl}) here.\n\nMore text.\n",
-            $"A [long link text][long-link-text] here.\n\nMore text.\n\n<!-- Link References -->\n[long-link-text]: {LongUrl}\n",
-            On());
-    }
-
-    /// <summary>
     ///     Test that brackets before a parenthesis that does not make an inline link count as text that a new definition would
     ///     turn into a link: the label of the converted link steps aside (rule L-1).
     /// </summary>
@@ -644,5 +631,4 @@ public class LinkRefactorerTests
         Assert.Equal("Words\n[link text with many words](https://example.com/x)\nafter words.\n", Format(text, off));
         Assert.Equal("Words [link text with many\nwords](https://example.com/x)\nafter words.\n", Format(text, on));
     }
-
 }

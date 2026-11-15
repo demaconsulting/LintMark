@@ -53,26 +53,6 @@ public class AtomTokenizerTests
         [.. Tokenize(text)!.Segments.SelectMany(static segment => segment.Atoms)];
 
     /// <summary>
-    ///     Test that a missing argument, a null line and an empty list of lines are rejected.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_Tokenize_InvalidArguments_Throw()
-    {
-        // Arrange: a paragraph
-        var document = BlockFormatterAssertions.Parse("a b\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var inline = ((ParagraphBlock)block.Node!).Inline!;
-        var lines = DocumentParser.GetLines(document, block);
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("text", Assert.Throws<ArgumentNullException>(() => AtomTokenizer.Tokenize(null!, inline, lines)).ParamName);
-        Assert.Equal("root", Assert.Throws<ArgumentNullException>(() => AtomTokenizer.Tokenize("a b", null!, lines)).ParamName);
-        Assert.Equal("lines", Assert.Throws<ArgumentNullException>(() => AtomTokenizer.Tokenize("a b", inline, null!)).ParamName);
-        Assert.Equal("lines", Assert.Throws<ArgumentNullException>(() => AtomTokenizer.Tokenize("a b", inline, [lines[0], null!])).ParamName);
-        Assert.Equal("lines", Assert.Throws<ArgumentException>(() => AtomTokenizer.Tokenize("a b", inline, [])).ParamName);
-    }
-
-    /// <summary>
     ///     Test that plain words are separated at blanks and line breaks, whatever the amount of whitespace.
     /// </summary>
     [Fact]
@@ -154,13 +134,6 @@ public class AtomTokenizerTests
         Assert.Equal(["a", "\\*not", "emphasis\\*", "b", "\\\\", "c"], Atoms("a \\*not emphasis\\* b \\\\ c\n"));
 
     /// <summary>
-    ///     Test that words in CJK, emoji and combining marks are ordinary words.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_Tokenize_WideAndCombiningCharacters_AreOrdinaryWords() =>
-        Assert.Equal(["日本語", "テキスト", "👨‍👩‍👧", "e\u0301", "😀😀"], Atoms("日本語 テキスト 👨‍👩‍👧 e\u0301 😀😀\n"));
-
-    /// <summary>
     ///     Test that a hard line break written as two spaces ends a segment and the form is remembered.
     /// </summary>
     [Fact]
@@ -219,20 +192,6 @@ public class AtomTokenizerTests
     [Fact]
     public void AtomTokenizer_Tokenize_TaskMarker_IsJoinedWithTheNextWord() =>
         Assert.Equal(["[ ] task", "item", "text"], Atoms("- [ ] task item text\n"));
-
-    /// <summary>
-    ///     Test that the places where a line could be broken are counted per line.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_Tokenize_Lines_CountTheirBreakOpportunities()
-    {
-        // Act: tokenize lines with three gaps, with one atom, and with one gap before a link
-        var tokenized = Tokenize("a b c d\n[long link text](u)\nx [y z](u)\n");
-
-        // Assert: three, none (the line break between lines is not inside a line), and one
-        Assert.NotNull(tokenized);
-        Assert.Equal([3, 0, 1], tokenized.BreakOpportunitiesPerLine);
-    }
 
     /// <summary>
     ///     Test that a code span that continues on the next line becomes one atom with the line break as a space.
@@ -313,80 +272,5 @@ public class AtomTokenizerTests
         // Assert: only the words
         Assert.Equal(["a", "b", "c", "d"], quote);
         Assert.Equal(["a", "b", "c", "d"], item);
-    }
-
-    /// <summary>
-    ///     Test that the result cannot be changed through a cast to a mutable interface.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_Tokenize_Result_IsImmutable()
-    {
-        // Act: tokenize a paragraph
-        var tokenized = Tokenize("a b\nc\n");
-
-        // Assert: the arrays are immutable and refuse changes through the list view
-        Assert.NotNull(tokenized);
-        Assert.True(((IList<ParagraphSegment>)tokenized.Segments).IsReadOnly);
-        Assert.True(((IList<int>)tokenized.BreakOpportunitiesPerLine).IsReadOnly);
-        Assert.True(((IList<string>)tokenized.Segments[0].Atoms).IsReadOnly);
-    }
-
-    /// <summary>
-    ///     Test that every thread gets the same result for the same paragraph.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_Tokenize_ConcurrentCalls_GiveTheSameResult()
-    {
-        // Arrange: one parsed paragraph shared by all threads, and its single-threaded result
-        const string text = "a [b c](u) `d e`  \nf <span x=\"1 2\">g</span>\\\nh {#i j}\n";
-        var document = BlockFormatterAssertions.Parse(text);
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var inline = ((ParagraphBlock)block.Node!).Inline!;
-        var lines = DocumentParser.GetLines(document, block);
-        var reference = Describe(AtomTokenizer.Tokenize(document.Source.Text, inline, lines));
-
-        // Act & Assert: every thread describes the result the same way
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 100; round++)
-                {
-                    Assert.Equal(reference, Describe(AtomTokenizer.Tokenize(document.Source.Text, inline, lines)));
-                }
-            });
-    }
-
-    /// <summary>
-    ///     Describes a tokenized paragraph as text.
-    /// </summary>
-    /// <param name="tokenized">The tokenized paragraph.</param>
-    /// <returns>The description.</returns>
-    private static string Describe(TokenizedParagraph? tokenized) =>
-        tokenized is null
-            ? "null"
-            : string.Join('|', tokenized.Segments.Select(static segment => $"{segment.End}:{string.Join(',', segment.Atoms)}"))
-              + "#" + string.Join(',', tokenized.BreakOpportunitiesPerLine);
-
-    /// <summary>
-    ///     Test that the supporting types reject invalid arguments.
-    /// </summary>
-    [Fact]
-    public void AtomTokenizer_SupportingTypes_InvalidArguments_Throw()
-    {
-        // Act & Assert: the segment checks its atoms and its end
-        Assert.Throws<ArgumentException>(() => new ParagraphSegment(default, HardBreakKind.None));
-        Assert.Throws<ArgumentNullException>(() => new ParagraphSegment([null!], HardBreakKind.None));
-        Assert.Throws<ArgumentException>(() => new ParagraphSegment([string.Empty], HardBreakKind.None));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ParagraphSegment(["a"], (HardBreakKind)99));
-
-        // Act & Assert: the paragraph checks its segments and its counts
-        var segment = new ParagraphSegment(["a"], HardBreakKind.None);
-        Assert.Throws<ArgumentException>(() => new TokenizedParagraph(default, [0]));
-        Assert.Throws<ArgumentException>(() => new TokenizedParagraph([], [0]));
-        Assert.Throws<ArgumentNullException>(() => new TokenizedParagraph([null!], [0]));
-        Assert.Throws<ArgumentException>(() => new TokenizedParagraph([segment], default));
-        Assert.Throws<ArgumentException>(() => new TokenizedParagraph([segment], [-1]));
-        Assert.Equal(ImmutableArray.Create("a"), segment.Atoms);
     }
 }

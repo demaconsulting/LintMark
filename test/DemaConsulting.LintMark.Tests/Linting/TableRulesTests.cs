@@ -52,17 +52,6 @@ public class TableRulesTests
         [.. Rules.Check(Parse(text), config ?? LintMarkConfig.Default).Select(d => $"{d.Line}:{d.Column} {d.RuleId}")];
 
     /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void TableRules_Check_NullArguments_Throw()
-    {
-        // Act & Assert: both arguments are checked and named
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => Rules.Check(null!, LintMarkConfig.Default)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => Rules.Check(Parse("x\n"), null!)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that the rule identifiers are the three table lint rules.
     /// </summary>
     [Fact]

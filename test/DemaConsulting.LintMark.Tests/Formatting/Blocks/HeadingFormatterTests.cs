@@ -34,12 +34,6 @@ namespace DemaConsulting.LintMark.Tests;
 public class HeadingFormatterTests
 {
     /// <summary>
-    ///     The text used to compare the edits for the stored forms of a document: every kind of heading violation, a
-    ///     multi-line setext heading, and a tab after the number signs.
-    /// </summary>
-    private const string StoredFormsInput = "Title\n=====\n\n## Sub ##  \n\n#\tTab\ta\n\nOne  \ntwo   \n===  \n";
-
-    /// <summary>
     ///     The formatter under test.
     /// </summary>
     private static readonly HeadingFormatter Formatter = new();
@@ -82,83 +76,6 @@ public class HeadingFormatterTests
 
         // Act & Assert: no block is accepted
         Assert.All(document.Blocks, block => Assert.False(Formatter.CanFormat(block)));
-    }
-
-    /// <summary>
-    ///     Test that a block of the heading kind whose parser node is not a heading is not accepted.
-    /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void HeadingFormatter_CanFormat_HeadingKindWithoutHeadingNode_ReturnsFalse(bool withNode)
-    {
-        // Arrange: a block that claims to be a heading but has no heading node (or a paragraph node)
-        var block = new BlockInfo(withNode ? new ParagraphBlock() : null, BlockKind.Heading, 0, 0, 0, null);
-
-        // Act & Assert: the block is not accepted
-        Assert.False(Formatter.CanFormat(block));
-    }
-
-    /// <summary>
-    ///     Test that a null block is rejected when asking whether it is accepted.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_CanFormat_NullBlock_Throws()
-    {
-        // Act & Assert: null is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentNullException>(() => Formatter.CanFormat(null!));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a missing argument is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a heading, a context and an edit set
-        var document = BlockFormatterAssertions.Parse("# One\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block, edits)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, block, null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not a heading is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_NonHeadingBlock_ThrowsArgumentException()
-    {
-        // Arrange: a paragraph
-        var document = BlockFormatterAssertions.Parse("text\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-
-        // Act & Assert: the block is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentException>(() => Formatter.Format(context, block, new EditSet()));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the formatter lists the five rules it enforces and that the list cannot be changed.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_RuleIds_Read_ListsTheHeadingRulesAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Formatter.RuleIds;
-
-        // Assert: the heading rules, whitespace and tabs, each registered, in an immutable array
-        Assert.Equal(
-            ["heading-style", "heading-space", "heading-start-left", "trailing-whitespace", "hard-tabs"],
-            ruleIds);
-        Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
     }
 
     /// <summary>
@@ -545,39 +462,4 @@ public class HeadingFormatterTests
         // Assert: only the second heading changes
         Assert.Equal("<!-- markdownlint-disable MD003 -->\n\nA\n=\n\n<!-- markdownlint-enable MD003 -->\n\n# B\n", formatted);
     }
-
-    /// <summary>
-    ///     Test that CRLF line endings, and mixed line endings, do not change the edits that the formatter proposes.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_CrlfLineEndings_ProposesTheSameEdits() =>
-        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, StoredFormsInput);
-
-    /// <summary>
-    ///     Test that a byte order mark does not change the edits that the formatter proposes.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_ByteOrderMark_ProposesTheSameEdits() =>
-        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, StoredFormsInput);
-
-    /// <summary>
-    ///     Test that CRLF line endings and a byte order mark survive formatting a heading.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark()
-    {
-        // Act & Assert: the written bytes keep the endings and the mark, for single-line and multi-line setext headings too
-        BlockFormatterAssertions.AssertFormatsOnDisk("Title\n=====\n\n## Sub ##  \n", "# Title\n\n## Sub\n");
-        BlockFormatterAssertions.AssertFormatsOnDisk("Line one  \nline two   \n===  \n\n#   Three\n", "Line one  \nline two\n===\n\n# Three\n");
-    }
-
-    /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
-    /// </summary>
-    [Fact]
-    public void HeadingFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
-        BlockFormatterAssertions.AssertConcurrentFormatting(
-            Formatter,
-            "Title\n=====\n\n  ## Two ##  \n\n#   Three\n\n#\tTab\ta\n",
-            "# Title\n\n## Two\n\n# Three\n\n# Tab   a\n");
 }

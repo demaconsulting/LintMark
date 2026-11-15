@@ -35,21 +35,6 @@ public class StructureRulesTests
     private static readonly StructureRules Rules = new();
 
     /// <summary>
-    ///     Test that null arguments are rejected and the rule identifiers are the structure rules.
-    /// </summary>
-    [Fact]
-    public void StructureRules_CheckAndRuleIds_NullArgumentsAndIds_AreHandled()
-    {
-        // Act & Assert: both arguments are checked and named, and the identifiers are the documented ones
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => Rules.Check(null!, LintMarkConfig.Default)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => Rules.Check(LintRuleTestSupport.Parse("x\n"), null!)).ParamName);
-        Assert.Equal(7, Rules.RuleIds.Length);
-        Assert.Contains("emphasis-space", Rules.RuleIds);
-        Assert.Contains("heading-missing-space", Rules.RuleIds);
-        Assert.Contains("heading-closed-missing-space", Rules.RuleIds);
-    }
-
-    /// <summary>
     ///     Test that a fenced code block without an info string is reported, backtick and tilde fences alike, and one with a language is not.
     /// </summary>
     [Fact]

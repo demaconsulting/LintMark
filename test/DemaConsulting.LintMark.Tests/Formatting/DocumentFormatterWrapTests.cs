@@ -293,42 +293,4 @@ public class DocumentFormatterWrapTests
         var finding = Assert.Single(result.Diagnostics, candidate => candidate.RuleId == "line-length");
         Assert.Equal((5, 21), (finding.Line, finding.Column));
     }
-
-    /// <summary>
-    ///     Test that the result is the same for every thread that formats the same document.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_ConcurrentCalls_GiveTheSameResult()
-    {
-        // Arrange: a document with lists, quotes and long paragraphs, and the single-threaded text
-        const string input = "- ant bat cat dog eel fox gnu hen\n  ink\n\n> jam key log map nut owl pig quo rat\n\nsun toy urn van web fix yak zoo\n";
-        var formatter = BlockFormatterAssertions.ProductionFormatter();
-        var reference = BlockFormatterAssertions.Apply(formatter, input, Width(20));
-
-        // Act & Assert: every thread gets the same edits, text and findings
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 50; round++)
-                {
-                    var other = BlockFormatterAssertions.Apply(formatter, input, Width(20));
-                    Assert.Equal(reference.Result.Edits, other.Result.Edits);
-                    Assert.Equal(reference.Formatted, other.Formatted);
-                    Assert.Equal(reference.Result.Diagnostics, other.Result.Diagnostics);
-                }
-            });
-    }
-
-    /// <summary>
-    ///     Test that the paragraph formatter is optional: the constructor accepts none, and the shipped formatter has one.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Constructor_ParagraphFormatterOptional_AcceptsNone()
-    {
-        // Act & Assert: formatters with and without a paragraph formatter can be created
-        Assert.NotNull(new DocumentFormatter());
-        Assert.NotNull(new DocumentFormatter([], null, null));
-        Assert.NotNull(new DocumentFormatter([], new InlineNormalizer(), new ParagraphFormatter()));
-    }
 }

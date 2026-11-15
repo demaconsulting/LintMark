@@ -579,14 +579,6 @@ internal sealed class RuleSet
     public RuleSetKind Kind { get; }
 
     /// <summary>
-    ///     Gets the listed rules (empty for <see cref="RuleSetKind.All"/>).
-    /// </summary>
-    /// <remarks>
-    ///     The collection is a frozen set, so a caller cannot change the rule set through it, not even by casting.
-    /// </remarks>
-    public IReadOnlyCollection<string> Rules => _rules;
-
-    /// <summary>
     ///     Creates a set that selects exactly the listed rules.
     /// </summary>
     /// <param name="rules">Rule identifiers. Must not be null.</param>

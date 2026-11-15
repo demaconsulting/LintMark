@@ -57,16 +57,14 @@ internal static class LineWrapper
     /// <summary>
     ///     Wraps a run of atoms into lines.
     /// </summary>
-    /// <param name="atoms">The atoms in order. Must not be a default array, empty, or contain null or an empty atom.</param>
+    /// <param name="atoms">The atoms in order.</param>
     /// <param name="firstWidth">The columns available to the first line (the width minus the prefix of the first line). At least 1.</param>
     /// <param name="continuationWidth">The columns available to every other line (the width minus the continuation prefix). At least 1.</param>
     /// <returns>The lines and whether a line that holds more than one atom is still wider than its width.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array, is empty or holds an empty atom.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1.</exception>
     public static WrappedLines Wrap(ImmutableArray<string> atoms, int firstWidth, int continuationWidth)
     {
-        Validate(atoms, firstWidth, continuationWidth);
+        Validate(firstWidth, continuationWidth);
 
         // Measure every atom once; the width of a line is the widths of its atoms plus one column for each space between them
         var widths = new int[atoms.Length];
@@ -120,7 +118,7 @@ internal static class LineWrapper
     /// <summary>
     ///     Wraps a run of atoms into lines in the layout of a wrap mode.
     /// </summary>
-    /// <param name="atoms">The atoms in order. Must not be a default array, empty, or contain null or an empty atom.</param>
+    /// <param name="atoms">The atoms in order.</param>
     /// <param name="firstWidth">The columns available to the first line. At least 1.</param>
     /// <param name="continuationWidth">The columns available to every other line. At least 1.</param>
     /// <param name="mode">
@@ -135,17 +133,10 @@ internal static class LineWrapper
     ///     so the modes are idempotent by construction. Pass a very large width for a line length of 0 (no limit): the
     ///     sentence mode then writes one sentence per line and the semantic mode the same.
     /// </remarks>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array, is empty or holds an empty atom.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1 or <paramref name="mode"/> is not a defined value.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1.</exception>
     public static WrappedLines Wrap(ImmutableArray<string> atoms, int firstWidth, int continuationWidth, WrapMode mode)
     {
-        Validate(atoms, firstWidth, continuationWidth);
-        if (!Enum.IsDefined(mode))
-        {
-            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a defined WrapMode value.");
-        }
-
+        Validate(firstWidth, continuationWidth);
         if (mode == WrapMode.Fill)
         {
             return Wrap(atoms, firstWidth, continuationWidth);
@@ -183,31 +174,13 @@ internal static class LineWrapper
     }
 
     /// <summary>
-    ///     Validates the arguments of the wrap methods.
+    ///     Validates the widths of the wrap methods.
     /// </summary>
-    /// <param name="atoms">The atoms.</param>
     /// <param name="firstWidth">The width of the first line.</param>
     /// <param name="continuationWidth">The width of the other lines.</param>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array, is empty or holds an empty atom.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1.</exception>
-    private static void Validate(ImmutableArray<string> atoms, int firstWidth, int continuationWidth)
+    private static void Validate(int firstWidth, int continuationWidth)
     {
-        if (atoms.IsDefault || atoms.IsEmpty)
-        {
-            throw new ArgumentException("The atoms must not be a default or empty array.", nameof(atoms));
-        }
-
-        if (atoms.Any(static atom => atom is null))
-        {
-            throw new ArgumentNullException(nameof(atoms), "The atoms must not contain null.");
-        }
-
-        if (atoms.Any(static atom => atom.Length == 0))
-        {
-            throw new ArgumentException("The atoms must not contain an empty atom.", nameof(atoms));
-        }
-
         ArgumentOutOfRangeException.ThrowIfLessThan(firstWidth, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(continuationWidth, 1);
     }
@@ -301,50 +274,12 @@ internal static class LineWrapper
 /// <remarks>
 ///     Supporting type of <see cref="LineWrapper"/>. Immutable, including its collection; safe for concurrent use.
 /// </remarks>
-internal sealed record WrappedLines
-{
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="WrappedLines"/> class.
-    /// </summary>
-    /// <param name="lines">The lines in order, none empty. Must not be a default array, empty or contain null.</param>
-    /// <param name="hasBreakableOverflow">
-    ///     Whether a line holds more than one atom and is still wider than the width available to it, because the
-    ///     block-syntax guard allowed no better break.
-    /// </param>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="lines"/> is a default array, is empty or holds an empty line.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="lines"/> holds a null element.</exception>
-    public WrappedLines(ImmutableArray<string> lines, bool hasBreakableOverflow)
-    {
-        // Validate every argument so that an invalid result can never be created
-        if (lines.IsDefault || lines.IsEmpty)
-        {
-            throw new ArgumentException("The lines must not be a default or empty array.", nameof(lines));
-        }
-
-        if (lines.Any(static line => line is null))
-        {
-            throw new ArgumentNullException(nameof(lines), "The lines must not contain null.");
-        }
-
-        if (lines.Any(static line => line.Length == 0))
-        {
-            throw new ArgumentException("The lines must not contain an empty line.", nameof(lines));
-        }
-
-        Lines = lines;
-        HasBreakableOverflow = hasBreakableOverflow;
-    }
-
-    /// <summary>
-    ///     Gets the lines in order, without container prefix or trailing whitespace.
-    /// </summary>
-    public ImmutableArray<string> Lines { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether a line that holds more than one atom is wider than the width available to it.
-    /// </summary>
-    public bool HasBreakableOverflow { get; }
-}
+/// <param name="Lines">The lines in order, none empty, without container prefix or trailing whitespace.</param>
+/// <param name="HasBreakableOverflow">
+///     Whether a line holds more than one atom and is still wider than the width available to it, because the
+///     block-syntax guard allowed no better break.
+/// </param>
+internal sealed record WrappedLines(ImmutableArray<string> Lines, bool HasBreakableOverflow);
 
 /// <summary>
 ///     Finds the places between atoms where a sentence ends and where a clause ends.
@@ -417,22 +352,18 @@ internal static partial class SentenceSplitter
     /// <summary>
     ///     Finds the atoms that start a sentence other than the first.
     /// </summary>
-    /// <param name="atoms">The atoms of one run (a paragraph segment). Must not be a default array or contain null or an empty atom.</param>
+    /// <param name="atoms">The atoms of one run (a paragraph segment).</param>
     /// <returns>
     ///     The indexes, in increasing order and greater than 0, of the atoms that begin a new sentence: a sentence ends after the
     ///     atom before each.
     /// </returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array or holds an empty atom.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
     public static ImmutableArray<int> FindSentenceStarts(ImmutableArray<string> atoms) => Find(atoms, EndsSentence);
 
     /// <summary>
     ///     Finds the atoms that start a clause other than the first.
     /// </summary>
-    /// <param name="atoms">The atoms of one run (a sentence). Must not be a default array or contain null or an empty atom.</param>
+    /// <param name="atoms">The atoms of one run (a sentence).</param>
     /// <returns>The indexes, in increasing order and greater than 0, of the atoms that begin a new clause.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="atoms"/> is a default array or holds an empty atom.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="atoms"/> holds a null element.</exception>
     public static ImmutableArray<int> FindClauseStarts(ImmutableArray<string> atoms) => Find(atoms, (atom, _) => EndsClause(atom));
 
     /// <summary>
@@ -506,22 +437,6 @@ internal static partial class SentenceSplitter
     /// <returns>The indexes of the atoms that start after a break.</returns>
     private static ImmutableArray<int> Find(ImmutableArray<string> atoms, Func<string, string, bool> breaksAfter)
     {
-        // Validate input
-        if (atoms.IsDefault)
-        {
-            throw new ArgumentException("The atoms must not be a default array.", nameof(atoms));
-        }
-
-        if (atoms.Any(static atom => atom is null))
-        {
-            throw new ArgumentNullException(nameof(atoms), "The atoms must not contain null.");
-        }
-
-        if (atoms.Any(static atom => atom.Length == 0))
-        {
-            throw new ArgumentException("The atoms must not contain an empty atom.", nameof(atoms));
-        }
-
         var starts = ImmutableArray.CreateBuilder<int>();
         for (var i = 1; i < atoms.Length; i++)
         {

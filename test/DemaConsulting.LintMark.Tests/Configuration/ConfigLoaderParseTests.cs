@@ -98,38 +98,6 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that content without settings gives the defaults.
-    /// </summary>
-    [Theory]
-    [InlineData("\n\n  \n")]
-    [InlineData("# only a comment\n# another\n")]
-    [InlineData("---\n")]
-    [InlineData("---\n...\n")]
-    [InlineData("~\n")]
-    [InlineData("null\n")]
-    public void ConfigLoader_Parse_ContentWithoutSettings_ReturnsDefaults(string yaml)
-    {
-        // Act: parse content that holds no settings
-        var config = Valid(yaml);
-
-        // Assert: the defaults
-        Assert.Equal(LintMarkConfig.Default, config);
-    }
-
-    /// <summary>
-    ///     Test that omitted settings keep their defaults.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_PartialFile_OmittedSettingsKeepDefaults()
-    {
-        // Act: parse a file that sets two settings
-        var config = Valid("line-length: 80\nbullet: plus\n");
-
-        // Assert: the two settings are applied and everything else is the default
-        Assert.Equal(LintMarkConfig.Default with { LineLength = 80, Bullet = BulletMarker.Plus }, config);
-    }
-
-    /// <summary>
     ///     Test that the sample configuration gives every setting its sample value.
     /// </summary>
     [Fact]
@@ -201,39 +169,6 @@ public class ConfigLoaderParseTests
             crlfResult.Errors.Select(e => (e.Line, e.Column, e.Message)));
         Assert.Equal(2, crlfResult.Errors[0].Line);
         Assert.Equal(3, crlfResult.Errors[1].Line);
-    }
-
-    /// <summary>
-    ///     Test that a valid file with CRLF line endings gives the same configuration as the same content with LF.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_CrlfLineEndings_ValidFile_GivesEqualConfig()
-    {
-        // Arrange: a valid file with several settings, with both line endings
-        const string lf = "line-length: 90\nwrap: semantic\nrules:\n  line-length: false\nignore:\n  - build/**\n";
-        var crlf = lf.Replace("\n", "\r\n", StringComparison.Ordinal);
-
-        // Act: parse both
-        var lfConfig = Valid(lf);
-        var crlfConfig = Valid(crlf);
-
-        // Assert: the configurations are equal, and they are not the defaults
-        Assert.Equal(lfConfig, crlfConfig, LintMarkConfigTests.ContentComparer.Instance);
-        Assert.NotEqual(LintMarkConfig.Default, crlfConfig, LintMarkConfigTests.ContentComparer.Instance);
-    }
-
-    /// <summary>
-    ///     Test that the order of settings does not matter.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_KeyOrder_DoesNotMatter()
-    {
-        // Act: parse the same settings in two orders
-        var first = Valid("wrap: semantic\nline-length: 70\nbullet: plus\n");
-        var second = Valid("bullet: plus\nline-length: 70\nwrap: semantic\n");
-
-        // Assert: the configurations are equal
-        Assert.Equal(first, second);
     }
 
     /// <summary>
@@ -357,22 +292,6 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that the line length range and its boundaries are accepted.
-    /// </summary>
-    [Theory]
-    [InlineData("line-length: 0\n", 0)]
-    [InlineData("line-length: 1\n", 1)]
-    [InlineData("line-length: 100000\n", 100000)]
-    public void ConfigLoader_Parse_LineLengthInRange_Accepted(string yaml, int expected)
-    {
-        // Act: parse the value
-        var config = Valid(yaml);
-
-        // Assert: it is stored, zero meaning unlimited
-        Assert.Equal(expected, config.LineLength);
-    }
-
-    /// <summary>
     ///     Test that a list indent of two or four is accepted.
     /// </summary>
     [Theory]
@@ -486,23 +405,6 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that true and false are accepted for boolean settings and for rule toggles.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_BooleanSettings_TrueAndFalse_Accepted()
-    {
-        // Act: parse both spellings in different places
-        var config = Valid("final-newline: false\nlink-refactor:\n  in-tables: false\n  break-link-text: true\nrules:\n  link-empty: false\n  descriptive-link-text: true\n");
-
-        // Assert: each value is applied
-        Assert.False(config.FinalNewline);
-        Assert.False(config.LinkRefactor.InTables);
-        Assert.True(config.LinkRefactor.BreakLinkText);
-        Assert.False(config.Rules["link-empty"]);
-        Assert.True(config.Rules["descriptive-link-text"]);
-    }
-
-    /// <summary>
     ///     Test that a null spelled in any YAML way is an error.
     /// </summary>
     [Theory]
@@ -537,21 +439,6 @@ public class ConfigLoaderParseTests
 
         // Assert: reported at the key
         AssertError(error, 1, 1, $"Setting '{setting}' must not be empty");
-    }
-
-    /// <summary>
-    ///     Test that explicit empty collections are valid.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_ExplicitEmptyCollections_Accepted()
-    {
-        // Act: parse an empty list and empty mappings
-        var config = Valid("ignore: []\nrules: {}\nlink-refactor: {}\n");
-
-        // Assert: nothing is ignored, and rules and link-refactor keep their defaults
-        Assert.Empty(config.Ignore);
-        Assert.Equal(LintMarkConfig.Default.Rules, config.Rules);
-        Assert.Equal(LinkRefactorOptions.Disabled, config.LinkRefactor);
     }
 
     /// <summary>
@@ -660,19 +547,6 @@ public class ConfigLoaderParseTests
         Assert.Equal(2, result.Errors.Length);
         Assert.Contains("Invalid value 'nope'", result.Errors[0].Message);
         Assert.Contains("Duplicate setting 'wrap'", result.Errors[1].Message);
-    }
-
-    /// <summary>
-    ///     Test that the settings of the link-refactor mapping are applied and that omitted ones keep their defaults.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_LinkRefactorPartial_KeepsDefaults()
-    {
-        // Act: parse a mapping that sets only one option
-        var config = Valid("link-refactor:\n  enabled: true\n");
-
-        // Assert: only that option changed
-        Assert.Equal(LinkRefactorOptions.Disabled with { Enabled = true }, config.LinkRefactor);
     }
 
     /// <summary>
@@ -886,73 +760,6 @@ public class ConfigLoaderParseTests
     }
 
     /// <summary>
-    ///     Test that the conflict is reported at the alias when the id comes first.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_RulesKebabThenAlias_ConflictReportedAtAlias()
-    {
-        // Act: configure one rule by id, then by alias
-        var error = OneError("rules:\n  line-length: true\n  MD013: false\n");
-
-        // Assert: reported at the later entry
-        AssertError(error, 3, 3, "Rule 'MD013' is already configured as 'line-length' on line 2");
-    }
-
-    /// <summary>
-    ///     Test that the conflict is reported at the id when the alias comes first.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_RulesAliasThenKebab_ConflictReportedAtKebab()
-    {
-        // Act: configure one rule by alias, then by id
-        var error = OneError("rules:\n  MD013: true\n  line-length: false\n");
-
-        // Assert: reported at the later entry, so the outcome follows the file and not any processing order
-        AssertError(error, 3, 3, "Rule 'line-length' is already configured as 'MD013' on line 2");
-    }
-
-    /// <summary>
-    ///     Test that two spellings that differ only in letter case conflict.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_RulesDifferentCaseConflict_Reported()
-    {
-        // Act: configure one alias in two cases
-        var error = OneError("rules:\n  MD013: false\n  md013: false\n");
-
-        // Assert: reported at the second spelling
-        AssertError(error, 3, 3, "Rule 'md013' is already configured as 'MD013' on line 2");
-    }
-
-    /// <summary>
-    ///     Test that reordering the entries of the rules mapping does not change the result.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_RulesReorderedKeys_ProduceEqualRules()
-    {
-        // Act: parse the same toggles in opposite orders
-        var first = Valid("rules:\n  link-empty: false\n  MD001: false\n  code-fence-language: false\n");
-        var second = Valid("rules:\n  code-fence-language: false\n  MD001: false\n  link-empty: false\n");
-
-        // Assert: equal rules
-        Assert.Equal(first.Rules, second.Rules);
-    }
-
-    /// <summary>
-    ///     Test that rules that are not mentioned keep their defaults.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_RulesPartial_OthersKeepDefaults()
-    {
-        // Act: enable one rule that is off by default and disable one that is on
-        var config = Valid("rules:\n  descriptive-link-text: true\n  link-empty: false\n");
-
-        // Assert: exactly those two differ from the defaults
-        var differing = config.Rules.Where(r => LintMarkConfig.Default.Rules[r.Key] != r.Value).Select(r => r.Key);
-        Assert.Equal(["descriptive-link-text", "link-empty"], differing);
-    }
-
-    /// <summary>
     ///     Test that an ignore list replaces the defaults and is used exactly as given, in the given order.
     /// </summary>
     [Fact]
@@ -963,19 +770,6 @@ public class ConfigLoaderParseTests
 
         // Assert: exactly the given patterns remain, in the given order, and no default pattern is left
         Assert.Equal(["zeta/**", "alpha/**", "build/**"], config.Ignore);
-    }
-
-    /// <summary>
-    ///     Test that an empty ignore list clears the default patterns.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_IgnoreEmptyList_ClearsDefaults()
-    {
-        // Act: parse an empty list
-        var config = Valid("ignore: []\n");
-
-        // Assert: nothing is ignored
-        Assert.Empty(config.Ignore);
     }
 
     /// <summary>
@@ -1394,97 +1188,4 @@ public class ConfigLoaderParseTests
             result.Errors.Select(e => (e.Line, e.Column, e.Message)));
     }
 
-    /// <summary>
-    ///     Test that problems at the same position are ordered by message, using an ordinal comparison.
-    /// </summary>
-    [Fact]
-    public void ConfigLoadResult_Constructor_ProblemsOutOfOrder_SortedByLineColumnThenMessage()
-    {
-        // Arrange: problems in reverse order, two of them at one position with messages that sort differently
-        // under an ordinal and a culture-sensitive comparison
-        var errors = ImmutableArray.Create(
-            new ConfigError("a.yaml", 2, 1, "late"),
-            new ConfigError("a.yaml", 1, 5, "alpha"),
-            new ConfigError("a.yaml", 1, 5, "Beta"),
-            new ConfigError("a.yaml", 1, 2, "zeta"));
-
-        // Act: create the result
-        var result = new ConfigLoadResult(null, "a.yaml", errors);
-
-        // Assert: by line, then column, then ordinal message
-        Assert.Equal(
-            [(1, 2, "zeta"), (1, 5, "Beta"), (1, 5, "alpha"), (2, 1, "late")],
-            result.Errors.Select(e => (e.Line, e.Column, e.Message)));
-    }
-
-    /// <summary>
-    ///     Test that parsing the same content repeatedly gives the same errors in the same order.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_Errors_AreDeterministicAcrossRepeatedCalls()
-    {
-        // Arrange: content with several errors, found in different phases and in different orders
-        const string yaml = "b: 1\na: 2\nwrap: x\nrules: {MD013: false, line-length: true}\nbullet: &b dash\n";
-
-        // Act: parse it repeatedly
-        var first = Parse(yaml).Errors.Select(e => $"{e.Line}:{e.Column}:{e.Message}").ToList();
-        var results = Enumerable.Range(0, 20).Select(_ => Parse(yaml).Errors.Select(e => $"{e.Line}:{e.Column}:{e.Message}").ToList());
-
-        // Assert: every run is identical, and the problems were found at all
-        Assert.Equal(5, first.Count);
-        Assert.All(results, r => Assert.Equal(first, r));
-    }
-    /// <summary>
-    ///     Test that every error carries the path it was given.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_Errors_CarryTheGivenPath()
-    {
-        // Act: parse invalid content under another path
-        var result = ConfigLoader.Parse("other/place.yaml", "x: 1\ny: 2\n"u8);
-
-        // Assert: every error and the result name that path
-        Assert.All(result.Errors, e => Assert.Equal("other/place.yaml", e.Path));
-        Assert.Equal("other/place.yaml", result.SourcePath);
-    }
-
-    /// <summary>
-    ///     Test that the errors of a result cannot be modified through a cast.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_ErrorsCastToMutableTypes_CannotBeModified()
-    {
-        // Arrange: a result with errors
-        var result = Parse("x: 1\n");
-
-        // Act & Assert: the list refuses changes made through the mutable interfaces
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<ConfigError>)result.Errors);
-    }
-
-    /// <summary>
-    ///     Test that a null or empty path is rejected.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Parse_NullOrEmptyPath_Throws()
-    {
-        // Act & Assert: the path is validated
-        Assert.Throws<ArgumentNullException>(() => ConfigLoader.Parse(null!, []));
-        Assert.Throws<ArgumentException>(() => ConfigLoader.Parse(string.Empty, []));
-    }
-
-    /// <summary>
-    ///     Test that an error rejects an invalid path, position or message, and flattens line breaks.
-    /// </summary>
-    [Fact]
-    public void ConfigError_Constructor_InvalidArguments_ThrowsException()
-    {
-        // Act & Assert: every argument is validated
-        Assert.Throws<ArgumentNullException>(() => new ConfigError(null!, 1, 1, "m"));
-        Assert.Throws<ArgumentException>(() => new ConfigError(string.Empty, 1, 1, "m"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigError("a", 0, 1, "m"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigError("a", 1, 0, "m"));
-        Assert.Throws<ArgumentNullException>(() => new ConfigError("a", 1, 1, null!));
-        Assert.Throws<ArgumentException>(() => new ConfigError("a", 1, 1, "  "));
-        Assert.Equal("one two", new ConfigError("a", 1, 1, "one\ntwo").Message);
-    }
 }

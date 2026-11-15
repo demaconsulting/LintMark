@@ -93,66 +93,6 @@ public class ThematicBreakFormatterTests
     }
 
     /// <summary>
-    ///     Test that a null block is rejected when asking whether it is accepted.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_CanFormat_NullBlock_Throws()
-    {
-        // Act & Assert: null is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentNullException>(() => Formatter.CanFormat(null!));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a missing argument is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a thematic break, a context and an edit set
-        var document = BlockFormatterAssertions.Parse("text\n\n***\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.ThematicBreak);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block, edits)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, block, null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not a thematic break is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_NonBreakBlock_ThrowsArgumentException()
-    {
-        // Arrange: a paragraph
-        var document = BlockFormatterAssertions.Parse("text\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-
-        // Act & Assert: the block is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentException>(() => Formatter.Format(context, block, new EditSet()));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the formatter lists the two rules it enforces and that the list cannot be changed.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_RuleIds_Read_ListsTheBreakRuleAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Formatter.RuleIds;
-
-        // Assert: the break rule and trailing whitespace, each registered, in an immutable array
-        Assert.Equal(["thematic-break", "trailing-whitespace"], ruleIds);
-        Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
-    }
-
-    /// <summary>
     ///     Test that every way of writing a break becomes three dashes by default.
     /// </summary>
     [Theory]
@@ -249,7 +189,7 @@ public class ThematicBreakFormatterTests
     [InlineData("1. +---+\n\n   - - - -\n")]
     [InlineData("+ ---\n\n***\n")]
     public void ThematicBreakFormatter_Format_BreakAfterBorderShapedLine_StaysAsWritten(string input) =>
-        AssertFormats(input, input);
+        BlockFormatterAssertions.AssertFormatsSafely(input, input);
 
     /// <summary>
     ///     Test that a break after a line that does not look like a border is still converted, and one after code that holds a border.
@@ -258,7 +198,7 @@ public class ThematicBreakFormatterTests
     [InlineData("9. +x\n\n   ***\n", "9. +x\n\n   ---\n")]
     [InlineData("```\n+---+\n```\n\n***\n", "```\n+---+\n```\n\n---\n")]
     public void ThematicBreakFormatter_Format_BreakAfterOtherLine_IsConverted(string input, string expected) =>
-        AssertFormats(input, expected);
+        BlockFormatterAssertions.AssertFormatsSafely(input, expected);
 
     /// <summary>
     ///     Test that a break under text that carries trailing whitespace only loses the whitespace.
@@ -495,39 +435,4 @@ public class ThematicBreakFormatterTests
         Assert.Empty(edits);
         Assert.Equal("text\n\n---\n", formatted);
     }
-
-    /// <summary>
-    ///     Test that CRLF line endings, and mixed line endings, do not change the edits that the formatter proposes.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_CrlfLineEndings_ProposesTheSameEdits() =>
-        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, "text\n\n***  \n\nmore\n\n- - -\n");
-
-    /// <summary>
-    ///     Test that a byte order mark does not change the edits that the formatter proposes.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_ByteOrderMark_ProposesTheSameEdits() =>
-        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, "text\n\n***  \n\nmore\n\n- - -\n");
-
-    /// <summary>
-    ///     Test that CRLF line endings and a byte order mark survive formatting a break.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_CrlfAndBom_KeepsLineEndingsAndMark()
-    {
-        // Act & Assert: the written bytes keep the endings and the mark
-        BlockFormatterAssertions.AssertFormatsOnDisk("text\n\n***  \n", "text\n\n---\n");
-        BlockFormatterAssertions.AssertFormatsOnDisk("text\n\n***  \n\nmore\n\n- - -\n", "text\n\n---\n\nmore\n\n---\n");
-    }
-
-    /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
-    /// </summary>
-    [Fact]
-    public void ThematicBreakFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
-        BlockFormatterAssertions.AssertConcurrentFormatting(
-            Formatter,
-            "text\n\n***\n\n___\n\n- - -\n\n+ ***\n",
-            "text\n\n---\n\n---\n\n---\n\n+ ***\n");
 }

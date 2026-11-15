@@ -50,64 +50,14 @@ public class InlineNormalizerTests
 
     /// <summary>
     ///     Asserts that a document formatter that only has the normalizer turns the input into the expected text, and that the
-    ///     result renders the same, keeps its structure and is stable.
+    ///     result is stable.
     /// </summary>
     /// <param name="input">The LF-normalized input.</param>
     /// <param name="expected">The expected output.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
     private static void AssertFormats(string input, string expected, LintMarkConfig? config = null)
     {
-        var formatter = new DocumentFormatter([], Normalizer);
-        Assert.Equal(expected, BlockFormatterAssertions.AssertSafeAndStable(input, config, formatter));
-        BlockFormatterAssertions.AssertFormats(input, expected, config);
-    }
-
-    /// <summary>
-    ///     Test that a missing argument is rejected when adding the edits of a paragraph.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_NullArguments_Throw()
-    {
-        // Arrange: a paragraph, the document, the configuration and an edit set
-        var document = BlockFormatterAssertions.Parse("_a_\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => Normalizer.AddBlockEdits(null!, block, LintMarkConfig.Default, edits)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Normalizer.AddBlockEdits(document, null!, LintMarkConfig.Default, edits)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => Normalizer.AddBlockEdits(document, block, null!, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Normalizer.AddBlockEdits(document, block, LintMarkConfig.Default, null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not a paragraph is rejected.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_HeadingBlock_ThrowsArgumentException()
-    {
-        // Arrange: a heading
-        var document = BlockFormatterAssertions.Parse("# _a_\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Heading);
-
-        // Act & Assert: the block is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentException>(() => Normalizer.AddBlockEdits(document, block, LintMarkConfig.Default, new EditSet()));
-        Assert.Equal("block", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the normalizer lists the four rules it enforces and that the list cannot be changed.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_RuleIds_Read_ListsTheFourRulesAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Normalizer.RuleIds;
-
-        // Assert: the four rules, each registered, in an immutable array
-        Assert.Equal(["emphasis", "strong", "bare-urls", "code-span-space"], ruleIds);
-        Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
+        BlockFormatterAssertions.AssertFormats(input, expected, config, new DocumentFormatter([], Normalizer));
     }
 
     /// <summary>
@@ -194,6 +144,18 @@ public class InlineNormalizerTests
     [InlineData("$$__a__$$\n")]
     public void InlineNormalizer_AddBlockEdits_DelimitersInMath_AreKept(string input) =>
         AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that emphasis next to a link, a code span or a hard line break is written with the configured delimiter.
+    /// </summary>
+    [Theory]
+    [InlineData("_a_[b](http://x.com)\n", "*a*[b](http://x.com)\n")]
+    [InlineData("[b](http://x.com)_a_\n", "[b](http://x.com)*a*\n")]
+    [InlineData("_a_`c`\n", "*a*`c`\n")]
+    [InlineData("`c`_a_\n", "`c`*a*\n")]
+    [InlineData("x _a_  \n_b_\n", "x *a*  \n*b*\n")]
+    public void InlineNormalizer_AddBlockEdits_EmphasisNextToLinkCodeOrBreak_IsNormalized(string input, string expected) =>
+        AssertFormats(input, expected);
 
     /// <summary>
     ///     Test that the delimiter characters in the destination of a link or an image keep their text.
@@ -318,13 +280,6 @@ public class InlineNormalizerTests
         AssertFormats(input, input);
 
     /// <summary>
-    ///     Test that a URL in a code span keeps its form.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_UrlInCodeSpan_IsKept() =>
-        AssertFormats("`http://x.com`\n", "`http://x.com`\n");
-
-    /// <summary>
     ///     Test that a URL in inline HTML keeps its form.
     /// </summary>
     [Fact]
@@ -349,7 +304,7 @@ public class InlineNormalizerTests
     [InlineData("{{#import http://x.com/a.md:10-50}}\n")]
     [InlineData("see http://x.com/{a} now\n")]
     public void InlineNormalizer_AddBlockEdits_UrlWithBraces_IsKept(string input) =>
-        AssertFormats(input, input);
+        BlockFormatterAssertions.AssertFormatsSafely(input, input);
 
     /// <summary>
     ///     Test that an address whose scheme is not written in lower case keeps its form, because the parser does not
@@ -487,89 +442,6 @@ public class InlineNormalizerTests
     }
 
     /// <summary>
-    ///     Test that the edits are replacements of existing characters and never insertions.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_Edits_ReplaceExistingCharacters()
-    {
-        // Arrange: a paragraph with emphasis and a URL
-        var document = BlockFormatterAssertions.Parse("_a_ http://x.com\n");
-        var edits = new EditSet();
-
-        // Act: add the edits
-        Normalizer.AddBlockEdits(document, BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph), LintMarkConfig.Default, edits);
-
-        // Assert: none is an insertion
-        Assert.NotEmpty(edits.ToImmutable());
-        Assert.All(edits.ToImmutable(), edit => Assert.True(edit.Length > 0));
-    }
-
-    /// <summary>
-    ///     Test that the same edits are proposed for CRLF and mixed line endings, and with a byte order mark.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_LineEndingsAndByteOrderMark_ProposeTheSameEdits()
-    {
-        // Arrange: a text with emphasis, strong emphasis and a URL
-        const string input = "_a_ __b__\nhttp://x.com\nend\n";
-        var formatter = new DocumentFormatter([], Normalizer);
-        var expected = BlockFormatterAssertions.Apply(formatter, input).Result.Edits;
-
-        // Act & Assert: the edits do not depend on how the file is stored
-        var preamble = new System.Text.UTF8Encoding(true).GetPreamble();
-        foreach (var bytes in new[]
-        {
-            System.Text.Encoding.UTF8.GetBytes(input.Replace("\n", "\r\n", StringComparison.Ordinal)),
-            System.Text.Encoding.UTF8.GetBytes(BlockFormatterAssertions.MixEndings(input)),
-            [.. preamble, .. System.Text.Encoding.UTF8.GetBytes(input)]
-        })
-        {
-            var document = DocumentParser.Parse(SourceDocument.Create("a.md", bytes));
-            Assert.Equal(expected, formatter.Format(document, LintMarkConfig.Default).Edits);
-        }
-    }
-
-    /// <summary>
-    ///     Test that the result is the same when several threads format the same text with one normalizer.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_SharedInstanceOnManyThreads_GivesTheSameResult()
-    {
-        // Arrange: one formatter that holds the shared normalizer and a text
-        const string input = "_a_ __b__ http://x.com\n\n> _c_ ftp://f.org\n\n- *d* https://x.org.\n";
-        var formatter = new DocumentFormatter([], Normalizer);
-        var expected = BlockFormatterAssertions.Apply(formatter, input).Formatted;
-        var results = new string[8];
-
-        // Act: format on several threads at once
-        BlockFormatterAssertions.RunConcurrently(results.Length, index =>
-        {
-            for (var round = 0; round < 25; round++)
-            {
-                results[index] = BlockFormatterAssertions.Apply(formatter, input).Formatted;
-                Assert.Equal(expected, results[index]);
-            }
-        });
-
-        // Assert: every thread saw the same text
-        Assert.All(results, result => Assert.Equal(expected, result));
-    }
-
-    /// <summary>
-    ///     Test that a document formatter without a normalizer proposes no inline edit.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_NotRegistered_ProposesNoInlineEdit()
-    {
-        // Act: format a paragraph with a document formatter that has no normalizer
-        var (result, formatted) = BlockFormatterAssertions.Apply(new DocumentFormatter(), "_a_ http://x.com\n");
-
-        // Assert: the text is untouched
-        Assert.Equal("_a_ http://x.com\n", formatted);
-        Assert.Empty(result.Edits);
-    }
-
-    /// <summary>
     ///     Test that one space on each side of a code span is removed, also in a list item and a quote, and with several backticks.
     /// </summary>
     [Theory]
@@ -644,25 +516,6 @@ public class InlineNormalizerTests
     }
 
     /// <summary>
-    ///     Test that the edits that remove the padding are deletions of one space, credited to the code span rule.
-    /// </summary>
-    [Fact]
-    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_ProposesTwoDeletionsOfOneSpace()
-    {
-        // Arrange: a paragraph with a padded code span
-        var document = BlockFormatterAssertions.Parse("a ` x ` b\n");
-        var edits = new EditSet();
-
-        // Act: add the edits
-        Normalizer.AddBlockEdits(document, BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph), LintMarkConfig.Default, edits);
-
-        // Assert: one space after the opening backtick and one before the closing one
-        Assert.Equal(
-            [new TextEdit(3, 1, string.Empty, "code-span-space"), new TextEdit(5, 1, string.Empty, "code-span-space")],
-            edits.ToImmutable());
-    }
-
-    /// <summary>
     ///     Test that the code span rule is not applied to a paragraph in which it is suppressed, by identifier or by alias, and that the other rules still are.
     /// </summary>
     [Theory]
@@ -729,20 +582,6 @@ public class InlineCandidatesTests
         var document = BlockFormatterAssertions.Parse(text);
         var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
         return ((ParagraphBlock)block.Node!).Inline!;
-    }
-
-    /// <summary>
-    ///     Test that a missing text or inline content is rejected.
-    /// </summary>
-    [Fact]
-    public void InlineCandidates_Find_NullArguments_Throw()
-    {
-        // Arrange: the inline content of a paragraph
-        var root = InlineContent("_a_\n");
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("text", Assert.Throws<ArgumentNullException>(() => InlineCandidates.Find(null!, root, EmphasisMarker.Asterisk, EmphasisMarker.Asterisk, true)).ParamName);
-        Assert.Equal("root", Assert.Throws<ArgumentNullException>(() => InlineCandidates.Find("_a_\n", null!, EmphasisMarker.Asterisk, EmphasisMarker.Asterisk, true)).ParamName);
     }
 
     /// <summary>

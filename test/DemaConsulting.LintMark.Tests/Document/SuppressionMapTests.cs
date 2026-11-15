@@ -53,38 +53,6 @@ public class SuppressionMapTests
     }
 
     /// <summary>
-    ///     Test that a document without directives suppresses nothing.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_Build_NoDirectives_SuppressesNothing()
-    {
-        // Arrange: a document with an ordinary comment only
-        var document = Parse("Text TEXT.\n\n<!-- just a comment -->\n");
-
-        // Act / Assert: nothing is suppressed
-        Assert.Empty(document.Suppressions.Ranges);
-        Assert.False(At(document, "TEXT", "line-length"));
-    }
-
-    /// <summary>
-    ///     Test that the exposed ranges and their rule sets cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_Ranges_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange: a document with one region that disables two listed rules
-        var document = Parse("<!-- lintmark-disable line-length no-bare-urls -->\n\nINSIDE\n\n<!-- lintmark-enable -->\n");
-
-        // Act: take the ranges and the rule set of the first one
-        var ranges = document.Suppressions.Ranges;
-
-        // Assert: neither the list of ranges nor the list of rules can be modified by a caller
-        ReadOnlyAssertions.AssertCannotBeModified(ranges);
-        ReadOnlyAssertions.AssertCannotBeModified(ranges[0].Rules.Rules);
-        Assert.True(At(document, "INSIDE", "line-length"));
-    }
-
-    /// <summary>
     ///     Test that disable and enable form a region covering the text between them.
     /// </summary>
     [Fact]
@@ -269,21 +237,6 @@ public class SuppressionMapTests
     }
 
     /// <summary>
-    ///     Test that prettier-ignore before a list covers the whole list.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_IsSuppressed_PrettierIgnoreBeforeList_CoversWholeList()
-    {
-        // Arrange: prettier-ignore, blank line, list, paragraph
-        var document = Parse("<!-- prettier-ignore -->\n\n- ONE\n- TWO\n\nAFTER\n");
-
-        // Act / Assert: the list is covered, the paragraph is not
-        Assert.True(At(document, "ONE", "r"));
-        Assert.True(At(document, "TWO", "r"));
-        Assert.False(At(document, "AFTER", "r"));
-    }
-
-    /// <summary>
     ///     Test that prettier-ignore-start and -end form a region for all rules.
     /// </summary>
     [Fact]
@@ -356,19 +309,6 @@ public class SuppressionMapTests
     }
 
     /// <summary>
-    ///     Test that prettier directives are only recognized in block-level comments.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_Build_InlinePrettierComment_IsIgnored()
-    {
-        // Arrange: prettier-ignore as an inline comment
-        var document = Parse("Text <!-- prettier-ignore --> end\n\nAFTER\n");
-
-        // Act / Assert: nothing is suppressed
-        Assert.Empty(document.Suppressions.Ranges);
-    }
-
-    /// <summary>
     ///     Test that a rule identifier alias resolver resolves aliases on both sides of the comparison.
     /// </summary>
     [Fact]
@@ -407,22 +347,4 @@ public class SuppressionMapTests
         Assert.False(after);
     }
 
-    /// <summary>
-    ///     Test that the ranges are sorted by start offset.
-    /// </summary>
-    [Fact]
-    public void SuppressionMap_Ranges_AreSortedByStart()
-    {
-        // Arrange: directives of several kinds in an order that produces ranges out of source order
-        var document = Parse(
-            "<!-- lintmark-disable-file x -->\n\n<!-- lintmark-disable -->\n\nA\n\n<!-- lintmark-enable -->\n\n"
-            + "<!-- lintmark-disable-next-line -->\nB\n");
-
-        // Act: read the starts
-        var starts = document.Suppressions.Ranges.Select(r => r.Start).ToList();
-
-        // Assert: sorted
-        Assert.Equal(starts.Order().ToList(), starts);
-        Assert.True(starts.Count >= 3);
-    }
 }

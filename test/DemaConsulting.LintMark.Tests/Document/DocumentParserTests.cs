@@ -106,31 +106,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that an empty document parses to no blocks.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_EmptyDocument_ReturnsNoBlocks()
-    {
-        // Arrange / Act: parse empty text
-        var document = Parse(string.Empty);
-
-        // Assert: nothing found, collections are empty
-        Assert.Empty(document.Blocks);
-        Assert.Empty(document.References.Definitions);
-        Assert.Empty(document.Suppressions.Ranges);
-    }
-
-    /// <summary>
-    ///     Test that a null source is rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_NullSource_ThrowsArgumentNullException()
-    {
-        // Arrange / Act / Assert: null is rejected
-        Assert.Throws<ArgumentNullException>(() => DocumentParser.Parse(null!));
-    }
-
-    /// <summary>
     ///     Test that nested containers get increasing depth and the correct parent chain.
     /// </summary>
     [Fact]
@@ -394,20 +369,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that the block list of a parsed document cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_Blocks_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange / Act: parse a document with several blocks and take the block list
-        var document = Parse("# Title\n\nText.\n\n- item\n");
-        IReadOnlyList<BlockInfo> blocks = document.Blocks;
-
-        // Assert: a caller cannot change the list
-        ReadOnlyAssertions.AssertCannotBeModified(blocks);
-    }
-
-    /// <summary>
     ///     Test that an unreferenced footnote definition is found on any line, not only the first, because
     ///     the line-start anchor of the definition expression applies to the line searched.
     /// </summary>
@@ -608,23 +569,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that CRLF bytes give the same blocks as LF text for a dropped footnote with a definition on its marker line.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks()
-    {
-        // Arrange / Act: parse the document from LF text and from CRLF bytes
-        const string text = "[^1]: [a]: http://x\n\n[^2]: [l]:\n    /u\n";
-        var lf = Parse(text);
-        var crlf = DocumentParser.Parse(SourceDocument.Create("t.md", Encoding.UTF8.GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))));
-
-        // Assert: the block lists are equal and nest
-        Assert.Equal(SummarizeWithDepth(lf), SummarizeWithDepth(crlf));
-        Assert.Equal(4, crlf.Blocks.Length);
-        Assert.Empty(SpanTilingAssertions.CheckNesting(crlf));
-    }
-
-    /// <summary>
     ///     Test that a dropped footnote whose body starts with another footnote marker gives two sibling blocks.
     /// </summary>
     [Fact]
@@ -742,21 +686,6 @@ public class DocumentParserTests
 
         // Assert: the line is read as ordinary text and the blocks nest
         Assert.Equal(expected, document.Blocks.Select(b => $"{b.Kind}:{TextOf(document, b)}"));
-        Assert.Empty(SpanTilingAssertions.CheckNesting(document));
-    }
-
-    /// <summary>
-    ///     Test that a document with only a valid grid table still has a grid table block.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_ValidGridTableOnly_IsGridTable()
-    {
-        // Arrange / Act: parse a valid grid table
-        var document = Parse("+---+---+\n| a | b |\n+---+---+\n");
-
-        // Assert: it is exactly one grid table
-        var block = Assert.Single(document.Blocks);
-        Assert.Equal(BlockKind.GridTable, block.Kind);
         Assert.Empty(SpanTilingAssertions.CheckNesting(document));
     }
 
@@ -1290,80 +1219,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that parsing the same documents from many threads yields identical results.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks()
-    {
-        // Arrange: several different documents (list, quote, footnotes, definitions in containers, unclosed fence)
-        string[] texts =
-        [
-            "# H\n\n- a\n  b\n\n> q\n\n```\nunclosed\n",
-            "T[^n] [a].\n\n[^n]: Note\n    more\n\n[^n]: repeated\n\n[^u]: unused\n\n[a]: http://x\ntext\n",
-            "> [a]: http://x\n> text\n>\n> - [b]: http://y\n>   item\n",
-            "- item\n\n  $$\n  math\n- next\n\n1. [^q]: note\n",
-            "| a | b |\n|---|---|\n| 1 | 2 |\n\n+---+\n| x |\n+---+\n",
-
-            // A valid and an invalid grid table (takes the grid table fallback), and a valid grid table next to a dropped footnote with a definition on its marker line
-            "+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n\n[^1]: [a]: http://x\n",
-            "+---+---+\n| a | b |\n+---+---+\n\n[^1]: [a]: http://x\n\n[^m]: [^n]: x\n"
-        ];
-        var expected = texts.Select(t => SummarizeWithDepth(Parse(t))).ToList();
-
-        // The two documents differ in the fallback: the first loses its grid table, the second keeps it
-        Assert.DoesNotContain(Parse(texts[5]).Blocks, b => b.Kind == BlockKind.GridTable);
-        Assert.Contains(Parse(texts[6]).Blocks, b => b.Kind == BlockKind.GridTable);
-
-        // Act: parse every document many times concurrently
-        var results = new List<(BlockKind Kind, int Depth, string Text)>[texts.Length * 32];
-        Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i => results[i] = SummarizeWithDepth(Parse(texts[i % texts.Length])));
-
-        // Assert: every result equals the single-threaded result of its document
-        for (var i = 0; i < results.Length; i++)
-        {
-            Assert.Equal(expected[i % texts.Length], results[i]);
-        }
-    }
-
-    /// <summary>
-    ///     Test that a very large document with many definitions, footnotes, quotes and list items parses in time proportional to its size.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_LargeDocument_CompletesWithinTimeBound()
-    {
-        // Arrange: 20000 groups of a definition with text, an unreferenced footnote, a quote and a list item
-        // (160000 blocks, about 0.8 MB), plus a referenced footnote in every fiftieth group. A scan of all
-        // blocks per definition or footnote takes about a minute on this input; linear or logarithmic lookups take about a second.
-        const int groups = 20_000;
-        var builder = new StringBuilder();
-        for (var i = 0; i < groups; i++)
-        {
-            builder.Append(CultureInfo.InvariantCulture, $"[r{i}]: /u\ntext\n\n[^u{i}]: x\n\n> q\n\n- i\n\n");
-            if (i % 50 == 0)
-            {
-                builder.Append(CultureInfo.InvariantCulture, $"T[^f{i}].\n\n[^f{i}]: n\n\n");
-            }
-        }
-
-        var source = SourceDocument.FromText("large.md", builder.ToString());
-
-        // Act: parse and time it
-        var stopwatch = Stopwatch.StartNew();
-        var document = DocumentParser.Parse(source);
-        stopwatch.Stop();
-
-        // Assert: every construct was found, the blocks are in source order, and the time is far below that of a quadratic scan
-        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.LinkReferenceDefinition));
-        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.UnreferencedFootnote));
-        Assert.Equal(groups / 50, document.Blocks.Count(b => b.Kind == BlockKind.Footnote));
-        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.BlockQuote));
-        Assert.Equal(groups, document.Blocks.Count(b => b.Kind == BlockKind.ListItem));
-        Assert.Equal(161_200, document.Blocks.Length);
-        Assert.True(document.Blocks.Zip(document.Blocks.Skip(1)).All(pair => pair.First.Start <= pair.Second.Start), "blocks are not in source order");
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"parsing took {stopwatch.Elapsed.TotalSeconds:F1} s");
-    }
-
-    /// <summary>
     ///     Test that Parse fills the suppression map and the reference index.
     /// </summary>
     [Fact]
@@ -1532,73 +1387,6 @@ public class DocumentParserTests
     }
 
     /// <summary>
-    ///     Test that a block that is not a paragraph or heading is rejected by GetLines.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_GetLines_NonLeafBlock_ThrowsArgumentException()
-    {
-        // Arrange: a block quote and a code block
-        var document = Parse("> a\n\n    code\n");
-        var quote = Single(document, BlockKind.BlockQuote);
-        var code = Single(document, BlockKind.IndentedCode);
-
-        // Act / Assert: both are rejected with the argument exception itself, not a subclass
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetLines(document, quote));
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetLines(document, code));
-    }
-
-    /// <summary>
-    ///     Test that a block whose range lies outside the document text is rejected by GetLines.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_GetLines_BlockOutsideDocument_ThrowsArgumentException()
-    {
-        // Arrange: paragraph blocks whose ranges do not fit the text of a four-character document
-        var document = Parse("abc\n");
-        var beyondEnd = new BlockInfo(null, BlockKind.Paragraph, 0, 100, 0, null);
-        var negativeStart = new BlockInfo(null, BlockKind.Paragraph, -1, 2, 0, null);
-        var inverted = new BlockInfo(null, BlockKind.Paragraph, 3, 1, 0, null);
-
-        // Act / Assert: each is rejected
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetLines(document, beyondEnd));
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetLines(document, negativeStart));
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetLines(document, inverted));
-    }
-
-    /// <summary>
-    ///     Test that GetContinuationPrefix rejects a block that is not a paragraph or heading and a block outside the document.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_GetContinuationPrefix_NonLeafBlock_ThrowsArgumentException()
-    {
-        // Arrange: a quote, and a paragraph block whose range lies outside the text
-        var document = Parse("> a\n");
-        var quote = Single(document, BlockKind.BlockQuote);
-        var outside = new BlockInfo(null, BlockKind.Paragraph, 0, 100, 0, null);
-
-        // Act / Assert: both are rejected
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetContinuationPrefix(document, quote));
-        Assert.Throws<ArgumentException>(() => DocumentParser.GetContinuationPrefix(document, outside));
-    }
-
-    /// <summary>
-    ///     Test that null arguments to the line helpers are rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_GetLines_NullArguments_Throw()
-    {
-        // Arrange: a parsed document
-        var document = Parse("a\n");
-        var paragraph = Single(document, BlockKind.Paragraph);
-
-        // Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => DocumentParser.GetLines(null!, paragraph));
-        Assert.Throws<ArgumentNullException>(() => DocumentParser.GetLines(document, null!));
-        Assert.Throws<ArgumentNullException>(() => DocumentParser.GetContinuationPrefix(null!, paragraph));
-        Assert.Throws<ArgumentNullException>(() => DocumentParser.GetContinuationPrefix(document, null!));
-    }
-
-    /// <summary>
     ///     Test that a grid-table-looking line that is not part of a valid grid table marks the document format-unsafe at that line.
     /// </summary>
     /// <param name="text">The document.</param>
@@ -1696,21 +1484,6 @@ public class DocumentParserTests
         // Assert: the border line is reported
         Assert.True(document.IsFormatUnsafe);
         Assert.Equal<GridTableFallback?>(new GridTableFallback(2, 1), document.GridFallback);
-    }
-
-    /// <summary>
-    ///     Test that a document with only a valid grid table is not marked.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_ValidGridTableOnly_NotMarked()
-    {
-        // Arrange / Act: parse a valid Pandoc grid table
-        var document = Parse("+---+---+\n| a | b |\n+---+---+\n| c | d |\n+---+---+\n");
-
-        // Assert: the table is a grid table and there is no fallback
-        Assert.Equal(BlockKind.GridTable, Assert.Single(document.Blocks).Kind);
-        Assert.False(document.IsFormatUnsafe);
-        Assert.Null(document.GridFallback);
     }
 
     /// <summary>

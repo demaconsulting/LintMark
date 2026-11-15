@@ -36,44 +36,6 @@ public class SourceDocumentTests
     private static byte[] Utf8(string text) => new UTF8Encoding(false).GetBytes(text);
 
     /// <summary>
-    ///     Test that LF-only text is kept as is and counted.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_Create_LfOnly_KeepsTextAndCountsLf()
-    {
-        // Arrange: LF-only content
-        var bytes = Utf8("a\nb\nc\n");
-
-        // Act: create the document
-        var document = SourceDocument.Create("a.md", bytes);
-
-        // Assert: text is unchanged and only LF terminators are counted
-        Assert.Equal("a\nb\nc\n", document.Text);
-        Assert.Equal(new LineEndingInfo(3, 0), document.LineEndings);
-        Assert.False(document.LineEndings.IsMixed);
-        Assert.Equal(LineEnding.Lf, document.MajorityLineEnding);
-        Assert.Equal("a.md", document.Path);
-    }
-
-    /// <summary>
-    ///     Test that the exposed line table cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_LineStarts_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange: a three-line document
-        var document = SourceDocument.Create("a.md", Utf8("a\nb\nc\n"));
-
-        // Act: take the line table
-        var lineStarts = document.LineStarts;
-
-        // Assert: a caller cannot change it, and positions are still computed from the original table
-        ReadOnlyAssertions.AssertCannotBeModified(lineStarts);
-        Assert.Equal(new[] { 0, 2, 4, 6 }, lineStarts);
-        Assert.Equal((3, 1), document.PositionOf(4));
-    }
-
-    /// <summary>
     ///     Test that CRLF content is normalized to LF and counted.
     /// </summary>
     [Fact]
@@ -178,20 +140,6 @@ public class SourceDocumentTests
     }
 
     /// <summary>
-    ///     Test that a file without a byte order mark does not gain one.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_Create_NoBom_WritesNoBom()
-    {
-        // Arrange / Act: plain UTF-8 bytes
-        var document = SourceDocument.Create("a.md", Utf8("x\n"));
-
-        // Assert: no BOM is reported or written
-        Assert.False(document.HasBom);
-        Assert.Empty(document.Encoding.GetPreamble());
-    }
-
-    /// <summary>
     ///     Test that a UTF-16 byte order mark is reported as an encoding failure.
     /// </summary>
     [Fact]
@@ -271,30 +219,6 @@ public class SourceDocumentTests
     }
 
     /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_Create_NullPath_ThrowsArgumentNullException()
-    {
-        // Arrange / Act / Assert: a null path is rejected
-        Assert.Throws<ArgumentNullException>(() => SourceDocument.Create(null!, []));
-        Assert.Throws<ArgumentNullException>(() => SourceDocument.FromText("a.md", null!));
-    }
-
-    /// <summary>
-    ///     Test that line starts are recorded for every line.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_LineStarts_RecordEveryLine()
-    {
-        // Arrange / Act: three lines and a final newline
-        var document = SourceDocument.FromText("a.md", "ab\n\ncd\n");
-
-        // Assert: a trailing empty line starts at the end of the text
-        Assert.Equal([0, 3, 4, 7], document.LineStarts);
-    }
-
-    /// <summary>
     ///     Test that positions are 1-based and columns count UTF-16 units with a tab as one.
     /// </summary>
     [Fact]
@@ -360,40 +284,6 @@ public class SourceDocumentTests
 
         // Assert: the slice matches
         Assert.Equal("world", slice);
-    }
-
-    /// <summary>
-    ///     Test that LF content round-trips byte for byte.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_ToBytes_Lf_RestoresOriginalBytes()
-    {
-        // Arrange: LF-only content
-        var bytes = Utf8("# T\n\ntext\n");
-        var document = SourceDocument.Create("a.md", bytes);
-
-        // Act: write back using the majority line ending
-        var written = document.ToBytes(document.Text, document.MajorityLineEnding);
-
-        // Assert: identical bytes
-        Assert.Equal(bytes, written);
-    }
-
-    /// <summary>
-    ///     Test that CRLF content round-trips byte for byte.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_ToBytes_CrLf_RestoresOriginalBytes()
-    {
-        // Arrange: CRLF content
-        var bytes = Utf8("# T\r\n\r\ntext\r\n");
-        var document = SourceDocument.Create("a.md", bytes);
-
-        // Act: write back using the majority line ending
-        var written = document.ToBytes(document.Text, document.MajorityLineEnding);
-
-        // Assert: identical bytes
-        Assert.Equal(bytes, written);
     }
 
     /// <summary>

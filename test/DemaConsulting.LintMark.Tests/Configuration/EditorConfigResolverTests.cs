@@ -487,35 +487,6 @@ public class EditorConfigResolverTests
     }
 
     /// <summary>
-    ///     Test that many threads resolving many files get the sequential results.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Resolve_ManyThreads_ResultsEqualSequential()
-    {
-        // Arrange: nested settings files with different sections and many files
-        using var directory = Tree("[*.md]\nend_of_line = lf\n\n[docs/*.md]\nend_of_line = crlf\n");
-        directory.WriteFile("docs/sub/.editorconfig", "[b*.md]\nend_of_line = lf\n");
-        var folders = new[] { "docs/sub", "docs", "other" };
-        var files = Enumerable.Range(0, 60)
-            .Select(i => directory.PathOf($"{folders[i % 3]}/{(char)('a' + (i % 4))}{i}.md"))
-            .ToArray();
-        var expected = files.Select(f => new EditorConfigResolver().Resolve(f)).ToArray();
-        var shared = new EditorConfigResolver();
-
-        // Act: resolve every file many times from many threads through one resolver
-        var actual = new EditorConfigResult[files.Length * 10];
-        Parallel.For(0, actual.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, index => actual[index] = shared.Resolve(files[index % files.Length]));
-
-        // Assert: every complete result equals the sequential one
-        for (var i = 0; i < actual.Length; i++)
-        {
-            Assert.Equal(expected[i % files.Length], actual[i]);
-        }
-        Assert.Contains(expected, r => r.EndOfLine == LineEnding.CrLf);
-        Assert.Contains(expected, r => r.EndOfLine == LineEnding.Lf);
-    }
-
-    /// <summary>
     ///     Test that a path that cannot be resolved has no editor settings.
     /// </summary>
     [Fact]

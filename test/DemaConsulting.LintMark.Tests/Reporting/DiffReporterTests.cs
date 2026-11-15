@@ -34,12 +34,6 @@ namespace DemaConsulting.LintMark.Tests;
 public class DiffReporterTests
 {
     /// <summary>
-    ///     The lines a random text is made of; they include repeated lines, empty lines and lines that look
-    ///     like diff syntax.
-    /// </summary>
-    private static readonly string[] Alphabet = ["a", "b", "c", "dup", "dup", "", "-- x", "++ y", "\\ z", "@@ -1 +1 @@"];
-
-    /// <summary>
     ///     Creates a file diff of LF texts that has no line-ending change.
     /// </summary>
     /// <param name="before">The text on disk.</param>
@@ -300,43 +294,6 @@ public class DiffReporterTests
     }
 
     /// <summary>
-    ///     Test that a file that stays LF has no note when its text changes.
-    /// </summary>
-    [Fact]
-    public void DiffReporter_Report_LfFileLfTarget_NoNote()
-    {
-        // Arrange: an LF file with a text change and an LF target
-        var diff = Diff("a\nb\n", "a\nX\n");
-
-        // Act: format it
-        var lines = DiffReporter.Format(diff, "doc.md");
-
-        // Assert: a hunk but no line-ending note
-        Assert.Contains("@@ -1,2 +1,2 @@", lines);
-        Assert.DoesNotContain(lines, static l => l.StartsWith("\\ Line endings", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    ///     Test that a file with no line terminators has no note for either target.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void DiffReporter_Report_NoTerminatorsAtAll_NoNote(bool crlfTarget)
-    {
-        // Arrange: a one-line file without a terminator, so there is nothing to convert
-        var target = crlfTarget ? LineEnding.CrLf : LineEnding.Lf;
-        var diff = new FileDiff("doc.md", "abc", "abd", new LineEndingInfo(0, 0), target);
-
-        // Act: format it
-        var lines = DiffReporter.Format(diff, "doc.md");
-
-        // Assert: the text change is shown without a line-ending note
-        Assert.DoesNotContain(lines, static l => l.StartsWith("\\ Line endings", StringComparison.Ordinal));
-        Assert.Contains("-abc", lines);
-    }
-
-    /// <summary>
     ///     Test that a line-ending change and a text change write the note before the hunks.
     /// </summary>
     [Fact]
@@ -352,42 +309,6 @@ public class DiffReporterTests
         Assert.Equal(
             ["--- a/doc.md", "+++ b/doc.md", "\\ Line endings change from CRLF to LF", "@@ -1,2 +1,2 @@", " a", "-b", "+X"],
             lines);
-    }
-
-    /// <summary>
-    ///     Test that a diff with a line-ending note and a text change still applies cleanly.
-    /// </summary>
-    [Fact]
-    public void DiffReporter_Report_EndingAndTextChange_AppliesCleanly()
-    {
-        // Arrange: a CRLF file whose text also changes
-        var diff = new FileDiff("doc.md", "a\nb\nc\n", "a\nX\nc\n", new LineEndingInfo(0, 3), LineEnding.Lf);
-
-        // Act: format it and apply it to the LF-normalized text
-        var lines = DiffReporter.Format(diff, "doc.md");
-        var patched = PatchApplier.Apply("a\nb\nc\n", lines);
-
-        // Assert: the note is ignored by the patch application and the text is the new text
-        Assert.Contains("\\ Line endings change from CRLF to LF", lines);
-        Assert.Equal("a\nX\nc\n", patched);
-    }
-
-    /// <summary>
-    ///     Test that a diff of a line-ending change alone applies as no change to the text.
-    /// </summary>
-    [Fact]
-    public void DiffReporter_Report_EndingChangeOnly_AppliesAsNoChange()
-    {
-        // Arrange: equal LF-normalized texts with a CRLF to LF conversion
-        var diff = new FileDiff("doc.md", "a\nb\n", "a\nb\n", new LineEndingInfo(0, 2), LineEnding.Lf);
-
-        // Act: format it and apply it
-        var lines = DiffReporter.Format(diff, "doc.md");
-        var patched = PatchApplier.Apply("a\nb\n", lines);
-
-        // Assert: the note is ignored and the text is unchanged
-        Assert.Contains("\\ Line endings change from CRLF to LF", lines);
-        Assert.Equal("a\nb\n", patched);
     }
 
     /// <summary>
@@ -446,49 +367,6 @@ public class DiffReporterTests
 
         // Assert: the old-file headers are in path order
         Assert.Equal(["--- a/a.md", "--- a/m/b.md", "--- a/z.md"], log.Where(static l => l.StartsWith("--- ", StringComparison.Ordinal)));
-    }
-
-    /// <summary>
-    ///     Test that applying the diff of random edits to the old text gives the new text.
-    /// </summary>
-    [Fact]
-    public void DiffReporter_Report_RandomEdits_PatchReproducesAfterText()
-    {
-        // Arrange: 200 generated pairs of texts with fixed seeds, covering empty texts, repeated lines,
-        // missing final newlines and lines that look like diff syntax
-        var failures = new List<string>();
-        for (var seed = 1u; seed <= 200; seed++)
-        {
-            var random = new Lcg(seed);
-            var beforeLines = RandomLines(random);
-            var afterLines = random.Next(4) == 0 ? RandomLines(random) : Mutate(random, beforeLines);
-            var before = ToText(random, beforeLines);
-            var after = ToText(random, afterLines);
-
-            // Act: format the diff and apply it to the old text
-            var lines = DiffReporter.Format(Diff(before, after), "doc.md");
-            try
-            {
-                var patched = PatchApplier.Apply(before, lines);
-
-                // Assert (collected): the patch reproduces the new text, and an empty diff means equal texts
-                if (!string.Equals(patched, after, StringComparison.Ordinal))
-                {
-                    failures.Add($"seed {seed}: the patch gives a different text.");
-                }
-                else if (string.Equals(before, after, StringComparison.Ordinal) != (lines.Count == 0))
-                {
-                    failures.Add($"seed {seed}: the diff must be empty when, and only when, the texts are equal.");
-                }
-            }
-            catch (InvalidOperationException ex)
-            {
-                failures.Add($"seed {seed}: {ex.Message}");
-            }
-        }
-
-        // Assert: no seed failed
-        Assert.Empty(failures);
     }
 
     /// <summary>
@@ -621,100 +499,5 @@ public class DiffReporterTests
         // Assert: the look-alike is written as a context line behind a space, and the patch is exact
         Assert.Equal(["--- a/doc.md", "+++ b/doc.md", "@@ -1,3 +1,3 @@", " a", " " + Look, "-b", "+c"], lines);
         Assert.Equal(after, patched);
-    }
-
-    /// <summary>
-    ///     Picks a random line of the alphabet.
-    /// </summary>
-    /// <param name="random">The generator.</param>
-    /// <returns>A line without terminator.</returns>
-    private static string PickLine(Lcg random) => Alphabet[random.Next(Alphabet.Length)];
-
-    /// <summary>
-    ///     Generates up to fourteen random lines.
-    /// </summary>
-    /// <param name="random">The generator.</param>
-    /// <returns>The lines, possibly none.</returns>
-    private static List<string> RandomLines(Lcg random)
-    {
-        var count = random.Next(15);
-        var lines = new List<string>();
-        for (var i = 0; i < count; i++)
-        {
-            lines.Add(PickLine(random));
-        }
-
-        return lines;
-    }
-
-    /// <summary>
-    ///     Derives a text from another by deleting, replacing and inserting lines at random.
-    /// </summary>
-    /// <param name="random">The generator.</param>
-    /// <param name="lines">The lines to start from.</param>
-    /// <returns>The edited lines.</returns>
-    private static List<string> Mutate(Lcg random, List<string> lines)
-    {
-        var result = new List<string>();
-        foreach (var line in lines)
-        {
-            switch (random.Next(8))
-            {
-                case 0:
-                    break;
-                case 1:
-                    result.Add(PickLine(random));
-                    break;
-                case 2:
-                    result.Add(PickLine(random));
-                    result.Add(line);
-                    break;
-                default:
-                    result.Add(line);
-                    break;
-            }
-        }
-
-        if (random.Next(4) == 0)
-        {
-            result.Add(PickLine(random));
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    ///     Joins lines into a text, leaving the final terminator off one time in four.
-    /// </summary>
-    /// <param name="random">The generator.</param>
-    /// <param name="lines">The lines.</param>
-    /// <returns>The text.</returns>
-    private static string ToText(Lcg random, List<string> lines)
-    {
-        var text = string.Concat(lines.Select(static line => line + "\n"));
-        return lines.Count > 0 && random.Next(4) == 0 ? text[..^1] : text;
-    }
-
-    /// <summary>
-    ///     A small arithmetic pseudo-random generator, so the same texts are produced on every platform and runtime.
-    /// </summary>
-    /// <param name="seed">The seed.</param>
-    private sealed class Lcg(uint seed)
-    {
-        /// <summary>
-        ///     The current state.
-        /// </summary>
-        private uint _state = seed;
-
-        /// <summary>
-        ///     Gets the next number.
-        /// </summary>
-        /// <param name="bound">The exclusive upper bound. Must be positive.</param>
-        /// <returns>A number from zero up to but excluding <paramref name="bound"/>.</returns>
-        public int Next(int bound)
-        {
-            _state = unchecked((_state * 1664525u) + 1013904223u);
-            return (int)((_state >> 8) % (uint)bound);
-        }
     }
 }

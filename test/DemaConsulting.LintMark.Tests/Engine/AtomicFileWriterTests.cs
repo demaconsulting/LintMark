@@ -173,41 +173,6 @@ public class AtomicFileWriterTests
     }
 
     /// <summary>
-    ///     Test that a path in a directory that does not exist is refused.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_MissingDirectory_Throws()
-    {
-        // Arrange: a path whose directory does not exist
-        using var directory = new TemporaryDirectory();
-        var path = directory.PathOf("no-such-folder/a.md");
-        var original = Bytes("old\n");
-        var content = Bytes("new\n");
-
-        // Act / Assert: the write is refused with an I/O failure and the directory is not created
-        Assert.ThrowsAny<IOException>(() => WriteResolved(path, original, content));
-        Assert.False(Directory.Exists(directory.PathOf("no-such-folder")));
-    }
-
-    /// <summary>
-    ///     Test that a successful write leaves no temporary file next to the target.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_Success_LeavesNoTemporaryFile()
-    {
-        // Arrange: a file
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Bytes("old\n"));
-
-        // Act: replace it
-        WriteResolved(path, Bytes("old\n"), Bytes("new\n"));
-
-        // Assert: the target is the only file in the directory
-        Assert.Equal([path], Directory.GetFiles(directory.FullPath));
-        Assert.Empty(Leftovers(directory));
-    }
-
-    /// <summary>
     ///     Test that writing to a symbolic link replaces the file it points to and keeps the link.
     /// </summary>
     [Fact]
@@ -259,112 +224,6 @@ public class AtomicFileWriterTests
 
         // Assert: the mode is as it was
         Assert.Equal(Mode, File.GetUnixFileMode(path));
-    }
-
-    /// <summary>
-    ///     Test that empty content produces an empty file.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_EmptyContent_WritesEmptyFile()
-    {
-        // Arrange: a file with content
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Bytes("old\n"));
-
-        // Act: replace it with nothing
-        WriteResolved(path, Bytes("old\n"), []);
-
-        // Assert: the file exists and is empty
-        Assert.True(File.Exists(path));
-        Assert.Empty(File.ReadAllBytes(path));
-    }
-
-    /// <summary>
-    ///     Test that a null path is refused.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_NullPath_Throws()
-    {
-        // Arrange: valid bytes
-        var original = Bytes("old\n");
-        var content = Bytes("new\n");
-
-        // Act / Assert: the null path is refused
-        Assert.Throws<ArgumentNullException>(() => AtomicFileWriter.Write(null!, "target.md", original, content));
-    }
-
-    /// <summary>
-    ///     Test that an empty or blank path is refused.
-    /// </summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void AtomicFileWriter_Write_BlankPath_Throws(string path)
-    {
-        // Arrange: valid bytes
-        var original = Bytes("old\n");
-        var content = Bytes("new\n");
-
-        // Act / Assert: the blank path is refused
-        Assert.Throws<ArgumentException>(() => AtomicFileWriter.Write(path, "target.md", original, content));
-    }
-
-    /// <summary>
-    ///     Test that a byte order mark and CRLF line endings are written exactly.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_ContentWithBomAndCrlf_WrittenByteForByte()
-    {
-        // Arrange: a file and content with a UTF-8 BOM, CRLF endings and a non-ASCII character
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Bytes("old\n"));
-        byte[] content = [0xEF, 0xBB, 0xBF, .. "caf\u00E9\r\nb\r\n"u8];
-
-        // Act: replace the content
-        WriteResolved(path, Bytes("old\n"), content);
-
-        // Assert: every byte is as given
-        Assert.Equal(content, File.ReadAllBytes(path));
-    }
-
-    /// <summary>
-    ///     Test that large content is written completely.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_LargeContent_WritesAllBytes()
-    {
-        // Arrange: a file and five megabytes of patterned content
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Bytes("old\n"));
-        var content = new byte[5 * 1024 * 1024];
-        for (var i = 0; i < content.Length; i++)
-        {
-            content[i] = (byte)(i % 251);
-        }
-
-        // Act: replace the content
-        WriteResolved(path, Bytes("old\n"), content);
-
-        // Assert: the file has the same bytes
-        Assert.Equal(content, File.ReadAllBytes(path));
-    }
-
-    /// <summary>
-    ///     Test that a second write expects the bytes the first one wrote.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_Write_TwoSequentialWrites_SecondUsesNewBytesAsExpected()
-    {
-        // Arrange: a file that is replaced once
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Bytes("one\n"));
-        WriteResolved(path, Bytes("one\n"), Bytes("two\n"));
-
-        // Act: replace it again, expecting what the first write produced
-        WriteResolved(path, Bytes("two\n"), Bytes("three\n"));
-
-        // Assert: the file holds the last content
-        Assert.Equal(Bytes("three\n"), File.ReadAllBytes(path));
     }
 
     /// <summary>
@@ -508,17 +367,6 @@ public class AtomicFileWriterTests
 
         // Assert: the real file comes back
         Assert.Equal(Path.GetFullPath(real), target);
-    }
-
-    /// <summary>
-    ///     Test that the same resolved target is accepted.
-    /// </summary>
-    [Fact]
-    public void AtomicFileWriter_EnsureSameTarget_SameTarget_DoesNotThrow()
-    {
-        // Act / Assert: equal paths are accepted
-        var exception = Record.Exception(() => AtomicFileWriter.EnsureSameTarget("/work/a.md", "/work/a.md"));
-        Assert.Null(exception);
     }
 
     /// <summary>

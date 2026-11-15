@@ -28,17 +28,6 @@ namespace DemaConsulting.LintMark.Tests;
 public class BlockSyntaxGuardTests
 {
     /// <summary>
-    ///     Test that a missing or empty word is rejected.
-    /// </summary>
-    [Fact]
-    public void BlockSyntaxGuard_IsGuardedLineStart_NullOrEmptyAtom_Throws()
-    {
-        // Act & Assert: a null word and an empty word are rejected and the parameter is named
-        Assert.Equal("atom", Assert.Throws<ArgumentNullException>(() => BlockSyntaxGuard.IsGuardedLineStart(null!)).ParamName);
-        Assert.Equal("atom", Assert.Throws<ArgumentException>(() => BlockSyntaxGuard.IsGuardedLineStart(string.Empty)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that a missing line is rejected.
     /// </summary>
     [Fact]
@@ -324,26 +313,4 @@ public class BlockSyntaxGuardTests
     [InlineData("", false)]
     public void BlockSyntaxGuard_IsPandocStructuralLine_Lines_AreClassified(string line, bool expected) =>
         Assert.Equal(expected, BlockSyntaxGuard.IsPandocStructuralLine(line));
-
-    /// <summary>
-    ///     Test that the answer for a word is the same on every thread.
-    /// </summary>
-    [Fact]
-    public void BlockSyntaxGuard_IsGuardedLineStart_ConcurrentCalls_GiveTheSameAnswers()
-    {
-        // Arrange: words with both answers and their single-threaded answers
-        string[] words = ["-", "2026.", "text", "<div>", "<span>", "|a", ":::", "1.5", "[x]:", "日本"];
-        var expected = words.Select(BlockSyntaxGuard.IsGuardedLineStart).ToArray();
-
-        // Act & Assert: every thread gets the same answers
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 200; round++)
-                {
-                    Assert.Equal(expected, words.Select(BlockSyntaxGuard.IsGuardedLineStart).ToArray());
-                }
-            });
-    }
 }

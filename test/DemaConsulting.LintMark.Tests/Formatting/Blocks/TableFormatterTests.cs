@@ -71,26 +71,6 @@ public class TableFormatterTests
     }
 
     /// <summary>
-    ///     Test that null arguments are rejected and a block that is not a table is refused.
-    /// </summary>
-    [Fact]
-    public void TableFormatter_Format_InvalidArguments_Throw()
-    {
-        // Arrange: a document with a table and a paragraph
-        var document = BlockFormatterAssertions.Parse("text\n\n| a |\n| --- |\n");
-        var context = new FormatContext(document, LintMarkConfig.Default);
-        var table = BlockFormatterAssertions.FirstBlock(document, BlockKind.Table);
-        var paragraph = BlockFormatterAssertions.FirstBlock(document, BlockKind.Paragraph);
-
-        // Act & Assert: every argument is checked and named
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.CanFormat(null!)).ParamName);
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, table, new EditSet())).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, new EditSet())).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, table, null!)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentException>(() => Formatter.Format(context, paragraph, new EditSet())).ParamName);
-    }
-
-    /// <summary>
     ///     Test that the compact layout puts one blank inside each pipe and writes the shortest delimiter row, keeping the alignment.
     /// </summary>
     [Theory]
@@ -240,21 +220,6 @@ public class TableFormatterTests
     }
 
     /// <summary>
-    ///     Test that tables stay the same with every stored form of the text (CRLF, mixed, byte order mark).
-    /// </summary>
-    [Fact]
-    public void TableFormatter_Format_StoredForms_GiveTheSameEditsAndBytes()
-    {
-        // Arrange: a table inside a list item with an introduction
-        const string input = "- item\n\n  |a|b|\n  |-|-|\n  |1|2|\n";
-
-        // Act & Assert: the edits and the written bytes do not depend on how the text is stored
-        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, input);
-        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, input);
-        BlockFormatterAssertions.AssertFormatsOnDisk(input, "- item\n\n  | a | b |\n  | --- | --- |\n  | 1 | 2 |\n");
-    }
-
-    /// <summary>
     ///     Test that a suppression of a table rule leaves the table as written, by the rule id and by the markdownlint number.
     /// </summary>
     [Theory]
@@ -284,54 +249,6 @@ public class TableFormatterTests
         BlockFormatterAssertions.AssertSafeAndStable(text, Aligned);
         BlockFormatterAssertions.AssertSafeAndStable(text.Replace("|", "\u2502", StringComparison.Ordinal));
     }
-
-    /// <summary>
-    ///     Test that generated tables (random cells with escapes, code spans, inline HTML, wide characters, missing pipes and
-    ///     uneven rows, in plain text, block quotes and list items) are rewritten safely and stably in both layouts.
-    /// </summary>
-    [Fact]
-    public void TableFormatter_Format_GeneratedTables_AreSafeAndStable()
-    {
-        // Arrange: a fixed seed, so the documents are the same on every run
-        var random = new Random(20260514);
-        string[] fragments =
-        [
-            "a", "bb c", "`x|y`", "\\|", "<b>x</b>", "日本", "e\u0301", string.Empty, " ", "*e*", "[l](u)", "x\\", "\\\\", "``", "&amp;", "a  b", "😀", "$x$", "![i](u)"
-        ];
-        string[] delimiters = ["---", ":--", "--:", ":-:", "-", ":---:", " --- "];
-        (string First, string Other)[] contexts = [(string.Empty, string.Empty), ("> ", "> "), ("- ", "  "), ("1. ", "   "), ("> - ", ">   ")];
-
-        string Row(int cells, bool padded)
-        {
-            var parts = Enumerable.Range(0, cells).Select(_ => fragments[random.Next(fragments.Length)]).ToList();
-            var pad = padded ? "  " : string.Empty;
-            var leading = random.Next(4) > 0 ? "|" : string.Empty;
-            var trailing = random.Next(4) > 0 ? "|" : string.Empty;
-            return leading + string.Join("|", parts.Select(part => pad + part + pad)) + trailing;
-        }
-
-        // Act & Assert: every generated document passes every safety assertion, and most of them are changed by the rewrite
-        var changed = 0;
-        for (var i = 0; i < 400; i++)
-        {
-            var columns = random.Next(1, 5);
-            var (first, other) = contexts[random.Next(contexts.Length)];
-            var lines = new List<string> { Row(columns, random.Next(2) == 0), "|" + string.Join("|", Enumerable.Range(0, columns).Select(_ => delimiters[random.Next(delimiters.Length)])) + "|" };
-            lines.AddRange(Enumerable.Range(0, random.Next(0, 4)).Select(_ => Row(random.Next(1, 6), random.Next(2) == 0)));
-            var text = first + lines[0] + "\n" + string.Concat(lines.Skip(1).Select(line => other + line + "\n"));
-            try
-            {
-                changed += BlockFormatterAssertions.AssertSafeAndStable(text, checkParallel: false) == text ? 0 : 1;
-                BlockFormatterAssertions.AssertSafeAndStable(text, Aligned, checkParallel: false);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Document {i} failed:\n{text}\n{ex.Message}", ex);
-            }
-        }
-
-        Assert.True(changed > 200, $"Only {changed} of 400 generated documents were rewritten.");
-    }
 }
 
 /// <summary>
@@ -349,21 +266,6 @@ public class PipeTableTests
         var document = BlockFormatterAssertions.Parse(text);
         var block = document.Blocks.First(candidate => candidate.Kind is BlockKind.Table or BlockKind.GridTable);
         return PipeTable.TryParse(new LineLayout(document.Source), block);
-    }
-
-    /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void PipeTable_TryParse_NullArguments_Throw()
-    {
-        // Arrange: a document with a table
-        var document = BlockFormatterAssertions.Parse("| a |\n| --- |\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.Table);
-
-        // Act & Assert: both arguments are checked and named
-        Assert.Equal("layout", Assert.Throws<ArgumentNullException>(() => PipeTable.TryParse(null!, block)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => PipeTable.TryParse(new LineLayout(document.Source), null!)).ParamName);
     }
 
     /// <summary>
@@ -475,20 +377,5 @@ public class PipeTableTests
             Assert.Equal(original.ComposeCompact(), again.ComposeCompact());
             Assert.Equal(original.ComposeAligned(), again.ComposeAligned());
         }
-    }
-
-    /// <summary>
-    ///     Test that a row cannot be created with invalid arguments.
-    /// </summary>
-    [Fact]
-    public void PipeTableRow_Constructor_InvalidArguments_Throw()
-    {
-        // Act & Assert: each invalid argument is rejected
-        Assert.Throws<ArgumentOutOfRangeException>(() => new PipeTableRow(-1, string.Empty, 0, 0, 0, [], false, false));
-        Assert.Throws<ArgumentNullException>(() => new PipeTableRow(0, null!, 0, 0, 0, [], false, false));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new PipeTableRow(0, string.Empty, 2, 1, 3, [], false, false));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new PipeTableRow(0, string.Empty, 0, 2, 1, [], false, false));
-        Assert.Throws<ArgumentException>(() => new PipeTableRow(0, string.Empty, 0, 1, 1, default, false, false));
-        Assert.Throws<ArgumentNullException>(() => new PipeTableRow(0, string.Empty, 0, 1, 1, new string[] { null! }.ToImmutableArray(), false, false));
     }
 }

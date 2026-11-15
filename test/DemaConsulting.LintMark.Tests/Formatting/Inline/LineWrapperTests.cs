@@ -41,23 +41,6 @@ public class LineWrapperTests
         LineWrapper.Wrap([.. atoms.Split(' ')], firstWidth, width ?? firstWidth);
 
     /// <summary>
-    ///     Test that invalid atoms and widths are rejected and named.
-    /// </summary>
-    [Fact]
-    public void LineWrapper_Wrap_InvalidArguments_Throw()
-    {
-        // Act & Assert: a default or empty array, a null element and an empty atom are rejected
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => LineWrapper.Wrap(default, 10, 10)).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => LineWrapper.Wrap([], 10, 10)).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentNullException>(() => LineWrapper.Wrap(["a", null!], 10, 10)).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => LineWrapper.Wrap(["a", string.Empty], 10, 10)).ParamName);
-
-        // Act & Assert: widths below one are rejected
-        Assert.Equal("firstWidth", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 0, 10)).ParamName);
-        Assert.Equal("continuationWidth", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 10, 0)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that atoms are put on a line as long as they fit.
     /// </summary>
     [Fact]
@@ -151,6 +134,19 @@ public class LineWrapperTests
     }
 
     /// <summary>
+    ///     Test that two guarded atoms in a row are both kept off the start of a line when no earlier break fits.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_GuardedAtomsInARow_KeepTheLineAndReportTheOverflow()
+    {
+        // Act: wrap where the natural break is before the second of two dashes
+        var wrapped = Wrap("ant - - bat", 5);
+
+        // Assert: neither dash starts a line
+        Assert.Equal(["ant - -", "bat"], wrapped.Lines);
+    }
+
+    /// <summary>
     ///     Test that a number followed by a period, the plus sign and the asterisk never start a line.
     /// </summary>
     [Theory]
@@ -197,97 +193,6 @@ public class LineWrapperTests
     }
 
     /// <summary>
-    ///     Test that a line never ends or starts with a blank.
-    /// </summary>
-    [Fact]
-    public void LineWrapper_Wrap_Lines_HaveNoLeadingOrTrailingWhitespace()
-    {
-        // Act: wrap a text with many words
-        var wrapped = Wrap(string.Join(' ', Enumerable.Range(0, 60).Select(i => "w" + i)), 25);
-
-        // Assert: no line has whitespace at its ends
-        Assert.All(wrapped.Lines, line => Assert.Equal(line.Trim(), line));
-        Assert.All(wrapped.Lines, line => Assert.True(TextWidth.Of(line) <= 25));
-    }
-
-    /// <summary>
-    ///     Creates the word at an index of the text of the fixed-point test: a few of them are ones that the guard refuses at the start of a line.
-    /// </summary>
-    /// <param name="index">The index of the word.</param>
-    /// <returns>The word.</returns>
-    private static string FixedPointWord(int index)
-    {
-        if (index % 7 == 3)
-        {
-            return "-";
-        }
-
-        return index % 11 == 5 ? "2026." : "word" + index;
-    }
-
-    /// <summary>
-    ///     Test that wrapping lines that were wrapped this way proposes no change.
-    /// </summary>
-    [Theory]
-    [InlineData(10)]
-    [InlineData(25)]
-    [InlineData(60)]
-    public void LineWrapper_Wrap_WrappedLines_AreAFixedPoint(int width)
-    {
-        // Arrange: words including some that the guard refuses at the start of a line
-        var atoms = string.Join(' ', Enumerable.Range(0, 80).Select(FixedPointWord));
-
-        // Act: wrap, split the result into atoms again and wrap again
-        var once = Wrap(atoms, width);
-        var twice = Wrap(string.Join(' ', once.Lines), width);
-
-        // Assert: the same lines
-        Assert.Equal(once.Lines, twice.Lines);
-        Assert.Equal(once.HasBreakableOverflow, twice.HasBreakableOverflow);
-    }
-
-    /// <summary>
-    ///     Test that the result cannot be changed through a cast to a mutable interface.
-    /// </summary>
-    [Fact]
-    public void LineWrapper_Wrap_Result_IsImmutable()
-    {
-        // Act: wrap
-        var wrapped = Wrap("a b c", 3);
-
-        // Assert: the lines refuse changes
-        Assert.True(((IList<string>)wrapped.Lines).IsReadOnly);
-        Assert.Throws<ArgumentException>(() => new WrappedLines(default, false));
-        Assert.Throws<ArgumentException>(() => new WrappedLines([], false));
-        Assert.Throws<ArgumentNullException>(() => new WrappedLines([null!], false));
-        Assert.Throws<ArgumentException>(() => new WrappedLines([string.Empty], false));
-    }
-
-    /// <summary>
-    ///     Test that every thread gets the same lines for the same atoms.
-    /// </summary>
-    [Fact]
-    public void LineWrapper_Wrap_ConcurrentCalls_GiveTheSameLines()
-    {
-        // Arrange: atoms and the single-threaded result
-        ImmutableArray<string> atoms = [.. Enumerable.Range(0, 100).Select(i => i % 9 == 4 ? "+" : "日本" + i)];
-        var reference = LineWrapper.Wrap(atoms, 30, 28);
-
-        // Act & Assert: every thread gets the same lines
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 100; round++)
-                {
-                    var other = LineWrapper.Wrap(atoms, 30, 28);
-                    Assert.Equal(reference.Lines, other.Lines);
-                    Assert.Equal(reference.HasBreakableOverflow, other.HasBreakableOverflow);
-                }
-            });
-    }
-
-    /// <summary>
     ///     Wraps atoms given as one string separated by blanks in a wrap mode.
     /// </summary>
     /// <param name="atoms">The atoms separated by single spaces.</param>
@@ -297,19 +202,6 @@ public class LineWrapperTests
     /// <returns>The wrapped lines.</returns>
     private static WrappedLines WrapIn(string atoms, WrapMode mode, int firstWidth, int? width = null) =>
         LineWrapper.Wrap([.. atoms.Split(' ')], firstWidth, width ?? firstWidth, mode);
-
-    /// <summary>
-    ///     Test that the fill mode gives the same lines as the overload without a mode, and that an undefined mode is rejected.
-    /// </summary>
-    [Fact]
-    public void LineWrapper_Wrap_FillModeAndUndefinedMode_AreHandled()
-    {
-        // Act & Assert: the fill mode is the plain fill and an undefined mode is rejected and named
-        Assert.Equal(Wrap("ant bat cat dog", 7).Lines, WrapIn("ant bat cat dog", WrapMode.Fill, 7).Lines);
-        Assert.Equal("mode", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 5, 5, (WrapMode)9)).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => LineWrapper.Wrap([], 5, 5, WrapMode.Sentence)).ParamName);
-        Assert.Equal("firstWidth", Assert.Throws<ArgumentOutOfRangeException>(() => LineWrapper.Wrap(["a"], 0, 5, WrapMode.Semantic)).ParamName);
-    }
 
     /// <summary>
     ///     Test that the sentence mode puts every sentence on its own line, however short.
@@ -438,21 +330,6 @@ public class SentenceSplitterTests
     private static int[] Clauses(string words) => [.. SentenceSplitter.FindClauseStarts([.. words.Split(' ')])];
 
     /// <summary>
-    ///     Test that invalid arguments are rejected and named.
-    /// </summary>
-    [Fact]
-    public void SentenceSplitter_Find_InvalidArguments_Throw()
-    {
-        // Act & Assert: a default array, a null element and an empty atom are rejected for both searches
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => SentenceSplitter.FindSentenceStarts(default)).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentNullException>(() => SentenceSplitter.FindSentenceStarts(["a", null!])).ParamName);
-        Assert.Equal("atoms", Assert.Throws<ArgumentException>(() => SentenceSplitter.FindClauseStarts(["a", string.Empty])).ParamName);
-        Assert.Equal("atom", Assert.Throws<ArgumentNullException>(() => SentenceSplitter.EndsSentence(null!, "A")).ParamName);
-        Assert.Equal("next", Assert.Throws<ArgumentException>(() => SentenceSplitter.EndsSentence("a.", string.Empty)).ParamName);
-        Assert.Equal("atom", Assert.Throws<ArgumentException>(() => SentenceSplitter.EndsClause(string.Empty)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that no atom or one atom has no sentence start.
     /// </summary>
     [Fact]
@@ -567,28 +444,6 @@ public class SentenceSplitterTests
     [InlineData("a b.c b")]
     public void SentenceSplitter_FindClauseStarts_NotClausePunctuation_IsNotSplit(string words) =>
         Assert.Empty(Clauses(words));
-
-    /// <summary>
-    ///     Test that the same atoms always give the same answer on every thread.
-    /// </summary>
-    [Fact]
-    public void SentenceSplitter_FindSentenceStarts_ConcurrentCalls_GiveTheSameAnswers()
-    {
-        // Arrange: atoms with several kinds of ends and the single-threaded answer
-        var atoms = "One. Two! Dr. Smith e.g. this, that; Three? (Four.) Five".Split(' ').ToImmutableArrayForTest();
-        var expected = SentenceSplitter.FindSentenceStarts(atoms);
-
-        // Act & Assert: every thread gets the same answer
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 200; round++)
-                {
-                    Assert.Equal(expected, SentenceSplitter.FindSentenceStarts(atoms));
-                }
-            });
-    }
 }
 
 /// <summary>

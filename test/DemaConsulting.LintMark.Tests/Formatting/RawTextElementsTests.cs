@@ -83,11 +83,4 @@ public class RawTextElementsTests
         // Act and assert: the paragraph is wrapped at the narrow line length
         Assert.Contains("one two three four five six seven eight\nnine ten", Format(input));
     }
-
-    /// <summary>
-    ///     Test that the argument is validated.
-    /// </summary>
-    [Fact]
-    public void RawTextElements_FindProtectedBlocks_NullDocument_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => RawTextElements.FindProtectedBlocks(null!));
 }

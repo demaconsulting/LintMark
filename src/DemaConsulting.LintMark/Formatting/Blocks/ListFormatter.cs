@@ -92,10 +92,6 @@ internal sealed class ListFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be an outermost list, not {block.Kind}.", nameof(block));
-        }
 
         // A nest whose shape is not what the parser promised is left exactly as written
         if (ListModel.Build(context, block) is { } model)

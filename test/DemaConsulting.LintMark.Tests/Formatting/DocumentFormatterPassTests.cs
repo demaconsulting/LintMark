@@ -38,6 +38,16 @@ public class DocumentFormatterPassTests
     /// <param name="expected">The expected output.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
     private static void AssertPasses(string input, string expected, LintMarkConfig? config = null) =>
+        BlockFormatterAssertions.AssertFormats(input, expected, config, new DocumentFormatter());
+
+    /// <summary>
+    ///     Asserts that a formatter without block formatters turns the input into the expected text, and that the result renders the same,
+    ///     keeps its structure and is stable.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <param name="expected">The expected output.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    private static void AssertPassesSafely(string input, string expected, LintMarkConfig? config = null) =>
         Assert.Equal(expected, BlockFormatterAssertions.AssertSafeAndStable(input, config, new DocumentFormatter()));
 
     /// <summary>
@@ -251,7 +261,7 @@ public class DocumentFormatterPassTests
     [InlineData("+ t\n+\n\n\n+ v\n", "+ t\n+\n\n\n+ v\n")]
     [InlineData("* t\n*\n\n\n* v\n", "* t\n*\n\n\n* v\n")]
     public void DocumentFormatter_Format_BlankRunAfterEmptyListItem_IsKept(string input, string expected) =>
-        AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+        AssertPassesSafely(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that blank lines after a line that only looks like an empty item are still shortened.
@@ -265,7 +275,7 @@ public class DocumentFormatterPassTests
     [InlineData("a\n\n* * *\n\n\n\nb\n", "a\n\n* * *\n\nb\n")]
     [InlineData("* - - -\n\n\n\n- a\n", "* - - -\n\n- a\n")]
     public void DocumentFormatter_Format_BlankRunAfterNonItemLine_IsShortened(string input, string expected) =>
-        AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+        AssertPassesSafely(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that a thematic break written with markers in a list item is not taken for an empty item: its blank lines are
@@ -273,7 +283,7 @@ public class DocumentFormatterPassTests
     /// </summary>
     [Fact]
     public void DocumentFormatter_Format_BlankRunAfterThematicBreakInItem_SettlesInOneRun() =>
-        BlockFormatterAssertions.AssertFormats("* - - -\n\n\n\n- a\n", "* ---\n\n- a\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
+        BlockFormatterAssertions.AssertFormatsSafely("* - - -\n\n\n\n- a\n", "* ---\n\n- a\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that blank lines next to a paragraph or list that holds a line shaped like the border of a grid table are neither
@@ -283,7 +293,7 @@ public class DocumentFormatterPassTests
     [InlineData("   + ---\n       +    text\n\n\n   2. - z\n")]
     [InlineData("+ +   ---\n     +  x\n ===\n")]
     public void DocumentFormatter_Format_BorderShapedLineInParagraphOrList_KeepsTheBlankLines(string input) =>
-        BlockFormatterAssertions.AssertFormats(input, input, LintMarkConfig.Default with { MaxBlankLines = 1 });
+        BlockFormatterAssertions.AssertFormatsSafely(input, input, LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that a run of blank lines inside an item whose marker line is empty is kept (the parser ends the list at two blank
@@ -291,7 +301,7 @@ public class DocumentFormatterPassTests
     /// </summary>
     [Fact]
     public void DocumentFormatter_Format_BlankRunInItemWithEmptyMarkerLine_IsKept() =>
-        AssertPasses("  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", "  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
+        AssertPassesSafely("  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", "  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that no blank line is inserted at the blank line before a paragraph that the parser reports as starting there (a
@@ -299,7 +309,7 @@ public class DocumentFormatterPassTests
     /// </summary>
     [Fact]
     public void DocumentFormatter_Format_ParagraphReportedToStartAtABlankLine_GetsNoBlankLine() =>
-        AssertPasses("   + [x]: /u\n\n   +---+\n", "   + [x]: /u\n\n   +---+\n");
+        AssertPassesSafely("   + [x]: /u\n\n   +---+\n", "   + [x]: /u\n\n   +---+\n");
 
     /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.

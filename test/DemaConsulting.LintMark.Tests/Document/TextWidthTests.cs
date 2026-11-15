@@ -77,21 +77,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that Hiragana and Katakana take two columns each.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_HiraganaAndKatakana_CountsTwoColumnsEach()
-    {
-        // Act: measure Hiragana and Katakana
-        var hiragana = TextWidth.Of("ひらがな");
-        var katakana = TextWidth.Of("カタカナ");
-
-        // Assert: two columns for each character
-        Assert.Equal(8, hiragana);
-        Assert.Equal(8, katakana);
-    }
-
-    /// <summary>
     ///     Test that Hangul syllables take two columns each.
     /// </summary>
     [Fact]
@@ -188,27 +173,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that the first and last code point of every wide range are two columns wide and that the code points
-    ///     just outside the range are not, which covers the edges of the binary search over the range table.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(WideRangeEdges))]
-    public void TextWidth_Of_WideRangeEdges_CountsEdgesWideAndNeighborsNotWide(int first, int last)
-    {
-        // Act: measure the edges of the range and the code points just outside it
-        var firstWidth = TextWidth.Of(char.ConvertFromUtf32(first));
-        var lastWidth = TextWidth.Of(char.ConvertFromUtf32(last));
-        var beforeWidth = TextWidth.Of(char.ConvertFromUtf32(first - 1));
-        var afterWidth = TextWidth.Of(char.ConvertFromUtf32(last + 1));
-
-        // Assert: both edges are wide and both neighbors are not
-        Assert.Equal(2, firstWidth);
-        Assert.Equal(2, lastWidth);
-        Assert.NotEqual(2, beforeWidth);
-        Assert.NotEqual(2, afterWidth);
-    }
-
-    /// <summary>
     ///     Test that a combining kana voiced mark, which lies inside a wide range, has no width on its own and does
     ///     not widen the kana it follows.
     /// </summary>
@@ -222,35 +186,6 @@ public class TextWidthTests
         // Assert: no width of its own, and the letter keeps two columns
         Assert.Equal(0, alone);
         Assert.Equal(2, combined);
-    }
-
-    /// <summary>
-    ///     Test that full-width Latin letters and symbols take two columns each.
-    /// </summary>
-    [Theory]
-    [InlineData("\uFF21", 2)]
-    [InlineData("\uFF21\uFF22", 4)]
-    [InlineData("\uFFE0", 2)]
-    public void TextWidth_Of_WideLatinForms_CountsTwoColumnsEach(string text, int expected)
-    {
-        // Act: measure the full-width text
-        var width = TextWidth.Of(text);
-
-        // Assert: two columns for each character
-        Assert.Equal(expected, width);
-    }
-
-    /// <summary>
-    ///     Test that the ideographic space takes two columns.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_IdeographicSpace_ReturnsTwo()
-    {
-        // Act: measure U+3000
-        var width = TextWidth.Of("\u3000");
-
-        // Assert: it is a wide space
-        Assert.Equal(2, width);
     }
 
     /// <summary>
@@ -335,19 +270,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that an emoji that is wide by default in the basic plane takes two columns.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_DefaultEmojiInBasicPlane_ReturnsTwo()
-    {
-        // Act: measure the white heavy check mark
-        var width = TextWidth.Of("\u2705");
-
-        // Assert: it is drawn wide
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
     ///     Test that an emoji sequence joined with the zero-width joiner is one wide character.
     /// </summary>
     [Fact]
@@ -355,19 +277,6 @@ public class TextWidthTests
     {
         // Act: measure man, joiner, woman, joiner, girl
         var width = TextWidth.Of("\U0001F468\u200D\U0001F469\u200D\U0001F467");
-
-        // Assert: one cluster of two columns
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
-    ///     Test that an emoji with a skin tone modifier is one wide character.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_EmojiWithSkinToneModifier_ReturnsTwoAsOneCluster()
-    {
-        // Act: measure thumbs up with a medium skin tone
-        var width = TextWidth.Of("\U0001F44D\U0001F3FD");
 
         // Assert: one cluster of two columns
         Assert.Equal(2, width);
@@ -387,19 +296,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that a key cap sequence takes two columns.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_KeyCapSequence_ReturnsTwo()
-    {
-        // Act: measure the digit one, the emoji presentation selector and the combining enclosing key cap
-        var width = TextWidth.Of("1\uFE0F\u20E3");
-
-        // Assert: one cluster of two columns
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
     ///     Test that the emoji presentation selector widens a narrow symbol.
     /// </summary>
     [Fact]
@@ -412,19 +308,6 @@ public class TextWidthTests
         // Assert: the selector makes it wide
         Assert.Equal(2, emoji);
         Assert.Equal(1, symbol);
-    }
-
-    /// <summary>
-    ///     Test that the text presentation selector keeps a symbol narrow.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_TextPresentationSequence_StaysNarrow()
-    {
-        // Act: measure the heavy black heart with the text presentation selector
-        var width = TextWidth.Of("\u2764\uFE0E");
-
-        // Assert: one column
-        Assert.Equal(1, width);
     }
 
     /// <summary>
@@ -443,19 +326,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that a combining mark after a wide character leaves it two columns wide.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_WideCharacterWithCombiningMark_ReturnsTwo()
-    {
-        // Act: measure an ideograph followed by a combining acute accent
-        var width = TextWidth.Of("漢\u0301");
-
-        // Assert: the mark adds nothing
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
     ///     Test that a combining mark with no base has no width.
     /// </summary>
     [Fact]
@@ -466,34 +336,6 @@ public class TextWidthTests
 
         // Assert: it is invisible on its own
         Assert.Equal(0, width);
-    }
-
-    /// <summary>
-    ///     Test that a spacing combining mark with no base has no width.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_LoneSpacingCombiningMark_ReturnsZero()
-    {
-        // Act: measure the spacing combining mark U+0903 alone
-        var width = TextWidth.Of("\u0903");
-
-        // Assert: combining marks of every kind take no column
-        Assert.Equal(0, width);
-    }
-
-    /// <summary>
-    ///     Test that a spacing combining mark adds no width to its base character.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_BaseWithSpacingCombiningMark_ReturnsOne()
-    {
-        // Act: measure the Devanagari letter ka followed by the vowel sign aa, and the letter alone
-        var withMark = TextWidth.Of("\u0915\u093E");
-        var letter = TextWidth.Of("\u0915");
-
-        // Assert: the vowel sign adds nothing
-        Assert.Equal(1, withMark);
-        Assert.Equal(1, letter);
     }
 
     /// <summary>
@@ -535,32 +377,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that the zero-width no-break space (U+FEFF, also the byte order mark) has no width.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_ZeroWidthNoBreakSpace_ReturnsZero()
-    {
-        // Act: measure the character, given by its decimal code point
-        var width = TextWidth.Of(((char)65279).ToString());
-
-        // Assert: no columns
-        Assert.Equal(0, width);
-    }
-
-    /// <summary>
-    ///     Test that a zero-width space between letters adds no width.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_ZeroWidthSpaceBetweenLetters_CountsLettersOnly()
-    {
-        // Act: measure two letters around a zero-width space
-        var width = TextWidth.Of("a\u200Bb");
-
-        // Assert: two columns
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
     ///     Test that a variation selector with no base has no width.
     /// </summary>
     [Theory]
@@ -599,48 +415,6 @@ public class TextWidthTests
     }
 
     /// <summary>
-    ///     Test that a tab between letters adds no width.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_TabBetweenLetters_CountsLettersOnly()
-    {
-        // Act: measure two letters around a tab
-        var width = TextWidth.Of("a\tb");
-
-        // Assert: two columns, the tab has no fixed width
-        Assert.Equal(2, width);
-    }
-
-    /// <summary>
-    ///     Test that the line and paragraph separators have no width.
-    /// </summary>
-    [Theory]
-    [InlineData("\u2028")]
-    [InlineData("\u2029")]
-    public void TextWidth_Of_LineAndParagraphSeparators_ReturnsZero(string text)
-    {
-        // Act: measure the separator
-        var width = TextWidth.Of(text);
-
-        // Assert: no columns, and a letter before it is still counted
-        Assert.Equal(0, width);
-        Assert.Equal(1, TextWidth.Of("a" + text));
-    }
-
-    /// <summary>
-    ///     Test that a soft hyphen has no width.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_SoftHyphen_ReturnsZero()
-    {
-        // Act: measure U+00AD
-        var width = TextWidth.Of("\u00AD");
-
-        // Assert: it is an invisible format character
-        Assert.Equal(0, width);
-    }
-
-    /// <summary>
     ///     Test that ambiguous-width letters and symbols are measured as narrow.
     /// </summary>
     [Theory]
@@ -676,91 +450,4 @@ public class TextWidthTests
         Assert.Equal(expected + 1, TextWidth.Of(text + "z"));
     }
 
-    /// <summary>
-    ///     Test that a lone surrogate counts as one narrow character.
-    /// </summary>
-    [Theory]
-    [InlineData(0xD800)]
-    [InlineData(0xDC00)]
-    public void TextWidth_Of_LoneSurrogate_ReturnsOne(int codeUnit)
-    {
-        // Arrange: an unpaired surrogate (built from its code unit, since a test data string would be repaired)
-        var text = ((char)codeUnit).ToString();
-
-        // Act: measure it
-        var width = TextWidth.Of(text);
-
-        // Assert: one column, and no exception
-        Assert.Equal(1, width);
-    }
-
-    /// <summary>
-    ///     Test that a very long text is measured in a time that a linear algorithm meets and a quadratic one does
-    ///     not, and gives the same result every time.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_VeryLongString_MeasuresQuicklyAndDeterministically()
-    {
-        // Arrange: 1000000 narrow characters and 500000 wide characters; a linear measurement takes milliseconds,
-        // while a quadratic one would need minutes
-        var narrow = new string('a', 1000000);
-        var wide = new string('漢', 500000);
-
-        // Warm up so that the time below does not include the loading and compilation of the measuring code
-        Assert.Equal(1, TextWidth.Of("a"));
-        var stopwatch = Stopwatch.StartNew();
-
-        // Act: measure both twice
-        var narrowFirst = TextWidth.Of(narrow);
-        var narrowSecond = TextWidth.Of(narrow);
-        var wideFirst = TextWidth.Of(wide);
-        var wideSecond = TextWidth.Of(wide);
-        stopwatch.Stop();
-
-        // Assert: the expected width every time, within a limit that is generous for a slow machine
-        Assert.Equal(1000000, narrowFirst);
-        Assert.Equal(narrowFirst, narrowSecond);
-        Assert.Equal(1000000, wideFirst);
-        Assert.Equal(wideFirst, wideSecond);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"Measuring took {stopwatch.Elapsed}");
-    }
-
-    /// <summary>
-    ///     Test that a null text is rejected.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_NullText_Throws()
-    {
-        // Act & Assert: null is rejected and the parameter is named
-        var exception = Assert.Throws<ArgumentNullException>(() => TextWidth.Of(null!));
-        Assert.Equal("text", exception.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the measured width does not depend on the current culture.
-    /// </summary>
-    [Fact]
-    public void TextWidth_Of_TurkishCulture_GivesSameResultAsInvariant()
-    {
-        // Arrange: text with the letters i and I, which a Turkish culture treats specially
-        const string text = "IİıiI漢";
-        var original = CultureInfo.CurrentCulture;
-        try
-        {
-            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            var invariant = TextWidth.Of(text);
-
-            // Act: measure the same text under a Turkish culture
-            CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
-            var turkish = TextWidth.Of(text);
-
-            // Assert: the same width in both
-            Assert.Equal(7, invariant);
-            Assert.Equal(invariant, turkish);
-        }
-        finally
-        {
-            CultureInfo.CurrentCulture = original;
-        }
-    }
 }

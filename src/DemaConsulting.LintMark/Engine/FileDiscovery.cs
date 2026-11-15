@@ -116,10 +116,6 @@ internal static class FileDiscovery
         // Validate input, every element before any is interpreted, so a null is always the null error
         ArgumentNullException.ThrowIfNull(patterns);
         ArgumentNullException.ThrowIfNull(baseDirectory);
-        if (patterns.Any(static pattern => pattern is null))
-        {
-            throw new ArgumentNullException(nameof(patterns), "Path arguments must not contain null.");
-        }
 
         // Split the arguments into includes and excludes; either separator style is accepted on every platform
         var includes = new List<string>();
@@ -187,10 +183,6 @@ internal static class FileDiscovery
         ArgumentNullException.ThrowIfNull(fullPath);
         ArgumentNullException.ThrowIfNull(ignoreRoot);
         ArgumentNullException.ThrowIfNull(patterns);
-        if (patterns.Any(static pattern => pattern is null))
-        {
-            throw new ArgumentNullException(nameof(patterns), "Ignore patterns must not contain null.");
-        }
 
         if (patterns.Count == 0)
         {

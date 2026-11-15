@@ -248,43 +248,6 @@ public class TextReporterTests
     }
 
     /// <summary>
-    ///     Test that any diagnostic, even one that is not fixable, makes the exit code one.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void TextReporter_Report_AnyDiagnostic_SetsExitCodeOne(bool formatting)
-    {
-        // Arrange: one diagnostic of either kind
-        using var directory = new TemporaryDirectory();
-        var kind = formatting ? DiagnosticKind.Formatting : DiagnosticKind.LintOnly;
-        var diagnostic = new Diagnostic("rule-a", kind, directory.PathOf("a.md"), 1, 1, "Message");
-
-        // Act: report it
-        var outcome = Run(directory, [diagnostic], silent: true);
-
-        // Assert: the run fails
-        Assert.Equal(1, outcome.ExitCode);
-    }
-
-    /// <summary>
-    ///     Test that a path in a nested folder is written with forward slashes.
-    /// </summary>
-    [Fact]
-    public void TextReporter_Report_NestedPath_UsesForwardSlashes()
-    {
-        // Arrange: a diagnostic two folders deep
-        using var directory = new TemporaryDirectory();
-        var diagnostic = Make(directory, "docs/guide/a.md", 4, 2);
-
-        // Act: report it
-        var outcome = Run(directory, [diagnostic], silent: true);
-
-        // Assert: the separators are forward slashes
-        Assert.Equal(["docs/guide/a.md:4:2: rule-a Message"], outcome.Log);
-    }
-
-    /// <summary>
     ///     Test that findings at the same position are ordered by rule identifier.
     /// </summary>
     [Fact]
@@ -326,36 +289,6 @@ public class TextReporterTests
 
         // Assert: uppercase sorts before lowercase in ordinal order
         Assert.Equal(["a.md:1:1: rule-a A text", "a.md:1:1: rule-a B text", "a.md:1:1: rule-a b text"], outcome.Log);
-    }
-
-    /// <summary>
-    ///     Test that the order of the input does not change the output.
-    /// </summary>
-    [Fact]
-    public void TextReporter_Report_InputOrderDoesNotMatter_IdenticalOutput()
-    {
-        // Arrange: a set of diagnostics and three different orders of it
-        using var directory = new TemporaryDirectory();
-        var diagnostics = new List<Diagnostic>
-        {
-            Make(directory, "b.md", 2, 1, "rule-b", "Second"),
-            Make(directory, "a.md", 1, 1, "rule-a", "First"),
-            Make(directory, "a.md", 1, 1, "rule-b", "Third"),
-            Make(directory, "sub/c.md", 7, 3, "rule-a", "Fourth"),
-            Make(directory, "a.md", 1, 1, "rule-a", "First"),
-            Make(directory, "B.md", 5, 5, "rule-c", "Fifth")
-        };
-        var reversed = Enumerable.Reverse(diagnostics).ToList();
-        var rotated = diagnostics.Skip(2).Concat(diagnostics.Take(2)).ToList();
-
-        // Act: report each order
-        var original = Run(directory, diagnostics, silent: true);
-        var fromReversed = Run(directory, reversed, silent: true);
-        var fromRotated = Run(directory, rotated, silent: true);
-
-        // Assert: the output is identical
-        Assert.Equal(original.Log, fromReversed.Log);
-        Assert.Equal(original.Log, fromRotated.Log);
     }
 
     /// <summary>

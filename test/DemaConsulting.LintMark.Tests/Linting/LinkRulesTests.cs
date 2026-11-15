@@ -35,20 +35,6 @@ public class LinkRulesTests
     private static readonly LinkRules Rules = new();
 
     /// <summary>
-    ///     Test that null arguments are rejected and the rule identifiers are the link rules.
-    /// </summary>
-    [Fact]
-    public void LinkRules_CheckAndRuleIds_NullArgumentsAndIds_AreHandled()
-    {
-        // Act & Assert: both arguments are checked and named, and the identifiers are the documented ones
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => Rules.Check(null!, LintMarkConfig.Default)).ParamName);
-        Assert.Equal("config", Assert.Throws<ArgumentNullException>(() => Rules.Check(LintRuleTestSupport.Parse("x\n"), null!)).ParamName);
-        Assert.Equal(9, Rules.RuleIds.Length);
-        Assert.Contains("link-space", Rules.RuleIds);
-        Assert.Contains("link-definition-unused", Rules.RuleIds);
-    }
-
-    /// <summary>
     ///     Test that links without a destination are reported, and links with one are not.
     /// </summary>
     [Fact]

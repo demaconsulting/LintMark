@@ -92,10 +92,6 @@ internal sealed class BlockQuoteFormatter : IBlockFormatter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be an outermost block quote, not {block.Kind}.", nameof(block));
-        }
 
         // A footnote definition in a quote is read inconsistently (its body depends on columns), so such a quote stays as written
         var document = context.Document;

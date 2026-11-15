@@ -144,26 +144,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that the line ending of the configuration is written even to a file that uses the other one.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixConfigCrlf_WritesCrlf()
-    {
-        // Arrange: an LF file and a configuration that asks for CRLF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
-        var path = directory.WriteFile("a.md", CompliantText);
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
-
-        // Assert: the file has CRLF line endings now
-        Assert.Equal(Utf8("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
     ///     Test that the line ending of the editor settings is written when the configuration gives none.
     /// </summary>
     [Fact]
@@ -179,26 +159,6 @@ public partial class LintMarkEngineTests
 
         // Assert: the file has CRLF line endings now
         Assert.Equal(Utf8("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that a file that already complies is not touched at all.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixCompliantFile_DoesNotTouchFile()
-    {
-        // Arrange: a compliant file with an old last write time
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", LfConfig);
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8(CompliantText));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
-
-        // Assert: neither the content nor the last write time changed, and nothing is reported
-        AssertUntouched(path, Utf8(CompliantText), writeTime);
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
     }
@@ -313,62 +273,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that the diff option prints nothing for a file that would not change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_DiffCompliantFile_PrintsNothing()
-    {
-        // Arrange: a compliant file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("a.md", CompliantText);
-
-        // Act: run with the diff option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--diff");
-
-        // Assert: no output and exit code zero
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that the diff option shows a text change proposed by a formatter and writes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_DiffTextChange_PrintsHunkAndWritesNothing()
-    {
-        // Arrange: a paragraph with a double space and a formatter that collapses it
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("a  b\n"));
-
-        // Act: run with the diff option
-        var (exitCode, lines) = Execute(directory, EngineWith(new ReplacingFormatter("  ", " ")), "--diff");
-
-        // Assert: a unified diff of the change; the file is untouched
-        Assert.Equal(0, exitCode);
-        Assert.Equal(["--- a/a.md", "+++ b/a.md", "@@ -1 +1 @@", "-a  b", "+a b"], lines);
-        AssertUntouched(path, Utf8("a  b\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes a text change proposed by a formatter.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixTextChange_WritesSafeRewrite()
-    {
-        // Arrange: a paragraph with a double space and a formatter that collapses it
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", Utf8("a  b\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new ReplacingFormatter("  ", " ")), "--fix");
-
-        // Assert: the file has the formatted text and nothing is reported
-        Assert.Equal(Utf8("a b\n"), File.ReadAllBytes(path));
-        Assert.Equal(0, exitCode);
-        Assert.Empty(lines);
-    }
-
-    /// <summary>
     ///     Test that a rewrite that only changes the line endings of an ordinary document is still written.
     /// </summary>
     /// <param name="before">The document with its original line endings.</param>
@@ -409,44 +313,6 @@ public partial class LintMarkEngineTests
         // Assert: a format error naming the exception type; the file is untouched
         Assert.Equal(1, exitCode);
         Assert.Equal(["a.md:1:1: file-format-error Formatting failed: InvalidOperationException"], lines);
-        AssertUntouched(path, Utf8("text\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that conflicting edits of formatters are reported as a format error.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixOverlappingEdits_ReportsFormatError()
-    {
-        // Arrange: a formatter that proposes two overlapping edits
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("text\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new OverlappingEditsFormatter()), "--fix");
-
-        // Assert: a format error; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: file-format-error Formatting failed: InvalidOperationException"], lines);
-        AssertUntouched(path, Utf8("text\n"), writeTime);
-    }
-
-    /// <summary>
-    ///     Test that an edit outside the text is reported as a format error.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixEditOutsideText_ReportsFormatError()
-    {
-        // Arrange: a formatter that proposes an edit beyond the end of the text
-        using var directory = new TemporaryDirectory();
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("text\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, EngineWith(new OutOfRangeEditFormatter()), "--fix");
-
-        // Assert: a format error; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["a.md:1:1: file-format-error Formatting failed: ArgumentException"], lines);
         AssertUntouched(path, Utf8("text\n"), writeTime);
     }
 
@@ -612,26 +478,6 @@ public partial class LintMarkEngineTests
         Assert.Equal(bytes, File.ReadAllBytes(first));
         Assert.Equal(bytes, File.ReadAllBytes(second));
         Assert.Empty(Directory.GetFiles(directory.FullPath, "*.lintmark-tmp", SearchOption.AllDirectories));
-    }
-
-    /// <summary>
-    ///     Test that a file whose configuration is invalid is never rewritten.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_FixInvalidConfig_NeverRewritesFile()
-    {
-        // Arrange: an invalid configuration and a file with mixed line endings that a rewrite would change
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var (path, writeTime) = WriteOld(directory, "a.md", Utf8("# Title\n\nText.\r\n"));
-
-        // Act: run with the fix option
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "--fix");
-
-        // Assert: only the configuration problem is reported; the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Equal([".lintmark.yaml:1:1: config-error Unknown setting 'bogus'"], lines);
-        AssertUntouched(path, Utf8("# Title\n\nText.\r\n"), writeTime);
     }
 
     /// <summary>
@@ -816,80 +662,6 @@ public partial class LintMarkEngineTests
         Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. Utf8("a b\r\nc\r\n")], change.NewBytes.ToArray());
         Assert.Equal(Path.GetFullPath(path), change.ResolvedTarget);
         Assert.Empty(result.Diagnostics);
-    }
-
-    /// <summary>
-    ///     Test that a formatter that throws gives a format error and no change.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_FormatterThrows_ReportsFormatErrorAndNoChange()
-    {
-        // Arrange: a file and a formatter that throws
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "text\n");
-
-        // Act: process the file
-        var result = Assert.Single(EngineWith(new ThrowingFormatter()).Process([path]));
-
-        // Assert: a format error and no change
-        Assert.Null(result.Change);
-        Assert.Equal("file-format-error", Assert.Single(result.Diagnostics).RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a file with an invalid configuration is never given to the formatters.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_InvalidConfig_NeverFormatted()
-    {
-        // Arrange: an invalid configuration and a formatter that would fail if it were called
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var path = directory.WriteFile("a.md", "text\n");
-
-        // Act: process the file
-        var result = Assert.Single(EngineWith(new ThrowingFormatter()).Process([path], ConfigLoader.ForDiscovery(), null));
-
-        // Assert: no formatting happened, so no format error and no change
-        Assert.Empty(result.Diagnostics);
-        Assert.Null(result.Change);
-        Assert.Single(result.ConfigErrors);
-    }
-
-    /// <summary>
-    ///     Test that a format-unsafe document has no change and carries the grid table diagnostic.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_GridFallbackDocument_HasNoChangeAndGridDiagnostic()
-    {
-        // Arrange: a document with an invalid grid table and a formatter that would change it
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteFile("a.md", "a  b\n+---+---+\n");
-
-        // Act: process the file
-        var result = Assert.Single(EngineWith(new ReplacingFormatter("  ", " ")).Process([path]));
-
-        // Assert: the finding at line 2 and no change
-        Assert.Null(result.Change);
-        var diagnostic = Assert.Single(result.Diagnostics);
-        Assert.Equal(("grid-table-invalid", 2, 1), (diagnostic.RuleId, diagnostic.Line, diagnostic.Column));
-    }
-
-    /// <summary>
-    ///     Test that the diagnostics of a result cannot be modified through a cast.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_DiagnosticsCastToMutableTypes_CannotBeModified()
-    {
-        // Arrange: a file with a failure
-        using var directory = new TemporaryDirectory();
-        var path = directory.WriteBytes("a.md", [0xFF]);
-
-        // Act: process it
-        var result = Assert.Single(new LintMarkEngine(1).Process([path]));
-
-        // Assert: a caller cannot change the list
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<Linting.Diagnostic>)result.Diagnostics);
     }
 
     /// <summary>

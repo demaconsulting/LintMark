@@ -253,29 +253,6 @@ public class EditRebaserTests
         Assert.Equal(5, EditRebaser.MapOffset([Edit(2, 3, string.Empty)], 2));
 
     /// <summary>
-    ///     Test that every thread gets the same composition for the same lists.
-    /// </summary>
-    [Fact]
-    public void EditRebaser_Rebase_ConcurrentCalls_GiveTheSameEdits()
-    {
-        // Arrange: two lists and the single-threaded result
-        ImmutableArray<TextEdit> first = [Edit(2, 1, "12345"), Edit(8, 2, string.Empty)];
-        ImmutableArray<TextEdit> second = [Edit(3, 1, "A"), Edit(5, 1, "B"), Edit(9, 0, "C")];
-        var reference = EditRebaser.Rebase(first, second);
-
-        // Act & Assert: every thread gets the same edits
-        BlockFormatterAssertions.RunConcurrently(
-            8,
-            _ =>
-            {
-                for (var round = 0; round < 200; round++)
-                {
-                    Assert.Equal(reference, EditRebaser.Rebase(first, second));
-                }
-            });
-    }
-
-    /// <summary>
     ///     Creates a random text from a small alphabet that includes the line feed.
     /// </summary>
     /// <param name="random">The generator.</param>

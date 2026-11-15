@@ -147,5 +147,4 @@ public class IntegrationWrapTests
         Assert.DoesNotContain("line-length", output);
         Assert.Equal(before, File.ReadAllBytes(file));
     }
-
 }
