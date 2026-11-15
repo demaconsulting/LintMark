@@ -45,7 +45,8 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///     <para>
 ///         The <see cref="WrapMode.Sentence"/> and <see cref="WrapMode.Semantic"/> overload lays the atoms out per sentence (see
 ///         <see cref="SentenceSplitter"/>): every sentence starts a line and one that is too wide is filled as above; the
-///         semantic mode splits a sentence that is too wide at its clauses first. Neither depends on how the atoms were laid out
+///         semantic mode breaks a sentence that is too wide only where it must, at the latest clause start that fits the new
+///         line, and fills when no clause start fits. Neither depends on how the atoms were laid out
 ///         before, so wrapping text that was wrapped this way proposes no change.
 ///     </para>
 ///     <para>
@@ -65,7 +66,62 @@ internal static class LineWrapper
     public static WrappedLines Wrap(ImmutableArray<string> atoms, int firstWidth, int continuationWidth)
     {
         Validate(firstWidth, continuationWidth);
+        return Layout(atoms, firstWidth, continuationWidth, [], []);
+    }
 
+    /// <summary>
+    ///     Wraps a run of atoms into lines in the layout of a wrap mode.
+    /// </summary>
+    /// <param name="atoms">The atoms in order.</param>
+    /// <param name="firstWidth">The columns available to the first line. At least 1.</param>
+    /// <param name="continuationWidth">The columns available to every other line. At least 1.</param>
+    /// <param name="mode">
+    ///     <see cref="WrapMode.Fill"/> fills every line up to the width (the same as the overload without a mode);
+    ///     <see cref="WrapMode.Sentence"/> starts every sentence on a new line and fills the lines of a sentence that is too
+    ///     wide; <see cref="WrapMode.Semantic"/> does the same but, where a line of a sentence is full, breaks at the latest
+    ///     clause start that fits the new line instead of before the atom that does not fit.
+    /// </param>
+    /// <returns>The lines and whether a line that holds more than one atom is still wider than its width.</returns>
+    /// <remarks>
+    ///     A sentence or clause start that the <see cref="BlockSyntaxGuard"/> refuses is not a place for a line break: the
+    ///     sentence stays on the line of the one before it. The layout depends on the atoms and the two widths only,
+    ///     so the modes are idempotent by construction. Pass a very large width for a line length of 0 (no limit): the
+    ///     sentence and semantic modes then write one sentence per line.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1.</exception>
+    public static WrappedLines Wrap(ImmutableArray<string> atoms, int firstWidth, int continuationWidth, WrapMode mode)
+    {
+        Validate(firstWidth, continuationWidth);
+        if (mode == WrapMode.Fill)
+        {
+            return Wrap(atoms, firstWidth, continuationWidth);
+        }
+
+        // Sentences start lines, except the starts that the guard refuses; the semantic mode also breaks full lines at clauses
+        var sentenceStarts = SentenceSplitter.FindSentenceStarts(atoms).Where(index => !IsGuarded(atoms, index)).ToHashSet();
+        var clauseStarts = mode == WrapMode.Semantic
+            ? SentenceSplitter.FindClauseStarts(atoms).Where(index => !IsGuarded(atoms, index)).ToHashSet()
+            : [];
+        return Layout(atoms, firstWidth, continuationWidth, sentenceStarts, clauseStarts);
+    }
+
+    /// <summary>
+    ///     Lays out the atoms: a greedy fill that starts a new line at every sentence start and, when a line is full, breaks at the
+    ///     latest clause start that fits.
+    /// </summary>
+    /// <param name="atoms">The atoms in order.</param>
+    /// <param name="firstWidth">The columns available to the first line.</param>
+    /// <param name="continuationWidth">The columns available to every other line.</param>
+    /// <param name="sentenceStarts">The indexes of the atoms that always start a line, none of them guarded; empty for a plain fill.</param>
+    /// <param name="clauseStarts">The indexes of the atoms where a line may be broken in preference to the plain fill break; empty for a plain fill.</param>
+    /// <returns>The lines and whether a line that holds more than one atom is still wider than its width.</returns>
+    private static WrappedLines Layout(
+        ImmutableArray<string> atoms,
+        int firstWidth,
+        int continuationWidth,
+        HashSet<int> sentenceStarts,
+        HashSet<int> clauseStarts)
+    {
         // Measure every atom once; the width of a line is the widths of its atoms plus one column for each space between them
         var widths = new int[atoms.Length];
         for (var i = 0; i < atoms.Length; i++)
@@ -79,6 +135,15 @@ internal static class LineWrapper
         var lineWidth = widths[0];
         for (var i = 1; i < atoms.Length; i++)
         {
+            // A sentence starts a new line
+            if (sentenceStarts.Contains(i))
+            {
+                lines.Add((start, i));
+                start = i;
+                lineWidth = widths[i];
+                continue;
+            }
+
             var available = lines.Count == 0 ? firstWidth : continuationWidth;
             if (lineWidth + 1 + widths[i] <= available)
             {
@@ -86,8 +151,13 @@ internal static class LineWrapper
                 continue;
             }
 
-            // A break is needed before atom i; the guard may refuse it
-            var breakAt = IsGuarded(atoms, i) ? FindEarlierBreak(atoms, widths, start, i, continuationWidth) : i;
+            // A break is needed before atom i: at the latest clause start that fits, else here (the guard may refuse that)
+            var breakAt = FindClauseBreak(atoms, widths, clauseStarts, start, i, continuationWidth);
+            if (breakAt < 0)
+            {
+                breakAt = IsGuarded(atoms, i) ? FindEarlierBreak(atoms, widths, start, i, continuationWidth) : i;
+            }
+
             if (breakAt < 0)
             {
                 // No better break exists: the atom stays on the line, over width
@@ -116,64 +186,6 @@ internal static class LineWrapper
     }
 
     /// <summary>
-    ///     Wraps a run of atoms into lines in the layout of a wrap mode.
-    /// </summary>
-    /// <param name="atoms">The atoms in order.</param>
-    /// <param name="firstWidth">The columns available to the first line. At least 1.</param>
-    /// <param name="continuationWidth">The columns available to every other line. At least 1.</param>
-    /// <param name="mode">
-    ///     <see cref="WrapMode.Fill"/> fills every line up to the width (the same as the overload without a mode);
-    ///     <see cref="WrapMode.Sentence"/> starts every sentence on a new line and fills the lines of a sentence that is too
-    ///     wide; <see cref="WrapMode.Semantic"/> does the same and splits a sentence that is too wide at its clauses first.
-    /// </param>
-    /// <returns>The lines and whether a line that holds more than one atom is still wider than its width.</returns>
-    /// <remarks>
-    ///     A sentence or clause start that the <see cref="BlockSyntaxGuard"/> refuses is not a place for a line break: the
-    ///     sentence stays on the line of the one before it. The layout depends on the atoms and the two widths only,
-    ///     so the modes are idempotent by construction. Pass a very large width for a line length of 0 (no limit): the
-    ///     sentence mode then writes one sentence per line and the semantic mode the same.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when a width is less than 1.</exception>
-    public static WrappedLines Wrap(ImmutableArray<string> atoms, int firstWidth, int continuationWidth, WrapMode mode)
-    {
-        Validate(firstWidth, continuationWidth);
-        if (mode == WrapMode.Fill)
-        {
-            return Wrap(atoms, firstWidth, continuationWidth);
-        }
-
-        // Split into sentences, keeping out the starts that the guard refuses
-        var widths = atoms.Select(static atom => TextWidth.Of(atom)).ToArray();
-        var sentenceStarts = Allowed(atoms, SentenceSplitter.FindSentenceStarts(atoms), 0);
-        var lines = new List<string>();
-        var overflow = false;
-        for (var s = 0; s < sentenceStarts.Count; s++)
-        {
-            var first = sentenceStarts[s];
-            var end = s + 1 < sentenceStarts.Count ? sentenceStarts[s + 1] : atoms.Length;
-            var sentence = ImmutableArray.Create(atoms, first, end - first);
-
-            // A sentence that is too wide for its first line is split at its clauses in the semantic mode
-            var available = lines.Count == 0 ? firstWidth : continuationWidth;
-            if (mode == WrapMode.Semantic && WidthOf(widths, first, end) > available)
-            {
-                var clauseStarts = Allowed(sentence, SentenceSplitter.FindClauseStarts(sentence), 0);
-                for (var c = 0; c < clauseStarts.Count; c++)
-                {
-                    var clauseEnd = c + 1 < clauseStarts.Count ? clauseStarts[c + 1] : sentence.Length;
-                    overflow |= AddRun(lines, ImmutableArray.Create(sentence, clauseStarts[c], clauseEnd - clauseStarts[c]), firstWidth, continuationWidth);
-                }
-            }
-            else
-            {
-                overflow |= AddRun(lines, sentence, firstWidth, continuationWidth);
-            }
-        }
-
-        return new WrappedLines([.. lines], overflow);
-    }
-
-    /// <summary>
     ///     Validates the widths of the wrap methods.
     /// </summary>
     /// <param name="firstWidth">The width of the first line.</param>
@@ -186,32 +198,37 @@ internal static class LineWrapper
     }
 
     /// <summary>
-    ///     Turns the starts that a splitter found into the starts of runs, without the ones the guard refuses.
+    ///     Finds the latest clause start at which the current line can be broken so that the new line holds atom <paramref name="full"/>.
     /// </summary>
     /// <param name="atoms">The atoms.</param>
-    /// <param name="found">The indexes of the atoms that start a new run, as found by the splitter.</param>
-    /// <param name="zero">The index where the first run starts.</param>
-    /// <returns>The index of the first atom of every run, beginning with <paramref name="zero"/>.</returns>
-    private static List<int> Allowed(ImmutableArray<string> atoms, ImmutableArray<int> found, int zero)
+    /// <param name="widths">The widths of the atoms.</param>
+    /// <param name="clauseStarts">The atoms that start a clause and may start a line.</param>
+    /// <param name="start">The index of the first atom of the current line.</param>
+    /// <param name="full">The index of the atom that does not fit on the current line; it is not yet on the line.</param>
+    /// <param name="width">The width available to the line that starts at the break.</param>
+    /// <returns>
+    ///     The index of the latest clause start greater than <paramref name="start"/> and less than <paramref name="full"/> when the
+    ///     atoms from there up to and including <paramref name="full"/> fit in <paramref name="width"/>; otherwise -1.
+    /// </returns>
+    private static int FindClauseBreak(ImmutableArray<string> atoms, int[] widths, HashSet<int> clauseStarts, int start, int full, int width)
     {
-        var starts = new List<int> { zero };
-        starts.AddRange(found.Where(index => !IsGuarded(atoms, index)));
-        return starts;
-    }
+        // Walk back while the atoms still fit in a line: an earlier clause start only makes the new line wider
+        var newLine = widths[full];
+        for (var candidate = full - 1; candidate > start; candidate--)
+        {
+            newLine += 1 + widths[candidate];
+            if (newLine > width)
+            {
+                return -1;
+            }
 
-    /// <summary>
-    ///     Fills a run of atoms that starts a new line and adds its lines.
-    /// </summary>
-    /// <param name="lines">Receives the lines.</param>
-    /// <param name="run">The atoms of the run.</param>
-    /// <param name="firstWidth">The width of the first line of the paragraph.</param>
-    /// <param name="continuationWidth">The width of the other lines.</param>
-    /// <returns>Whether a line with more than one atom is still too wide.</returns>
-    private static bool AddRun(List<string> lines, ImmutableArray<string> run, int firstWidth, int continuationWidth)
-    {
-        var result = Wrap(run, lines.Count == 0 ? firstWidth : continuationWidth, continuationWidth);
-        lines.AddRange(result.Lines);
-        return result.HasBreakableOverflow;
+            if (clauseStarts.Contains(candidate) && !IsGuarded(atoms, candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>

@@ -225,7 +225,8 @@ The `link-refactor` options are `enabled` (default `false`), `threshold` (`60`),
 The `rules` setting switches rules on or off by identifier or markdownlint alias (such as `MD013`);
 `descriptive-link-text`, `table-grid-unformatted`, and `dollar-sign-in-shell-code` are off by default. `line-length` is
 the width, in display columns, above which a paragraph is rewrapped (`0` is unlimited), and `wrap` selects the method:
-only `fill` is applied, and `sentence` and `semantic` are accepted but do nothing yet. The `ignore` patterns replace the
+`fill` rewraps only over-wide paragraphs, `sentence` starts every sentence on its own line, and `semantic` does the same
+and breaks a sentence that is wider than the line only at the latest clause break (`,` `;` `:` `—`) that fits. The `ignore` patterns replace the
 defaults (`.git/**`, `node_modules/**`, `**/.venv/**`, `**/generated/**`, `**/thirdparty/**`, `.agent-logs/**`);
 they are relative to the directory of the configuration file, and a file named on the command line is always
 processed. See the [User Guide][link-guide] for the complete rule list and every detail.

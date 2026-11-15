@@ -630,9 +630,9 @@ is as full as the limit allows. Paragraphs in list items and in block quotes are
 line gets the prefix that keeps it inside the item or the quote.
 
 - **Settings**: `line-length` is the width in display columns; the default is `120`, and `0` means unlimited, which
-  switches the rule off. `wrap` selects the method; `fill` (the default) is the only method that LintMark applies.
-  `wrap: sentence` and `wrap: semantic` are accepted and validated, but they are not applied yet: nothing is wrapped or
-  reported because of them.
+  switches the rule off. `wrap` selects the method: `fill` (the default) re-wraps only over-wide paragraphs, `sentence`
+  starts every sentence on a new line, and `semantic` does the same and breaks a sentence that is wider than
+  `line-length` only at the latest clause break (`,` `;` `:` `—`) that fits.
 - **Switching it off**: Besides `line-length: 0`, the `rules` setting switches this rule off by its identifier or its
   legacy number (`line-length: false` or `MD013: false`; see *Rules*). A suppression comment (`line-length` or `MD013`)
   leaves a passage alone.
@@ -892,8 +892,7 @@ Text without a blank line before it.
 | `line-length` | `MD013` | `line-length: 120`, `wrap: fill` |
 
 `line-length` is the only rule in this table that `rules` can switch off (`line-length: false` or `MD013: false`); the
-other rules are always applied. `wrap: sentence` and `wrap: semantic` are accepted but not applied yet, and
-`line-length: 0` means that there is no limit.
+other rules are always applied. `line-length: 0` means that there is no limit.
 
 The line ending rule `line-ending` is described under *Line Endings and .editorconfig*; it has no legacy number and
 cannot be suppressed. The rules that report problems without rewriting (for example `heading-increment`), the rules for

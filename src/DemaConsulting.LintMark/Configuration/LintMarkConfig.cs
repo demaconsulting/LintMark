@@ -439,6 +439,6 @@ internal enum WrapMode
     /// <summary>Start every sentence on a new line.</summary>
     Sentence,
 
-    /// <summary>Break lines at semantic boundaries.</summary>
+    /// <summary>Start every sentence on a new line, and break a sentence that is too wide at the latest clause break that fits.</summary>
     Semantic
 }

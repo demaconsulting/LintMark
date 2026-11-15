@@ -143,9 +143,9 @@ public class DocumentFormatterSentenceWrapTests
     {
         // Arrange: one sentence of 76 columns with clauses
         const string text = "However, the first clause is here; the second clause is here, and the third.\n";
-        const string expected = "However,\nthe first clause is here;\nthe second clause is here,\nand the third.\n";
+        const string expected = "However, the first clause is here;\nthe second clause is here,\nand the third.\n";
 
-        // Act & Assert: both rules on, only line-length and only paragraph-wrap give the clause layout
+        // Act & Assert: both rules on, only line-length and only paragraph-wrap give the same layout: breaks only as needed
         Assert.Equal(expected, Format(text, Config(WrapMode.Semantic, 40)).Formatted);
         Assert.Equal(expected, Format(text, Config(WrapMode.Semantic, 40, paragraphWrap: false)).Formatted);
         Assert.Equal(expected, Format(text, Config(WrapMode.Semantic, 40, lineLength: false)).Formatted);
@@ -154,6 +154,9 @@ public class DocumentFormatterSentenceWrapTests
         Assert.Equal(
             "However, the first clause is here; the\nsecond clause is here, and the third.\n",
             Format(text, Config(WrapMode.Sentence, 40)).Formatted);
+
+        // Act & Assert: a sentence that fits stays on one line
+        Assert.Equal(text, Format(text, Config(WrapMode.Semantic, 80)).Formatted);
 
         // Act & Assert: without a line length the sentence is not split into clauses
         Assert.Equal(text, Format(text, Config(WrapMode.Semantic, 0)).Formatted);
@@ -229,6 +232,23 @@ public class DocumentFormatterSentenceWrapTests
     {
         // Act & Assert: the sentence layout, which is safe, renders the same and is stable
         Assert.Equal(expected, BlockFormatterAssertions.AssertSafeAndStable(input, Config(WrapMode.Sentence)));
+    }
+
+    /// <summary>
+    ///     Test the semantic layout in a list item, a quote, around a hard break and with a link, at 30 columns: a sentence that fits is
+    ///     one line, and a sentence that does not is broken only as needed.
+    /// </summary>
+    /// <param name="input">The text.</param>
+    /// <param name="expected">The expected text.</param>
+    [Theory]
+    [InlineData("- Alpha beta, gamma delta epsilon zeta, eta theta iota.\n", "- Alpha beta,\n  gamma delta epsilon zeta,\n  eta theta iota.\n")]
+    [InlineData("> Alpha beta, gamma delta epsilon zeta, eta theta iota.\n", "> Alpha beta,\n> gamma delta epsilon zeta,\n> eta theta iota.\n")]
+    [InlineData("Alpha beta, gamma delta epsilon zeta, eta theta.\\\nShort one, two.\n", "Alpha beta,\ngamma delta epsilon zeta,\neta theta.\\\nShort one, two.\n")]
+    [InlineData("Go to [the long, link text](http://x.y/a,b) now, and then, stop here.\n", "Go to\n[the long, link text](http://x.y/a,b)\nnow, and then, stop here.\n")]
+    public void DocumentFormatter_Format_SemanticMode_BreaksOnlyAsNeededInContext(string input, string expected)
+    {
+        // Act & Assert: the layout is safe, renders the same and is stable
+        Assert.Equal(expected, BlockFormatterAssertions.AssertSafeAndStable(input, Config(WrapMode.Semantic, 30)));
     }
 
     /// <summary>

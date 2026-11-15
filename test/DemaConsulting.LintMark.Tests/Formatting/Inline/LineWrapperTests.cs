@@ -231,29 +231,82 @@ public class LineWrapperTests
     }
 
     /// <summary>
-    ///     Test that the semantic mode keeps a sentence that fits on one line, and splits one that does not at its clauses before it fills.
+    ///     Test that the semantic mode keeps a sentence that fits on one line, and breaks one that does not at the latest clause start that fits.
     /// </summary>
     [Fact]
-    public void LineWrapper_Wrap_SemanticMode_SplitsOnlyTooWideSentencesAtClauses()
+    public void LineWrapper_Wrap_SemanticMode_BreaksATooWideSentenceAtTheLatestFittingClause()
     {
         // Act: a sentence that fits with a comma in it, then one that does not
         var wrapped = WrapIn("Yes, it fits. However, this longer sentence does not fit; split it, please", WrapMode.Semantic, 40);
 
-        // Assert: the first sentence stays whole, the second is split at its clauses
-        Assert.Equal(["Yes, it fits.", "However,", "this longer sentence does not fit;", "split it,", "please"], wrapped.Lines);
+        // Assert: the first sentence stays whole; the second breaks only where it must: before "this" and before "split"
+        Assert.Equal(["Yes, it fits.", "However,", "this longer sentence does not fit;", "split it, please"], wrapped.Lines);
     }
 
     /// <summary>
-    ///     Test that a clause that is still too wide is filled.
+    ///     Test that a sentence without a clause start is filled like the fill mode does.
     /// </summary>
     [Fact]
-    public void LineWrapper_Wrap_SemanticModeTooWideClause_IsFilled()
+    public void LineWrapper_Wrap_SemanticModeWithoutClauseStart_IsFilled()
     {
-        // Act: a sentence with a clause that does not fit in 12 columns
-        var wrapped = WrapIn("ant bat cat dog eel, fox gnu", WrapMode.Semantic, 12);
+        // Act: a sentence that does not fit and has no clause punctuation
+        var wrapped = WrapIn("ant bat cat dog eel fox gnu", WrapMode.Semantic, 12);
 
-        // Assert: the first clause is filled, then the second
-        Assert.Equal(["ant bat cat", "dog eel,", "fox gnu"], wrapped.Lines);
+        // Assert: the same lines as the fill
+        Assert.Equal(["ant bat cat", "dog eel fox", "gnu"], wrapped.Lines);
+        Assert.Equal(Wrap("ant bat cat dog eel fox gnu", 12).Lines, wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a clause start whose new line would be too wide is not used, and the line is filled instead.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticModeClauseBreakBeyondTheWidth_IsFilled()
+    {
+        // Act: breaking at the comma would give a line of 25 columns for a width of 20
+        var wrapped = WrapIn("aaaa, bbbbbbbbbbbb cccccccccccc", WrapMode.Semantic, 20);
+
+        // Assert: the fill break is used
+        Assert.Equal(["aaaa, bbbbbbbbbbbb", "cccccccccccc"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a clause start that the guard refuses is not a place for a break.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticModeGuardedClauseStart_IsSkipped()
+    {
+        // Act: the dash after the comma would start a list item
+        var wrapped = WrapIn("one two, - three four", WrapMode.Semantic, 12);
+
+        // Assert: the break is made before "three" instead
+        Assert.Equal(["one two, -", "three four"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that a clause break is measured in display columns, so wide characters count two.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticModeWideCharacters_AreMeasuredInColumns()
+    {
+        // Act: the atoms are 5 and 4 columns wide in a width of 10
+        var wrapped = WrapIn("日本, 日本 日本 日本", WrapMode.Semantic, 10);
+
+        // Assert: the line breaks at the clause start rather than after the second atom
+        Assert.Equal(["日本,", "日本 日本", "日本"], wrapped.Lines);
+    }
+
+    /// <summary>
+    ///     Test that an atom with a comma inside is never a clause break, and is never split.
+    /// </summary>
+    [Fact]
+    public void LineWrapper_Wrap_SemanticModeAtomWithInnerComma_IsKeptWhole()
+    {
+        // Act: a code span atom contains a comma and a space
+        var wrapped = LineWrapper.Wrap(["see", "`x, y`", "and", "more", "text,", "end"], 14, 14, WrapMode.Semantic);
+
+        // Assert: the code span is on one line and the break is the fill break before "more"
+        Assert.Equal(["see `x, y` and", "more text, end"], wrapped.Lines);
     }
 
     /// <summary>
@@ -292,7 +345,9 @@ public class LineWrapperTests
     [InlineData("Sentence", 10)]
     [InlineData("Sentence", 30)]
     [InlineData("Semantic", 10)]
+    [InlineData("Semantic", 20)]
     [InlineData("Semantic", 30)]
+    [InlineData("Semantic", 40)]
     [InlineData("Semantic", 80)]
     public void LineWrapper_Wrap_ModesAreIdempotent(string modeName, int width)
     {

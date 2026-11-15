@@ -316,10 +316,10 @@ The `link-refactor` setting is a mapping with these options; options that are no
 
 What the settings describe:
 
-- `wrap` selects how paragraphs are wrapped. Only `fill` is applied: it re-wraps only paragraphs that contain a line
+- `wrap` selects how paragraphs are wrapped. `fill` re-wraps only paragraphs that contain a line
   wider than `line-length` (display columns; `0` is unlimited) and leaves every other paragraph as it is (see
-  *line-length (MD013)* in *Formatting Rules*). `sentence` (every sentence on a new line) and `semantic` (breaks at
-  semantic boundaries) are accepted and validated, but they are not applied yet.
+  *line-length (MD013)* in *Formatting Rules*). `sentence` starts every sentence on a new line; `semantic` does the same
+  and breaks a sentence that is wider than `line-length` only at the latest clause break (`,` `;` `:` `—`) that fits.
 - `bare-urls` selects whether a bare URL is written as an autolink (`<https://example.com>`) or left as it is; it
   applies to `http://`, `https://`, and `ftp://` addresses in paragraphs.
 - `tables` selects compact cells (`| a | b |`) or columns padded to a common width.
