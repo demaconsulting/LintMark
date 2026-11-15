@@ -43,29 +43,9 @@ internal sealed record ConfigLoadResult
     /// </summary>
     /// <param name="config">The valid configuration, or <see langword="null"/> when there are errors.</param>
     /// <param name="sourcePath">Full path of the file the configuration came from; <see langword="null"/> for built-in defaults.</param>
-    /// <param name="errors">The problems found; must be empty exactly when <paramref name="config"/> is set. Must be initialized.</param>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="errors"/> is uninitialized, when a configuration and errors are both present
-    ///     or both absent, or when <paramref name="sourcePath"/> is empty.
-    /// </exception>
+    /// <param name="errors">The problems found; empty exactly when <paramref name="config"/> is set.</param>
     public ConfigLoadResult(LintMarkConfig? config, string? sourcePath, ImmutableArray<ConfigError> errors)
     {
-        // Validate input: the two outcomes are mutually exclusive and one of them must hold
-        if (errors.IsDefault)
-        {
-            throw new ArgumentException("The errors must be initialized.", nameof(errors));
-        }
-
-        if ((config is null) == errors.IsEmpty)
-        {
-            throw new ArgumentException("A configuration must be present exactly when there are no errors.", nameof(errors));
-        }
-
-        if (sourcePath is { Length: 0 })
-        {
-            throw new ArgumentException("The source path must not be empty.", nameof(sourcePath));
-        }
-
         // Store the errors in report order
         Config = config;
         SourcePath = sourcePath;

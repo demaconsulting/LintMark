@@ -921,17 +921,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that a discovered file without a path is rejected.
-    /// </summary>
-    [Fact]
-    public void DiscoveredFile_Constructor_MissingPath_Throws()
-    {
-        // Arrange / Act / Assert: the path may be neither null nor empty
-        Assert.Throws<ArgumentNullException>(() => new DiscoveredFile(null!, isExplicit: true));
-        Assert.Throws<ArgumentException>(() => new DiscoveredFile(string.Empty, isExplicit: false));
-    }
-
-    /// <summary>
     ///     Test that blank patterns are rejected as usage errors.
     /// </summary>
     /// <param name="pattern">The blank pattern.</param>

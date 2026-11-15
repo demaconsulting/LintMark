@@ -138,9 +138,8 @@ public class SourceDocumentTests
         // Act: read the facts
         var majority = document.MajorityLineEnding;
 
-        // Assert: LF majority and no final newline
+        // Assert: LF majority
         Assert.Equal(LineEnding.Lf, majority);
-        Assert.False(document.HasFinalNewline);
         Assert.Equal(new LineEndingInfo(0, 0), document.LineEndings);
     }
 
@@ -153,26 +152,10 @@ public class SourceDocumentTests
         // Arrange / Act: create from no bytes
         var document = SourceDocument.Create("a.md", []);
 
-        // Assert: empty text, one line, no final newline
+        // Assert: empty text, one line
         Assert.Equal(string.Empty, document.Text);
         Assert.Equal([0], document.LineStarts);
-        Assert.False(document.HasFinalNewline);
         Assert.Equal((1, 1), document.PositionOf(0));
-    }
-
-    /// <summary>
-    ///     Test that the final newline is detected.
-    /// </summary>
-    [Fact]
-    public void SourceDocument_Create_FinalNewline_IsDetected()
-    {
-        // Arrange / Act: documents with and without a final newline
-        var with = SourceDocument.Create("a.md", Utf8("a\n"));
-        var without = SourceDocument.Create("a.md", Utf8("a"));
-
-        // Assert: the flag follows the text
-        Assert.True(with.HasFinalNewline);
-        Assert.False(without.HasFinalNewline);
     }
 
     /// <summary>
@@ -428,7 +411,6 @@ public class SourceDocumentTests
 
         // Assert: identical bytes, including the missing final newline
         Assert.Equal(bytes, written);
-        Assert.False(document.HasFinalNewline);
     }
 
     /// <summary>

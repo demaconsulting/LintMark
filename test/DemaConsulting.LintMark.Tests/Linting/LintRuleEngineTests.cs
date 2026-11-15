@@ -184,7 +184,7 @@ public class LintRuleEngineTests
         // Arrange: switch on every rule and run over the document that triggers many of them
         var all = LintMarkConfig.Default with
         {
-            Rules = RuleCatalog.ConfigurableRules.Where(static id => RuleCatalog.TryGet(id, out var rule) && rule.Kind == DiagnosticKind.LintOnly)
+            Rules = RuleCatalog.Defaults.Keys.Where(static id => RuleCatalog.TryGet(id, out var rule) && rule.Kind == DiagnosticKind.LintOnly)
                 .Aggregate(LintMarkConfig.Default.Rules, static (rules, id) => rules.SetItem(id, true))
         };
 

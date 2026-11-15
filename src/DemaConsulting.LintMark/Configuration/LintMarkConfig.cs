@@ -25,8 +25,7 @@ using DemaConsulting.LintMark.Linting;
 namespace DemaConsulting.LintMark.Configuration;
 
 /// <summary>
-///     The complete, validated, immutable set of settings that governs how one Markdown file is linted
-///     and formatted.
+///     The complete, immutable set of settings that governs how one Markdown file is linted and formatted.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -34,14 +33,8 @@ namespace DemaConsulting.LintMark.Configuration;
 ///         configuration that would leave a formatting violation unfixable cannot be expressed. The
 ///         defaults reproduce the preferred style: 120 columns, overflow-only wrapping, dash bullets,
 ///         incrementing numbering, compact tables, and so on. Settings that are not given in a
-///         configuration file keep these defaults.
-///     </para>
-///     <para>
-///         The record is deeply immutable: collections are immutable types, so a <c>with</c> expression
-///         can never share a mutable collection between configurations, and every accessor validates its
-///         value (also when used by <c>with</c>), so an invalid instance cannot be created. Value
-///         equality includes the collections. Supporting types: <see cref="RuleCatalog"/>,
-///         <see cref="LinkRefactorOptions"/> and the setting enumerations in this namespace.
+///         configuration file keep these defaults. The values are validated where they come from, by the
+///         configuration parser and the command line, not here.
 ///     </para>
 ///     <para>
 ///         Thread safety: instances are immutable and may be shared between threads without synchronization.
@@ -57,110 +50,7 @@ internal sealed record LintMarkConfig
     /// <summary>
     ///     The characters that end a line: CR, LF, NEL (U+0085), line separator (U+2028) and paragraph separator (U+2029).
     /// </summary>
-    /// <remarks>
-    ///     Shared by every single-line check of the configuration so they cannot drift apart.
-    /// </remarks>
     public const string LineBreakCharacters = "\r\n\u0085\u2028\u2029";
-
-    /// <summary>
-    ///     Backing field of <see cref="LineLength"/>.
-    /// </summary>
-    private readonly int _lineLength = 120;
-
-    /// <summary>
-    ///     Backing field of <see cref="Wrap"/>.
-    /// </summary>
-    private readonly WrapMode _wrap = WrapMode.Fill;
-
-    /// <summary>
-    ///     Backing field of <see cref="EndOfLine"/>.
-    /// </summary>
-    private readonly LineEnding? _endOfLine;
-
-    /// <summary>
-    ///     Backing field of <see cref="Headings"/>.
-    /// </summary>
-    private readonly HeadingStyle _headings = HeadingStyle.Atx;
-
-    /// <summary>
-    ///     Backing field of <see cref="Bullet"/>.
-    /// </summary>
-    private readonly BulletMarker _bullet = BulletMarker.Dash;
-
-    /// <summary>
-    ///     Backing field of <see cref="ListIndent"/>.
-    /// </summary>
-    private readonly int _listIndent = 2;
-
-    /// <summary>
-    ///     Backing field of <see cref="OrderedStyle"/>.
-    /// </summary>
-    private readonly OrderedStyle _orderedStyle = OrderedStyle.Incrementing;
-
-    /// <summary>
-    ///     Backing field of <see cref="Emphasis"/>.
-    /// </summary>
-    private readonly EmphasisMarker _emphasis = EmphasisMarker.Asterisk;
-
-    /// <summary>
-    ///     Backing field of <see cref="Strong"/>.
-    /// </summary>
-    private readonly EmphasisMarker _strong = EmphasisMarker.Asterisk;
-
-    /// <summary>
-    ///     Backing field of <see cref="CodeFence"/>.
-    /// </summary>
-    private readonly FenceMarker _codeFence = FenceMarker.Backtick;
-
-    /// <summary>
-    ///     Backing field of <see cref="CodeBlockStyle"/>.
-    /// </summary>
-    private readonly CodeBlockStyle _codeBlockStyle = CodeBlockStyle.Fenced;
-
-    /// <summary>
-    ///     Backing field of <see cref="HardBreak"/>.
-    /// </summary>
-    private readonly HardBreakStyle _hardBreak = HardBreakStyle.Spaces;
-
-    /// <summary>
-    ///     Backing field of <see cref="ThematicBreak"/>.
-    /// </summary>
-    private readonly ThematicBreakStyle _thematicBreak = ThematicBreakStyle.Dashes;
-
-    /// <summary>
-    ///     Backing field of <see cref="Tables"/>.
-    /// </summary>
-    private readonly TableStyle _tables = TableStyle.Compact;
-
-    /// <summary>
-    ///     Backing field of <see cref="BareUrls"/>.
-    /// </summary>
-    private readonly BareUrlStyle _bareUrls = BareUrlStyle.Autolink;
-
-    /// <summary>
-    ///     Backing field of <see cref="MaxBlankLines"/>.
-    /// </summary>
-    private readonly int _maxBlankLines = 1;
-
-    /// <summary>
-    ///     Backing field of <see cref="TrailingWhitespace"/>.
-    /// </summary>
-    private readonly TrailingWhitespaceStyle _trailingWhitespace = TrailingWhitespaceStyle.Strip;
-
-    /// <summary>
-    ///     Backing field of <see cref="LinkRefactor"/>.
-    /// </summary>
-    private readonly LinkRefactorOptions _linkRefactor = LinkRefactorOptions.Disabled;
-
-    /// <summary>
-    ///     Backing field of <see cref="Rules"/>.
-    /// </summary>
-    private readonly ImmutableSortedDictionary<string, bool> _rules = RuleCatalog.Defaults;
-
-    /// <summary>
-    ///     Backing field of <see cref="Ignore"/>.
-    /// </summary>
-    private readonly ImmutableArray<string> _ignore = DefaultIgnore;
 
     /// <summary>
     ///     Gets the glob patterns excluded by default.
@@ -174,246 +64,112 @@ internal sealed record LintMarkConfig
     public static LintMarkConfig Default { get; } = new();
 
     /// <summary>
-    ///     Gets the maximum line width; 0 means unlimited (default 120).
+    ///     Gets the maximum line width; 0 means unlimited.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not in 0 to <see cref="MaxNumber"/>.</exception>
-    public int LineLength
-    {
-        get => _lineLength;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxNumber);
-            _lineLength = value;
-        }
-    }
+    public int LineLength { get; init; } = 120;
 
     /// <summary>
-    ///     Gets how paragraphs are wrapped (default <see cref="WrapMode.Fill"/>).
+    ///     Gets how paragraphs are wrapped.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public WrapMode Wrap
-    {
-        get => _wrap;
-        init => _wrap = CheckDefined(value);
-    }
+    public WrapMode Wrap { get; init; } = WrapMode.Fill;
 
     /// <summary>
     ///     Gets the line ending to write, or <see langword="null"/> when the configuration does not specify one
     ///     (the editor settings and then the file's own majority ending decide later).
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public LineEnding? EndOfLine
-    {
-        get => _endOfLine;
-        init => _endOfLine = value.HasValue ? CheckDefined(value.Value) : null;
-    }
+    public LineEnding? EndOfLine { get; init; }
 
     /// <summary>
-    ///     Gets a value indicating whether a file ends with exactly one line ending (default <see langword="true"/>).
+    ///     Gets a value indicating whether a file ends with exactly one line ending.
     /// </summary>
     public bool FinalNewline { get; init; } = true;
 
     /// <summary>
-    ///     Gets the canonical heading syntax (default <see cref="HeadingStyle.Atx"/>).
+    ///     Gets the canonical heading syntax.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public HeadingStyle Headings
-    {
-        get => _headings;
-        init => _headings = CheckDefined(value);
-    }
+    public HeadingStyle Headings { get; init; } = HeadingStyle.Atx;
 
     /// <summary>
-    ///     Gets the bullet list marker (default <see cref="BulletMarker.Dash"/>).
+    ///     Gets the bullet list marker.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public BulletMarker Bullet
-    {
-        get => _bullet;
-        init => _bullet = CheckDefined(value);
-    }
+    public BulletMarker Bullet { get; init; } = BulletMarker.Dash;
 
     /// <summary>
-    ///     Gets the indentation of nested list items in columns; 2 or 4 (default 2).
+    ///     Gets the indentation of nested list items in columns; 2 or 4.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is neither 2 nor 4.</exception>
-    public int ListIndent
-    {
-        get => _listIndent;
-        init
-        {
-            if (value is not (2 or 4))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The list indent must be 2 or 4.");
-            }
-
-            _listIndent = value;
-        }
-    }
+    public int ListIndent { get; init; } = 2;
 
     /// <summary>
-    ///     Gets how ordered list items are numbered (default <see cref="Configuration.OrderedStyle.Incrementing"/>).
+    ///     Gets how ordered list items are numbered.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public OrderedStyle OrderedStyle
-    {
-        get => _orderedStyle;
-        init => _orderedStyle = CheckDefined(value);
-    }
+    public OrderedStyle OrderedStyle { get; init; } = OrderedStyle.Incrementing;
 
     /// <summary>
-    ///     Gets the emphasis delimiter (default <see cref="EmphasisMarker.Asterisk"/>).
+    ///     Gets the emphasis delimiter.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public EmphasisMarker Emphasis
-    {
-        get => _emphasis;
-        init => _emphasis = CheckDefined(value);
-    }
+    public EmphasisMarker Emphasis { get; init; } = EmphasisMarker.Asterisk;
 
     /// <summary>
-    ///     Gets the strong emphasis delimiter (default <see cref="EmphasisMarker.Asterisk"/>).
+    ///     Gets the strong emphasis delimiter.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public EmphasisMarker Strong
-    {
-        get => _strong;
-        init => _strong = CheckDefined(value);
-    }
+    public EmphasisMarker Strong { get; init; } = EmphasisMarker.Asterisk;
 
     /// <summary>
-    ///     Gets the fence character of fenced code blocks (default <see cref="FenceMarker.Backtick"/>).
+    ///     Gets the fence character of fenced code blocks.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public FenceMarker CodeFence
-    {
-        get => _codeFence;
-        init => _codeFence = CheckDefined(value);
-    }
+    public FenceMarker CodeFence { get; init; } = FenceMarker.Backtick;
 
     /// <summary>
-    ///     Gets the canonical code block syntax (default <see cref="Configuration.CodeBlockStyle.Fenced"/>).
+    ///     Gets the canonical code block syntax.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public CodeBlockStyle CodeBlockStyle
-    {
-        get => _codeBlockStyle;
-        init => _codeBlockStyle = CheckDefined(value);
-    }
+    public CodeBlockStyle CodeBlockStyle { get; init; } = CodeBlockStyle.Fenced;
 
     /// <summary>
-    ///     Gets how a hard line break is written (default <see cref="HardBreakStyle.Spaces"/>).
+    ///     Gets how a hard line break is written.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public HardBreakStyle HardBreak
-    {
-        get => _hardBreak;
-        init => _hardBreak = CheckDefined(value);
-    }
+    public HardBreakStyle HardBreak { get; init; } = HardBreakStyle.Spaces;
 
     /// <summary>
-    ///     Gets how a thematic break is written (default <see cref="ThematicBreakStyle.Dashes"/>).
+    ///     Gets how a thematic break is written.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public ThematicBreakStyle ThematicBreak
-    {
-        get => _thematicBreak;
-        init => _thematicBreak = CheckDefined(value);
-    }
+    public ThematicBreakStyle ThematicBreak { get; init; } = ThematicBreakStyle.Dashes;
 
     /// <summary>
-    ///     Gets how table cells are laid out (default <see cref="TableStyle.Compact"/>).
+    ///     Gets how table cells are laid out.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public TableStyle Tables
-    {
-        get => _tables;
-        init => _tables = CheckDefined(value);
-    }
+    public TableStyle Tables { get; init; } = TableStyle.Compact;
 
     /// <summary>
-    ///     Gets how bare URLs are treated (default <see cref="BareUrlStyle.Autolink"/>).
+    ///     Gets how bare URLs are treated.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public BareUrlStyle BareUrls
-    {
-        get => _bareUrls;
-        init => _bareUrls = CheckDefined(value);
-    }
+    public BareUrlStyle BareUrls { get; init; } = BareUrlStyle.Autolink;
 
     /// <summary>
-    ///     Gets the largest number of consecutive blank lines kept (default 1).
+    ///     Gets the largest number of consecutive blank lines kept.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not in 1 to <see cref="MaxNumber"/>.</exception>
-    public int MaxBlankLines
-    {
-        get => _maxBlankLines;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxNumber);
-            _maxBlankLines = value;
-        }
-    }
+    public int MaxBlankLines { get; init; } = 1;
 
     /// <summary>
-    ///     Gets how trailing whitespace is treated (default <see cref="TrailingWhitespaceStyle.Strip"/>).
+    ///     Gets how trailing whitespace is treated.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown by the initializer when the value is not a defined member.</exception>
-    public TrailingWhitespaceStyle TrailingWhitespace
-    {
-        get => _trailingWhitespace;
-        init => _trailingWhitespace = CheckDefined(value);
-    }
+    public TrailingWhitespaceStyle TrailingWhitespace { get; init; } = TrailingWhitespaceStyle.Strip;
 
     /// <summary>
-    ///     Gets the options of the conversion of inline links to reference links (default <see cref="LinkRefactorOptions.Disabled"/>).
+    ///     Gets the options of the conversion of inline links to reference links.
     /// </summary>
-    /// <exception cref="ArgumentNullException">Thrown by the initializer when the value is null.</exception>
-    public LinkRefactorOptions LinkRefactor
-    {
-        get => _linkRefactor;
-        init
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            _linkRefactor = value;
-        }
-    }
+    public LinkRefactorOptions LinkRefactor { get; init; } = LinkRefactorOptions.Disabled;
 
     /// <summary>
-    ///     Gets the enabled state of every configurable rule, keyed by canonical rule id (default
-    ///     <see cref="RuleCatalog.Defaults"/>).
+    ///     Gets the enabled state of every configurable rule, keyed by canonical rule id (ordinal).
     /// </summary>
     /// <remarks>
-    ///     The map is always complete: it holds exactly the ids of <see cref="RuleCatalog.ConfigurableRules"/>
-    ///     (ordinal comparer), so a consumer never needs a second lookup of the defaults.
+    ///     The map is always complete: it holds exactly the ids of the configurable rules, so a consumer
+    ///     never needs a second lookup of the defaults.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown by the initializer when the value is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown by the initializer when a key is empty or not a canonical rule id, or when a rule is missing.
-    /// </exception>
-    public ImmutableSortedDictionary<string, bool> Rules
-    {
-        get => _rules;
-        init
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            // Always store an ordinal-keyed map so lookups cannot depend on the caller's comparer
-            var normalized = value.WithComparers(StringComparer.Ordinal);
-            if (normalized.Count != RuleCatalog.Defaults.Count
-                || normalized.Keys.Any(static key => !RuleCatalog.Defaults.ContainsKey(key)))
-            {
-                throw new ArgumentException("The rules must contain exactly the configurable rule ids.", nameof(value));
-            }
-
-            _rules = normalized;
-        }
-    }
+    public ImmutableSortedDictionary<string, bool> Rules { get; init; } = RuleCatalog.Defaults;
 
     /// <summary>
-    ///     Gets the glob patterns of files that are skipped (default <see cref="DefaultIgnore"/>).
+    ///     Gets the glob patterns of files that are skipped.
     /// </summary>
     /// <remarks>
     ///     Patterns use forward slashes and are relative to the directory of the configuration file that
@@ -421,129 +177,5 @@ internal sealed record LintMarkConfig
     ///     files were selected by a directory, a glob or the default pattern, but not files named on the
     ///     command line.
     /// </remarks>
-    /// <exception cref="ArgumentException">
-    ///     Thrown by the initializer when the array is the uninitialized default, or an element is null, empty,
-    ///     blank, spans several lines or contains a backslash.
-    /// </exception>
-    public ImmutableArray<string> Ignore
-    {
-        get => _ignore;
-        init
-        {
-            if (value.IsDefault)
-            {
-                throw new ArgumentException("The ignore patterns must be initialized.", nameof(value));
-            }
-
-            if (value.Any(static pattern => string.IsNullOrWhiteSpace(pattern)
-                                            || pattern.AsSpan().IndexOfAny(LineBreakCharacters + "\\") >= 0))
-            {
-                throw new ArgumentException(
-                    "Ignore patterns must be non-blank, single-line and use forward slashes.",
-                    nameof(value));
-            }
-
-            _ignore = value;
-        }
-    }
-
-    /// <summary>
-    ///     Determines whether this configuration has the same settings as another, comparing the
-    ///     collections by content.
-    /// </summary>
-    /// <param name="other">The configuration to compare with; may be null.</param>
-    /// <returns><see langword="true"/> when every setting is equal.</returns>
-    public bool Equals(LintMarkConfig? other)
-    {
-        if (other is null)
-        {
-            return false;
-        }
-
-        // Compare the scalar settings first, then the collections by content
-        return _lineLength == other._lineLength
-               && _wrap == other._wrap
-               && _endOfLine == other._endOfLine
-               && FinalNewline == other.FinalNewline
-               && _headings == other._headings
-               && _bullet == other._bullet
-               && _listIndent == other._listIndent
-               && _orderedStyle == other._orderedStyle
-               && _emphasis == other._emphasis
-               && _strong == other._strong
-               && _codeFence == other._codeFence
-               && _codeBlockStyle == other._codeBlockStyle
-               && _hardBreak == other._hardBreak
-               && _thematicBreak == other._thematicBreak
-               && _tables == other._tables
-               && _bareUrls == other._bareUrls
-               && _maxBlankLines == other._maxBlankLines
-               && _trailingWhitespace == other._trailingWhitespace
-               && _linkRefactor.Equals(other._linkRefactor)
-               && _rules.SequenceEqual(other._rules)
-               && _ignore.SequenceEqual(other._ignore, StringComparer.Ordinal);
-    }
-
-    /// <summary>
-    ///     Gets a hash code consistent with <see cref="Equals(LintMarkConfig)"/>.
-    /// </summary>
-    /// <returns>The hash code.</returns>
-    public override int GetHashCode()
-    {
-        // Combine every setting, including the content of the collections
-        var hash = default(HashCode);
-        hash.Add(_lineLength);
-        hash.Add(_wrap);
-        hash.Add(_endOfLine);
-        hash.Add(FinalNewline);
-        hash.Add(_headings);
-        hash.Add(_bullet);
-        hash.Add(_listIndent);
-        hash.Add(_orderedStyle);
-        hash.Add(_emphasis);
-        hash.Add(_strong);
-        hash.Add(_codeFence);
-        hash.Add(_codeBlockStyle);
-        hash.Add(_hardBreak);
-        hash.Add(_thematicBreak);
-        hash.Add(_tables);
-        hash.Add(_bareUrls);
-        hash.Add(_maxBlankLines);
-        hash.Add(_trailingWhitespace);
-        hash.Add(_linkRefactor);
-        foreach (var rule in _rules)
-        {
-            hash.Add(rule.Key, StringComparer.Ordinal);
-            hash.Add(rule.Value);
-        }
-
-        foreach (var pattern in _ignore)
-        {
-            hash.Add(pattern, StringComparer.Ordinal);
-        }
-
-        return hash.ToHashCode();
-    }
-
-    /// <summary>
-    ///     Verifies that an enumeration value is a defined member.
-    /// </summary>
-    /// <typeparam name="T">The enumeration type.</typeparam>
-    /// <param name="value">The value to check.</param>
-    /// <returns>The same value.</returns>
-    /// <remarks>
-    ///     A cast from an integer can produce a value no member names; accepting it would let an
-    ///     unrepresentable canonical form reach the formatters.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is not a defined member.</exception>
-    private static T CheckDefined<T>(T value)
-        where T : struct, Enum
-    {
-        if (!Enum.IsDefined(value))
-        {
-            throw new ArgumentOutOfRangeException(nameof(value), value, $"Not a defined {typeof(T).Name} value.");
-        }
-
-        return value;
-    }
+    public ImmutableArray<string> Ignore { get; init; } = DefaultIgnore;
 }

@@ -456,12 +456,6 @@ internal static class RuleCatalog
     public static ImmutableArray<RuleInfo> Rules { get; } = [.. Table.OrderBy(static rule => rule.Id, StringComparer.Ordinal)];
 
     /// <summary>
-    ///     Gets the canonical ids of every configurable rule in ordinal order.
-    /// </summary>
-    public static ImmutableArray<string> ConfigurableRules { get; } =
-        [.. Table.Where(static rule => rule.IsConfigurable).Select(static rule => rule.Id).Order(StringComparer.Ordinal)];
-
-    /// <summary>
     ///     Gets the default state (enabled or not) of every configurable rule, keyed by canonical id with an ordinal comparer.
     /// </summary>
     public static ImmutableSortedDictionary<string, bool> Defaults { get; } = Table
@@ -475,11 +469,6 @@ internal static class RuleCatalog
         .Where(static rule => rule.IsConfigurable)
         .SelectMany(static rule => rule.Aliases.Select(alias => KeyValuePair.Create(alias, rule.Id)))
         .ToImmutableSortedDictionary(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    ///     Gets the aliases of dropped rules in ordinal order.
-    /// </summary>
-    public static ImmutableArray<string> DroppedAliases { get; } = [.. Dropped.Order(StringComparer.Ordinal)];
 
     /// <summary>
     ///     Resolves a rule id or alias of any registered rule to the canonical rule id.

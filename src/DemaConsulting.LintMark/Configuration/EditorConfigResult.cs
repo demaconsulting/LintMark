@@ -42,28 +42,8 @@ internal sealed record EditorConfigResult
     /// </summary>
     /// <param name="endOfLine">The line ending the editor settings specify, or <see langword="null"/>.</param>
     /// <param name="errorMessage">Why the settings could not be read, or <see langword="null"/>.</param>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when both values are set, when <paramref name="errorMessage"/> is blank, or when
-    ///     <paramref name="endOfLine"/> is not a defined member.
-    /// </exception>
     public EditorConfigResult(LineEnding? endOfLine, string? errorMessage)
     {
-        // Validate input: a failed read cannot also carry a value
-        if (endOfLine.HasValue && errorMessage is not null)
-        {
-            throw new ArgumentException("A line ending and an error message are mutually exclusive.", nameof(errorMessage));
-        }
-
-        if (errorMessage is not null && string.IsNullOrWhiteSpace(errorMessage))
-        {
-            throw new ArgumentException("The error message must not be blank.", nameof(errorMessage));
-        }
-
-        if (endOfLine.HasValue && !Enum.IsDefined(endOfLine.Value))
-        {
-            throw new ArgumentException("The line ending is not a defined value.", nameof(endOfLine));
-        }
-
         EndOfLine = endOfLine;
         ErrorMessage = errorMessage?.ReplaceLineEndings(" ");
     }

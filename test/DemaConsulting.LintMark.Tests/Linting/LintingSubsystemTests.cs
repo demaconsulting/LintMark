@@ -81,22 +81,6 @@ public class LintingSubsystemTests
     }
 
     /// <summary>
-    ///     Test that a diagnostic cannot be created from parts that a report line cannot carry.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_Diagnostics_InvalidParts_AreRefused()
-    {
-        // Arrange: a registered rule to build valid parts from
-        Assert.True(RuleCatalog.TryGet("line-length", out var rule));
-
-        // Act & Assert: a malformed identifier, a position of zero, and a message on two lines are refused
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic("Line Length", rule.Kind, "a.md", 1, 1, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 0, 1, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 0, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is\ntoo long."));
-    }
-
-    /// <summary>
     ///     Test that two diagnostics made from the same parts are the same problem and collapse into one.
     /// </summary>
     [Fact]

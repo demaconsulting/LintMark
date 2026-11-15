@@ -540,17 +540,4 @@ public class EditorConfigResolverTests
         // Assert: nothing is specified and nothing is reported
         Assert.Equal(EditorConfigResult.NotSpecified, result);
     }
-
-    /// <summary>
-    ///     Test that a result cannot carry both a line ending and an error, or a blank error.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResult_Constructor_InvalidCombination_ThrowsArgumentException()
-    {
-        // Act & Assert: the invalid combinations are rejected
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult(LineEnding.Lf, "problem"));
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult(null, "  "));
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult((LineEnding)99, null));
-        Assert.Equal("one two", new EditorConfigResult(null, "one\ntwo").ErrorMessage);
-    }
 }

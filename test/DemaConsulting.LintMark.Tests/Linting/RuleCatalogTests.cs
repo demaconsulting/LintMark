@@ -193,33 +193,15 @@ public class RuleCatalogTests
     }
 
     /// <summary>
-    ///     Test that the configurable rules are sorted in ordinal order and covered by the defaults.
-    /// </summary>
-    [Fact]
-    public void RuleCatalog_ConfigurableRules_AllRules_SortedOrdinalAndCoveredByDefaults()
-    {
-        // Act: take the rule list
-        var rules = RuleCatalog.ConfigurableRules;
-
-        // Assert: 27 unique ids in ordinal order, each with a default
-        Assert.Equal(27, rules.Length);
-        Assert.Equal(rules.Order(StringComparer.Ordinal), rules);
-        Assert.Equal(rules.Length, rules.Distinct(StringComparer.Ordinal).Count());
-        Assert.All(rules, rule => Assert.True(RuleCatalog.Defaults.ContainsKey(rule)));
-        Assert.Equal(rules.Length, RuleCatalog.Defaults.Count);
-    }
-
-    /// <summary>
     ///     Test that aliases are unique and map to configurable rules.
     /// </summary>
     [Fact]
     public void RuleCatalog_Aliases_AllAliases_UniqueAndMapToConfigurableRules()
     {
         // Act & Assert: every alias target is a configurable rule, and no alias is also dropped
-        Assert.All(RuleCatalog.Aliases, pair => Assert.Contains(pair.Value, RuleCatalog.ConfigurableRules));
+        Assert.All(RuleCatalog.Aliases, pair => Assert.True(RuleCatalog.Defaults.ContainsKey(pair.Value)));
         Assert.Equal(RuleCatalog.Aliases.Count, RuleCatalog.Aliases.Values.Distinct(StringComparer.Ordinal).Count());
         Assert.All(RuleCatalog.Aliases.Keys, alias => Assert.False(RuleCatalog.IsDroppedAlias(alias)));
-        Assert.Equal(9, RuleCatalog.DroppedAliases.Length);
     }
 
     /// <summary>
@@ -251,7 +233,6 @@ public class RuleCatalogTests
         Assert.True(found);
         Assert.NotNull(rule);
         Assert.False(rule.IsConfigurable);
-        Assert.DoesNotContain("line-ending", RuleCatalog.ConfigurableRules);
         Assert.False(RuleCatalog.Defaults.ContainsKey("line-ending"));
     }
 
@@ -645,11 +626,7 @@ public class RuleCatalogTests
     public void RuleCatalog_Rules_CastToMutableTypes_CannotBeModified()
     {
         // Act & Assert: the immutable arrays refuse changes through the list views
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)RuleCatalog.ConfigurableRules);
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)RuleCatalog.DroppedAliases);
         ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<RuleInfo>)RuleCatalog.Rules);
-        Assert.True(((IList<string>)RuleCatalog.ConfigurableRules).IsReadOnly);
-        Assert.True(((IList<string>)RuleCatalog.DroppedAliases).IsReadOnly);
         Assert.True(((IList<RuleInfo>)RuleCatalog.Rules).IsReadOnly);
 
         // Act & Assert: the immutable dictionaries refuse changes through the dictionary views
@@ -669,11 +646,9 @@ public class RuleCatalogTests
         Assert.Equal(27, RuleCatalog.Rules.Count(rule => rule.IsConfigurable));
         Assert.Equal(33, RuleCatalog.Rules.Count(rule => !rule.IsConfigurable));
         Assert.Equal(60, RuleCatalog.Rules.Length);
-        Assert.Equal(27, RuleCatalog.ConfigurableRules.Length);
         Assert.Equal(27, RuleCatalog.Defaults.Count);
         Assert.Equal(21, RuleCatalog.Aliases.Count);
-        Assert.Equal(9, RuleCatalog.DroppedAliases.Length);
-        Assert.Equal(RuleCatalog.Rules.Where(rule => rule.IsConfigurable).Select(rule => rule.Id), RuleCatalog.ConfigurableRules);
+        Assert.Equal(RuleCatalog.Rules.Where(rule => rule.IsConfigurable).Select(rule => rule.Id), RuleCatalog.Defaults.Keys);
     }
 
     /// <summary>

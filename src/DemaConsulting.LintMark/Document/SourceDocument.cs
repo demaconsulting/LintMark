@@ -78,7 +78,6 @@ internal sealed class SourceDocument
         Text = text;
         LineEndings = lineEndings;
         HasBom = hasBom;
-        HasFinalNewline = text.Length > 0 && text[^1] == '\n';
 
         // Record the offset of the first character of every line; a final newline therefore
         // yields a trailing empty line starting at Text.Length, matching editor conventions.
@@ -108,11 +107,6 @@ internal sealed class SourceDocument
     ///     Gets the counts of the original line terminators.
     /// </summary>
     public LineEndingInfo LineEndings { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether the text ends with a line terminator.
-    /// </summary>
-    public bool HasFinalNewline { get; }
 
     /// <summary>
     ///     Gets a value indicating whether the original bytes started with a UTF-8 byte order mark.

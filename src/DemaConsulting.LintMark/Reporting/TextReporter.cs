@@ -49,25 +49,15 @@ internal static class TextReporter
     ///     Writes diagnostics to the error channel of a context.
     /// </summary>
     /// <param name="diagnostics">The diagnostics to report, in any order. Must not be null or contain null.</param>
-    /// <param name="baseDirectory">The directory that paths are shown relative to. Must not be null or empty.</param>
-    /// <param name="context">The context that receives the lines. Must not be null.</param>
+    /// <param name="baseDirectory">The directory that paths are shown relative to.</param>
+    /// <param name="context">The context that receives the lines.</param>
     /// <remarks>
     ///     Nothing is written (and the exit code is not changed) when there are no diagnostics. On Windows, a
     ///     path on a different drive than the base directory is shown as an absolute path.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="diagnostics"/>, is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="baseDirectory"/> is empty and there is a diagnostic.</exception>
     public static void Report(IEnumerable<Diagnostic> diagnostics, string baseDirectory, Context context)
     {
-        // Validate input; the elements are checked before anything is written
-        ArgumentNullException.ThrowIfNull(diagnostics);
-        ArgumentNullException.ThrowIfNull(baseDirectory);
-        ArgumentNullException.ThrowIfNull(context);
         var items = diagnostics.ToList();
-        if (items.Any(static diagnostic => diagnostic is null))
-        {
-            throw new ArgumentNullException(nameof(diagnostics), "The diagnostics must not contain null.");
-        }
 
         // Remove repeated findings, then order by what the reader sees
         var lines = items

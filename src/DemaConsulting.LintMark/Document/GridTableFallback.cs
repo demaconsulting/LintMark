@@ -24,45 +24,13 @@ namespace DemaConsulting.LintMark.Document;
 ///     The place in a document where an invalid grid table was found; its presence marks the document as
 ///     unsafe to rewrite.
 /// </summary>
+/// <param name="Line">1-based line of the first grid-table-looking line that is not part of a valid table (1 when it cannot be located).</param>
+/// <param name="Column">1-based column of that line's first border character (1 when it cannot be located).</param>
 /// <remarks>
-///     <para>
-///         The grid table parser leaves damaged blocks behind when a table that looks like a grid table turns
-///         out to be invalid, and <see cref="DocumentParser"/> then reads the document again without grid
-///         tables. That second reading can turn valid Pandoc grid tables into paragraphs, and comparing the
-///         page cannot see such damage, so a document that needed the second reading must never be
-///         rewritten. This value carries the line to report.
-///     </para>
-///     <para>
-///         Immutable value type; safe for concurrent use. The constructor rejects a line or column below 1. A
-///         default instance (line and column zero) bypasses that check, is not valid and is never produced by
-///         the parser.
-///     </para>
+///     The grid table parser leaves damaged blocks behind when a table that looks like a grid table turns
+///     out to be invalid, and <see cref="DocumentParser"/> then reads the document again without grid
+///     tables. That second reading can turn valid Pandoc grid tables into paragraphs, and comparing the
+///     page cannot see such damage, so a document that needed the second reading must never be
+///     rewritten. This value carries the line to report. Immutable value type; safe for concurrent use.
 /// </remarks>
-internal readonly record struct GridTableFallback
-{
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="GridTableFallback"/> struct.
-    /// </summary>
-    /// <param name="line">1-based line of the first grid-table-looking line that is not part of a valid table (1 when it cannot be located).</param>
-    /// <param name="column">1-based column of that line's first border character (1 when it cannot be located).</param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="line"/> or <paramref name="column"/> is less than 1.</exception>
-    public GridTableFallback(int line, int column)
-    {
-        // Validate the position so that an invalid one can never be created
-        ArgumentOutOfRangeException.ThrowIfLessThan(line, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(column, 1);
-
-        Line = line;
-        Column = column;
-    }
-
-    /// <summary>
-    ///     Gets the 1-based line of the first grid-table-looking line that is not part of a valid table.
-    /// </summary>
-    public int Line { get; }
-
-    /// <summary>
-    ///     Gets the 1-based column of that line's first border character.
-    /// </summary>
-    public int Column { get; }
-}
+internal readonly record struct GridTableFallback(int Line, int Column);

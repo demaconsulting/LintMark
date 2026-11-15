@@ -83,23 +83,12 @@ internal static class DiffReporter
     /// <summary>
     ///     Writes the diffs of the changed files to standard output.
     /// </summary>
-    /// <param name="diffs">What would change in each file, in any order. Must not be null; elements must be initialized.</param>
-    /// <param name="baseDirectory">The directory that paths are shown relative to. Must not be null.</param>
-    /// <param name="context">The context that receives the lines. Must not be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when an element of <paramref name="diffs"/> is a default instance.</exception>
+    /// <param name="diffs">What would change in each file, in any order.</param>
+    /// <param name="baseDirectory">The directory that paths are shown relative to.</param>
+    /// <param name="context">The context that receives the lines.</param>
     public static void Report(IEnumerable<FileDiff> diffs, string baseDirectory, Context context)
     {
-        // Validate input; the elements are checked before anything is written
-        ArgumentNullException.ThrowIfNull(diffs);
-        ArgumentNullException.ThrowIfNull(baseDirectory);
-        ArgumentNullException.ThrowIfNull(context);
         var items = diffs.ToList();
-        if (items.Any(static diff => diff.Path is null || diff.BeforeLf is null || diff.AfterLf is null))
-        {
-            throw new ArgumentException("A diff was not created with its constructor.", nameof(diffs));
-        }
-
         // Write the files in display-path order, each as one block of lines
         foreach (var diff in items.OrderBy(diff => TextReporter.GetDisplayPath(diff.Path, baseDirectory), StringComparer.Ordinal))
         {

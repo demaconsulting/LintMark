@@ -159,9 +159,9 @@ public class ConfigurationSubsystemTests
         // Assert: no problems, the settings are not the defaults, and all five are equal
         Assert.All(results, r => Assert.Empty(r.Errors));
         var expected = results[0].Config!;
-        Assert.NotEqual(LintMarkConfig.Default, expected);
+        Assert.NotEqual(LintMarkConfig.Default, expected, LintMarkConfigTests.ContentComparer.Instance);
         Assert.Equal(100, expected.LineLength);
-        Assert.All(results, r => Assert.Equal(expected, r.Config));
+        Assert.All(results, r => Assert.Equal(expected, r.Config, LintMarkConfigTests.ContentComparer.Instance));
     }
 
     /// <summary>

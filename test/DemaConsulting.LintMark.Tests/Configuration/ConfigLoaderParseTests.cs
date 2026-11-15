@@ -218,8 +218,8 @@ public class ConfigLoaderParseTests
         var crlfConfig = Valid(crlf);
 
         // Assert: the configurations are equal, and they are not the defaults
-        Assert.Equal(lfConfig, crlfConfig);
-        Assert.NotEqual(LintMarkConfig.Default, crlfConfig);
+        Assert.Equal(lfConfig, crlfConfig, LintMarkConfigTests.ContentComparer.Instance);
+        Assert.NotEqual(LintMarkConfig.Default, crlfConfig, LintMarkConfigTests.ContentComparer.Instance);
     }
 
     /// <summary>
@@ -1470,22 +1470,6 @@ public class ConfigLoaderParseTests
         // Act & Assert: the path is validated
         Assert.Throws<ArgumentNullException>(() => ConfigLoader.Parse(null!, []));
         Assert.Throws<ArgumentException>(() => ConfigLoader.Parse(string.Empty, []));
-    }
-
-    /// <summary>
-    ///     Test that a loader result with errors and a configuration, or neither, is rejected.
-    /// </summary>
-    [Fact]
-    public void ConfigLoadResult_Constructor_InconsistentState_ThrowsArgumentException()
-    {
-        // Arrange: one error and an empty list
-        var error = new ConfigError("a.yaml", 1, 1, "problem");
-
-        // Act & Assert: both outcomes at once, or neither, are rejected; so are bad inputs
-        Assert.Throws<ArgumentException>(() => new ConfigLoadResult(LintMarkConfig.Default, null, [error]));
-        Assert.Throws<ArgumentException>(() => new ConfigLoadResult(null, null, []));
-        Assert.Throws<ArgumentException>(() => new ConfigLoadResult(LintMarkConfig.Default, null, default));
-        Assert.Throws<ArgumentException>(() => new ConfigLoadResult(LintMarkConfig.Default, string.Empty, []));
     }
 
     /// <summary>

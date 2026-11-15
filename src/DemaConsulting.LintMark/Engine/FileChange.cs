@@ -26,110 +26,26 @@ namespace DemaConsulting.LintMark.Engine;
 /// <summary>
 ///     A rewrite of one file that is ready to be written.
 /// </summary>
+/// <param name="OriginalLf">The LF-normalized text as it is on disk.</param>
+/// <param name="NewLf">The LF-normalized text after rewriting.</param>
+/// <param name="OriginalEndings">The counts of the line terminators in the file as it is on disk.</param>
+/// <param name="TargetEnding">The line ending the file is written with.</param>
+/// <param name="OriginalBytes">The exact bytes the rewrite was computed from.</param>
+/// <param name="NewBytes">The exact bytes to write (byte order mark and line endings restored).</param>
+/// <param name="ResolvedTarget">The full path of the file the original bytes were read from, with symbolic links resolved at read time.</param>
 /// <remarks>
-///     <para>
-///         A change exists only for a rewrite that differs from the file: for a file that must not be rewritten
-///         (an invalid configuration, a format-unsafe document, a failure) the result carries no change, so
-///         nothing downstream can write the file by mistake. The original bytes travel with the
-///         change so the writer can refuse to replace a file that changed after it was read, and so does the
-///         resolved target (the file that the path referred to through symbolic links when it was read), so the
-///         writer can also refuse when a link was redirected to a file with the same bytes. Immutable,
-///         including the byte arrays.
-///     </para>
-///     <para>
-///         The byte arrays are immutable copies, so the equality of two changes compares the array structures
-///         by reference; compare the members to compare content.
-///     </para>
+///     A change exists only for a rewrite that differs from the file: for a file that must not be rewritten
+///     (an invalid configuration, a format-unsafe document, a failure) the result carries no change, so
+///     nothing downstream can write the file by mistake. The original bytes travel with the change so the
+///     writer can refuse to replace a file that changed after it was read, and so does the resolved target
+///     (the file that the path referred to through symbolic links when it was read), so the writer can also
+///     refuse when a link was redirected to a file with the same bytes. Immutable, including the byte arrays.
 /// </remarks>
-internal sealed record FileChange
-{
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="FileChange"/> class.
-    /// </summary>
-    /// <param name="originalLf">The LF-normalized text as it is on disk. Must not be null.</param>
-    /// <param name="newLf">The LF-normalized text after rewriting. Must not be null.</param>
-    /// <param name="originalEndings">The counts of the line terminators in the file as it is on disk.</param>
-    /// <param name="targetEnding">The line ending the file is written with. Must be a defined value.</param>
-    /// <param name="originalBytes">The exact bytes the rewrite was computed from. Must not be a default array.</param>
-    /// <param name="newBytes">The exact bytes to write (byte order mark and line endings restored). Must not be a default array.</param>
-    /// <param name="resolvedTarget">The full path of the file the original bytes were read from, with symbolic links resolved at read time. Must not be blank.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="originalLf"/>, <paramref name="newLf"/> or <paramref name="resolvedTarget"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when a byte array is a default array or <paramref name="resolvedTarget"/> is blank.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="targetEnding"/> is not a defined value.</exception>
-    public FileChange(
-        string originalLf,
-        string newLf,
-        LineEndingInfo originalEndings,
-        LineEnding targetEnding,
-        ImmutableArray<byte> originalBytes,
-        ImmutableArray<byte> newBytes,
-        string resolvedTarget)
-    {
-        // Validate the arguments so that an incomplete change can never be created
-        ArgumentNullException.ThrowIfNull(originalLf);
-        ArgumentNullException.ThrowIfNull(newLf);
-        ArgumentNullException.ThrowIfNull(resolvedTarget);
-        if (string.IsNullOrWhiteSpace(resolvedTarget))
-        {
-            throw new ArgumentException("The resolved target must not be blank.", nameof(resolvedTarget));
-        }
-
-        if (!Enum.IsDefined(targetEnding))
-        {
-            throw new ArgumentOutOfRangeException(nameof(targetEnding), targetEnding, "The line ending is not a defined value.");
-        }
-
-        if (originalBytes.IsDefault)
-        {
-            throw new ArgumentException("The original bytes must not be a default array.", nameof(originalBytes));
-        }
-
-        if (newBytes.IsDefault)
-        {
-            throw new ArgumentException("The new bytes must not be a default array.", nameof(newBytes));
-        }
-
-        OriginalLf = originalLf;
-        NewLf = newLf;
-        OriginalEndings = originalEndings;
-        TargetEnding = targetEnding;
-        OriginalBytes = originalBytes;
-        NewBytes = newBytes;
-        ResolvedTarget = resolvedTarget;
-    }
-
-    /// <summary>
-    ///     Gets the LF-normalized text as it is on disk.
-    /// </summary>
-    public string OriginalLf { get; }
-
-    /// <summary>
-    ///     Gets the LF-normalized text after rewriting.
-    /// </summary>
-    public string NewLf { get; }
-
-    /// <summary>
-    ///     Gets the counts of the line terminators in the file as it is on disk.
-    /// </summary>
-    public LineEndingInfo OriginalEndings { get; }
-
-    /// <summary>
-    ///     Gets the line ending the file is written with.
-    /// </summary>
-    public LineEnding TargetEnding { get; }
-
-    /// <summary>
-    ///     Gets the exact bytes the rewrite was computed from.
-    /// </summary>
-    public ImmutableArray<byte> OriginalBytes { get; }
-
-    /// <summary>
-    ///     Gets the exact bytes to write (byte order mark and line endings restored).
-    /// </summary>
-    public ImmutableArray<byte> NewBytes { get; }
-
-    /// <summary>
-    ///     Gets the full path of the file the original bytes were read from, with symbolic links resolved when the file was read.
-    /// </summary>
-    public string ResolvedTarget { get; }
-}
+internal sealed record FileChange(
+    string OriginalLf,
+    string NewLf,
+    LineEndingInfo OriginalEndings,
+    LineEnding TargetEnding,
+    ImmutableArray<byte> OriginalBytes,
+    ImmutableArray<byte> NewBytes,
+    string ResolvedTarget);

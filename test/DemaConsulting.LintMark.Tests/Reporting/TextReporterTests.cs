@@ -226,40 +226,6 @@ public class TextReporterTests
     }
 
     /// <summary>
-    ///     Test that an element that is null is refused before anything is written.
-    /// </summary>
-    [Fact]
-    public void TextReporter_Report_NullElement_Throws()
-    {
-        // Arrange: a list with a valid diagnostic followed by null
-        using var directory = new TemporaryDirectory();
-        var diagnostics = new List<Diagnostic> { Make(directory, "a.md", 1, 1), null! };
-        var log = directory.PathOf("report.log");
-        using var context = Context.Create(["--silent", "--log", log]);
-
-        // Act / Assert: the null element is refused
-        Assert.Throws<ArgumentNullException>(() => TextReporter.Report(diagnostics, directory.FullPath, context));
-
-        // Assert: nothing was written, not even the valid diagnostic
-        Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
-    ///     Test that a null argument is refused.
-    /// </summary>
-    [Fact]
-    public void TextReporter_Report_NullArguments_Throw()
-    {
-        // Arrange: a valid context
-        using var context = Context.Create(["--silent"]);
-
-        // Act / Assert: each argument is checked
-        Assert.Throws<ArgumentNullException>(() => TextReporter.Report(null!, "dir", context));
-        Assert.Throws<ArgumentNullException>(() => TextReporter.Report([], null!, context));
-        Assert.Throws<ArgumentNullException>(() => TextReporter.Report([], "dir", null!));
-    }
-
-    /// <summary>
     ///     Test that a context with a log and a console receives the lines on both.
     /// </summary>
     [Fact]
