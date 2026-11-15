@@ -236,21 +236,64 @@ public class EditRebaserTests
     [InlineData(5, 3)]
     [InlineData(6, 4)]
     [InlineData(8, 6)]
-    public void EditRebaser_MapOffset_OffsetsOfTheOutput_MapBackToTheOriginal(int offset, int expected)
+    public void EditRebaser_CreateOffsetMapper_OffsetsOfTheOutput_MapBackToTheOriginal(int offset, int expected)
     {
         // Arrange: one edit replaces the third character by three characters
         ImmutableArray<TextEdit> first = [Edit(2, 1, "XYZ")];
 
         // Act & Assert: the offsets map as expected
-        Assert.Equal(expected, EditRebaser.MapOffset(first, offset));
+        Assert.Equal(expected, EditRebaser.CreateOffsetMapper(first)(offset));
     }
 
     /// <summary>
     ///     Test that the offset after a deletion maps behind the deleted characters.
     /// </summary>
     [Fact]
-    public void EditRebaser_MapOffset_AfterADeletion_MapsBehindTheDeletedCharacters() =>
-        Assert.Equal(5, EditRebaser.MapOffset([Edit(2, 3, string.Empty)], 2));
+    public void EditRebaser_CreateOffsetMapper_AfterADeletion_MapsBehindTheDeletedCharacters() =>
+        Assert.Equal(5, EditRebaser.CreateOffsetMapper([Edit(2, 3, string.Empty)])(2));
+
+    /// <summary>
+    ///     Test that composing and mapping very many edits takes time in proportion to their number, which a search through all
+    ///     the edits for each one of them would not (a defect that made formatting a large document time out).
+    /// </summary>
+    [Fact]
+    public void EditRebaser_Rebase_VeryManyEdits_TakesTimeInProportionToTheirNumber()
+    {
+        // Arrange: a first edit of every ten characters, and a second one inside the text each of them writes
+        const int Count = 200_000;
+        var replacements = ImmutableArray.CreateBuilder<TextEdit>(Count);
+        var insertions = ImmutableArray.CreateBuilder<TextEdit>(Count);
+        var insideReplacements = ImmutableArray.CreateBuilder<TextEdit>(Count);
+        var afterInsertions = ImmutableArray.CreateBuilder<TextEdit>(Count);
+        for (var i = 0; i < Count; i++)
+        {
+            replacements.Add(Edit(10 * i, 2, "xyz"));
+            insideReplacements.Add(Edit((11 * i) + 1, 1, "Q"));
+            insertions.Add(Edit(10 * i, 0, "ab"));
+            afterInsertions.Add(Edit((12 * i) + 2, 0, "Z"));
+        }
+
+        // Act: compose replacements and insertions, and map every offset of the produced text back
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var replaced = EditRebaser.Rebase(replacements.MoveToImmutable(), insideReplacements.MoveToImmutable());
+        var inserted = EditRebaser.Rebase(insertions.MoveToImmutable(), afterInsertions.MoveToImmutable());
+        var map = EditRebaser.CreateOffsetMapper(replaced);
+        var mapped = 0;
+        for (var i = 0; i < Count; i++)
+        {
+            mapped += map(11 * i) - (10 * i);
+        }
+
+        watch.Stop();
+
+        // Assert: every pair became one edit that writes both texts; a quadratic search would need minutes
+        Assert.Equal(Count, replaced.Length);
+        Assert.Equal(Edit(50, 2, "xQz"), replaced[5]);
+        Assert.Equal(Count, inserted.Length);
+        Assert.Equal(Edit(50, 0, "abZ"), inserted[5]);
+        Assert.Equal(0, mapped);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), $"Composing and mapping {Count} edits took {watch.Elapsed}");
+    }
 
     /// <summary>
     ///     Creates a random text from a small alphabet that includes the line feed.

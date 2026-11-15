@@ -285,9 +285,10 @@ internal sealed class DocumentFormatter
             }
         }
 
+        var map = EditRebaser.CreateOffsetMapper(edits);
         var diagnostics = plan.Conversions.Select(conversion =>
         {
-            var (line, column) = source.PositionOf(EditRebaser.MapOffset(edits, conversion.Offset));
+            var (line, column) = source.PositionOf(map(conversion.Offset));
             return new Diagnostic(RuleCatalog.LinkRefactorRuleId, DiagnosticKind.Formatting, source.Path, line, column, conversion.Message);
         });
         return (composed, [.. diagnostics]);
@@ -371,6 +372,7 @@ internal sealed class DocumentFormatter
         // The wraps that stand are composed with the edits of the other rules; every paragraph with a line that is too wide is reported
         var wraps = new EditSet();
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        var map = EditRebaser.CreateOffsetMapper(edits);
         foreach (var outcome in outcomes)
         {
             if (outcome.Edit is { } wrap)
@@ -378,7 +380,7 @@ internal sealed class DocumentFormatter
                 wraps.Add(wrap);
             }
 
-            AddLineLengthDiagnostics(source, edits, config.LineLength, outcome, diagnostics);
+            AddLineLengthDiagnostics(source, map, config.LineLength, outcome, diagnostics);
         }
 
         return (EditRebaser.Rebase(edits, wraps.ToImmutable()), diagnostics.ToImmutable());
@@ -388,7 +390,7 @@ internal sealed class DocumentFormatter
     ///     Adds the <c>line-length</c> findings of one paragraph.
     /// </summary>
     /// <param name="source">The original document, for the path and the positions.</param>
-    /// <param name="edits">The edits of the other rules, to translate the offset of the produced text to the original.</param>
+    /// <param name="map">Translates an offset of the text that the other rules produce to an offset of the original text.</param>
     /// <param name="limit">The line length.</param>
     /// <param name="outcome">What the paragraph formatter found out about the paragraph.</param>
     /// <param name="diagnostics">Receives the findings.</param>
@@ -398,7 +400,7 @@ internal sealed class DocumentFormatter
     /// </remarks>
     private static void AddLineLengthDiagnostics(
         SourceDocument source,
-        ImmutableArray<TextEdit> edits,
+        Func<int, int> map,
         int limit,
         ParagraphOutcome outcome,
         ImmutableArray<Diagnostic>.Builder diagnostics)
@@ -406,7 +408,7 @@ internal sealed class DocumentFormatter
         // A paragraph that is not in the layout of the wrap mode is one finding, fixed by the edit when there is one
         if (outcome.WrapOffset >= 0)
         {
-            var (wrapLine, wrapColumn) = source.PositionOf(EditRebaser.MapOffset(edits, outcome.WrapOffset));
+            var (wrapLine, wrapColumn) = source.PositionOf(map(outcome.WrapOffset));
             const string description = "Paragraph is not wrapped per the configured sentence or semantic style";
             diagnostics.Add(outcome.Edit is not null
                 ? new Diagnostic(RuleCatalog.ParagraphWrapRuleId, DiagnosticKind.Formatting, source.Path, wrapLine, wrapColumn, description)
@@ -423,7 +425,7 @@ internal sealed class DocumentFormatter
             return;
         }
 
-        var (line, column) = source.PositionOf(EditRebaser.MapOffset(edits, outcome.OverflowOffset));
+        var (line, column) = source.PositionOf(map(outcome.OverflowOffset));
         var message = $"Line is {outcome.OverflowWidth} columns wide; the limit is {limit}";
         if (outcome.Edit is not null)
         {

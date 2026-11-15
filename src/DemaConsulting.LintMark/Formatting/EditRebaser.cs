@@ -84,10 +84,7 @@ internal static class EditRebaser
         var absorbed = new bool[changes.Length];
         foreach (var group in groups)
         {
-            for (var k = 0; k < changes.Length; k++)
-            {
-                absorbed[k] |= outputs.IsInside(k, group.Start, group.End);
-            }
+            outputs.MarkInside(absorbed, group.Start, group.End);
         }
 
         for (var k = 0; k < changes.Length; k++)
@@ -109,19 +106,24 @@ internal static class EditRebaser
     }
 
     /// <summary>
-    ///     Maps an offset of the text that a list of edits produces back to an offset of the original text.
+    ///     Creates a function that maps offsets of the text that a list of edits produces back to offsets of the original text.
     /// </summary>
     /// <param name="first">The edits against the original text, ordered and without conflicts.</param>
-    /// <param name="offset">An offset in the produced text.</param>
     /// <returns>
-    ///     The offset of the same character in the original text when the character was not written by an edit; for
-    ///     an offset inside text that an edit wrote, the start of the range that edit replaced.
+    ///     A function from an offset in the produced text to the offset of the same character in the original text when the
+    ///     character was not written by an edit; for an offset inside text that an edit wrote, the start of the range that edit replaced.
     /// </returns>
-    public static int MapOffset(ImmutableArray<TextEdit> first, int offset)
+    /// <remarks>
+    ///     The arithmetic is prepared once, so that mapping many offsets costs a binary search each.
+    /// </remarks>
+    public static Func<int, int> CreateOffsetMapper(ImmutableArray<TextEdit> first)
     {
         var outputs = new Outputs(first);
-        var inside = outputs.FindStrictlyInside(offset);
-        return inside >= 0 ? first[inside].Start : outputs.ToOriginalStart(offset);
+        return offset =>
+        {
+            var inside = outputs.FindStrictlyInside(offset);
+            return inside >= 0 ? first[inside].Start : outputs.ToOriginalStart(offset);
+        };
     }
 
     /// <summary>
@@ -264,12 +266,16 @@ internal static class EditRebaser
                 return string.Empty;
             }
 
-            for (var k = 0; k < _edits.Length; k++)
+            // Only the last edit that starts at or before the offset and writes some text can contain the range; the texts are disjoint
+            var k = CountWhere(_starts, start => start <= from) - 1;
+            while (k >= 0 && _ends[k] == _starts[k])
             {
-                if (_starts[k] <= from && to <= _ends[k])
-                {
-                    return _edits[k].Replacement.Substring(from - _starts[k], to - from);
-                }
+                k--;
+            }
+
+            if (k >= 0 && to <= _ends[k])
+            {
+                return _edits[k].Replacement.Substring(from - _starts[k], to - from);
             }
 
             throw new InvalidOperationException("Edits overlap in text that no edit wrote.");
@@ -303,9 +309,10 @@ internal static class EditRebaser
             if (edit.Length == 0 && start < 0)
             {
                 // The order of two insertions at one offset is not defined, so the insertion joins the one it touches
-                for (var k = 0; k < _edits.Length; k++)
+                // Both arrays ascend, so the search starts at the first text that ends at or after the insertion
+                for (var k = CountWhere(_ends, end => end < edit.Start); k < _edits.Length && _starts[k] <= edit.Start; k++)
                 {
-                    if (_edits[k].Length == 0 && _ends[k] > _starts[k] && _starts[k] <= edit.Start && edit.Start <= _ends[k])
+                    if (_edits[k].Length == 0 && _ends[k] > _starts[k])
                     {
                         return (k, k);
                     }
@@ -329,6 +336,21 @@ internal static class EditRebaser
             _ends[index] > _starts[index]
                 ? start <= _starts[index] && _ends[index] <= end
                 : start < _starts[index] && _starts[index] < end;
+
+        /// <summary>
+        ///     Marks the edits whose text lies inside a range of the produced text (see <see cref="IsInside"/>).
+        /// </summary>
+        /// <param name="absorbed">One flag per edit; receives <see langword="true"/> for each edit inside the range.</param>
+        /// <param name="start">Start of the range.</param>
+        /// <param name="end">Exclusive end of the range.</param>
+        public void MarkInside(bool[] absorbed, int start, int end)
+        {
+            // An edit inside the range starts in it, and the starts ascend, so only the edits that start in the range are looked at
+            for (var k = CountWhere(_starts, value => value < start); k < _edits.Length && _starts[k] <= end; k++)
+            {
+                absorbed[k] |= IsInside(k, start, end);
+            }
+        }
 
         /// <summary>
         ///     Maps the start of a range of the produced text to the original text.

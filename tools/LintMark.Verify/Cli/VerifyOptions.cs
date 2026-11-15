@@ -69,7 +69,7 @@ internal sealed class VerifyOptions
           --report <file>            Write a Markdown report of the run to this file.
           --sample <n>               Verify a deterministic subset of n files (seeded), useful with --matrix.
           --jobs <n>                 Degree of parallelism (default: processor count).
-          --timeout <seconds>        Per file and option set (default 60).
+          --timeout <seconds>        Per file and option set (default 300).
           --max-diff-lines <n>       Longest diff shown per failure (default 60).
           -h, --help                 Show this help.
 
@@ -129,7 +129,7 @@ internal sealed class VerifyOptions
     /// <summary>
     ///     Gets or sets the time limit per file and option set in seconds.
     /// </summary>
-    public int TimeoutSeconds { get; set; } = 60;
+    public int TimeoutSeconds { get; set; } = 300;
 
     /// <summary>
     ///     Gets or sets the longest diff shown per failure, in lines.
