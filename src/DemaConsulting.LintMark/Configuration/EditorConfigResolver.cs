@@ -151,3 +151,45 @@ internal sealed class EditorConfigResolver
         return string.Equals(raw, "crlf", StringComparison.OrdinalIgnoreCase) ? LineEnding.CrLf : null;
     }
 }
+
+/// <summary>
+///     The editor-settings outcome for one Markdown file: the line ending the editor settings specify, or why they could not be read.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Supporting type of <see cref="EditorConfigResolver"/>. "Not specified" (both members
+///         <see langword="null"/>) is an ordinary outcome, not an error: editor settings are shared with
+///         other file types and often say nothing about line endings.
+///     </para>
+///     <para>
+///         Thread safety: instances are immutable and may be shared between threads.
+///     </para>
+/// </remarks>
+internal sealed record EditorConfigResult
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="EditorConfigResult"/> class.
+    /// </summary>
+    /// <param name="endOfLine">The line ending the editor settings specify, or <see langword="null"/>.</param>
+    /// <param name="errorMessage">Why the settings could not be read, or <see langword="null"/>.</param>
+    public EditorConfigResult(LineEnding? endOfLine, string? errorMessage)
+    {
+        EndOfLine = endOfLine;
+        ErrorMessage = errorMessage?.ReplaceLineEndings(" ");
+    }
+
+    /// <summary>
+    ///     Gets the outcome in which the editor settings say nothing about the line ending.
+    /// </summary>
+    public static EditorConfigResult NotSpecified { get; } = new(null, null);
+
+    /// <summary>
+    ///     Gets the line ending the editor settings specify, or <see langword="null"/> when they do not.
+    /// </summary>
+    public LineEnding? EndOfLine { get; }
+
+    /// <summary>
+    ///     Gets why the editor settings could not be read, or <see langword="null"/> when they could.
+    /// </summary>
+    public string? ErrorMessage { get; }
+}

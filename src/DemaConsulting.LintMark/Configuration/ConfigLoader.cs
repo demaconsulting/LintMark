@@ -448,3 +448,109 @@ internal sealed class ConfigLoader
         return (line, Encoding.UTF8.GetCharCount(before[lineStart..]) + 1);
     }
 }
+
+/// <summary>
+///     The outcome of loading a configuration: either a valid configuration or the list of problems found.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Supporting type of <see cref="ConfigLoader"/>. A load never yields a half-valid configuration:
+///         <see cref="Config"/> is set exactly when <see cref="Errors"/> is empty, which makes it
+///         impossible to use settings from a file that was reported as invalid. The errors are stored
+///         sorted by line, column and message so the report does not depend on discovery order.
+///     </para>
+///     <para>
+///         Thread safety: instances are immutable and may be shared between threads.
+///     </para>
+/// </remarks>
+internal sealed record ConfigLoadResult
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ConfigLoadResult"/> class.
+    /// </summary>
+    /// <param name="config">The valid configuration, or <see langword="null"/> when there are errors.</param>
+    /// <param name="sourcePath">Full path of the file the configuration came from; <see langword="null"/> for built-in defaults.</param>
+    /// <param name="errors">The problems found; empty exactly when <paramref name="config"/> is set.</param>
+    public ConfigLoadResult(LintMarkConfig? config, string? sourcePath, ImmutableArray<ConfigError> errors)
+    {
+        // Store the errors in report order
+        Config = config;
+        SourcePath = sourcePath;
+        Errors =
+        [
+            .. errors
+                .OrderBy(static e => e.Line)
+                .ThenBy(static e => e.Column)
+                .ThenBy(static e => e.Message, StringComparer.Ordinal)
+        ];
+    }
+
+    /// <summary>
+    ///     Gets the valid configuration, or <see langword="null"/> when the source had errors.
+    /// </summary>
+    public LintMarkConfig? Config { get; }
+
+    /// <summary>
+    ///     Gets the full path of the configuration file, or <see langword="null"/> when built-in defaults apply.
+    /// </summary>
+    public string? SourcePath { get; }
+
+    /// <summary>
+    ///     Gets the problems found, sorted by line, column and message (empty when <see cref="Config"/> is set).
+    /// </summary>
+    public ImmutableArray<ConfigError> Errors { get; }
+}
+
+/// <summary>
+///     One problem found in a configuration source, with the position it is reported at.
+/// </summary>
+/// <remarks>
+///     Supporting type of <see cref="ConfigLoader"/>. Immutable. The message is kept on one line (line
+///     breaks are replaced by spaces) so that one problem is always one line of output.
+/// </remarks>
+internal sealed record ConfigError
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ConfigError"/> class.
+    /// </summary>
+    /// <param name="path">Path of the file the problem is reported against. Must not be null or empty.</param>
+    /// <param name="line">1-based line.</param>
+    /// <param name="column">1-based column.</param>
+    /// <param name="message">Description of the problem without the path or position. Must not be null or blank.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or <paramref name="message"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="line"/> or <paramref name="column"/> is less than one.</exception>
+    public ConfigError(string path, int line, int column, string message)
+    {
+        // Validate input
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentOutOfRangeException.ThrowIfLessThan(line, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(column, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        Path = path;
+        Line = line;
+        Column = column;
+        Message = message.ReplaceLineEndings(" ");
+    }
+
+    /// <summary>
+    ///     Gets the path of the file the problem is reported against.
+    /// </summary>
+    public string Path { get; }
+
+    /// <summary>
+    ///     Gets the 1-based line of the problem.
+    /// </summary>
+    public int Line { get; }
+
+    /// <summary>
+    ///     Gets the 1-based column of the problem (UTF-16 code units; a tab counts as one).
+    /// </summary>
+    public int Column { get; }
+
+    /// <summary>
+    ///     Gets the single-line description of the problem.
+    /// </summary>
+    public string Message { get; }
+}
