@@ -30,7 +30,7 @@ namespace DemaConsulting.LintMark.Document;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The Markdown parser renders multi-line code spans differently for LF and CRLF input
+///         The Markdown parser reads multi-line code spans differently for LF and CRLF input
 ///         (the CRLF code-span difference), so all parsing and offset arithmetic is done on LF-normalized
 ///         <see cref="Text"/> and the original terminators are only recorded (as counts) so they can be
 ///         restored on write. A file whose terminators are all of one style is written back byte for byte.

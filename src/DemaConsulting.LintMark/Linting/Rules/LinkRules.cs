@@ -37,7 +37,7 @@ namespace DemaConsulting.LintMark.Linting.Rules;
 ///     <para>
 ///         The rules read the inline syntax tree of the parser, plus the plain text that the parser left alone (an unresolved
 ///         reference is plain text). A rule only reports; it never proposes an edit, because every fix would change what the
-///         document says or how it renders.
+///         document says or how it reads.
 ///     </para>
 ///     <list type="bullet">
 ///         <item><c>image-alt-text</c> (MD045): an image whose alternative text is empty or blank, and an HTML <c>img</c> tag without an <c>alt</c> attribute.</item>

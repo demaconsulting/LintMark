@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 using System.Diagnostics;
-using DemaConsulting.LintMark.Formatting.Proof;
+using DemaConsulting.LintMark.Verify.Checks;
 
-namespace DemaConsulting.LintMark.Tests;
+namespace DemaConsulting.LintMark.Verify.Tests;
 
 /// <summary>
 ///     Test that the HtmlEquivalenceChecker class accepts rewrites that render to the same page and refuses

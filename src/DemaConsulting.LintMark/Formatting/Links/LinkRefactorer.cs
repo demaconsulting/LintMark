@@ -96,7 +96,7 @@ internal sealed class LinkRefactorer
     /// <param name="config">The effective configuration of the file. Must not be null.</param>
     /// <returns>
     ///     The plan: edits against the text of the document. <see cref="LinkRefactorPlan.Empty"/> when the feature is off, nothing
-    ///     qualifies, the definitions cannot be placed safely, or the proof fails.
+    ///     qualifies, the definitions cannot be placed safely, or the produced text does not define every label.
     /// </returns>
     /// <remarks>Pure: nothing is written and the document is not changed.</remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
@@ -429,81 +429,6 @@ internal sealed class LinkRefactorer
         }
 
         return true;
-    }
-
-    /// <summary>
-    ///     Removes the marker comment that the link refactoring added to a rewrite, so that the rewrite can be compared with the
-    ///     original by what it renders.
-    /// </summary>
-    /// <param name="original">The text before the rewrite, with LF or CRLF line endings. Must not be null.</param>
-    /// <param name="rewritten">The text after the rewrite, with the same kind of line endings. Must not be null.</param>
-    /// <param name="marker">The marker comment of the configuration. Must not be null.</param>
-    /// <returns>
-    ///     The rewrite without its last line that holds the marker (and the line ending of that line) when the rewrite has exactly
-    ///     one such line more than the original; otherwise the rewrite unchanged.
-    /// </returns>
-    /// <remarks>
-    ///     <para>
-    ///         The new definitions are introduced by a comment, and an HTML comment is part of the HTML that a Markdown file
-    ///         renders to (and is compared exactly), although no reader sees it. It is the one thing the link refactoring writes that
-    ///         the page contains. The proof and the verification tool therefore compare the original with the rewrite without that line;
-    ///         every other character of the rewrite, the definitions and the converted links included, is compared as before.
-    ///     </para>
-    ///     <para>
-    ///         Only a line that holds nothing but the marker counts, so a marker that the original already had is never removed, and a
-    ///         rewrite that holds other new text is not changed.
-    ///     </para>
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    public static string WithoutAddedMarker(string original, string rewritten, string marker)
-    {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(original);
-        ArgumentNullException.ThrowIfNull(rewritten);
-        ArgumentNullException.ThrowIfNull(marker);
-
-        var (before, _) = FindMarkerLines(original, marker);
-        var (after, lastStart) = FindMarkerLines(rewritten, marker);
-        if (after != before + 1)
-        {
-            return rewritten;
-        }
-
-        // The new block is written at the end of the document, so the added marker is the last one
-        var end = rewritten.IndexOf('\n', lastStart);
-        return rewritten.Remove(lastStart, (end < 0 ? rewritten.Length : end + 1) - lastStart);
-    }
-
-    /// <summary>
-    ///     Counts the lines of a text that hold only a marker and finds where the last of them starts.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <param name="marker">The marker.</param>
-    /// <returns>The number of such lines and the offset where the last starts (-1 when there is none).</returns>
-    private static (int Count, int LastStart) FindMarkerLines(string text, string marker)
-    {
-        var count = 0;
-        var last = -1;
-        var start = 0;
-        while (start <= text.Length)
-        {
-            var end = text.IndexOf('\n', start);
-            var lineEnd = end < 0 ? text.Length : end;
-            if (text.AsSpan(start, lineEnd - start).TrimEnd('\r').SequenceEqual(marker))
-            {
-                count++;
-                last = start;
-            }
-
-            if (end < 0)
-            {
-                break;
-            }
-
-            start = end + 1;
-        }
-
-        return (count, last);
     }
 
     /// <summary>

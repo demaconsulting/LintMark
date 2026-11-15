@@ -51,6 +51,7 @@ internal sealed class MarkerAddingFormatter : ParagraphTestFormatter
 ///     Tests for the FileVerifier class: a correct formatter passes, every kind of harmful rewrite is detected,
 ///     and the refusals by design count as passes.
 /// </summary>
+[Collection("ConfigLoaderTemporaryDirectory")]
 public class FileVerifierTests
 {
     /// <summary>

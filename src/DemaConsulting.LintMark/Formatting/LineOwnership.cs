@@ -340,7 +340,7 @@ internal sealed class LineOwnership
     /// <returns><see langword="true"/> when a footnote definition covers the line.</returns>
     /// <remarks>
     ///     The parser reads the body of a footnote definition inconsistently (a definition inside one may be
-    ///     reported as a link reference definition although it renders as code), so the end of the file is
+    ///     reported as a link reference definition although it is code), so the end of the file is
     ///     not normalized after such a block.
     /// </remarks>
     public bool IsInFootnote(int line) => _footnote[line];

@@ -47,7 +47,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         are used only to tell plain text from code, and only after they have been matched to the line (see
 ///         the design): a heading with a tab in its text whose spans do not fit is left alone as a whole. Text that merely looks
 ///         like a heading but is a paragraph (<c>#Title</c> without a space) is not a heading to the parser and is
-///         never touched: adding the space would change how the document renders.
+///         never touched: adding the space would change how the document reads.
 ///     </para>
 ///     <para>
 ///         Thread safety: stateless; one instance serves every worker thread.

@@ -161,7 +161,7 @@ internal static partial class DocumentParser
         // The grid table parser mishandles a table that turns out to be invalid; when the blocks do not
         // nest, locate the offending line in the damaged reading and parse again without the grid table
         // parser. The document is then marked format-unsafe: the second reading can turn valid grid tables
-        // into paragraphs, which rendered-output comparison cannot see, so it must never be rewritten
+        // into paragraphs, which a comparison of pages cannot see, so it must never be rewritten
         GridTableFallback? fallback = null;
         if (!NestsCorrectly(blocks))
         {

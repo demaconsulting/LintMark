@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Verify.Checks;
 
 namespace DemaConsulting.LintMark.Verify.Tests;

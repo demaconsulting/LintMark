@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Reporting;
+using DemaConsulting.LintMark.Verify.Checks;
 using Markdig;
 
 namespace DemaConsulting.LintMark.Verify.Reporting;

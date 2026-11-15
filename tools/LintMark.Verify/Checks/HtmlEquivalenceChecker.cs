@@ -23,7 +23,7 @@ using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
 using Markdig;
 
-namespace DemaConsulting.LintMark.Formatting.Proof;
+namespace DemaConsulting.LintMark.Verify.Checks;
 
 /// <summary>
 ///     Decides whether two versions of a document render to the same HTML; the proof that decides whether a

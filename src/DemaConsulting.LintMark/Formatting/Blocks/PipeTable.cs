@@ -33,7 +33,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 /// <remarks>
 ///     <para>
 ///         The parser decides which lines are a table; this type reads the cells from the source text of those lines
-///         (never from the rendered inline content), so that the text of a cell survives byte for byte. A line is split
+///         (never from the inline content the parser builds), so that the text of a cell survives byte for byte. A line is split
 ///         at every pipe that is not escaped by a backslash (inside a code span too, as GFM does); the pipe that starts
 ///         the content and the one that ends it are delimiters, not cell boundaries; the blanks around a cell are
 ///         dropped. The prefix of a line (quote markers, list markers, indentation) is kept apart and never changes.

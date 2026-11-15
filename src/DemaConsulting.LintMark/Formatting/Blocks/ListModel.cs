@@ -77,7 +77,7 @@ internal sealed record ListItemModel(
 ///         item does not start another list on its marker line, and no line of it looks like the border of a grid table or
 ///         holds the marker of a footnote definition (the parser reads those inconsistently). A list that is not movable
 ///         stays where it is, or moves as a whole with the item it belongs to. Whether a plan that moves lists keeps the
-///         rendering of the document is proved by <see cref="ListPlan"/>, not assumed here.
+///         meaning of the document is decided by the rules of <see cref="ListPlan"/>, not assumed here.
 ///     </para>
 ///     <para>
 ///         Thread safety: immutable after <see cref="Build"/>.

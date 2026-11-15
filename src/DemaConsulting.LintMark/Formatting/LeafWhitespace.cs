@@ -33,7 +33,7 @@ namespace DemaConsulting.LintMark.Formatting;
 ///         Shared by <see cref="DocumentFormatter"/> (paragraphs and headings that no block formatter claims) and
 ///         by the heading formatter, so that both treat whitespace the same way. Whitespace is only changed
 ///         where the parser says it is plain text: whitespace inside code, inline HTML, math or a link
-///         destination is part of the rendered result and stays.
+///         destination is part of what it says and stays.
 ///     </para>
 ///     <para>
 ///         Trailing whitespace is removed from every line, except that a hard break written with spaces keeps

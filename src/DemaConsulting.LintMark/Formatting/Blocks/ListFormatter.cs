@@ -43,7 +43,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         What changes, and what is left as written, is decided by <see cref="ListModel"/> and <see cref="ListPlan"/>: marker
 ///         characters and same-width numbers change at any depth; columns change only for a nest at the top level of the document
 ///         whose items hold no lazy line, tab, five-space code start or block the parser does not report reliably. The first
-///         number of an ordered list and its delimiter are never changed, because they decide how the list renders. A list that
+///         number of an ordered list and its delimiter are never changed, because they decide how the list reads. A list that
 ///         cannot be changed without changing its meaning is left exactly as written and reports no violation.
 ///     </para>
 ///     <para>

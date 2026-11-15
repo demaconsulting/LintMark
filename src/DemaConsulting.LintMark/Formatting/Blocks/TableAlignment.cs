@@ -26,7 +26,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 internal enum TableAlignment
 {
     /// <summary>
-    ///     No colon in the delimiter cell: the renderer's default alignment.
+    ///     No colon in the delimiter cell: the parser's default alignment.
     /// </summary>
     None,
 

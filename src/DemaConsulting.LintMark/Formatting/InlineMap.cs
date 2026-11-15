@@ -30,7 +30,7 @@ namespace DemaConsulting.LintMark.Formatting;
 ///     <para>
 ///         Whitespace rules may only touch whitespace that the Markdown parser treats as plain text. Code spans,
 ///         inline HTML, math, autolink URLs, link destinations and titles keep their whitespace as it is, because it
-///         is part of the rendered result. The map answers three questions about an offset of the original text:
+///         is part of what the document says. The map answers three questions about an offset of the original text:
 ///         is it plain text, is it protected, and does a line break start there (and is that break a hard break
 ///         written with spaces).
 ///     </para>
@@ -155,7 +155,7 @@ internal sealed class InlineMap
                     breaks[lineBreak.Span.Start + shift] = lineBreak.IsHard && !lineBreak.IsBackslash;
                     break;
 
-                // A link keeps its text editable; the destination, title and label are part of the rendered result
+                // A link keeps its text editable; the destination, title and label are part of what the link says
                 case LinkInline link:
                     AddSpan(guarded, link.UrlSpan.Start, link.UrlSpan.End, shift);
                     AddSpan(guarded, link.TitleSpan.Start, link.TitleSpan.End, shift);

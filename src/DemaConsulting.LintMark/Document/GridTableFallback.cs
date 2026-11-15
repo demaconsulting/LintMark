@@ -29,7 +29,7 @@ namespace DemaConsulting.LintMark.Document;
 ///         The grid table parser leaves damaged blocks behind when a table that looks like a grid table turns
 ///         out to be invalid, and <see cref="DocumentParser"/> then reads the document again without grid
 ///         tables. That second reading can turn valid Pandoc grid tables into paragraphs, and comparing the
-///         rendered output cannot see such damage, so a document that needed the second reading must never be
+///         page cannot see such damage, so a document that needed the second reading must never be
 ///         rewritten. This value carries the line to report.
 ///     </para>
 ///     <para>

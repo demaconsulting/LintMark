@@ -23,8 +23,8 @@ using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
+using DemaConsulting.LintMark.Verify.Checks;
 using static DemaConsulting.LintMark.Tests.BlockFormatterAssertions;
 
 namespace DemaConsulting.LintMark.Tests;

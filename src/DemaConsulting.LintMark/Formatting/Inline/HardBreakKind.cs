@@ -25,7 +25,7 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 /// </summary>
 /// <remarks>
 ///     Supporting type of <see cref="AtomTokenizer"/>. A wrapped paragraph keeps each hard line break in the form it
-///     was written in, because the two forms are equal for the renderer but the choice between them belongs to the
+///     was written in, because the two forms are equal to the parser but the choice between them belongs to the
 ///     <c>trailing-whitespace</c> rule, not to the wrap.
 /// </remarks>
 internal enum HardBreakKind

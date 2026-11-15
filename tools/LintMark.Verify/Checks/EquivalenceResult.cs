@@ -20,7 +20,7 @@
 
 using System.Text;
 
-namespace DemaConsulting.LintMark.Formatting.Proof;
+namespace DemaConsulting.LintMark.Verify.Checks;
 
 /// <summary>
 ///     The verdict of one equivalence proof.

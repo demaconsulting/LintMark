@@ -597,25 +597,6 @@ public class LinkRefactorerTests
     }
 
     /// <summary>
-    ///     Test that the marker the refactoring adds is the only thing taken out of the comparison of the rendered pages.
-    /// </summary>
-    [Fact]
-    public void LinkRefactorer_WithoutAddedMarker_OneMarkerAdded_RemovesThatLineOnly()
-    {
-        // Arrange / Act
-        var added = LinkRefactorer.WithoutAddedMarker("A\n", "A\n\n<!-- M -->\n[a]: b\n", "<!-- M -->");
-        var existing = LinkRefactorer.WithoutAddedMarker("A\n<!-- M -->\n", "A\n<!-- M -->\n[a]: b\n", "<!-- M -->");
-        var twoAdded = LinkRefactorer.WithoutAddedMarker("A\n", "<!-- M -->\nA\n<!-- M -->\n", "<!-- M -->");
-        var crlf = LinkRefactorer.WithoutAddedMarker("A\r\n", "A\r\n\r\n<!-- M -->\r\n[a]: b\r\n", "<!-- M -->");
-
-        // Assert: removed once when one is added, never when it was there or when two were added
-        Assert.Equal("A\n\n[a]: b\n", added);
-        Assert.Equal("A\n<!-- M -->\n[a]: b\n", existing);
-        Assert.Equal("<!-- M -->\nA\n<!-- M -->\n", twoAdded);
-        Assert.Equal("A\r\n\r\n[a]: b\r\n", crlf);
-    }
-
-    /// <summary>
     ///     Test the labels that are derived from a text, and from the destination when the text gives none.
     /// </summary>
     [Theory]

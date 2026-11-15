@@ -59,7 +59,7 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         space on both sides (joined, such a span would be rewritten by <c>code-span-space</c>), and in the
 ///         text of a link that is not an image. A line break in any other construct (inline HTML, math, an image, a
 ///         link destination or title, a nested code span in a link) makes the paragraph one that is refused, because
-///         joining it could change the rendering. A paragraph whose source spans cannot be matched to its lines is
+///         joining it could change how it reads. A paragraph whose source spans cannot be matched to its lines is
 ///         refused too. Refused paragraphs are left as written by the formatter.
 ///     </para>
 ///     <para>
@@ -251,7 +251,7 @@ internal static partial class AtomTokenizer
     }
 
     /// <summary>
-    ///     Marks a code span, which may hold a line break that is a space for the renderer.
+    ///     Marks a code span, which may hold a line break that is a space to the parser.
     /// </summary>
     /// <param name="code">The code span.</param>
     /// <param name="state">The marks being collected.</param>

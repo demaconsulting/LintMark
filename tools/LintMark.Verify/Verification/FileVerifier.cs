@@ -24,7 +24,6 @@ using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Engine;
 using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Links;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Verify.Checks;
 using DemaConsulting.LintMark.Verify.Reporting;
@@ -198,7 +197,7 @@ internal sealed class FileVerifier
         // The comment that introduces new link definitions is the only difference allowed, and only when the option is on
         var marker = config.LinkRefactor.Enabled ? config.LinkRefactor.DefinitionsMarker : null;
         string Visible(string original, string rewritten) =>
-            marker is null ? rewritten : LinkRefactorer.WithoutAddedMarker(original, rewritten, marker);
+            marker is null ? rewritten : MarkerLines.WithoutAddedMarker(original, rewritten, marker);
 
         // The LF text, when it changed
         var textChanged = !string.Equals(change.OriginalLf, change.NewLf, StringComparison.Ordinal);

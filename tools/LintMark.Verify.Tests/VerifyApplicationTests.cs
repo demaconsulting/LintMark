@@ -40,6 +40,7 @@ internal sealed class SleepingFormatter : ParagraphTestFormatter
 ///     Tests for the whole run (VerifyApplication): exit codes, the console summary, the Markdown report, the time
 ///     limit and, above all, that the inputs are never written.
 /// </summary>
+[Collection("ConfigLoaderTemporaryDirectory")]
 public class VerifyApplicationTests
 {
     /// <summary>

@@ -60,8 +60,8 @@ namespace DemaConsulting.LintMark.Engine;
 ///     <para>
 ///         A document the parser could only read by dropping grid tables is never rewritten and its offending
 ///         line is reported. A formatter that throws or proposes invalid edits fails its file only, which is
-///         left untouched. The block formatters prove their own transformations locally; the whole-file
-///         properties (same rendering, same structure, stable second pass) are verified outside the product by
+///         left untouched. The block formatters decide what is safe to change with explicit rules; the whole-file
+///         properties (same page, same structure, stable second pass) are verified outside the product by
 ///         the verification tool.
 ///     </para>
 ///     <para>

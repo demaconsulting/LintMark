@@ -244,7 +244,7 @@ internal static class InlineCandidates
     /// <param name="code">The code span.</param>
     /// <param name="found">Receives the edits.</param>
     /// <remarks>
-    ///     A code span that starts and ends with one space (and holds something else) renders without them, so the
+    ///     A code span that starts and ends with one space (and holds something else) means the same without them, so the
     ///     spaces are redundant. A span is a candidate only when it lies on one line, has exactly one space on each side
     ///     and no more (so asymmetric padding, wider padding and a span of spaces stay as written), and its content does
     ///     not begin or end with a backtick (the padding is what keeps the content apart from the delimiters).

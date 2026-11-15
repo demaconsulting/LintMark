@@ -36,7 +36,7 @@ namespace DemaConsulting.LintMark.Linting.Rules;
 /// <remarks>
 ///     <para>
 ///         A rule only reports; it never proposes an edit, because the fix of each of these would change what the document
-///         renders or what it means.
+///         displays or what it means.
 ///     </para>
 ///     <list type="bullet">
 ///         <item><c>code-fence-language</c> (MD040): a fenced code block without an info string.</item>

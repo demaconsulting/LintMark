@@ -24,7 +24,6 @@ using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Formatting.Links;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Verify.Checks;
 
@@ -110,7 +109,7 @@ internal static class BlockFormatterAssertions
         // The rewrite renders the same, with LF and with CRLF line endings, and keeps its Pandoc structure; the comment that
         // introduces new link definitions is the one thing a page shows of the link refactoring and is left out of the comparison
         var visible = effective.LinkRefactor.Enabled
-            ? LinkRefactorer.WithoutAddedMarker(text, formatted, effective.LinkRefactor.DefinitionsMarker)
+            ? MarkerLines.WithoutAddedMarker(text, formatted, effective.LinkRefactor.DefinitionsMarker)
             : formatted;
         AssertEquivalent("HTML", HtmlEquivalenceChecker.Check(text, visible), text, formatted);
         AssertEquivalent(

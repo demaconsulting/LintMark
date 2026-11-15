@@ -27,6 +27,7 @@ namespace DemaConsulting.LintMark.Verify.Tests;
 /// <summary>
 ///     Tests for the command line parsing (VerifyOptions), the option sets and the option matrix.
 /// </summary>
+[Collection("ConfigLoaderTemporaryDirectory")]
 public class OptionTests
 {
     /// <summary>
@@ -168,18 +169,20 @@ public class OptionTests
     }
 
     /// <summary>
-    ///     Test that creating a loader leaves no temporary files behind.
+    ///     Test that creating a loader leaves no temporary files behind. The classes that create loaders share a collection, so
+    ///     that no other test creates a directory while this one looks.
     /// </summary>
     [Fact]
     public void OptionSet_CreateLoader_LeavesNoTemporaryDirectory()
     {
         // Arrange
-        var before = Directory.GetDirectories(Path.GetTempPath(), "lintmark-verify-????????????????????????????????").Length;
+        var before = Directory.GetDirectories(Path.GetTempPath(), "lintmark-verify-????????????????????????????????");
 
         // Act
         _ = new OptionSet("x", [new("line-length", "90")]).CreateLoader();
 
-        // Assert
-        Assert.Equal(before, Directory.GetDirectories(Path.GetTempPath(), "lintmark-verify-????????????????????????????????").Length);
+        // Assert: no directory exists now that did not exist before (a directory that another test removed meanwhile does not matter)
+        var created = Directory.GetDirectories(Path.GetTempPath(), "lintmark-verify-????????????????????????????????").Except(before).ToList();
+        Assert.Empty(created);
     }
 }

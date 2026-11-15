@@ -588,7 +588,7 @@ internal sealed class ListPlan
     /// <param name="canShift">Whether the columns of the list may change (a number that gains or loses a digit moves the content of its item).</param>
     /// <returns>The new number of every item, or <see langword="null"/> when the numbering is left as written.</returns>
     /// <remarks>
-    ///     The first number is kept, because it is the number the list starts at when it is rendered. A first number
+    ///     The first number is kept, because it is the number the list starts at. A first number
     ///     with leading zeros, and a number of more than nine digits, leave the numbering alone.
     /// </remarks>
     private string[]? NewNumbers(ListModel list, bool canShift)

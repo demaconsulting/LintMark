@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 using System.Text.RegularExpressions;
-using DemaConsulting.LintMark.Formatting.Proof;
+using DemaConsulting.LintMark.Verify.Checks;
 
 namespace DemaConsulting.LintMark.Verify.Checks;
 
