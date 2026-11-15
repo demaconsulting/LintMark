@@ -341,6 +341,15 @@ public class InlineNormalizerTests
         AssertFormats(input, input);
 
     /// <summary>
+    ///     Test that a bare URL with braces keeps its form: the braces belong to template or attribute syntax.
+    /// </summary>
+    [Theory]
+    [InlineData("{{#import http://x.com/a.md:10-50}}\n")]
+    [InlineData("see http://x.com/{a} now\n")]
+    public void InlineNormalizer_AddBlockEdits_UrlWithBraces_IsKept(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
     ///     Test that an address whose scheme is not written in lower case keeps its form, because the parser does not
     ///     read it as a bare URL.
     /// </summary>

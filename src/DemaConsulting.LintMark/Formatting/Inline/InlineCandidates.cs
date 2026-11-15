@@ -362,9 +362,10 @@ internal static class InlineCandidates
             return;
         }
 
-        // Only the schemes that wrap to the same link; an angle-bracket autolink and an e-mail or www address stay as written
+        // Only the schemes that wrap to the same link; an angle-bracket autolink and an e-mail or www address stay as written.
+        // A URL with braces belongs to template or attribute syntax (the parser's end of the URL is a guess there)
         var source = text.AsSpan(start, end - start + 1);
-        if (!HasSupportedScheme(source) || source.ContainsAny(" <>|\n\t"))
+        if (!HasSupportedScheme(source) || source.ContainsAny(" <>|\n\t{}"))
         {
             return;
         }
