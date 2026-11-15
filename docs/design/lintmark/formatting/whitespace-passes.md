@@ -54,7 +54,9 @@ lazy continuation or a table row is not a boundary. Only block kinds whose end t
 separated; no line is inserted next to a grid-border-like line, before a block indented by more than three columns or a
 tab, after an unclosed fence, between a next-line suppression directive and the line it covers, or where the blank line
 would change how the first line of the block is read: before a setext heading that starts with a list marker and
-directly follows a link reference definition (the open paragraph makes the marker text). Blocks inside
+directly follows a link reference definition (the open paragraph makes the marker text), and before a list whose first
+line is shaped like a thematic break (`- --` is an item after the block of an item, a thematic break after a blank
+line). Blocks inside
 containers are neither fixed nor reported.
 
 **TrailerPass.Apply**: Everything after the last line with content is the trailer. With `final-newline` it becomes one

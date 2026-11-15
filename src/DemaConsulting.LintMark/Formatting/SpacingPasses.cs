@@ -410,7 +410,8 @@ internal static class BlockSpacingPass
 
             // A blank line must not change how the first line of the second block is read: after a link reference definition a
             // paragraph is still open, so a setext heading that starts with a list marker (an empty item, or a number other than 1,
-            // cannot interrupt a paragraph) is read as a list once a blank line precedes it
+            // cannot interrupt a paragraph) is read as a list once a blank line precedes it; and a thematic-break-shaped line that
+            // the parser reads as a list item right after a list item is a thematic break once a blank line precedes it
             if (ReadsDifferentlyAfterBlankLine(layout, before, after, afterFirst))
             {
                 continue;
@@ -474,14 +475,16 @@ internal static class BlockSpacingPass
     /// <param name="after">The block after the boundary.</param>
     /// <param name="afterFirst">The first line of <paramref name="after"/>.</param>
     ///     <see langword="true"/> when <paramref name="before"/> is a link reference definition (it leaves a paragraph open) and
-    ///     <paramref name="after"/> is a setext heading whose first line starts with a list marker.
+    ///     <paramref name="after"/> is a setext heading whose first line starts with a list marker, or when <paramref name="after"/>
+    ///     is a list whose first line is shaped like a thematic break (or like an item that holds one).
     /// </returns>
     /// <remarks>
     ///     The setext heading case is the counterpart of the rule of the heading formatter that keeps such a heading setext
     ///     (<see cref="LineLayout.StartsWithListMarker"/>), so that a second run finds nothing to change.
     /// </remarks>
     private static bool ReadsDifferentlyAfterBlankLine(LineLayout layout, BlockInfo before, BlockInfo after, int afterFirst) =>
-        (before.Kind == BlockKind.LinkReferenceDefinition && after.Node is HeadingBlock { IsSetext: true } && layout.StartsWithListMarker(afterFirst));
+        (before.Kind == BlockKind.LinkReferenceDefinition && after.Node is HeadingBlock { IsSetext: true } && layout.StartsWithListMarker(afterFirst))
+        || (after.Kind == BlockKind.List && layout.LooksLikeThematicBreak(afterFirst));
 
     /// <summary>
     ///     Determines whether a suppression covers exactly one line, the line given: the shape of a next-line directive.

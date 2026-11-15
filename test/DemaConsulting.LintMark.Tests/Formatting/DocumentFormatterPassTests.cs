@@ -422,7 +422,8 @@ public class DocumentFormatterPassTests
     /// <summary>
     ///     Test that a blank line is not inserted where it would change how the first line of the block is read: a setext
     ///     heading that starts with a list marker directly after a link reference definition (the paragraph that the
-    ///     definition leaves open is what makes the marker text). The whole formatter leaves each as written and stays stable.
+    ///     definition leaves open is what makes the marker text), and a list shaped like a thematic break directly after a list.
+    ///     The whole formatter leaves each as written and stays stable.
     /// </summary>
     [Theory]
     [InlineData("[a]:h\n1.\n1\n-\n")]
@@ -432,10 +433,26 @@ public class DocumentFormatterPassTests
     [InlineData("[a]:h\n2.\n\t>\n-\n")]
     [InlineData("[a]:h\n2. text\n===\n")]
     [InlineData("[a]:h\n-\n1\n=\n")]
+    [InlineData("1) ```\n   ```\n- --\n")]
+    [InlineData("1) ```\n   ```\n* ---\n")]
+    [InlineData("1)\n   $$\n   $$\n- --\n")]
     public void DocumentFormatter_Format_BlankLineWouldChangeHowTheBlockIsRead_IsNotInserted(string input)
     {
         AssertPasses(input, input);
         BlockFormatterAssertions.AssertFormats(input, input);
+    }
+
+    /// <summary>
+    ///     Test that the passes and the formatters together leave a list shaped like a thematic break right after a list
+    ///     where it is (the thematic break rule writes the break of an item with its own character, which must not make a
+    ///     second run insert the blank line).
+    /// </summary>
+    [Theory]
+    [InlineData("1) ~~~\n   ~~~\n* ***\n", "1) ```\n   ```\n* ---\n")]
+    public void DocumentFormatter_Format_BlockSpacingWithOtherRules_KeepsTheBlocksTogetherInOneRun(string input, string expected)
+    {
+        AssertPasses(input, input);
+        BlockFormatterAssertions.AssertFormats(input, expected);
     }
 
     /// <summary>
