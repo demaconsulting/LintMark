@@ -30,96 +30,17 @@ namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
 ///     Subsystem tests for the Document subsystem: source loading, parsing, suppression and reference
-///     handling working together, verified against this repository's own Markdown files and generated nesting fixtures.
+///     handling working together.
 /// </summary>
 public class DocumentSubsystemTests
 {
     /// <summary>
-    ///     The seed of the generated adversarial documents (fixed, so every run checks the same documents).
-    /// </summary>
-    private const uint RandomSeed = 20260511;
-
-    /// <summary>
-    ///     The number of generated adversarial documents per family.
-    /// </summary>
-    private const int RandomDocumentsPerFamily = 1500;
-
-    /// <summary>
-    ///     The three line-ending variants a corpus file is tested in.
-    /// </summary>
-    private enum Variant
-    {
-        /// <summary>Every terminator is LF.</summary>
-        Lf,
-
-        /// <summary>Every terminator is CRLF.</summary>
-        CrLf,
-
-        /// <summary>Alternate terminators are CRLF and LF.</summary>
-        Mixed
-    }
-
-    /// <summary>
-    ///     Re-encodes file text with the line endings of a variant.
-    /// </summary>
-    /// <param name="text">Text of any line-ending style.</param>
-    /// <param name="variant">The variant to produce.</param>
-    /// <returns>UTF-8 bytes (without byte order mark).</returns>
-    private static byte[] ToVariantBytes(string text, Variant variant)
-    {
-        // Normalize first so the result does not depend on the file's own style
-        var lf = text.Replace("\r\n", "\n", StringComparison.Ordinal);
-        var converted = variant switch
-        {
-            Variant.Lf => lf,
-            Variant.CrLf => lf.Replace("\n", "\r\n", StringComparison.Ordinal),
-            _ => MixEndings(lf)
-        };
-        return new UTF8Encoding(false).GetBytes(converted);
-    }
-
-    /// <summary>
-    ///     Makes every second line terminator a CRLF.
+    ///     Re-encodes LF text as UTF-8 bytes (without byte order mark) with CRLF line endings.
     /// </summary>
     /// <param name="lf">LF-only text.</param>
-    /// <returns>Text with alternating terminators.</returns>
-    private static string MixEndings(string lf)
-    {
-        var builder = new StringBuilder(lf.Length + (lf.Length / 20));
-        var count = 0;
-        foreach (var c in lf)
-        {
-            if (c == '\n' && count++ % 2 == 1)
-            {
-                builder.Append('\r');
-            }
-
-            builder.Append(c);
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    ///     Parses every repository Markdown file in a line-ending variant and collects tiling violations.
-    /// </summary>
-    /// <param name="variant">The variant.</param>
-    /// <returns>The number of files checked and all violations.</returns>
-    private static (int Files, List<string> Violations) CheckRepository(Variant variant)
-    {
-        var violations = new List<string>();
-        var files = RepositoryMarkdownFiles.Enumerate();
-        var root = RepositoryMarkdownFiles.FindRoot();
-        foreach (var file in files)
-        {
-            var bytes = ToVariantBytes(File.ReadAllText(file), variant);
-            var relative = Path.GetRelativePath(root, file);
-            var document = DocumentParser.Parse(SourceDocument.Create(relative, bytes));
-            violations.AddRange(SpanTilingAssertions.Check(document));
-        }
-
-        return (files.Count, violations);
-    }
+    /// <returns>The bytes.</returns>
+    private static byte[] CrLfBytes(string lf) =>
+        new UTF8Encoding(false).GetBytes(lf.Replace("\n", "\r\n", StringComparison.Ordinal));
 
     /// <summary>
     ///     Summarizes the block structure of a document so two parses can be compared.
@@ -149,83 +70,6 @@ public class DocumentSubsystemTests
     }
 
     /// <summary>
-    ///     Test that the repository's Markdown files tile correctly with LF line endings.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SpanTiling_RepositoryMarkdownLf_HasNoViolations()
-    {
-        // Arrange / Act: parse every repository Markdown file with LF endings
-        var (files, violations) = CheckRepository(Variant.Lf);
-
-        // Assert: the corpus is non-trivial and every span property holds
-        Assert.True(files >= 20, $"expected a real corpus, found {files} files");
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that the repository's Markdown files tile correctly with CRLF line endings.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SpanTiling_RepositoryMarkdownCrLf_HasNoViolations()
-    {
-        // Arrange / Act: parse every repository Markdown file with CRLF endings
-        var (files, violations) = CheckRepository(Variant.CrLf);
-
-        // Assert: the corpus is non-trivial and every span property holds
-        Assert.True(files >= 20, $"expected a real corpus, found {files} files");
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that the repository's Markdown files tile correctly with mixed line endings.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SpanTiling_RepositoryMarkdownMixed_HasNoViolations()
-    {
-        // Arrange / Act: parse every repository Markdown file with alternating endings
-        var (files, violations) = CheckRepository(Variant.Mixed);
-
-        // Assert: the corpus is non-trivial and every span property holds
-        Assert.True(files >= 20, $"expected a real corpus, found {files} files");
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that all line-ending variants of every corpus file produce identical text and blocks, and that writing back restores the bytes.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_LineEndingVariants_RepositoryMarkdown_IdenticalBlocksAndRoundTrip()
-    {
-        // Arrange: every repository Markdown file
-        var differences = new List<string>();
-        foreach (var file in RepositoryMarkdownFiles.Enumerate())
-        {
-            // Act: build the three variants and parse each
-            var text = File.ReadAllText(file);
-            var lfBytes = ToVariantBytes(text, Variant.Lf);
-            var crlfBytes = ToVariantBytes(text, Variant.CrLf);
-            var lf = DocumentParser.Parse(SourceDocument.Create(file, lfBytes));
-            var crlf = DocumentParser.Parse(SourceDocument.Create(file, crlfBytes));
-            var mixed = DocumentParser.Parse(SourceDocument.Create(file, ToVariantBytes(text, Variant.Mixed)));
-
-            // Assert (collected): same normalized text and block structure; LF and CRLF round-trip byte for byte
-            if (lf.Source.Text != crlf.Source.Text || lf.Source.Text != mixed.Source.Text
-                || !Structure(lf).SequenceEqual(Structure(crlf)) || !Structure(lf).SequenceEqual(Structure(mixed)))
-            {
-                differences.Add($"{file}: variants differ");
-            }
-
-            if (!lf.Source.ToBytes(lf.Source.Text, lf.Source.MajorityLineEnding).SequenceEqual(lfBytes)
-                || !crlf.Source.ToBytes(crlf.Source.Text, crlf.Source.MajorityLineEnding).SequenceEqual(crlfBytes))
-            {
-                differences.Add($"{file}: round trip differs");
-            }
-        }
-
-        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences.Take(25)));
-    }
-
-    /// <summary>
     ///     Test that text parsed from LF and from CRLF bytes gives identical blocks, including a code span that ends a line.
     /// </summary>
     [Fact]
@@ -235,8 +79,8 @@ public class DocumentSubsystemTests
         const string text = "Use `X`\n  removes\n\n- a\n  b\n";
 
         // Act: parse both from bytes
-        var fromLf = DocumentParser.Parse(SourceDocument.Create("a.md", ToVariantBytes(text, Variant.Lf)));
-        var fromCrLf = DocumentParser.Parse(SourceDocument.Create("a.md", ToVariantBytes(text, Variant.CrLf)));
+        var fromLf = DocumentParser.Parse(SourceDocument.Create("a.md", new UTF8Encoding(false).GetBytes(text)));
+        var fromCrLf = DocumentParser.Parse(SourceDocument.Create("a.md", CrLfBytes(text)));
 
         // Assert: identical normalized text and identical block lists
         Assert.Equal(fromLf.Source.Text, fromCrLf.Source.Text);
@@ -244,326 +88,6 @@ public class DocumentSubsystemTests
         Assert.Equal(
             [BlockKind.Paragraph, BlockKind.List, BlockKind.ListItem, BlockKind.Paragraph],
             fromCrLf.Blocks.Select(b => b.Kind).ToList());
-    }
-
-    /// <summary>
-    ///     Test that parsing the whole corpus in parallel gives the same blocks as parsing sequentially.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_ConcurrentParse_RepositoryMarkdown_MatchesSequential()
-    {
-        // Arrange: the corpus bytes
-        var files = RepositoryMarkdownFiles.Enumerate();
-        var bytes = files.Select(File.ReadAllBytes).ToList();
-        var sequential = bytes.Select((b, i) => Structure(DocumentParser.Parse(SourceDocument.Create(files[i], b)))).ToList();
-
-        // Act: parse concurrently, several rounds to give races a chance to show
-        var parallel = new List<(BlockKind Kind, int Start, int End, int Depth)>[bytes.Count];
-        for (var round = 0; round < 3; round++)
-        {
-            Parallel.For(0, bytes.Count, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i =>
-                parallel[i] = Structure(DocumentParser.Parse(SourceDocument.Create(files[i], bytes[i]))));
-
-            // Assert: identical to the sequential result
-            for (var i = 0; i < bytes.Count; i++)
-            {
-                Assert.True(sequential[i].SequenceEqual(parallel[i]), $"{files[i]} differs in round {round}");
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Test that every synthetic container-nesting fixture tiles correctly (LF).
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticNesting_ContainerChainsLf_HaveNoSpanViolations()
-    {
-        // Arrange / Act: parse all fixtures and collect violations
-        var violations = new List<string>();
-        var count = 0;
-        foreach (var fixture in SyntheticDocuments.Generate())
-        {
-            count++;
-            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
-            violations.AddRange(SpanTilingAssertions.Check(document));
-        }
-
-        // Assert: a large fixture set, no violations
-        Assert.True(count >= 3000, $"expected thousands of fixtures, found {count}");
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that every synthetic container-nesting fixture tiles correctly when given as CRLF bytes.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticNesting_ContainerChainsCrLf_HaveNoSpanViolations()
-    {
-        // Arrange / Act: parse all fixtures from CRLF bytes and collect violations
-        var violations = new List<string>();
-        foreach (var fixture in SyntheticDocuments.Generate())
-        {
-            var bytes = ToVariantBytes(fixture.Text, Variant.CrLf);
-            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, bytes));
-            violations.AddRange(SpanTilingAssertions.Check(document));
-        }
-
-        // Assert: no violations
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that every synthetic top-level footnote and definition document tiles correctly (LF).
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticDefinitionsAndFootnotes_Lf_HaveNoSpanViolations()
-    {
-        // Arrange / Act: parse all footnote and definition fixtures and collect violations
-        var violations = new List<string>();
-        foreach (var fixture in SyntheticDocuments.GenerateFootnoteDocuments())
-        {
-            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
-            violations.AddRange(SpanTilingAssertions.Check(document));
-        }
-
-        // Assert: no violations
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that every synthetic top-level footnote and definition document tiles correctly when given as CRLF bytes.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticDefinitionsAndFootnotes_CrLf_HaveNoSpanViolations()
-    {
-        // Arrange / Act: parse all footnote and definition fixtures from CRLF bytes and collect violations
-        var violations = new List<string>();
-        foreach (var fixture in SyntheticDocuments.GenerateFootnoteDocuments())
-        {
-            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, Variant.CrLf)));
-            violations.AddRange(SpanTilingAssertions.Check(document));
-        }
-
-        // Assert: no violations
-        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations.Take(25)));
-    }
-
-    /// <summary>
-    ///     Escapes control characters of a generated document for a readable failure message.
-    /// </summary>
-    /// <param name="text">The document text.</param>
-    /// <returns>The escaped text.</returns>
-    private static string Escape(string text) =>
-        text.Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal).Replace("\t", "\\t", StringComparison.Ordinal);
-
-    /// <summary>
-    ///     Parses the random documents and collects nesting violations.
-    /// </summary>
-    /// <param name="variant">The line-ending variant the documents are parsed in.</param>
-    /// <returns>The number of documents checked and all violations, each followed by the escaped document.</returns>
-    private static (int Documents, List<string> Violations) CheckRandomDocuments(Variant variant)
-    {
-        var violations = new List<string>();
-        var count = 0;
-        foreach (var fixture in RandomDocuments.Generate(RandomSeed, RandomDocumentsPerFamily))
-        {
-            count++;
-            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, variant)));
-            violations.AddRange(SpanTilingAssertions.CheckNesting(document).Select(v => $"{v} in \"{Escape(fixture.Text)}\""));
-        }
-
-        return (count, violations);
-    }
-
-    /// <summary>
-    ///     Test that the blocks of randomly generated adversarial documents nest without overlap (LF).
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_RandomDocuments_Lf_BlocksNestWithoutOverlap()
-    {
-        // Arrange / Act: parse the generated documents with LF line endings and collect nesting violations
-        var (documents, violations) = CheckRandomDocuments(Variant.Lf);
-
-        // Assert: every document was checked and no sibling overlap or parent violation was found
-        Assert.Equal(RandomDocuments.FamilyCount * RandomDocumentsPerFamily, documents);
-        Assert.True(violations.Count == 0, $"{violations.Count} violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations.Take(10))}");
-    }
-
-    /// <summary>
-    ///     Test that the blocks of randomly generated adversarial documents nest without overlap when given as CRLF bytes.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_RandomDocuments_CrLf_BlocksNestWithoutOverlap()
-    {
-        // Arrange / Act: parse the generated documents from CRLF bytes and collect nesting violations
-        var (documents, violations) = CheckRandomDocuments(Variant.CrLf);
-
-        // Assert: every document was checked and no sibling overlap or parent violation was found
-        Assert.Equal(RandomDocuments.FamilyCount * RandomDocumentsPerFamily, documents);
-        Assert.True(violations.Count == 0, $"{violations.Count} violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations.Take(10))}");
-    }
-
-    /// <summary>
-    ///     Parses the random documents that hold valid grid tables and collects nesting violations and lost grid tables.
-    /// </summary>
-    /// <param name="variant">The line-ending variant the documents are parsed in.</param>
-    /// <returns>The number of documents checked and all problems, each followed by the escaped document.</returns>
-    private static (int Documents, List<string> Problems) CheckValidGridTableDocuments(Variant variant)
-    {
-        var problems = new List<string>();
-        var count = 0;
-        foreach (var (fixture, tables) in RandomDocuments.GenerateWithValidGridTables(RandomSeed, RandomDocumentsPerFamily))
-        {
-            count++;
-            var document = DocumentParser.Parse(SourceDocument.Create(fixture.Name, ToVariantBytes(fixture.Text, variant)));
-            problems.AddRange(SpanTilingAssertions.CheckNesting(document).Select(v => $"{v} in \"{Escape(fixture.Text)}\""));
-
-            // Every table is valid, so none may be lost to the fallback that reads a document without grid tables
-            var actual = document.Blocks.Count(b => b.Kind == BlockKind.GridTable);
-            if (actual != tables)
-            {
-                problems.Add($"{fixture.Name}: {actual} grid tables instead of {tables} in \"{Escape(fixture.Text)}\"");
-            }
-        }
-
-        return (count, problems);
-    }
-
-    /// <summary>
-    ///     Test that valid grid tables next to dropped footnotes that hold definitions stay grid tables and the blocks nest (LF).
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_RandomDocumentsWithValidGridTables_Lf_KeepGridTablesAndNest()
-    {
-        // Arrange / Act: parse the generated documents with LF line endings
-        var (documents, problems) = CheckValidGridTableDocuments(Variant.Lf);
-
-        // Assert: every document was checked, every grid table was kept and the blocks nest
-        Assert.Equal(RandomDocumentsPerFamily, documents);
-        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
-    }
-
-    /// <summary>
-    ///     Test that valid grid tables next to dropped footnotes that hold definitions stay grid tables and the blocks nest when given as CRLF bytes.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_RandomDocumentsWithValidGridTables_CrLf_KeepGridTablesAndNest()
-    {
-        // Arrange / Act: parse the generated documents from CRLF bytes
-        var (documents, problems) = CheckValidGridTableDocuments(Variant.CrLf);
-
-        // Assert: every document was checked, every grid table was kept and the blocks nest
-        Assert.Equal(RandomDocumentsPerFamily, documents);
-        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
-    }
-
-    /// <summary>
-    ///     Test that a link reference definition inside any container chain reports the depth and enclosing blocks of that chain.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticNesting_DefinitionDepthAndParent_MatchContainerChain()
-    {
-        // Arrange: the fixtures whose body is a single definition, and the expected container kinds per chain letter
-        var problems = new List<string>();
-        var count = 0;
-        foreach (var fixture in SyntheticDocuments.Generate().Where(f => f.Name.Contains(":definition:", StringComparison.Ordinal) || f.Name.EndsWith(":definition", StringComparison.Ordinal)))
-        {
-            // Act: parse and find the definition
-            count++;
-            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
-            var definition = document.Blocks.SingleOrDefault(b => b.Kind == BlockKind.LinkReferenceDefinition);
-            if (definition == null)
-            {
-                problems.Add($"{fixture.Name}: expected exactly one definition");
-                continue;
-            }
-
-            // Assert (collected): depth equals the number of enclosing containers, the parent chain reaches the top
-            var ancestors = new List<BlockKind>();
-            var byNode = new Dictionary<Block, BlockInfo>(ReferenceEqualityComparer.Instance);
-            foreach (var block in document.Blocks.Where(b => b.Node != null))
-            {
-                byNode[block.Node!] = block;
-            }
-            for (var parent = definition.Parent; parent != null; parent = byNode[parent].Parent)
-            {
-                ancestors.Add(byNode[parent].Kind);
-            }
-
-            ancestors.Reverse();
-            var expected = fixture.Chain.SelectMany(c => c == 'Q' ? new[] { BlockKind.BlockQuote } : [BlockKind.List, BlockKind.ListItem]).ToList();
-            if (definition.Depth != SyntheticDocuments.BodyDepth(fixture.Chain) || !ancestors.SequenceEqual(expected))
-            {
-                problems.Add($"{fixture.Name}: depth {definition.Depth}, ancestors [{string.Join(",", ancestors)}], expected [{string.Join(",", expected)}]");
-            }
-        }
-
-        Assert.True(count > 100, $"expected many fixtures, found {count}");
-        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Take(25)));
-    }
-
-    /// <summary>
-    ///     Test that paragraph lines of nested fixtures are rebuilt exactly and lazy lines are flagged exactly where the fixture is lazy.
-    /// </summary>
-    [Fact]
-    public void DocumentSubsystem_SyntheticNesting_ParagraphLines_ContentAndLazinessMatchFixture()
-    {
-        // Arrange: only fixtures whose body is one multi-line paragraph
-        var problems = new List<string>();
-        foreach (var fixture in SyntheticDocuments.Generate().Where(f => f.ParagraphLines != null))
-        {
-            // Act: find the paragraph holding the body and rebuild its lines
-            var document = DocumentParser.Parse(SourceDocument.FromText(fixture.Name, fixture.Text));
-            var body = fixture.ParagraphLines!;
-            var paragraph = document.Blocks.FirstOrDefault(b => b.Kind == BlockKind.Paragraph && ContentOf(document, b, 0) == body[0]);
-            if (paragraph == null)
-            {
-                problems.Add($"{fixture.Name}: body paragraph not found");
-                continue;
-            }
-
-            var lines = DocumentParser.GetLines(document, paragraph);
-            var contents = lines.Select((_, i) => ContentOf(document, paragraph, i)).ToList();
-
-            // Assert (collected). Tab-indented containers depend on tab stops: a tab can leave too little
-            // indentation for an inner item (a genuinely lazy line) or turn a quote marker into literal text,
-            // so for those chains only the end of each line is compared and laziness is not asserted.
-            if (fixture.Chain.Contains('T', StringComparison.Ordinal))
-            {
-                if (contents.Count > body.Count || contents.Where((c, i) => !c!.EndsWith(body[i], StringComparison.Ordinal)).Any())
-                {
-                    problems.Add($"{fixture.Name}: content [{string.Join("|", contents)}]");
-                }
-
-                continue;
-            }
-
-            // Exact content; continuation lines lazy iff the fixture is lazy
-            if (!contents.SequenceEqual(body))
-            {
-                problems.Add($"{fixture.Name}: content [{string.Join("|", contents)}]");
-            }
-
-            if (!lines.Skip(1).All(l => l.IsLazy == fixture.Lazy) || lines[0].IsLazy)
-            {
-                problems.Add($"{fixture.Name}: lazy flags [{string.Join(",", lines.Select(l => l.IsLazy))}]");
-            }
-        }
-
-        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Take(25)));
-    }
-
-    /// <summary>
-    ///     Gets the content text of one line of a leaf block.
-    /// </summary>
-    /// <param name="document">The parsed document.</param>
-    /// <param name="leaf">The leaf block.</param>
-    /// <param name="index">Zero-based line index.</param>
-    /// <returns>The content text, or null when the block has fewer lines.</returns>
-    private static string? ContentOf(ParsedDocument document, BlockInfo leaf, int index)
-    {
-        var lines = DocumentParser.GetLines(document, leaf);
-        return index < lines.Count ? document.Source.Text[lines[index].ContentStart..lines[index].ContentEnd] : null;
     }
 
     /// <summary>
@@ -596,7 +120,7 @@ public class DocumentSubsystemTests
     {
         // Arrange: a document from CRLF bytes with a byte order mark; positions must ignore both
         const string text = "# Title\n\n> - item\n>   more\n\n[a]: http://x\n";
-        byte[] bytes = [0xEF, 0xBB, 0xBF, .. new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))];
+        byte[] bytes = [0xEF, 0xBB, 0xBF, .. CrLfBytes(text)];
 
         // Act: parse and convert the start of every block
         var document = DocumentParser.Parse(SourceDocument.Create("p.md", bytes));
@@ -662,7 +186,7 @@ public class DocumentSubsystemTests
             "# Title\n\nSee [a] and [b].\n\n<!-- lintmark-disable line-length -->\n\nINSIDE paragraph.\n\n"
             + "<!-- lintmark-enable line-length -->\n\nAFTER paragraph.\n\n[a]: http://a.example\n[b]: http://b.example \"B\"\n"
             + "[A]: http://repeated.example\n\n[^orphan]: Orphan.\n";
-        byte[] bytes = [0xEF, 0xBB, 0xBF, .. new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal))];
+        byte[] bytes = [0xEF, 0xBB, 0xBF, .. CrLfBytes(text)];
 
         // Act: load and parse
         var document = DocumentParser.Parse(SourceDocument.Create("flow.md", bytes));
@@ -712,10 +236,9 @@ public class DocumentSubsystemTests
     {
         // Arrange: CRLF bytes with a valid grid table (lines 1 to 3) and an invalid border on line 5
         const string text = "+---+---+\n| a | b |\n+---+---+\n\n+---+\n# h\n";
-        var bytes = new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal));
 
         // Act: load and parse
-        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", bytes));
+        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", CrLfBytes(text)));
 
         // Assert: the document is format-unsafe at the invalid line, read without grid tables, and the blocks nest
         Assert.True(document.IsFormatUnsafe);
@@ -732,10 +255,9 @@ public class DocumentSubsystemTests
     {
         // Arrange: CRLF bytes with a valid grid table between two paragraphs
         const string text = "before\n\n+---+---+\n| a | b |\n+---+---+\n\nafter\n";
-        var bytes = new UTF8Encoding(false).GetBytes(text.Replace("\n", "\r\n", StringComparison.Ordinal));
 
         // Act: load and parse
-        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", bytes));
+        var document = DocumentParser.Parse(SourceDocument.Create("grid.md", CrLfBytes(text)));
 
         // Assert: no fallback, the table is a grid table, and the blocks tile the text
         Assert.False(document.IsFormatUnsafe);

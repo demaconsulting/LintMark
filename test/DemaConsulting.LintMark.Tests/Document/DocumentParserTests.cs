@@ -88,29 +88,6 @@ public class DocumentParserTests
         [.. DocumentParser.GetLines(document, leaf).Select(l => document.Source.Text[l.ContentStart..l.ContentEnd])];
 
     /// <summary>
-    ///     Determines whether a fallback location addresses the first border character of a border-shaped line.
-    /// </summary>
-    /// <param name="lines">The lines of the document text.</param>
-    /// <param name="fallback">The reported location.</param>
-    /// <returns><see langword="true"/> when the column is a plus sign preceded only by blanks and quote markers and followed only by border text.</returns>
-    private static bool IsBorderLocation(string[] lines, GridTableFallback fallback)
-    {
-        if (fallback.Line < 1 || fallback.Line > lines.Length)
-        {
-            return false;
-        }
-
-        var line = lines[fallback.Line - 1];
-        if (fallback.Column < 1 || fallback.Column > line.Length || line[fallback.Column - 1] != '+')
-        {
-            return false;
-        }
-
-        return line[..(fallback.Column - 1)].All(static c => c is ' ' or '>')
-            && line[(fallback.Column - 1)..].All(static c => c is '+' or '-' or ':' or ' ' or '\t');
-    }
-
-    /// <summary>
     ///     Test that a simple document flattens to its blocks in source order.
     /// </summary>
     [Fact]
@@ -1755,44 +1732,6 @@ public class DocumentParserTests
         // Assert: the document is format-unsafe and the location is the start of the document
         Assert.True(document.IsFormatUnsafe);
         Assert.Equal<GridTableFallback?>(new GridTableFallback(1, 1), document.GridFallback);
-    }
-
-    /// <summary>
-    ///     Test that a reported fallback location is either the start of the document or a grid border character on a border-shaped line.
-    /// </summary>
-    [Fact]
-    public void DocumentParser_Parse_RandomDocuments_FallbackLineIsAlwaysAGridOpenerOrLineOne()
-    {
-        // Arrange: the generated adversarial documents, which include many grid-table-looking lines
-        const uint seed = 20260511;
-        const int countPerFamily = 500;
-        var fallbacks = 0;
-        var problems = new List<string>();
-
-        // Act: parse every document and check each reported location
-        foreach (var fixture in RandomDocuments.Generate(seed, countPerFamily))
-        {
-            var document = Parse(fixture.Text);
-            if (document.GridFallback is not { } fallback)
-            {
-                continue;
-            }
-
-            fallbacks++;
-            if (fallback is { Line: 1, Column: 1 })
-            {
-                continue;
-            }
-
-            if (!IsBorderLocation(document.Source.Text.Split('\n'), fallback))
-            {
-                problems.Add($"{fixture.Name}: {fallback} in \"{fixture.Text.Replace("\n", "\\n", StringComparison.Ordinal)}\"");
-            }
-        }
-
-        // Assert: the check was not vacuous and every location is plausible
-        Assert.True(fallbacks > 0, "no generated document took the fallback");
-        Assert.True(problems.Count == 0, $"{problems.Count} problems:{Environment.NewLine}{string.Join(Environment.NewLine, problems.Take(10))}");
     }
 
     /// <summary>

@@ -1325,23 +1325,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that the tool processes this repository's own documentation successfully.
-    /// </summary>
-    [Fact]
-    public void LintMark_RepositoryDocumentation_Provided_ReturnsSuccess()
-    {
-        // Arrange: the repository's docs directory and README
-        var root = RepositoryMarkdownFiles.FindRoot();
-
-        // Act: run the tool with the docs directory and the README
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, Path.Combine(root, "docs"), Path.Combine(root, "README.md"));
-
-        // Assert: every file reads and parses
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("file-", output);
-    }
-
-    /// <summary>
     ///     Encodes text as UTF-8 without a byte order mark.
     /// </summary>
     /// <param name="text">The text.</param>

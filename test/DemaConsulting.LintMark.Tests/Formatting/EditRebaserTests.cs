@@ -356,6 +356,36 @@ public class EditRebaserTests
         $"text '{original.Replace("\n", "\\n", StringComparison.Ordinal)}' A=[{string.Join(';', first.Select(Show))}] B=[{string.Join(';', second.Select(Show))}]";
 
     /// <summary>
+    ///     Test that a rebaser that does not absorb the edits of the other rules would be caught: the composition of edits in
+    ///     which an edit lies inside a rewritten paragraph differs from applying the lists one after the other.
+    /// </summary>
+    [Fact]
+    public void EditRebaser_Rebase_EditInsideRewrittenParagraph_EqualsApplyingInSequence()
+    {
+        // Arrange: an edit of another rule inside the text that a wrap rewrites
+        const string original = "ant _bbb_ cat\n";
+        ImmutableArray<TextEdit> first = [new TextEdit(4, 1, "*", "emphasis"), new TextEdit(8, 1, "*", "emphasis")];
+        ImmutableArray<TextEdit> second = [new TextEdit(0, 14, "ant *bat*\ncat\n", "line-length")];
+
+        // Act: the correct composition
+        var source = SourceDocument.FromText("a.md", original);
+        var intermediate = SourcePatcher.Apply(source, first);
+        var expected = SourcePatcher.Apply(SourceDocument.FromText("a.md", intermediate), second);
+        var composed = SourcePatcher.Apply(source, EditRebaser.Rebase(first, second));
+
+        // Assert: the composition equals the sequence, and the faulty one that keeps both lists cannot be applied (the edits conflict)
+        Assert.Equal(expected, composed);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            var set = new EditSet();
+            foreach (var edit in first.Concat(second))
+            {
+                set.Add(edit);
+            }
+        });
+    }
+
+    /// <summary>
     ///     Shows an edit for the message.
     /// </summary>
     /// <param name="edit">The edit.</param>

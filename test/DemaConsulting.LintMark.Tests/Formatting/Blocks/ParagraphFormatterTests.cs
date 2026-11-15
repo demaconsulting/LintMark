@@ -581,4 +581,28 @@ public class ParagraphFormatterTests
         Assert.Throws<ArgumentException>(() => new ParagraphOutcome(default(TextEdit), 0, 1, false));
         Assert.Equal(-1, ParagraphOutcome.None.OverflowOffset);
     }
+
+    /// <summary>
+    ///     Test that the HTML check catches a wrap that breaks lines at every blank, ignoring the block syntax guard and the
+    ///     constructs that must stay whole, and that the real formatter does not produce such a rewrite.
+    /// </summary>
+    [Theory]
+    [InlineData("ant bat - cat\n", "ant bat\n- cat\n")]
+    [InlineData("ant bat 1. cat\n", "ant bat\n1. cat\n")]
+    [InlineData("ant bat # cat\n", "ant bat\n# cat\n")]
+    [InlineData("ant bat ``` cat\n", "ant bat\n``` cat\n")]
+    [InlineData("ant bat --- cat\n", "ant bat\n---\ncat\n")]
+    [InlineData("ant <span a=\"b c\">d</span>\n", "ant <span a=\"b\nc\">d</span>\n")]
+    [InlineData("ant [b](c \"d e\")\n", "ant [b](c \"d\ne\")\n")]
+    [InlineData("ant ![b](c \"d e\")\n", "ant ![b](c \"d\ne\")\n")]
+    public void ParagraphFormatter_Format_WrapIgnoringTheRulesOfTheWrapper_IsNotProduced(string original, string mutant)
+    {
+        // Act: compare the page of the original with the page of the rewrite a faulty wrapper would produce
+        var verdict = DemaConsulting.LintMark.Verify.Checks.HtmlEquivalenceChecker.Check(original, mutant);
+
+        // Assert: the check refuses it, and the real formatter does not produce it at a width that tempts it
+        Assert.False(verdict.IsEquivalent);
+        var formatted = BlockFormatterAssertions.AssertSafeAndStable(original, LintMarkConfig.Default with { LineLength = 11 }, checkParallel: false);
+        Assert.NotEqual(mutant, formatted);
+    }
 }

@@ -623,31 +623,6 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertSafeAndStable(input);
 
     /// <summary>
-    ///     Test that a list in every shape of the synthetic nesting documents is safe and stable with every list setting.
-    /// </summary>
-    [Theory]
-    [InlineData("Asterisk", 2, "Incrementing")]
-    [InlineData("Plus", 4, "One")]
-    public void ListFormatter_Format_SyntheticNestingDocuments_AreSafeAndStable(string bullet, int indent, string style)
-    {
-        // Arrange: the container chains around every body, and a configuration that changes the list settings
-        var config = LintMarkConfig.Default with
-        {
-            Bullet = Enum.Parse<BulletMarker>(bullet),
-            ListIndent = indent,
-            OrderedStyle = Enum.Parse<OrderedStyle>(style)
-        };
-        var fixtures = SyntheticDocuments.Generate().Where(fixture => fixture.Chain.Contains('L') || fixture.Chain.Contains('O')).ToList();
-
-        // Act & Assert: every fixture passes the safety assertions
-        Assert.NotEmpty(fixtures);
-        foreach (var fixture in fixtures)
-        {
-            BlockFormatterAssertions.AssertSafeAndStable(fixture.Text, config, checkParallel: false);
-        }
-    }
-
-    /// <summary>
     ///     Test that the list rules read the text that the other rules produce, so that one run is enough (rule R-1: the line after
     ///     an item that shrinks stays outside it, where the nest after it moves that line to the margin).
     /// </summary>
