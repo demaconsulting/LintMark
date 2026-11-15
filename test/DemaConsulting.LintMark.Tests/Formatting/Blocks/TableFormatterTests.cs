@@ -87,7 +87,6 @@ public class TableFormatterTests
         Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, new EditSet())).ParamName);
         Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, table, null!)).ParamName);
         Assert.Equal("block", Assert.Throws<ArgumentException>(() => Formatter.Format(context, paragraph, new EditSet())).ParamName);
-        Assert.Equal("rendersTheSame", Assert.Throws<ArgumentNullException>(() => new TableFormatter(null!)).ParamName);
     }
 
     /// <summary>
@@ -153,17 +152,17 @@ public class TableFormatterTests
         Assert.Empty(BlockFormatterAssertions.ApplyFormatter(Formatter, input).Edits);
 
     /// <summary>
-    ///     Test that a rewrite that the proof refuses is not proposed.
+    ///     Test that a pipe inside a code span, an HTML attribute, a link or math splits the cell as the parser does (so the row
+    ///     has the cells the parser sees), and that the rewrite then keeps the page.
     /// </summary>
-    [Fact]
-    public void TableFormatter_Format_RewriteThatDoesNotRenderTheSame_ProposesNothing()
-    {
-        // Arrange: a table that needs a rewrite, and a formatter whose proof always refuses
-        var refusing = new TableFormatter(static (_, _) => false);
-
-        // Act & Assert: no edit is proposed
-        Assert.Empty(BlockFormatterAssertions.ApplyFormatter(refusing, "|a|b|\n|-|-|\n").Edits);
-    }
+    [Theory]
+    [InlineData("|a|b|\n|-|-|\n|`x|y`|z|\n", "| a | b |\n| --- | --- |\n| `x | y` | z |\n")]
+    [InlineData("|a|b|\n|-|-|\n|<span title=\"a|b\">x</span>|z|\n", "| a | b |\n| --- | --- |\n| <span title=\"a | b\">x</span> | z |\n")]
+    [InlineData("|a|b|\n|-|-|\n|[a|b](u)|z|\n", "| a | b |\n| --- | --- |\n| [a | b](u) | z |\n")]
+    [InlineData("|a|b|\n|-|-|\n|$a|b$|z|\n", "| a | b |\n| --- | --- |\n| $a | b$ | z |\n")]
+    [InlineData("|a|b|\n|-|-|\n|<http://x/a|b>|z|\n", "| a | b |\n| --- | --- |\n| <http://x/a | b> | z |\n")]
+    public void TableFormatter_Format_PipeInsideInlineConstruct_KeepsTheSamePage(string input, string expected) =>
+        AssertFormats(input, expected);
 
     /// <summary>
     ///     Test that the aligned layout pads every column to its widest cell, measured in display columns.

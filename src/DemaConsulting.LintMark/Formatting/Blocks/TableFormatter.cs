@@ -19,13 +19,10 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
-using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Utilities;
-using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 
@@ -50,8 +47,10 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         Rows that have more or fewer cells than the header are written with the cells they have: a parser pads or
 ///         ignores cells silently, and inventing or dropping content is not the formatter's business (the lint-only
 ///         <c>table-column-count</c> rule reports them). Pandoc grid tables are another block kind and are not
-///         accepted. A table is left as written when it cannot be read with certainty (see <see cref="PipeTable"/>), lies
-///         in a footnote, or when the rewrite would not render the same as the table it replaces, each read on its own.
+///         accepted. A table is left as written when it cannot be read with certainty (see <see cref="PipeTable"/>) or lies
+///         in a footnote. The table extension of the parser splits a line at every unescaped pipe, even inside a code span, a link
+///         or an HTML attribute, exactly as <see cref="PipeTable"/> does, and the rewrite changes only blanks and the pipes at the
+///         ends of the lines, so no further check of the result is needed.
 ///     </para>
 ///     <para>
 ///         Thread safety: the instance holds only immutable data; one instance serves every worker thread.
@@ -59,37 +58,6 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 /// </remarks>
 internal sealed class TableFormatter : IBlockFormatter
 {
-    /// <summary>
-    ///     Decides whether a table as written (first argument) and its rewrite (second argument), each read on its own as
-    ///     LF-normalized text, render the same.
-    /// </summary>
-    private readonly Func<string, string, bool> _rendersTheSame;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="TableFormatter"/> class.
-    /// </summary>
-    public TableFormatter()
-        : this(RenderTheSame)
-    {
-    }
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="TableFormatter"/> class with the proof of a rewrite supplied by the caller.
-    /// </summary>
-    /// <param name="rendersTheSame">
-    ///     Tells whether the table as written and its rewrite, each as stand-alone LF-normalized text with its container
-    ///     prefixes, render the same. Must not be null.
-    /// </param>
-    /// <remarks>
-    ///     A seam for tests, so that a rewrite that the proof refuses can be simulated.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="rendersTheSame"/> is null.</exception>
-    internal TableFormatter(Func<string, string, bool> rendersTheSame)
-    {
-        ArgumentNullException.ThrowIfNull(rendersTheSame);
-        _rendersTheSame = rendersTheSame;
-    }
-
     /// <summary>
     ///     Gets the identifiers of the rules this formatter enforces.
     /// </summary>
@@ -162,13 +130,9 @@ internal sealed class TableFormatter : IBlockFormatter
             }
         }
 
-        // The rewrite stands only when the table renders the same afterwards, read on its own inside its container
-        if (proposed.Count > 0 && RendersTheSame(layout.Text, table, proposed))
+        foreach (var edit in proposed)
         {
-            foreach (var edit in proposed)
-            {
-                edits.Add(edit);
-            }
+            edits.Add(edit);
         }
     }
 
@@ -231,67 +195,5 @@ internal sealed class TableFormatter : IBlockFormatter
         }
 
         return row.HasLeadingPipe && row.HasTrailingPipe ? RuleCatalog.TableColumnStyleRuleId : RuleCatalog.TablePipeStyleRuleId;
-    }
-
-    /// <summary>
-    ///     Proves that the table with the edits applied renders the same as the table as written.
-    /// </summary>
-    /// <param name="text">The LF-normalized text of the document.</param>
-    /// <param name="table">The table.</param>
-    /// <param name="proposed">The edits of the lines, in line order.</param>
-    /// <returns><see langword="true"/> when both texts, each read on its own, render the same.</returns>
-    /// <remarks>
-    ///     The lines are read without the list markers and indentation of their prefixes (an indented line on its own would be
-    ///     code), keeping the block quote markers.
-    /// </remarks>
-    private bool RendersTheSame(string text, PipeTable table, List<TextEdit> proposed)
-    {
-        var before = new StringBuilder();
-        var after = new StringBuilder();
-        var next = 0;
-        foreach (var row in table.Rows)
-        {
-            var prefix = ProofPrefix(row.Prefix);
-            before.Append(prefix).Append(text, row.ContentStart, row.ContentEnd - row.ContentStart).Append('\n');
-            var edit = next < proposed.Count && proposed[next].Start == row.ContentStart ? proposed[next++] : (TextEdit?)null;
-            after.Append(prefix).Append(edit?.Replacement ?? text[row.ContentStart..row.ContentEnd]).Append('\n');
-        }
-
-        return _rendersTheSame(before.ToString(), after.ToString());
-    }
-
-    /// <summary>
-    ///     Reduces the prefix of a line to the block quote markers it holds, for reading the line on its own.
-    /// </summary>
-    /// <param name="prefix">The text of the line before its content.</param>
-    /// <returns>The prefix up to and including its last block quote marker and the blank after it; empty when it holds no marker.</returns>
-    private static string ProofPrefix(string prefix)
-    {
-        var last = prefix.LastIndexOf('>');
-        if (last < 0)
-        {
-            return string.Empty;
-        }
-
-        return last + 1 < prefix.Length && prefix[last + 1] == ' ' ? prefix[..(last + 2)] : prefix[..(last + 1)];
-    }
-    /// <summary>
-    ///     Proves that a rewritten table, read on its own, renders the same as the table it replaces.
-    /// </summary>
-    /// <param name="original">The table as written, as stand-alone text with its container prefixes.</param>
-    /// <param name="rewritten">The rewritten table, as stand-alone text.</param>
-    /// <returns>
-    ///     <see langword="true"/> when both texts hold the same number of tables and render to the same HTML after whitespace
-    ///     is normalized.
-    /// </returns>
-    private static bool RenderTheSame(string original, string rewritten)
-    {
-        var pipeline = DocumentParser.Pipeline;
-        var before = Markdown.Parse(original, pipeline);
-        var after = Markdown.Parse(rewritten, pipeline);
-        var tables = before.Descendants<Table>().Count();
-        return tables > 0
-            && tables == after.Descendants<Table>().Count()
-            && HtmlEquivalenceChecker.Check(original, rewritten).IsEquivalent;
     }
 }

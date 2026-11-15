@@ -123,7 +123,7 @@ internal sealed class PipeTable
         }
 
         // The reading must agree with the parser on what the table is
-        return AgreesWithParser(table, alignments, rows.Count) ? new PipeTable(rows.ToImmutable(), alignments) : null;
+        return AgreesWithParser(layout.Text, table, alignments, rows) ? new PipeTable(rows.ToImmutable(), alignments) : null;
     }
 
     /// <summary>
@@ -376,15 +376,28 @@ internal sealed class PipeTable
     /// <summary>
     ///     Determines whether the reading of a table agrees with the parser's view of it.
     /// </summary>
+    /// <param name="text">The text of the document.</param>
     /// <param name="table">The parser's table.</param>
     /// <param name="alignments">The alignments read from the delimiter row.</param>
-    /// <param name="lineCount">The number of lines read (the delimiter row is one of them).</param>
-    /// <returns><see langword="true"/> when the columns, their alignment and the number of rows are the same.</returns>
-    private static bool AgreesWithParser(Table table, ImmutableArray<TableAlignment> alignments, int lineCount)
+    /// <param name="rows">The rows read (the delimiter row is one of them).</param>
+    /// <returns>
+    ///     <see langword="true"/> when the columns, their alignment, the number of rows and the text of every cell are the same.
+    /// </returns>
+    private static bool AgreesWithParser(string text, Table table, ImmutableArray<TableAlignment> alignments, ImmutableArray<PipeTableRow>.Builder rows)
     {
-        if (table.ColumnDefinitions.Count != alignments.Length || table.Count != lineCount - 1)
+        if (table.ColumnDefinitions.Count != alignments.Length || table.Count != rows.Count - 1)
         {
             return false;
+        }
+
+        // Every cell the parser holds must be the text this reading holds, so that a rewrite of the blanks around the cells
+        // cannot move text from one cell to another
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (index != 1 && table[index == 0 ? 0 : index - 1] is TableRow parsed && !CellsAgree(text, rows[index], parsed))
+            {
+                return false;
+            }
         }
 
         for (var column = 0; column < alignments.Length; column++)
@@ -397,6 +410,35 @@ internal sealed class PipeTable
                 _ => TableAlignment.None
             };
             if (expected != alignments[column])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Determines whether the cells of a row, as this reading splits them, are the cells the parser holds.
+    /// </summary>
+    /// <param name="text">The text of the document.</param>
+    /// <param name="row">The row as read here.</param>
+    /// <param name="parsed">The row as the parser holds it.</param>
+    /// <returns><see langword="true"/> when every cell that both hold has the same text; an empty cell has no span to compare.</returns>
+    private static bool CellsAgree(string text, PipeTableRow row, TableRow parsed)
+    {
+        var count = Math.Min(row.Cells.Length, parsed.Count);
+        for (var column = 0; column < count; column++)
+        {
+            var ours = row.Cells[column];
+            var span = ((TableCell)parsed[column]).Span;
+            if (ours.Length == 0 || span.End < span.Start)
+            {
+                continue;
+            }
+
+            if (span.End >= text.Length
+                || !string.Equals(text.AsSpan(span.Start, span.Length).Trim().ToString(), ours, StringComparison.Ordinal))
             {
                 return false;
             }

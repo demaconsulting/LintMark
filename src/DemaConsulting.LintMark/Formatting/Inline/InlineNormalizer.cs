@@ -39,7 +39,7 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         padded with one space on each side loses both spaces, unless its content begins or ends with a backtick;
 ///         the rule has no setting). Only paragraphs are handled: headings
 ///         and table cells keep their text as written, and so do <c>www.</c> addresses, e-mail addresses and
-///         <c>mailto:</c> links, which render differently when they are wrapped.
+///         <c>mailto:</c> links, which read differently when they are wrapped.
 ///     </para>
 ///     <para>
 ///         The normalizer is not a block formatter (it claims no lines): <see cref="DocumentFormatter"/> asks it
@@ -49,36 +49,18 @@ namespace DemaConsulting.LintMark.Formatting.Inline;
 ///         cannot conflict with the edits of those rules.
 ///     </para>
 ///     <para>
-///         Candidates come from the inline syntax tree with strict guards (see <see cref="InlineCandidates"/>). The
-///         edits of a paragraph are then proved (see <see cref="ParagraphProof"/>): they are kept only when the content of
-///         the paragraph renders to the same HTML after the edits, and are all dropped otherwise, so a paragraph that
-///         cannot be rewritten safely stays as written. A paragraph is also left alone when the document defines link
-///         references and the paragraph holds a square bracket: a rewritten label could then stop matching its definition,
-///         which the stand-alone proof cannot see. A rule that is suppressed anywhere in the paragraph is not applied to it.
+///         Candidates come from the inline syntax tree with strict guards (see <see cref="InlineCandidates"/>), which leave a
+///         paragraph as written whenever the edits could change how it is read (for example when it holds a literal
+///         <c>&lt;</c>). A paragraph is also left alone when the document defines link
+///         references and the paragraph holds a square bracket: a rewritten label could then stop matching its definition.
+///         A rule that is suppressed anywhere in the paragraph is not applied to it.
 ///     </para>
 ///     <para>
-///         Thread safety: stateless apart from the immutable proof switch; one instance serves every worker thread.
+///         Thread safety: stateless; one instance serves every worker thread.
 ///     </para>
 /// </remarks>
 internal sealed class InlineNormalizer
 {
-    /// <summary>
-    ///     Whether the edits of a paragraph are proved before they are kept.
-    /// </summary>
-    private readonly bool _prove;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="InlineNormalizer"/> class.
-    /// </summary>
-    /// <param name="proveParagraphs">
-    ///     Whether the edits of each paragraph are proved by rendering before they are kept. Always <see langword="true"/>
-    ///     in the shipped tool; <see langword="false"/> exists so that a test can show that the guards alone are not enough.
-    /// </param>
-    public InlineNormalizer(bool proveParagraphs = true)
-    {
-        _prove = proveParagraphs;
-    }
-
     /// <summary>
     ///     Gets the identifiers of the rules this normalizer enforces.
     /// </summary>
@@ -90,6 +72,7 @@ internal sealed class InlineNormalizer
         RuleCatalog.CodeSpanSpaceRuleId
     ];
 
+#pragma warning disable S2325 // An instance is registered with the document formatter, like a block formatter: the contract is instance-based
     /// <summary>
     ///     Proposes the edits that bring the emphasis, strong emphasis and bare URLs of a paragraph into canonical form.
     /// </summary>
@@ -126,7 +109,7 @@ internal sealed class InlineNormalizer
             return;
         }
 
-        // A label that is rewritten could stop matching its definition, which the proof of the paragraph alone cannot see
+        // A label that is rewritten could stop matching its definition, so such a paragraph is left alone
         var text = document.Source.Text;
         if (document.References.Definitions.Count > 0 && text.AsSpan(block.Start, block.EndInclusive + 1 - block.Start).Contains('['))
         {
@@ -139,17 +122,12 @@ internal sealed class InlineNormalizer
             return;
         }
 
-        // The edits stand only when the paragraph renders the same afterwards
-        if (_prove && !ParagraphProof.Holds(text, DocumentParser.GetLines(document, block), candidates))
-        {
-            return;
-        }
-
         foreach (var edit in candidates)
         {
             edits.Add(edit);
         }
     }
+#pragma warning restore S2325
 
     /// <summary>
     ///     Determines whether a rule is suppressed anywhere in a block.

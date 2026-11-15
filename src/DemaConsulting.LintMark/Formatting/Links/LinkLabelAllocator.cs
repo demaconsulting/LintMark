@@ -21,6 +21,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 
 namespace DemaConsulting.LintMark.Formatting.Links;
 
@@ -35,7 +37,8 @@ namespace DemaConsulting.LintMark.Formatting.Links;
 ///         hyphen, cut to the maximum length at a hyphen; when nothing is left, the host and first path segment of the
 ///         destination are used the same way, and <c>link</c> when even that is empty. A label that is taken gets <c>-2</c>,
 ///         <c>-3</c> and so on, the first that is free. A label counts as taken when the document has a definition with it
-///         (any case, any blanks), or the text <c>[label]</c> anywhere: a definition would turn such text into a link.
+///         (any case, any blanks), or the text <c>[label]</c> anywhere, except as the text of a link the parser read: a definition would turn
+///         such text into a link.
 ///     </para>
 ///     <para>
 ///         A definition that already exists (the first one that has its label, as the parser reads it) is reused for a link with
@@ -49,10 +52,11 @@ namespace DemaConsulting.LintMark.Formatting.Links;
 internal sealed partial class LinkLabelAllocator
 {
     /// <summary>
-    ///     Text that is a label by itself: a pair of brackets without brackets inside that no parenthesis follows (the brackets
-    ///     of an inline link are never read as a reference).
+    ///     A pair of brackets without brackets inside, and the parenthesis that follows it, if any. A pair that no parenthesis
+    ///     follows is text that is a label by itself; a pair that one follows is the text of an inline link only when the parser
+    ///     read a link there (see <see cref="LinkLabelAllocator(ParsedDocument, int)"/>).
     /// </summary>
-    private const string BracketPattern = @"\[([^\[\]]*)\](?!\()";
+    private const string BracketPattern = @"\[([^\[\]]*)\](\()?";
 
     /// <summary>
     ///     The characters other than letters and digits that a reused label may hold.
@@ -104,11 +108,36 @@ internal sealed partial class LinkLabelAllocator
             }
         }
 
-        // Any bracketed text is a label to the parser as soon as a definition with it exists
+        // Any bracketed text is a label to the parser as soon as a definition with it exists. Brackets followed by a parenthesis
+        // are exempt only where the parser read an inline link or image: the same brackets before a destination that is not
+        // one (for example with a blank in it) are plain text, which a new definition would turn into a link
+        var linkOpenings = LinkOpenings(document);
         foreach (Match match in BracketRegex().Matches(document.Source.Text))
         {
-            _taken.Add(ReferenceIndex.NormalizeLabel(match.Groups[1].Value));
+            if (!match.Groups[2].Success || !linkOpenings.Contains(match.Index))
+            {
+                _taken.Add(ReferenceIndex.NormalizeLabel(match.Groups[1].Value));
+            }
         }
+    }
+
+    /// <summary>
+    ///     Finds where the links and images that the parser produced open their brackets.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <returns>The offsets of the opening brackets of every link and image that is not an autolink.</returns>
+    private static HashSet<int> LinkOpenings(ParsedDocument document)
+    {
+        var openings = new HashSet<int>();
+        foreach (var link in document.Ast.Descendants<LinkInline>())
+        {
+            if (!link.IsAutoLink)
+            {
+                openings.Add(link.Span.Start + (link.IsImage ? 1 : 0));
+            }
+        }
+
+        return openings;
     }
 
     /// <summary>

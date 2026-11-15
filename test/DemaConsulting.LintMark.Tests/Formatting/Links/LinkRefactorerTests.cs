@@ -536,18 +536,33 @@ public class LinkRefactorerTests
     }
 
     /// <summary>
-    ///     Test that a plan that the proof refuses is dropped completely.
+    ///     Test that brackets before a parenthesis that does not make an inline link count as text that a new definition would
+    ///     turn into a link: the label of the converted link steps aside (rule L-1).
     /// </summary>
     [Fact]
-    public void LinkRefactorer_Plan_ProofRefuses_ChangesNothing()
+    public void LinkRefactorer_Format_BracketsBeforeAnInvalidDestination_AreTakenAsALabel()
     {
-        // Arrange: a refactorer whose proof never agrees
-        var refactorer = new LinkRefactorer(static (_, _) => false);
-        var document = BlockFormatterAssertions.Parse($"A [long link text]({LongUrl}) here.\n");
+        // Arrange: the first brackets have a blank in the destination, so they are text; the second pair is a real link
+        var text = $"[X]({{% if a %}}/a) and [X]({LongUrl})\n";
 
-        // Act / Assert
-        Assert.True(refactorer.Plan(document, On()).IsEmpty);
-        Assert.False(new LinkRefactorer().Plan(document, On()).IsEmpty);
+        // Act
+        var formatted = Format(text, On(width: 200, threshold: 20));
+
+        // Assert: the label x is taken by the text, so the converted link gets x-2, and the text is not turned into a link
+        Assert.Equal($"[X]({{% if a %}}/a) and [X][x-2]\n\n<!-- Link References -->\n[x-2]: {LongUrl}\n", formatted);
+    }
+
+    /// <summary>
+    ///     Test that brackets that are the text of a link the parser read do not take the label (the usual case).
+    /// </summary>
+    [Fact]
+    public void LinkRefactorer_Format_BracketsOfAnInlineLink_DoNotTakeTheLabel()
+    {
+        // Act
+        var formatted = Format($"[X]({LongUrl}) and ![X]({LongUrl}2)\n", On(width: 200, threshold: 20));
+
+        // Assert: the first link takes x, the image gets x-2
+        Assert.StartsWith("[X][x] and ![X][x-2]\n", formatted, StringComparison.Ordinal);
     }
 
     /// <summary>

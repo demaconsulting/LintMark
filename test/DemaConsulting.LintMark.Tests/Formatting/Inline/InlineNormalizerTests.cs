@@ -390,6 +390,27 @@ public class InlineNormalizerTests
     }
 
     /// <summary>
+    ///     Test that a paragraph with a literal angle bracket is left as written, because an angle bracket that a rewrite writes
+    ///     could close an unclosed HTML construct and change how the text after it is read (rule I-1).
+    /// </summary>
+    /// <param name="input">The paragraph.</param>
+    [Theory]
+    [InlineData("> <!_a_ _a_ http://x.com/*z*) mailto:a@b.c\n")]
+    [InlineData("<!word *c* http://x.com\n")]
+    [InlineData("a <!x http://x.com and _b_\n")]
+    [InlineData("1 < 2 and http://x.com\n")]
+    [InlineData("<!_a_ __b__\n")]
+    public void InlineNormalizer_AddBlockEdits_LiteralAngleBracket_KeepsTheParagraph(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that recognized inline HTML does not stop the paragraph from being normalized (control for rule I-1).
+    /// </summary>
+    [Fact]
+    public void InlineNormalizer_AddBlockEdits_InlineHtmlTags_StillNormalizes() =>
+        AssertFormats("<span>x</span> http://x.com _a_\n", "<span>x</span> <http://x.com> *a*\n");
+
+    /// <summary>
     ///     Test that a rule is not applied to a paragraph when it is suppressed in it, by identifier or by alias.
     /// </summary>
     [Theory]
@@ -671,7 +692,7 @@ public class InlineNormalizerTests
     ///     Test that removing the padding twice proposes nothing the second time, and that the result renders as before.
     /// </summary>
     [Fact]
-    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_IsStableAndRendersTheSame()
+    public void InlineNormalizer_AddBlockEdits_PaddedCodeSpan_IsStable()
     {
         // Act: format a paragraph with a mixture of paddings
         var formatted = BlockFormatterAssertions.AssertSafeAndStable("a ` x ` `` `y `` `  z  ` ` w`\n");

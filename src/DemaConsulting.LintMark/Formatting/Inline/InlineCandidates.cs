@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Buffers;
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Linting;
@@ -58,6 +59,16 @@ internal static class InlineCandidates
     private static readonly string[] Schemes = ["http://", "https://", "ftp://"];
 
     /// <summary>
+    ///     The emphasis delimiter characters.
+    /// </summary>
+    private static readonly SearchValues<char> LiteralDelimiters = SearchValues.Create("*_");
+
+    /// <summary>
+    ///     The character that opens an HTML construct.
+    /// </summary>
+    private static readonly SearchValues<char> LiteralAngle = SearchValues.Create("<");
+
+    /// <summary>
     ///     Finds the edits for the emphasis, strong emphasis and bare URLs of a paragraph.
     /// </summary>
     /// <param name="text">The LF-normalized text of the document. Must not be null.</param>
@@ -81,7 +92,14 @@ internal static class InlineCandidates
 
         // A delimiter character in any literal of the paragraph makes the pairing of the others uncertain
         var found = ImmutableArray.CreateBuilder<TextEdit>();
-        var literalDelimiter = HasLiteralDelimiter(root);
+        // An unclosed "<" that the parser read as text can be closed by an angle bracket this rewrite writes, which would turn
+        // the text after it into an HTML construct; such a paragraph is left alone
+        if (HasLiteral(root, LiteralAngle))
+        {
+            return [];
+        }
+
+        var literalDelimiter = HasLiteral(root, LiteralDelimiters);
         Visit(text, root, emphasis, strong, urls, codeSpaces, literalDelimiter, insideEmphasis: false, insideLink: false, found);
 
         // A tree the parser built with the same inline twice proposes the same edit twice; one stands, and edits that overlap
@@ -106,11 +124,12 @@ internal static class InlineCandidates
     private static char CharOf(EmphasisMarker marker) => marker == EmphasisMarker.Underscore ? '_' : '*';
 
     /// <summary>
-    ///     Determines whether any literal inline of a tree holds an emphasis delimiter character.
+    ///     Determines whether any literal inline of a tree holds one of the given characters.
     /// </summary>
     /// <param name="container">The container to search.</param>
-    /// <returns><see langword="true"/> when a literal holds <c>*</c> or <c>_</c>.</returns>
-    private static bool HasLiteralDelimiter(ContainerInline container)
+    /// <param name="characters">The characters to look for.</param>
+    /// <returns><see langword="true"/> when a literal outside an autolink holds one of the characters.</returns>
+    private static bool HasLiteral(ContainerInline container, SearchValues<char> characters)
     {
         for (var child = container.FirstChild; child is not null; child = child.NextSibling)
         {
@@ -120,12 +139,12 @@ internal static class InlineCandidates
                 continue;
             }
 
-            if (child is LiteralInline literal && literal.Content.AsSpan().ContainsAny('*', '_'))
+            if (child is LiteralInline literal && literal.Content.AsSpan().ContainsAny(characters))
             {
                 return true;
             }
 
-            if (child is ContainerInline nested && HasLiteralDelimiter(nested))
+            if (child is ContainerInline nested && HasLiteral(nested, characters))
             {
                 return true;
             }

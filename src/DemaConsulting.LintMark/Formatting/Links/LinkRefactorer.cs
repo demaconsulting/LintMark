@@ -23,7 +23,6 @@ using System.Text;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting.Blocks;
-using DemaConsulting.LintMark.Formatting.Proof;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Linting.Rules;
 using DemaConsulting.LintMark.Utilities;
@@ -59,8 +58,9 @@ namespace DemaConsulting.LintMark.Formatting.Links;
 ///         they are, and no definition is ever removed.
 ///     </para>
 ///     <para>
-///         <b>Proof.</b> A plan stands only when the text it produces defines every new label with the destination and title
-///         it replaced, and renders the same as the text it was made for. Otherwise nothing is converted.
+///         <b>Safety.</b> The labels never collide with a label or bracketed text that the parser does not read as a link
+///         (see <see cref="LinkLabelAllocator"/>), and a plan stands only when the text it produces defines every new label with the
+///         destination and title it replaced. Otherwise nothing is converted.
 ///     </para>
 ///     <para>
 ///         Thread safety: the instance holds only immutable data; <see cref="Plan"/> keeps its state in local variables, so one
@@ -73,36 +73,6 @@ internal sealed class LinkRefactorer
     ///     The width of the brackets around a label.
     /// </summary>
     private const int BracketWidth = 2;
-
-    /// <summary>
-    ///     Decides whether the text a plan was made for (first argument) and the text it produces (second argument) render the same.
-    /// </summary>
-    private readonly Func<string, string, bool> _rendersTheSame;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="LinkRefactorer"/> class.
-    /// </summary>
-    public LinkRefactorer()
-        : this(RenderTheSame)
-    {
-    }
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="LinkRefactorer"/> class with the proof of a plan supplied by the caller.
-    /// </summary>
-    /// <param name="rendersTheSame">
-    ///     Tells whether the text a plan was made for (first argument) and the text the plan produces (second argument), each
-    ///     LF-normalized, render the same. Must not be null.
-    /// </param>
-    /// <remarks>
-    ///     A seam for tests, so that a plan that the proof refuses can be simulated.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="rendersTheSame"/> is null.</exception>
-    internal LinkRefactorer(Func<string, string, bool> rendersTheSame)
-    {
-        ArgumentNullException.ThrowIfNull(rendersTheSame);
-        _rendersTheSame = rendersTheSame;
-    }
 
     /// <summary>
     ///     Determines whether the settings ask for links to be converted.
@@ -118,6 +88,7 @@ internal sealed class LinkRefactorer
         return config.LinkRefactor.Enabled && config.Rules[RuleCatalog.LinkRefactorRuleId];
     }
 
+#pragma warning disable S2325 // An instance is registered with the document formatter, like a block formatter: the contract is instance-based
     /// <summary>
     ///     Decides which links of a document are converted and writes the edits.
     /// </summary>
@@ -180,8 +151,9 @@ internal sealed class LinkRefactorer
             edits.ToImmutable(),
             [.. conversions.OrderBy(static conversion => conversion.Offset)],
             units.Any(static unit => unit.IsTable));
-        return StandsProof(document, plan, labels, units, options.DefinitionsMarker) ? plan : LinkRefactorPlan.Empty;
+        return DefinesEveryLabel(document, plan, labels, units) ? plan : LinkRefactorPlan.Empty;
     }
+#pragma warning restore S2325
 
     /// <summary>
     ///     Finds the links that are converted, grouped the way they are decided.
@@ -419,15 +391,17 @@ internal sealed class LinkRefactorer
     }
 
     /// <summary>
-    ///     Proves a plan: the text it produces defines every new label as intended and renders the same.
+    ///     Checks a plan against a reading of the text it produces: every new label is defined as intended.
     /// </summary>
     /// <param name="document">The document the plan was made for.</param>
     /// <param name="plan">The plan.</param>
     /// <param name="labels">The labels the plan defines.</param>
     /// <param name="units">The converted links.</param>
-    /// <param name="marker">The marker comment of the configuration, which the proof does not count (see <see cref="WithoutAddedMarker"/>).</param>
-    /// <returns><see langword="true"/> when the plan stands.</returns>
-    private bool StandsProof(ParsedDocument document, LinkRefactorPlan plan, LinkLabelAllocator labels, List<Unit> units, string marker)
+    /// <returns><see langword="true"/> when the text the plan produces defines every label with the destination and title it replaced.</returns>
+    /// <remarks>
+    ///     This reads the produced text with the parser only to compare definitions; it compares no page.
+    /// </remarks>
+    private static bool DefinesEveryLabel(ParsedDocument document, LinkRefactorPlan plan, LinkLabelAllocator labels, List<Unit> units)
     {
         var source = document.Source;
         var produced = SourcePatcher.Apply(source, plan.Edits);
@@ -454,7 +428,7 @@ internal sealed class LinkRefactorer
             }
         }
 
-        return _rendersTheSame(source.Text, WithoutAddedMarker(source.Text, produced, marker));
+        return true;
     }
 
     /// <summary>
@@ -531,15 +505,6 @@ internal sealed class LinkRefactorer
 
         return (count, last);
     }
-
-    /// <summary>
-    ///     Proves that two texts render the same.
-    /// </summary>
-    /// <param name="original">The text the plan was made for.</param>
-    /// <param name="produced">The text the plan produces.</param>
-    /// <returns><see langword="true"/> when the rendered pages are equivalent.</returns>
-    private static bool RenderTheSame(string original, string produced) =>
-        HtmlEquivalenceChecker.Check(original, produced).IsEquivalent;
 
     /// <summary>
     ///     A link that can be converted.

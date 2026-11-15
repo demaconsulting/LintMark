@@ -167,30 +167,32 @@ public class ListQuoteInlineCorpusTests
     }
 
     /// <summary>
-    ///     Test that the proof of each paragraph is needed: without it some generated paragraph renders differently after the rewrite.
+    ///     Test that the inline rules alone never change how a generated paragraph reads (the guards are the safety, not a check).
     /// </summary>
-    [Fact]
-    public void ListQuoteInlineCorpus_Format_WithoutParagraphProof_SomeParagraphRendersDifferently()
+    /// <param name="seed">The seed of the generated paragraphs.</param>
+    [Theory]
+    [InlineData(20260103u)]
+    [InlineData(11u)]
+    [InlineData(22u)]
+    [InlineData(33u)]
+    [InlineData(44u)]
+    public void ListQuoteInlineCorpus_Format_RandomInlineText_RendersTheSame(uint seed)
     {
-        // Arrange: a formatter whose inline normalizer does not prove its edits
-        var unproved = new DocumentFormatter([], new InlineNormalizer(proveParagraphs: false));
-        var proved = new DocumentFormatter([], new InlineNormalizer());
-        var documents = ListQuoteInlineDocuments.Inlines(20260103u, InlineDocuments).ToList();
+        // Arrange: a formatter with the inline normalizer only, over paragraphs full of delimiters, brackets and angle brackets
+        var formatter = new DocumentFormatter([], new InlineNormalizer());
+        var documents = ListQuoteInlineDocuments.Inlines(seed, InlineDocuments).ToList();
 
-        // Act: count the documents whose rewrite does not render the same
-        var mismatches = documents.Count(document =>
-        {
-            var (_, formatted) = BlockFormatterAssertions.Apply(unproved, document.Text);
-            return !HtmlEquivalenceChecker.Check(document.Text, formatted).IsEquivalent;
-        });
-        var provedMismatches = documents.Count(document =>
-        {
-            var (_, formatted) = BlockFormatterAssertions.Apply(proved, document.Text);
-            return !HtmlEquivalenceChecker.Check(document.Text, formatted).IsEquivalent;
-        });
+        // Act: collect the documents whose rewrite does not render the same
+        var mismatches = documents
+            .Where(document =>
+            {
+                var (_, formatted) = BlockFormatterAssertions.Apply(formatter, document.Text);
+                return !HtmlEquivalenceChecker.Check(document.Text, formatted).IsEquivalent;
+            })
+            .Select(static document => document.Name)
+            .ToList();
 
-        // Assert: the guards alone let at least one paragraph through, and the proof lets none through
-        Assert.True(mismatches > 0, "The guards alone were expected to leave at least one rewrite that renders differently.");
-        Assert.Equal(0, provedMismatches);
+        // Assert: none
+        BlockFormatterAssertions.AssertNone(mismatches);
     }
 }
