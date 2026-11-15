@@ -257,9 +257,21 @@ public class DocumentFormatterPassTests
     [Theory]
     [InlineData("a\n-x\n\n\n\nb\n", "a\n-x\n\nb\n")]
     [InlineData("a\n12345678901.\n\n\nb\n", "a\n12345678901.\n\nb\n")]
+    [InlineData("a\n\n    -\n\n\n\nb\n", "a\n\n    -\n\nb\n")]
     [InlineData("a\n1.x\n\n\nb\n", "a\n1.x\n\nb\n")]
+    [InlineData("a\n\n- - -\n\n\n\nb\n", "a\n\n- - -\n\nb\n")]
+    [InlineData("a\n\n* * *\n\n\n\nb\n", "a\n\n* * *\n\nb\n")]
+    [InlineData("* - - -\n\n\n\n- a\n", "* - - -\n\n- a\n")]
     public void DocumentFormatter_Format_BlankRunAfterNonItemLine_IsShortened(string input, string expected) =>
         AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that a thematic break written with markers in a list item is not taken for an empty item: its blank lines are
+    ///     shortened in the same run that rewrites the break (a second run finds nothing to do).
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_BlankRunAfterThematicBreakInItem_SettlesInOneRun() =>
+        BlockFormatterAssertions.AssertFormats("* - - -\n\n\n\n- a\n", "* ---\n\n- a\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.

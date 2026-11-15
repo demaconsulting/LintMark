@@ -103,6 +103,7 @@ internal static class BlankLinePass
 
             // Two blank lines after an empty list item end the list for the parser, so a run there is not shortened
             var afterEmptyItem = first > 0
+                && ownership.LeafAt(first - 1) is null
                 && IsEmptyItemLine(layout.Text.AsSpan(layout.LineStart(first - 1), layout.LineEnd(first - 1) - layout.LineStart(first - 1)));
             HandleRun(document, layout, ownership, config.MaxBlankLines, first, last, afterEmptyItem, edits);
         }
@@ -120,6 +121,8 @@ internal static class BlankLinePass
     {
         var position = 0;
         var markers = 0;
+        var sameBullets = 0;
+        var bullet = '\0';
         while (true)
         {
             while (position < line.Length && line[position] is ' ' or '\t' or '>')
@@ -129,11 +132,14 @@ internal static class BlankLinePass
 
             if (position == line.Length)
             {
-                return markers > 0;
+                // Three or more of the same marker at the end is a thematic break (the thematic break rule rewrites it), not nested items
+                return markers > 0 && !(sameBullets >= 3 && bullet is '-' or '*');
             }
 
             if (line[position] is '-' or '+' or '*')
             {
+                sameBullets = line[position] == bullet ? sameBullets + 1 : 1;
+                bullet = line[position];
                 position++;
             }
             else
@@ -151,6 +157,8 @@ internal static class BlankLinePass
                     return false;
                 }
 
+                sameBullets = 0;
+                bullet = '\0';
                 position++;
             }
 
