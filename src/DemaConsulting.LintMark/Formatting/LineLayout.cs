@@ -266,6 +266,122 @@ internal sealed class LineLayout
     }
 
     /// <summary>
+    ///     Determines whether a line starts with a list marker after any indentation: a bullet character or an ordered
+    ///     number with its delimiter, followed by a blank or the end of the line.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the line has that shape, whether or not the parser reads it as a list item.</returns>
+    /// <remarks>
+    ///     Such a line is a list item at the start of a block, but not always inside a paragraph (an empty item, and an
+    ///     ordered item that does not start at 1, cannot interrupt one), so whether a blank line before it is harmless
+    ///     depends on the lines before it.
+    /// </remarks>
+    public bool StartsWithListMarker(int line)
+    {
+        var end = LineEnd(line);
+        var position = LineStart(line);
+        while (position < end && IsBlankChar(Text[position]))
+        {
+            position++;
+        }
+
+        if (position < end && Text[position] is '-' or '+' or '*')
+        {
+            position++;
+        }
+        else
+        {
+            var digitsStart = position;
+            while (position < end && position - digitsStart < 9 && char.IsAsciiDigit(Text[position]))
+            {
+                position++;
+            }
+
+            if (position == digitsStart || position >= end || Text[position] is not ('.' or ')'))
+            {
+                return false;
+            }
+
+            position++;
+        }
+
+        return position == end || IsBlankChar(Text[position]);
+    }
+
+    /// <summary>
+    ///     Determines whether a line is shaped like a thematic break, or like a bullet item that holds one: three or more of
+    ///     one of <c>-</c>, <c>*</c> and <c>_</c> and nothing else but blanks, after an optional bullet marker.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the line has that shape (also where the parser reads it as a list item).</returns>
+    /// <remarks>
+    ///     The thematic break rule writes the break of an item with its own character (<c>* ***</c> becomes <c>* ---</c>), so
+    ///     the shape with a marker is asked as well: a decision that depends on which of the two a line is would not be the
+    ///     same in a second run.
+    /// </remarks>
+    public bool LooksLikeThematicBreak(int line)
+    {
+        var text = Text.AsSpan(LineStart(line), LineEnd(line) - LineStart(line));
+        if (IsBreakShaped(text))
+        {
+            return true;
+        }
+
+        var start = text.IndexOfAnyExcept(' ', '\t');
+        return start >= 0 && text[start] is '-' or '*' or '+' && start + 1 < text.Length && IsBlankChar(text[start + 1])
+            && IsBreakShaped(text[(start + 1)..]);
+    }
+
+    /// <summary>
+    ///     Determines whether a text is three or more of one of <c>-</c>, <c>*</c> and <c>_</c>, and blanks.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns><see langword="true"/> for a text of that shape.</returns>
+    private static bool IsBreakShaped(ReadOnlySpan<char> text)
+    {
+        var kind = '\0';
+        var count = 0;
+        foreach (var c in text)
+        {
+            if (IsBlankChar(c))
+            {
+                continue;
+            }
+
+            if (c is not ('-' or '*' or '_') || (kind != '\0' && c != kind))
+            {
+                return false;
+            }
+
+            kind = c;
+            count++;
+        }
+
+        return count >= 3;
+    }
+
+    /// <summary>
+    ///     Determines whether a line starts like a link reference definition (<c>[label]:</c>) after any indentation.
+    /// </summary>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when the line starts with a bracket (not a footnote marker) whose label is followed by a colon.</returns>
+    /// <remarks>
+    ///     The test is deliberately wider than the syntax: it does not check the destination or the label.
+    /// </remarks>
+    public bool StartsLikeLinkDefinition(int line)
+    {
+        var end = LineEnd(line);
+        var position = LineStart(line);
+        while (position < end && IsBlankChar(Text[position]))
+        {
+            position++;
+        }
+
+        return position + 1 < end && Text[position] == '[' && Text[position + 1] != '^'
+            && Text.AsSpan(position + 1, end - position - 1).IndexOf("]:", StringComparison.Ordinal) > 0;
+    }
+
+    /// <summary>
     ///     Gets the column of the next tab stop after a column.
     /// </summary>
     /// <param name="column">The zero-based column.</param>

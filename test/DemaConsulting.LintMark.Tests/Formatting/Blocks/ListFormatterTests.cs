@@ -586,6 +586,16 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertFormatsSafely(input, expected);
 
     /// <summary>
+    ///     Test that an item whose nested list stays at its content column while the item moves does not take over a list that
+    ///     follows the nested list (issue 27): the lines of the item are shifted with it, the content column of the nested bullet
+    ///     item is not, so a line that was outside the bullet item could land in it. The columns are then kept.
+    /// </summary>
+    [Theory]
+    [InlineData(" 1. |\n1. #\n   *  [\n     1.\n", " 1. |\n2. #\n   -  [\n     1.\n")]
+    public void ListFormatter_Format_NestedListStaysWhileItemMoves_LineAfterStaysOutOfIt(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormatsSafely(input, expected);
+
+    /// <summary>
     ///     Test that the shrinking of an item and the code block of another rule happen in one run: the block that a rule rewrites
     ///     as a fence is no danger to the list, so the list does not have to wait for the second run.
     /// </summary>

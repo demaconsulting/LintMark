@@ -68,6 +68,10 @@ from the margin) are the regression tests of issue 22. They are formatted so tha
 to the content column the parser reads (rule G-5), or the nest keeps its columns, and `ParserContentColumn` follows the
 rule of the parser for the markers at and past the content column of the item around them.
 
+**A nested list that stays while its item moves does not take over the line after it**: A nested bullet item whose
+content column stays while the item around it moves right, followed by a list in the same item, keeps its columns
+(rule R-1, issue 27), so the following list is not read as text of the bullet item.
+
 **Loose and tight lists stay as they are**: Blank lines stay where they were.
 
 **Edits are credited to their rules**: Marker, number, indent, and spacing edits are reported under `bullet`,

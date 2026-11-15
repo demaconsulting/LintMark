@@ -296,6 +296,19 @@ public class HeadingFormatterTests
         AssertFormats(input, input);
 
     /// <summary>
+    ///     Test that a closing sequence is kept when the text before it ends in number signs that would become the
+    ///     closing sequence (the parser strips only one), while the other rules still apply.
+    /// </summary>
+    [Theory]
+    [InlineData("# # #\n", "# # #\n")]
+    [InlineData("## ## ##\n", "## ## ##\n")]
+    [InlineData("# foo # #\n", "# foo # #\n")]
+    [InlineData("# # # #\n", "# # # #\n")]
+    [InlineData("#   #  #   \n", "# #  #\n")]
+    public void HeadingFormatter_Format_TextEndingInNumberSigns_KeepsTheClosingSequence(string input, string expected) =>
+        AssertFormats(input, expected);
+
+    /// <summary>
     ///     Test that several spaces after the opening number signs become one.
     /// </summary>
     [Theory]

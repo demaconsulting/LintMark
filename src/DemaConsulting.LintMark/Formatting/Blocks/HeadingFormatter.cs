@@ -107,7 +107,7 @@ internal sealed class HeadingFormatter : IBlockFormatter
         var heading = (HeadingBlock)block.Node!;
         if (heading.IsSetext)
         {
-            FormatSetext(layout, block, heading, edits);
+            FormatSetext(layout, context.Ownership, block, heading, edits);
         }
         else
         {
@@ -169,6 +169,15 @@ internal sealed class HeadingFormatter : IBlockFormatter
         while (contentEnd > contentStart && LineLayout.IsBlankChar(text[contentEnd - 1]))
         {
             contentEnd--;
+        }
+
+        // The parser strips one closing sequence only: when the text before it ends in a run of number signs that
+        // looks like a closing sequence itself (# # #), removing the real one would turn that run into the closing
+        // sequence and drop it from the text, so the closing sequence is left as written
+        if (closingStart >= 0 && FindClosingSequence(text, contentStart, contentEnd) >= 0)
+        {
+            closingStart = -1;
+            contentEnd = trimmedEnd;
         }
 
         // Tabs in the heading text are found first: a heading whose inline spans cannot be matched to its line is left
@@ -360,15 +369,18 @@ internal sealed class HeadingFormatter : IBlockFormatter
     ///     Formats a setext heading.
     /// </summary>
     /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="ownership">Which lines belong to which block.</param>
     /// <param name="block">The heading block.</param>
     /// <param name="heading">The parser's heading.</param>
     /// <param name="edits">Receives the edits.</param>
     /// <remarks>
     ///     A top-level heading with one line of text becomes an ATX heading, unless its text ends with a number
-    ///     sign or a backslash (the ATX form would read it differently). Any other setext heading only gets its
-    ///     whitespace cleaned up.
+    ///     sign or a backslash (the ATX form would read it differently), or it directly follows a link reference
+    ///     definition and starts with a list marker (the block spacing rule must not put a blank line before it, so the
+    ///     heading is left as it is, which keeps a second run from finding the blank line missing). Any other setext
+    ///     heading only gets its whitespace cleaned up.
     /// </remarks>
-    private static void FormatSetext(LineLayout layout, BlockInfo block, HeadingBlock heading, EditSet edits)
+    private static void FormatSetext(LineLayout layout, LineOwnership ownership, BlockInfo block, HeadingBlock heading, EditSet edits)
     {
         var text = layout.Text;
         var first = layout.LineOf(block.Start);
@@ -379,7 +391,8 @@ internal sealed class HeadingFormatter : IBlockFormatter
         }
 
         // Multi-line and nested headings keep the setext form; only their whitespace is normalized
-        if (block.Parent is not null || underline != first + 1 || !TryConvertToAtx(layout, heading, first, underline, edits))
+        var afterDefinition = first > 0 && ownership.LeafAt(first - 1)?.Kind == BlockKind.LinkReferenceDefinition && layout.StartsWithListMarker(first);
+        if (block.Parent is not null || underline != first + 1 || afterDefinition || !TryConvertToAtx(layout, heading, first, underline, edits))
         {
             LeafWhitespace.AddBlockEdits(layout, block, trailing: true, tabs: true, edits);
         }

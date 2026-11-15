@@ -50,7 +50,9 @@ border-shaped last line settles in one pass.
 
 **Blocks get blank lines around them**: A heading, a fenced block, a list, and a table without blank lines get them.
 Blocks inside containers, lazy continuations, footnotes next to headings, and lines that only look like a list or a grid
-border are not separated.
+border are not separated. A setext heading that starts with a list marker right after a link reference definition, and
+a list shaped like a thematic break (`- --`) right after a list, and a definition-shaped paragraph right before a table,
+are not separated either (issues 24, 26 and 30).
 
 **Suppression is respected**: Each part is left alone when its rule is suppressed, by identifier, by alias, or by a next
 line directive; an unsuppressed neighbor is still handled.

@@ -155,9 +155,9 @@ internal sealed class ListPlan
     private readonly List<TextEdit> _planned = [];
 
     /// <summary>
-    ///     The items whose content column shrinks, with the new column, for the check of the line after them.
+    ///     The items whose content column shrinks, or moves less than the lines around them, with the new column, for the check of the line after them.
     /// </summary>
-    private readonly List<(int LastLine, int NewContent)> _shrunk = [];
+    private readonly List<(int LastLine, int NewContent)> _stayOut = [];
 
     /// <summary>
     ///     Whether a line that the plan moves is one whose meaning depends on its indentation (rules R-2 and G-2).
@@ -256,7 +256,7 @@ internal sealed class ListPlan
     private void Reset()
     {
         _planned.Clear();
-        _shrunk.Clear();
+        _stayOut.Clear();
         _hidesMeaning = false;
     }
 
@@ -267,7 +267,7 @@ internal sealed class ListPlan
     private bool IsSafe() =>
         !_hidesMeaning
         && !HasOverlap(_planned)
-        && _shrunk.All(item => LineAfterStaysOut(item.LastLine, item.NewContent))
+        && _stayOut.All(item => LineAfterStaysOut(item.LastLine, item.NewContent))
         && !ChangesLineIntoBreak();
 
     /// <summary>
@@ -528,6 +528,16 @@ internal sealed class ListPlan
             _hidesMeaning = true;
         }
 
+        // A line after the item that is indented to the column where the parser lets a line continue the item is taken into the item.
+        // That column is the content column, and for a list inside an item it can be as low as the width of the marker from the
+        // content column of the item that holds it (the parser counts the indentation from there). The line is at risk when the
+        // item shrinks, and also when the lines after it are shifted with the item that holds the list while the item itself
+        // moves less (a content column that stays put while the item around it moves right)
+        if (shift < 0 || (parent is { } around && shift < around.NewContent - around.OldContent))
+        {
+            _stayOut.Add((item.LastLine, Math.Min(newContent, (parent?.NewContent ?? 0) + markerLength + 1)));
+        }
+
         // The rest of the item moves with its content column, except the lists inside it that move by themselves
         if (shift == 0)
         {
@@ -539,14 +549,6 @@ internal sealed class ListPlan
         if (HoldsBreakItem(item))
         {
             _hidesMeaning = true;
-        }
-
-        // A line after the item that is indented to the column where the parser lets a line continue the item is taken into the item.
-        // That column is the content column, and for a list inside an item it can be as low as the width of the marker from the
-        // content column of the item that holds it (the parser counts the indentation from there)
-        if (shift < 0)
-        {
-            _shrunk.Add((item.LastLine, Math.Min(newContent, (parent?.NewContent ?? 0) + markerLength + 1)));
         }
 
         var rule = RuleForShift(item, column);

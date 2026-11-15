@@ -92,7 +92,8 @@ nothing per list.
   line gets at most one shift edit and none collides with a blank line insertion.
 
 *Guards on the whole plan* (`IsSafe`). The column plan is replaced by the marker-only plan (which is dropped too when
-its edits overlap) when: an item whose content column shrinks would take over the next non-blank
+its edits overlap) when: an item whose content column shrinks, or that moves less than the lines after it (a nested item
+whose content column stays while the item around it moves), would take over the next non-blank
 line (R-1, `LineAfterStaysOut`); a fenced code, indented code, HTML, or math line is not indented the way the shift
 assumes, or a paragraph continuation line starts with block syntax only because of its indentation (R-2 and G-2,
 `DependsOnIndentation`); a changed line would be a thematic break or setext underline by itself (G-1,
