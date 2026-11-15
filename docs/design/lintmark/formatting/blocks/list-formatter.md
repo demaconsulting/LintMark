@@ -24,8 +24,23 @@ in this document.
 
 **ListItemModel** (sealed record) holds one item: its block `Info`, `MarkerOffset`, `MarkerLine`, `MarkerColumn`,
 `MarkerLength`, `DigitsLength` (zero for a bullet), `SpacesAfter`, `HasText`, `OldContentColumn` (where the parser
-reads the content to start), `FirstLine`, `LastLine` (the last line with content, from `LineOwnership.LinesOf`, never
+reads the content to start, which for a nested item is not always the marker column plus the width: see below),
+`ContentWidth` (the marker and the blanks after it), `FirstLine`, `LastLine` (the last line with content, from
+`LineOwnership.LinesOf`, never
 the parser's span), `Lists` (the lists directly inside the item), and `IsMovable`.
+
+**HolderColumns** (readonly record struct) holds the columns of the item that holds a nested list: its content column
+as the parser reads it (`Content`) and the content column of the item that holds that item (`Base`, zero for an item of
+the outermost list).
+
+**Content column as the parser reads it** (`ListModel.ParserContentColumn`): for an item of the outermost list it is
+the marker column plus the width of the marker and the blanks after it. For a nested item it is the same sum only when
+the marker is at the content column of its holder, or is indented from the content column of the holder's holder by
+four or more columns. A marker one to three columns past the content column of its holder and fewer than four columns
+past the content column of the holder's holder is counted by the parser from the content column of the holder, so its
+offset does not count (`- x` followed by `1. y` reads the content of `y` at column five, not six). The lines of
+the item are read from this column, so it, not the geometric sum, is the `OldContentColumn` and the base of every shift
+(issue 22: a setext underline, indented code, or a sibling item landed on columns the parser reads differently).
 
 **ListModel** (sealed class, immutable after `Build`) holds one list: `Info`, `IsOrdered`, `Items`, `FirstLine`,
 `LastLine`, and `IsMovable`. `Build` returns `null`, and nothing is proposed for the nest, when a marker is not where
@@ -71,8 +86,9 @@ nothing per list.
   and after). Every item of a list gets the column of the list.
 - *Item edits* (`MoveItem`): the marker line indentation (`list-indent`), the blanks after the marker
   (`list-marker-space`), and the leading blanks of every other content line, shifted by the change of the content
-  column (`ShiftLines`), so the relative indentation of everything inside the item is unchanged. Lists that move on
-  their own are skipped. Whitespace-only lines change only inside code or HTML. Every edit replaces characters, so a
+  column as the parser reads it (`ShiftLines`), so the relative indentation of everything inside the item is unchanged.
+  Lists that move on their own are skipped. Whitespace-only lines change only inside code or HTML. Every edit replaces
+  characters, so a
   line gets at most one shift edit and none collides with a blank line insertion.
 
 *Guards on the whole plan* (`IsSafe`). The column plan is replaced by the marker-only plan (which is dropped too when
@@ -81,7 +97,10 @@ line (R-1, `LineAfterStaysOut`); a fenced code, indented code, HTML, or math lin
 assumes, or a paragraph continuation line starts with block syntax only because of its indentation (R-2 and G-2,
 `DependsOnIndentation`); a changed line would be a thematic break or setext underline by itself (G-1,
 `ChangesLineIntoBreak`); two edits overlap (R-3, `HasOverlap`); a moved item that starts with a thematic break has more
-lines (G-3); or a moved nested item has a block three or more columns past its content column (G-4).
+lines (G-3); a moved nested item has a block three or more columns past its content column (G-4); or a nested list that
+moves along with its item (rather than by its own plan) would have the content column of one of its items, as the
+parser reads it, move by another number of columns than its lines (G-5, `FollowsItem`: the offset of a nested marker
+counts in the old position and not in the new one, or the other way round).
 
 Idempotence: after the edits every movable list meets its own conditions, and a list that was not movable stays so, so
 a second run proposes nothing.

@@ -68,6 +68,11 @@ internal sealed class VerifyOptions
           --dema-root <dir>          The DEMA root (default C:\work\DemaConsulting).
           --report <file>            Write a Markdown report of the run to this file.
           --sample <n>               Verify a deterministic subset of n files (seeded), useful with --matrix.
+          --fuzz <count>             Also verify <count> generated adversarial documents (written to a temporary
+                                     folder that is deleted afterwards); the generator is deterministic.
+          --seed <n>                 The seed of --fuzz (default 20260511).
+          --fuzz-keep <dir>          Write the --fuzz documents to <dir> and keep them (for a reproduction); <dir> must not
+                                     exist or must be empty.
           --jobs <n>                 Degree of parallelism (default: processor count).
           --timeout <seconds>        Per file and option set (default 300).
           --max-diff-lines <n>       Longest diff shown per failure (default 60).
@@ -127,6 +132,26 @@ internal sealed class VerifyOptions
     public int? Sample { get; set; }
 
     /// <summary>
+    ///     The seed of the generated documents when <c>--seed</c> is not given.
+    /// </summary>
+    public const uint DefaultFuzzSeed = 20260511;
+
+    /// <summary>
+    ///     Gets or sets the number of generated documents to verify, or <see langword="null"/> for none.
+    /// </summary>
+    public int? FuzzCount { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the seed of the generated documents.
+    /// </summary>
+    public uint FuzzSeed { get; set; } = DefaultFuzzSeed;
+
+    /// <summary>
+    ///     Gets or sets the folder that the generated documents are written to and kept in, or <see langword="null"/> for a temporary folder that is deleted afterwards.
+    /// </summary>
+    public string? FuzzKeep { get; set; }
+
+    /// <summary>
     ///     Gets or sets the time limit per file and option set in seconds.
     /// </summary>
     public int TimeoutSeconds { get; set; } = 300;
@@ -183,6 +208,15 @@ internal sealed class VerifyOptions
                 case "--sample":
                     options.Sample = Number(Value(args, ref i, arg), arg);
                     break;
+                case "--fuzz":
+                    options.FuzzCount = Number(Value(args, ref i, arg), arg);
+                    break;
+                case "--seed":
+                    options.FuzzSeed = (uint)Number(Value(args, ref i, arg), arg);
+                    break;
+                case "--fuzz-keep":
+                    options.FuzzKeep = Value(args, ref i, arg);
+                    break;
                 case "--jobs":
                     options.Jobs = Number(Value(args, ref i, arg), arg);
                     break;
@@ -223,9 +257,9 @@ internal sealed class VerifyOptions
             throw new UsageException("--repo-config cannot be combined with --config, --option or --matrix.");
         }
 
-        if (Paths.Count == 0 && !Dema)
+        if (Paths.Count == 0 && !Dema && FuzzCount is null)
         {
-            throw new UsageException("Nothing to verify: give at least one directory or glob, or --dema.");
+            throw new UsageException("Nothing to verify: give at least one directory or glob, or --dema or --fuzz.");
         }
     }
 

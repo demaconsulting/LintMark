@@ -62,6 +62,12 @@ structure.
 and lines that would join the item keep their columns. The markers are still written where possible. A list in a
 footnote is left as written.
 
+**A nested marker offset by one column keeps its lines where the parser reads them**: Four minimized documents (a
+setext underline, a quote followed by a list, and two lists that start on the marker line, each in an item that moves
+from the margin) are the regression tests of issue 22. They are formatted so that every line keeps its place relative
+to the content column the parser reads (rule G-5), or the nest keeps its columns, and `ParserContentColumn` follows the
+rule of the parser for the markers at and past the content column of the item around them.
+
 **Loose and tight lists stay as they are**: Blank lines stay where they were.
 
 **Edits are credited to their rules**: Marker, number, indent, and spacing edits are reported under `bullet`,
