@@ -38,7 +38,8 @@ namespace DemaConsulting.LintMark.Engine;
 ///         directories, whether the folder is named by the argument (or by the leading, wildcard-free
 ///         part of a glob) or found beneath the folder searched; only explicitly named files are exempt
 ///         from that built-in exclusion, and they are not exempt from user excludes. A pattern that
-///         matches nothing is not an error. <see cref="DiscoverFiles"/> also reports which files were named
+///         matches nothing is not an error. Links to folders are followed, except a link whose final target is
+///         a folder the search is already inside (a cycle), which is skipped. <see cref="DiscoverFiles(IReadOnlyList{string}, string, Func{string, IgnoreScope})"/> also reports which files were named
 ///         (are explicit), because the <c>ignore</c> patterns of a configuration, like the built-in exclusion,
 ///         do not apply to them (see <see cref="IsIgnored"/>).
 ///     </para>
@@ -75,6 +76,11 @@ internal static class FileDiscovery
     private static readonly string[] ExcludedDirectoryNames = ["node_modules", ".git"];
 
     /// <summary>
+    ///     The name of the hypothetical file used to decide whether a directory is pruned.
+    /// </summary>
+    private const string ProbeName = "__lintmark_probe__";
+
+    /// <summary>
     ///     Gets the comparison used for file names (case-insensitive on Windows and macOS).
     /// </summary>
     internal static StringComparison PathComparison { get; } =
@@ -88,7 +94,7 @@ internal static class FileDiscovery
     /// <returns>Distinct full paths in ordinal order; empty when nothing matches.</returns>
     /// <remarks>
     ///     Directory enumeration is the only side effect. Safe to call concurrently. Equivalent to the paths
-    ///     of <see cref="DiscoverFiles"/>.
+    ///     of <see cref="DiscoverFiles(IReadOnlyList{string}, string, Func{string, IgnoreScope})"/>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
@@ -111,15 +117,38 @@ internal static class FileDiscovery
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
-    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(IReadOnlyList<string> patterns, string baseDirectory)
+    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(IReadOnlyList<string> patterns, string baseDirectory) =>
+        DiscoverFiles(patterns, baseDirectory, null);
+
+    /// <summary>
+    ///     Expands path arguments into the files to process, pruning the directories that the <c>ignore</c>
+    ///     patterns of the configuration at each scan root exclude.
+    /// </summary>
+    /// <param name="patterns">The positional arguments (paths, directories, globs, <c>!</c> excludes). Must not be null.</param>
+    /// <param name="baseDirectory">Directory that relative patterns are resolved against. Must not be null.</param>
+    /// <param name="scanRootIgnore">
+    ///     Supplies, for the full path of a scan root (the base directory by default, a directory argument, or
+    ///     the directory named by the leading wildcard-free segments of a glob), the <c>ignore</c> scope of the
+    ///     configuration that applies at that root, or <see langword="null"/> when nothing is pruned.
+    ///     <see langword="null"/> prunes nothing.
+    /// </param>
+    /// <returns>As <see cref="DiscoverFiles(IReadOnlyList{string}, string)"/>.</returns>
+    /// <remarks>
+    ///     A directory beneath a scan root whose files the scope's patterns all ignore is not entered, so the
+    ///     walk never reaches (and never reads the configuration of) what is ignored, including a nested
+    ///     repository or submodule that has its own <c>.git</c> entry. The scan root itself is never pruned,
+    ///     and a file named on the command line is not subject to pruning.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
+    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(
+        IReadOnlyList<string> patterns,
+        string baseDirectory,
+        Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // Validate input, every element before any is interpreted, so a null is always the null error
         ArgumentNullException.ThrowIfNull(patterns);
         ArgumentNullException.ThrowIfNull(baseDirectory);
-        if (patterns.Any(static pattern => pattern is null))
-        {
-            throw new ArgumentNullException(nameof(patterns), "Path arguments must not contain null.");
-        }
 
         // Split the arguments into includes and excludes; either separator style is accepted on every platform
         var includes = new List<string>();
@@ -148,7 +177,7 @@ internal static class FileDiscovery
         var named = new HashSet<string>(StringComparer.Ordinal);
         foreach (var include in includes)
         {
-            Expand(include, root, candidates, named);
+            Expand(include, root, candidates, named, scanRootIgnore);
         }
 
         // Apply user excludes, then keep one spelling of each file: where names are case-insensitive the
@@ -187,10 +216,6 @@ internal static class FileDiscovery
         ArgumentNullException.ThrowIfNull(fullPath);
         ArgumentNullException.ThrowIfNull(ignoreRoot);
         ArgumentNullException.ThrowIfNull(patterns);
-        if (patterns.Any(static pattern => pattern is null))
-        {
-            throw new ArgumentNullException(nameof(patterns), "Ignore patterns must not contain null.");
-        }
 
         if (patterns.Count == 0)
         {
@@ -233,7 +258,8 @@ internal static class FileDiscovery
     /// <param name="baseDirectory">The full base directory.</param>
     /// <param name="candidates">Receives the candidate full paths.</param>
     /// <param name="named">Receives the full paths that the argument names itself (an existing file, or a path without wildcards).</param>
-    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates, HashSet<string> named)
+    /// <param name="scanRootIgnore">Supplies the <c>ignore</c> scope that applies at a scan root, or <see langword="null"/>.</param>
+    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates, HashSet<string> named, Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // An existing file is taken as given; an existing directory means all Markdown files beneath it
         pattern = NormalizeSeparators(pattern);
@@ -247,7 +273,7 @@ internal static class FileDiscovery
 
         if (Directory.Exists(full))
         {
-            Glob(full, DefaultPattern, baseDirectory, candidates);
+            Glob(full, DefaultPattern, baseDirectory, candidates, scanRootIgnore);
             return;
         }
 
@@ -263,7 +289,7 @@ internal static class FileDiscovery
         // Search from the directory named by the leading wildcard-free segments
         if (Directory.Exists(searchRoot))
         {
-            Glob(searchRoot, relativePattern, baseDirectory, candidates);
+            Glob(searchRoot, relativePattern, baseDirectory, candidates, scanRootIgnore);
         }
     }
 
@@ -299,13 +325,15 @@ internal static class FileDiscovery
     /// <param name="relativePattern">The glob relative to <paramref name="searchRoot"/>.</param>
     /// <param name="baseDirectory">The full base directory the search root is judged against.</param>
     /// <param name="candidates">Receives the matching full paths.</param>
+    /// <param name="scanRootIgnore">Supplies the <c>ignore</c> scope that applies at the search root, or <see langword="null"/>.</param>
     /// <remarks>
     ///     The matcher's exclusions are relative to the search root, so they cannot see an excluded
     ///     folder that is, or lies above, the root itself. The root is therefore checked first: a root
     ///     that is inside <c>node_modules</c> or <c>.git</c> yields nothing (judged relative to the base
-    ///     directory, or on its full path when it lies outside the base directory).
+    ///     directory, or on its full path when it lies outside the base directory). The <c>ignore</c> scope
+    ///     of the search root prunes directories beneath it during the walk.
     /// </remarks>
-    private static void Glob(string searchRoot, string relativePattern, string baseDirectory, HashSet<string> candidates)
+    private static void Glob(string searchRoot, string relativePattern, string baseDirectory, HashSet<string> candidates, Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // Nothing below an excluded folder is selected, whether the folder was named or found
         if (HasExcludedSegment(baseDirectory, searchRoot))
@@ -320,11 +348,52 @@ internal static class FileDiscovery
             matcher.AddExclude(exclude);
         }
 
-        var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchRoot)));
+        var prune = CreatePruner(scanRootIgnore?.Invoke(searchRoot));
+        var result = matcher.Execute(CycleSafeDirectory.Open(new DirectoryInfo(searchRoot), prune));
         foreach (var file in result.Files)
         {
             candidates.Add(Path.GetFullPath(file.Path, searchRoot));
         }
+    }
+
+    /// <summary>
+    ///     Creates the test that decides whether a directory found during the walk is pruned.
+    /// </summary>
+    /// <param name="scope">The <c>ignore</c> scope, or <see langword="null"/> for none.</param>
+    /// <returns>The test, or <see langword="null"/> when nothing can be pruned.</returns>
+    /// <remarks>
+    ///     A directory is pruned only when the patterns ignore every file beneath it, which cannot be decided
+    ///     without enumerating it; the test is conservative instead: the patterns must match a probe file at
+    ///     depth one, two and three below the directory (so <c>dir/**</c> and <c>**/dir/**</c> prune, whereas
+    ///     <c>dir/*</c> does not). A directory outside the scope's root is never pruned. Files that a pattern
+    ///     ignores in a directory that is not pruned are still skipped afterwards, per file.
+    /// </remarks>
+    private static Func<string, bool>? CreatePruner(IgnoreScope? scope)
+    {
+        if (scope is null || scope.Patterns.Count == 0)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(scope.Root);
+        var matcher = new Matcher(PathComparison);
+        foreach (var pattern in scope.Patterns)
+        {
+            matcher.AddInclude(NormalizeSeparators(pattern));
+        }
+
+        return directory =>
+        {
+            var relative = Path.GetRelativePath(root, directory);
+            if (IsOutside(relative) || relative == ".")
+            {
+                return false;
+            }
+
+            var path = relative.Replace(Path.DirectorySeparatorChar, Slash);
+            string[] probes = [$"{path}/{ProbeName}", $"{path}/{ProbeName}/{ProbeName}", $"{path}/{ProbeName}/{ProbeName}/{ProbeName}"];
+            return matcher.Match(root, probes).Files.Count() == probes.Length;
+        };
     }
 
     /// <summary>
@@ -421,4 +490,213 @@ internal static class FileDiscovery
     /// <returns><see langword="true"/> when the path climbs out of the origin or is on another drive.</returns>
     private static bool IsOutside(string relative) =>
         Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+
+    /// <summary>
+    ///     A directory for the glob matcher that does not follow a symbolic link or junction back into a directory it is
+    ///     already inside, and that skips what cannot be read.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The matcher walks the directory tree it is given, following links, so a link that points at one of its own
+    ///         ancestors (or two links that point at each other's folders) makes the walk endless until the path becomes
+    ///         too long for the system, and the resulting <see cref="IOException"/> escapes from the middle of an
+    ///         enumeration. Each directory here knows the real paths of all directories above it (the folders above the search
+    ///         root included), and a link whose final target is one of them is left out, which ends every cycle after one lap at the latest. A link to a folder
+    ///         elsewhere is still followed (its files are Markdown files of the project, as far as the user is concerned), and so
+    ///         is every file, whatever its kind of link. A directory that cannot be read, or a link that cannot be
+    ///         resolved, contributes nothing, as the matcher's own wrapper does for a directory that cannot be opened.
+    ///     </para>
+    ///     <para>
+    ///         Instances are immutable and used by one matcher at a time.
+    ///     </para>
+    /// </remarks>
+    private sealed class CycleSafeDirectory : DirectoryInfoWrapper
+    {
+        /// <summary>
+        ///     The real path of this directory last, preceded by that of every directory above it, from the file system root down.
+        /// </summary>
+        private readonly string[] _chain;
+
+        /// <summary>
+        ///     Decides whether a subdirectory (by full path) is left out of the walk, or <see langword="null"/> to enter every one.
+        /// </summary>
+        private readonly Func<string, bool>? _prune;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CycleSafeDirectory"/> class.
+        /// </summary>
+        /// <param name="directory">The directory.</param>
+        /// <param name="chain">The real paths of the directories from the file system root down to this one, this one last.</param>
+        /// <param name="prune">Decides whether a subdirectory is left out of the walk; <see langword="null"/> enters every one.</param>
+        private CycleSafeDirectory(DirectoryInfo directory, string[] chain, Func<string, bool>? prune)
+            : base(directory)
+        {
+            _chain = chain;
+            _prune = prune;
+        }
+
+        /// <summary>
+        ///     Opens the directory a search starts in.
+        /// </summary>
+        /// <param name="root">The search root.</param>
+        /// <param name="prune">Decides whether a subdirectory (by full path) is left out of the walk; <see langword="null"/> enters every one.</param>
+        /// <returns>The directory.</returns>
+        public static CycleSafeDirectory Open(DirectoryInfo root, Func<string, bool>? prune)
+        {
+            // The folders above the search root count as directories the search is inside, so a link to one of them is a cycle too
+            var real = RealPathOf(root);
+            var chain = new List<string> { real };
+            for (var above = Path.GetDirectoryName(real); above is not null; above = Path.GetDirectoryName(above))
+            {
+                chain.Insert(0, Path.TrimEndingDirectorySeparator(above));
+            }
+
+            return new CycleSafeDirectory(root, [.. chain], prune);
+        }
+
+        /// <summary>
+        ///     Lists the entries of the directory, leaving out the links back into the directories above.
+        /// </summary>
+        /// <returns>The files and the directories that are safe to enter.</returns>
+        public override IEnumerable<FileSystemInfoBase> EnumerateFileSystemInfos()
+        {
+            // The enumeration of a directory fails when it is first read, not when it is created, so each step is guarded
+            using var entries = base.EnumerateFileSystemInfos().GetEnumerator();
+            while (true)
+            {
+                try
+                {
+                    if (!entries.MoveNext())
+                    {
+                        yield break;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    yield break;
+                }
+
+                var entry = entries.Current;
+                if (entry is not DirectoryInfoBase subdirectory)
+                {
+                    yield return entry;
+                    continue;
+                }
+
+                if (Descend(new DirectoryInfo(subdirectory.FullName)) is { } safe)
+                {
+                    yield return safe;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets a named subdirectory, as the matcher asks for it when a pattern names a folder.
+        /// </summary>
+        /// <param name="name">The name of the subdirectory, or <c>..</c>.</param>
+        /// <returns>The subdirectory; null when it does not exist or is a link back into a directory above.</returns>
+        /// <remarks>
+        ///     The matcher accepts null for a missing directory (the base wrapper returns null too) although the wrapper's signature does not say so.
+        /// </remarks>
+        public override DirectoryInfoBase GetDirectory(string name)
+        {
+            var found = base.GetDirectory(name);
+            return (found is null || name == ".." ? found : Descend(new DirectoryInfo(found.FullName)))!;
+        }
+
+        /// <summary>
+        ///     Enters a subdirectory unless it leads back into a directory above.
+        /// </summary>
+        /// <param name="subdirectory">The subdirectory, as found below this directory.</param>
+        /// <returns>The safe directory; null when it is pruned, or a link whose final target is this directory or one above it, or cannot be resolved.</returns>
+        private CycleSafeDirectory? Descend(DirectoryInfo subdirectory)
+        {
+            // A pruned directory is never entered, so what is beneath it (a nested repository included) is never read
+            if (_prune?.Invoke(subdirectory.FullName) == true)
+            {
+                return null;
+            }
+
+            string real;
+            try
+            {
+                // A plain subdirectory lies where its parent really is, whatever links led the walk to the parent
+                real = subdirectory.LinkTarget is null ? Path.Combine(_chain[^1], subdirectory.Name) : RealPathOf(subdirectory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+
+            return _chain.Any(above => string.Equals(above, real, PathComparison))
+                ? null
+                : new CycleSafeDirectory(subdirectory, [.. _chain, real], _prune);
+        }
+
+        /// <summary>
+        ///     Gets the path a directory really is: the final target of a link, otherwise its own full path.
+        /// </summary>
+        /// <param name="directory">The directory.</param>
+        /// <returns>The full path without a trailing separator.</returns>
+        /// <exception cref="IOException">Thrown when the directory is a link that cannot be resolved (a link loop, for instance).</exception>
+        private static string RealPathOf(DirectoryInfo directory) => Canonical(directory.FullName, 0);
+
+        /// <summary>
+        ///     Resolves every link along a path, so that two spellings of one directory (such as <c>/var/x</c> and
+        ///     <c>/private/var/x</c> on macOS, where <c>/var</c> is a link) give the same result.
+        /// </summary>
+        /// <param name="path">The full path.</param>
+        /// <param name="depth">The number of links resolved so far on the way here.</param>
+        /// <returns>The full path without a trailing separator and without any link in it.</returns>
+        /// <exception cref="IOException">Thrown when a link cannot be resolved or the links are nested too deeply.</exception>
+        private static string Canonical(string path, int depth)
+        {
+            if (depth > 32)
+            {
+                throw new IOException("Too many levels of links.");
+            }
+
+            var root = Path.GetPathRoot(path) ?? string.Empty;
+            var current = root;
+            foreach (var part in path[root.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, part);
+                var info = new DirectoryInfo(current);
+                if (info.LinkTarget is null)
+                {
+                    continue;
+                }
+
+                var target = info.ResolveLinkTarget(returnFinalTarget: true) ?? throw new IOException("A link could not be resolved.");
+                current = Canonical(target.FullName, depth + 1);
+            }
+
+            return Path.TrimEndingDirectorySeparator(current);
+        }
+    }
 }
+
+/// <summary>
+///     A file selected for processing, and whether the command line named it.
+/// </summary>
+/// <param name="Path">The full path of the file.</param>
+/// <param name="IsExplicit">
+///     <see langword="true"/> when the file was named on the command line (as an existing file, or as a path
+///     without wildcards); <see langword="false"/> when it was found through a directory, a glob or the default pattern.
+/// </param>
+/// <remarks>
+///     The distinction exists because a file the user names is a deliberate request: the built-in exclusion of
+///     <c>node_modules</c> and <c>.git</c> and the <c>ignore</c> patterns of the configuration do not apply to
+///     it (only <c>!</c> excludes on the command line do). Immutable value type; safe for concurrent use.
+/// </remarks>
+internal readonly record struct DiscoveredFile(string Path, bool IsExplicit);
+
+/// <summary>
+///     The <c>ignore</c> patterns of a configuration and the directory they are relative to.
+/// </summary>
+/// <param name="Root">The full path of the directory the patterns are relative to.</param>
+/// <param name="Patterns">The glob patterns (<c>*</c> and <c>**</c>).</param>
+/// <remarks>
+///     Immutable value type; safe for concurrent use.
+/// </remarks>
+internal sealed record IgnoreScope(string Root, IReadOnlyList<string> Patterns);

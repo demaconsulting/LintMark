@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def ConfigurationSubsystem {
-        doc /* Decides which settings apply to a Markdown file: finds and validates the configuration file and determines the line ending given by the editor settings. */
+        doc /* Finds, reads, and validates the settings that apply to each Markdown file: the nearest .lintmark.yaml, the built-in defaults, and the line ending from .editorconfig, and holds them as one immutable settings object per file. */
 
         metadata info : SoftwareInfo {
             testFiles = (

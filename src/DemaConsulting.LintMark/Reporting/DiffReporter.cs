@@ -83,23 +83,12 @@ internal static class DiffReporter
     /// <summary>
     ///     Writes the diffs of the changed files to standard output.
     /// </summary>
-    /// <param name="diffs">What would change in each file, in any order. Must not be null; elements must be initialized.</param>
-    /// <param name="baseDirectory">The directory that paths are shown relative to. Must not be null.</param>
-    /// <param name="context">The context that receives the lines. Must not be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when an element of <paramref name="diffs"/> is a default instance.</exception>
+    /// <param name="diffs">What would change in each file, in any order.</param>
+    /// <param name="baseDirectory">The directory that paths are shown relative to.</param>
+    /// <param name="context">The context that receives the lines.</param>
     public static void Report(IEnumerable<FileDiff> diffs, string baseDirectory, Context context)
     {
-        // Validate input; the elements are checked before anything is written
-        ArgumentNullException.ThrowIfNull(diffs);
-        ArgumentNullException.ThrowIfNull(baseDirectory);
-        ArgumentNullException.ThrowIfNull(context);
         var items = diffs.ToList();
-        if (items.Any(static diff => diff.Path is null || diff.BeforeLf is null || diff.AfterLf is null))
-        {
-            throw new ArgumentException("A diff was not created with its constructor.", nameof(diffs));
-        }
-
         // Write the files in display-path order, each as one block of lines
         foreach (var diff in items.OrderBy(diff => TextReporter.GetDisplayPath(diff.Path, baseDirectory), StringComparer.Ordinal))
         {
@@ -454,3 +443,17 @@ internal static class DiffReporter
         };
     }
 }
+
+/// <summary>
+///     What the fix option would change in one file, for the diff option to display.
+/// </summary>
+/// <param name="Path">Full path of the file.</param>
+/// <param name="BeforeLf">The LF-normalized text as it is on disk.</param>
+/// <param name="AfterLf">The LF-normalized text after rewriting.</param>
+/// <param name="OriginalEndings">The counts of the line terminators in the file as it is on disk.</param>
+/// <param name="TargetEnding">The line ending the file would be written with.</param>
+/// <remarks>
+///     Both texts are LF-normalized, so a change of line endings alone leaves them equal; the original counts
+///     and the target let the reporter say so. Immutable value type; safe for concurrent use.
+/// </remarks>
+internal readonly record struct FileDiff(string Path, string BeforeLf, string AfterLf, LineEndingInfo OriginalEndings, LineEnding TargetEnding);

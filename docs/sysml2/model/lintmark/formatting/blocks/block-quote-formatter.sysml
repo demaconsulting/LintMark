@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def BlockQuoteFormatter {
-        doc /* Proposes the edits that collapse a run of two to four spaces after a block quote marker into one space in the paragraphs and ATX headings of an outermost block quote, and leaves a quote alone where a footnote definition makes the columns of its lines matter, and a line alone where it is lazy or has a tab in its marker prefix. */
+        doc /* Proposes the edits that write block quotes in the canonical form, with exactly one space after each quote marker on the paragraph and ATX heading lines of a quote, claiming no lines and leaving a line as written where the change could alter its meaning (a tab in the prefix, a code-indent run of spaces, a lazy continuation, or a quote inside a list or footnote). */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Blocks/BlockQuoteFormatter.cs");
@@ -12,29 +12,16 @@ package LintMark {
             requirementFiles = ("docs/reqstream/lintmark/formatting/blocks/block-quote-formatter.yaml");
         }
 
-        // The formatter implements the block formatter contract, receives its context, and adds edits to the
-        // edit set of the document.
-        dependency BlockQuoteFormatter to IBlockFormatter;
-        dependency BlockQuoteFormatter to FormatContext;
+        // The formatter implements the block formatter contract, receives its context, uses the line
+        // arithmetic of the document formatter, and adds edits to the edit set.
+        dependency BlockQuoteFormatter to DocumentFormatter;
         dependency BlockQuoteFormatter to EditSet;
-        dependency BlockQuoteFormatter to TextEdit;
 
-        // It reads the quote and the paragraphs and headings inside it from the parsed document and its blocks,
-        // and the source text for the marker prefix of each line.
-        dependency BlockQuoteFormatter to ParsedDocument;
-        dependency BlockQuoteFormatter to BlockInfo;
-        dependency BlockQuoteFormatter to BlockKind;
-        dependency BlockQuoteFormatter to SourceDocument;
-
-        // Each edit is tagged with a rule identifier from the rule catalog, and the quote nodes come from the
-        // Markdown parser library.
-        dependency BlockQuoteFormatter to RuleCatalog;
-        dependency BlockQuoteFormatter to Markdig;
-
-        // The lines of a leaf are located by the parser's line-rebuilding helper, and the line arithmetic is
-        // shared with the document formatter through the context.
+        // It reads the quote and the leaves inside it from the parsed document (and the document parser's
+        // line helpers) and the Markdown parser library, and tags each edit with a rule identifier from the
+        // rule catalog.
         dependency BlockQuoteFormatter to DocumentParser;
-        dependency BlockQuoteFormatter to LeafLine;
-        dependency BlockQuoteFormatter to LineLayout;
+        dependency BlockQuoteFormatter to Markdig;
+        dependency BlockQuoteFormatter to RuleCatalog;
     }
 }

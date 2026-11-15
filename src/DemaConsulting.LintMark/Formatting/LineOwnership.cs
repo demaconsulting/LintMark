@@ -19,22 +19,22 @@
 // SOFTWARE.
 
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 using DemaConsulting.LintMark.Document;
 using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 
 namespace DemaConsulting.LintMark.Formatting;
 
 /// <summary>
-///     Which lines of a document belong to which leaf block, which of them a block formatter has claimed, which
-///     must never be edited, and which lie inside a container.
+///     Which lines of a document belong to which leaf block, which must never be edited, and which lie inside a container.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The document-level passes and the block formatters must never propose edits to the same characters.
-///         This map is how they agree: a line that a block formatter accepts is <em>claimed</em> (even when the
-///         block is suppressed) and only that formatter edits it; a line of code, HTML, math, front matter, a
+///         This map is how they agree: a line of code, HTML, math, front matter, a
 ///         grid table or any block the tool does not model is <em>protected</em> and nobody edits its content; the
-///         remaining lines belong to the passes.
+///         remaining lines belong to the passes and the block formatters that accept the block.
 ///     </para>
 ///     <para>
 ///         Every range is measured up to the last line with content, not up to the parser's span, because the
@@ -55,11 +55,6 @@ internal sealed class LineOwnership
     ///     The leaf block of each line, or <see langword="null"/> for a line that no leaf block covers.
     /// </summary>
     private readonly BlockInfo?[] _owner;
-
-    /// <summary>
-    ///     Whether a block formatter has claimed the line.
-    /// </summary>
-    private readonly bool[] _claimed;
 
     /// <summary>
     ///     Whether the content of the line is protected.
@@ -84,7 +79,6 @@ internal sealed class LineOwnership
     private LineOwnership(int lineCount, ImmutableArray<BlockInfo> topLevel)
     {
         _owner = new BlockInfo?[lineCount];
-        _claimed = new bool[lineCount];
         _protected = new bool[lineCount];
         _container = new bool[lineCount];
         _footnote = new bool[lineCount];
@@ -99,17 +93,11 @@ internal sealed class LineOwnership
     /// <summary>
     ///     Builds the ownership map of a document.
     /// </summary>
-    /// <param name="document">The parsed document. Must not be null.</param>
-    /// <param name="layout">The line arithmetic of the document. Must not be null.</param>
-    /// <param name="isClaimed">Tells whether a block formatter accepts a block. Must not be null.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
     /// <returns>The map.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    public static LineOwnership Build(ParsedDocument document, LineLayout layout, Func<BlockInfo, bool> isClaimed)
+    public static LineOwnership Build(ParsedDocument document, LineLayout layout)
     {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(layout);
-        ArgumentNullException.ThrowIfNull(isClaimed);
-
         var topLevel = document.Blocks.Where(static block => block.Parent is null && block.Depth == 0).ToImmutableArray();
         var map = new LineOwnership(layout.LineCount, topLevel);
         if (layout.LineCount == 0)
@@ -117,6 +105,7 @@ internal sealed class LineOwnership
             return map;
         }
 
+        var rawText = RawTextElements.FindProtectedBlocks(document);
         foreach (var block in document.Blocks)
         {
             var (first, last) = LinesOf(layout, block);
@@ -132,8 +121,7 @@ internal sealed class LineOwnership
             }
 
             // A leaf block owns its lines; the later (inner) block wins where ranges meet
-            var claimed = isClaimed(block);
-            var guarded = IsProtectedBlock(block, first, last);
+            var guarded = IsProtectedBlock(block, first, last) || rawText.Contains(block);
             if (block.Kind is BlockKind.UnclosedFence or BlockKind.UnreferencedFootnote)
             {
                 last = Math.Max(last, RegionLastLine(layout, topLevel, block));
@@ -142,7 +130,6 @@ internal sealed class LineOwnership
             for (var line = first; line <= last; line++)
             {
                 map._owner[line] = block;
-                map._claimed[line] = claimed;
                 map._protected[line] = guarded;
             }
         }
@@ -327,20 +314,13 @@ internal sealed class LineOwnership
     public BlockInfo? LeafAt(int line) => _owner[line];
 
     /// <summary>
-    ///     Determines whether a block formatter has claimed a line.
-    /// </summary>
-    /// <param name="line">The zero-based line.</param>
-    /// <returns><see langword="true"/> when the leaf block of the line is accepted by a block formatter.</returns>
-    public bool IsClaimed(int line) => _claimed[line];
-
-    /// <summary>
     ///     Determines whether a line lies inside a footnote definition.
     /// </summary>
     /// <param name="line">The zero-based line.</param>
     /// <returns><see langword="true"/> when a footnote definition covers the line.</returns>
     /// <remarks>
     ///     The parser reads the body of a footnote definition inconsistently (a definition inside one may be
-    ///     reported as a link reference definition although it renders as code), so the end of the file is
+    ///     reported as a link reference definition although it is code), so the end of the file is
     ///     not normalized after such a block.
     /// </remarks>
     public bool IsInFootnote(int line) => _footnote[line];
@@ -387,5 +367,191 @@ internal sealed class LineOwnership
         {
             flags[line] = true;
         }
+    }
+}
+
+/// <summary>
+///     Finds the leaf blocks whose whitespace belongs to a raw HTML element that the Markdown text opens and does not close
+///     in the same block.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The content of a <c>pre</c>, <c>script</c>, <c>style</c> or <c>textarea</c> element keeps its line breaks and spaces
+///         when the page is displayed. When an HTML start tag of one of them sits in an HTML block that ends at a blank line,
+///         or in the inline HTML of a paragraph, the Markdown that follows is still read as paragraphs and lists, but the
+///         page shows it inside the element. Joining or trimming its lines would change what the page shows, so every leaf
+///         block that starts while such an element is open, and every block that holds a start tag, is left as written.
+///     </para>
+///     <para>
+///         Only HTML blocks that no end condition closes by itself and inline HTML count; a tag in code, in a comment or in
+///         a processing instruction is text. A closing tag closes the element opened last with the same name, a closing
+///         tag with nothing open is ignored. Thread safety: static and stateless; safe for concurrent use.
+///     </para>
+/// </remarks>
+internal static partial class RawTextElements
+{
+    /// <summary>
+    ///     The time limit of a pattern match in milliseconds.
+    /// </summary>
+    private const int RegexTimeoutMilliseconds = 1000;
+
+    /// <summary>
+    ///     The names of the elements whose content keeps its whitespace.
+    /// </summary>
+    private static readonly string[] Names = ["pre", "script", "style", "textarea"];
+
+    /// <summary>
+    ///     Matches an HTML start or end tag of one of the elements (group 1 is the slash of an end tag, group 2 the name).
+    /// </summary>
+    /// <returns>The pattern.</returns>
+    [GeneratedRegex(@"<(/?)(pre|script|style|textarea)(?=[\s/>]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: RegexTimeoutMilliseconds)]
+    private static partial Regex TagRegex();
+
+    /// <summary>
+    ///     Finds the leaf blocks that must be left as written because of an open raw HTML element.
+    /// </summary>
+    /// <param name="document">The parsed document. Must not be null.</param>
+    /// <returns>The blocks (compared by reference); empty when no start tag of such an element is found.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    public static HashSet<BlockInfo> FindProtectedBlocks(ParsedDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var found = new HashSet<BlockInfo>(ReferenceEqualityComparer.Instance);
+        var open = new int[Names.Length];
+        foreach (var block in document.Blocks)
+        {
+            if (LineOwnership.IsContainer(block.Kind))
+            {
+                continue;
+            }
+
+            // The tags of the block in source order: an element that is open at the start protects the block
+            var openAtStart = open.Any(static count => count > 0);
+            var opens = false;
+            foreach (var (name, isStart) in TagsOf(document, block))
+            {
+                if (isStart)
+                {
+                    open[name]++;
+                    opens = true;
+                }
+                else if (open[name] > 0)
+                {
+                    open[name]--;
+                }
+            }
+
+            if (openAtStart || opens)
+            {
+                found.Add(block);
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    ///     Lists the start and end tags of the elements that a leaf block holds.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="block">The leaf block.</param>
+    /// <returns>The index into <see cref="Names"/> and whether the tag starts the element, in source order.</returns>
+    private static List<(int Name, bool IsStart)> TagsOf(ParsedDocument document, BlockInfo block)
+    {
+        var tags = new List<(int, bool)>();
+        switch (block.Node)
+        {
+            case HtmlBlock { Type: HtmlBlockType.Comment or HtmlBlockType.CData or HtmlBlockType.ProcessingInstruction or HtmlBlockType.DocumentType }:
+                break;
+
+            case HtmlBlock:
+                var text = document.Source.Text;
+                var end = Math.Min(block.EndInclusive + 1, text.Length);
+                if (block.Start >= 0 && block.Start < end)
+                {
+                    foreach (var match in TagRegex().EnumerateMatches(text.AsSpan(block.Start, end - block.Start)))
+                    {
+                        AddTag(tags, text.AsSpan(block.Start + match.Index, match.Length));
+                    }
+                }
+
+                break;
+
+            case LeafBlock { Inline: { } inline }:
+                foreach (var html in inline.Descendants<HtmlInline>())
+                {
+                    if (TagRegex().Match(html.Tag) is { Success: true, Index: 0 } match)
+                    {
+                        AddTag(tags, match.Value);
+                    }
+                }
+
+                break;
+        }
+
+        return tags;
+    }
+
+    /// <summary>
+    ///     Adds one matched tag to a list.
+    /// </summary>
+    /// <param name="tags">Receives the tag.</param>
+    /// <param name="tag">The matched text: <c>&lt;</c>, an optional slash and the name.</param>
+    private static void AddTag(List<(int, bool)> tags, ReadOnlySpan<char> tag)
+    {
+        var isEnd = tag.Length > 1 && tag[1] == '/';
+        var name = tag[(isEnd ? 2 : 1)..];
+        for (var i = 0; i < Names.Length; i++)
+        {
+            if (name.Equals(Names[i], StringComparison.OrdinalIgnoreCase))
+            {
+                tags.Add((i, !isEnd));
+                return;
+            }
+        }
+    }
+}
+
+/// <summary>
+///     Detects the one situation in which writing a <c>---</c> line elsewhere in a document would turn the
+///     document's first line into the opening of YAML front matter.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The parser reads a first line of <c>---</c> as the start of front matter only when a closing
+///         <c>---</c> line follows; without one it is a thematic break. A rewrite that creates such a line (a break
+///         converted to dashes, an indented code block whose content has an unindented <c>---</c> line once it is
+///         fenced) would silently swallow everything in between into front matter. The formatters that can create
+///         such a line ask this guard first and leave the block as written.
+///     </para>
+///     <para>
+///         Thread safety: static and stateless; safe for concurrent use.
+///     </para>
+/// </remarks>
+internal static class FrontMatterGuard
+{
+    /// <summary>
+    ///     The line that opens (and closes) YAML front matter.
+    /// </summary>
+    private const string Fence = "---";
+
+    /// <summary>
+    ///     Determines whether a new <c>---</c> line could close a front matter block that the first line opens.
+    /// </summary>
+    /// <param name="document">The parsed document. Must not be null.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the first line is <c>---</c> and the document has no front matter (so the
+    ///     first line is a thematic break that a later <c>---</c> line would turn into front matter).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    public static bool CouldOpenFrontMatter(ParsedDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var text = document.Source.Text;
+        var end = text.IndexOf('\n', StringComparison.Ordinal);
+        var firstLine = end < 0 ? text : text[..end];
+        return firstLine.TrimEnd(' ', '\t') == Fence && !document.Blocks.Any(static block => block.Kind == BlockKind.FrontMatter);
     }
 }

@@ -30,7 +30,7 @@ namespace DemaConsulting.LintMark.Document;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The Markdown parser renders multi-line code spans differently for LF and CRLF input
+///         The Markdown parser reads multi-line code spans differently for LF and CRLF input
 ///         (the CRLF code-span difference), so all parsing and offset arithmetic is done on LF-normalized
 ///         <see cref="Text"/> and the original terminators are only recorded (as counts) so they can be
 ///         restored on write. A file whose terminators are all of one style is written back byte for byte.
@@ -78,7 +78,6 @@ internal sealed class SourceDocument
         Text = text;
         LineEndings = lineEndings;
         HasBom = hasBom;
-        HasFinalNewline = text.Length > 0 && text[^1] == '\n';
 
         // Record the offset of the first character of every line; a final newline therefore
         // yields a trailing empty line starting at Text.Length, matching editor conventions.
@@ -108,11 +107,6 @@ internal sealed class SourceDocument
     ///     Gets the counts of the original line terminators.
     /// </summary>
     public LineEndingInfo LineEndings { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether the text ends with a line terminator.
-    /// </summary>
-    public bool HasFinalNewline { get; }
 
     /// <summary>
     ///     Gets a value indicating whether the original bytes started with a UTF-8 byte order mark.
@@ -159,23 +153,60 @@ internal sealed class SourceDocument
         // Validate input
         ArgumentNullException.ThrowIfNull(path);
 
-        // Detect and strip the byte order mark; only the UTF-8 mark is supported
-        var content = StripBom(bytes, out var hasBom);
+        // Detect and strip the byte order mark, then decode strictly
+        var decoded = Decode(bytes, out var hasBom);
+        return Build(path, decoded, hasBom);
+    }
 
-        // Decode strictly, translating a decoder failure into a positioned failure
-        string decoded;
+    /// <summary>
+    ///     Decodes the bytes of a file as strict UTF-8: removes a UTF-8 byte order mark, and reports the other
+    ///     Unicode byte order marks and invalid UTF-8 at their position.
+    /// </summary>
+    /// <param name="bytes">Complete file content.</param>
+    /// <param name="hasBom">Receives whether a UTF-8 mark was present.</param>
+    /// <returns>The decoded text, without the mark and with the original line terminators.</returns>
+    /// <exception cref="SourceDocumentException">
+    ///     Thrown (rule <see cref="SourceDocumentException.EncodingRuleId"/>) for a UTF-16 or UTF-32 byte order mark
+    ///     or for invalid UTF-8; the configuration loader reuses it for the same checks of a configuration file.
+    /// </exception>
+    internal static string Decode(ReadOnlySpan<byte> bytes, out bool hasBom)
+    {
+        // UTF-8 mark: EF BB BF
+        hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+        var content = hasBom ? bytes[3..] : bytes;
+
+        // UTF-16 LE/BE (FF FE / FE FF; also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
+        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
+        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
+        if (isUtf16 || isUtf32Be)
+        {
+            throw new SourceDocumentException(
+                SourceDocumentException.EncodingRuleId, 1, 1, "Unsupported byte order mark (only UTF-8 is supported)");
+        }
+
         try
         {
-            decoded = StrictUtf8.GetString(content);
+            return StrictUtf8.GetString(content);
         }
         catch (DecoderFallbackException ex)
         {
-            var (line, column) = LocateByte(content, ex.Index);
-            throw new SourceDocumentException(
-                SourceDocumentException.EncodingRuleId, line, column, "Invalid UTF-8 byte sequence");
-        }
+            // Count the line breaks before the bad byte (LF, CRLF or a lone CR), then measure the partial line in UTF-16 units
+            var before = content[..Math.Clamp(ex.Index, 0, content.Length)];
+            var line = 1;
+            var lineStart = 0;
+            for (var i = 0; i < before.Length; i++)
+            {
+                // A CR directly before an LF belongs to the same line break; the LF is the one counted
+                if (before[i] == (byte)'\n' || (before[i] == (byte)'\r' && (i + 1 >= content.Length || content[i + 1] != (byte)'\n')))
+                {
+                    line++;
+                    lineStart = i + 1;
+                }
+            }
 
-        return Build(path, decoded, hasBom);
+            throw new SourceDocumentException(
+                SourceDocumentException.EncodingRuleId, line, Encoding.UTF8.GetCharCount(before[lineStart..]) + 1, "Invalid UTF-8 byte sequence");
+        }
     }
 
     /// <summary>
@@ -342,65 +373,6 @@ internal sealed class SourceDocument
     }
 
     /// <summary>
-    ///     Removes a UTF-8 byte order mark and rejects the other Unicode byte order marks.
-    /// </summary>
-    /// <param name="bytes">Complete file content.</param>
-    /// <param name="hasBom">Receives whether a UTF-8 mark was present.</param>
-    /// <returns>The content without the UTF-8 mark.</returns>
-    /// <exception cref="SourceDocumentException">Thrown for a UTF-16 or UTF-32 byte order mark.</exception>
-    private static ReadOnlySpan<byte> StripBom(ReadOnlySpan<byte> bytes, out bool hasBom)
-    {
-        hasBom = false;
-
-        // UTF-8 mark: EF BB BF
-        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
-        {
-            hasBom = true;
-            return bytes[3..];
-        }
-
-        // UTF-16 LE/BE (FF FE / FE FF; also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
-        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
-        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
-        if (isUtf16 || isUtf32Be)
-        {
-            throw new SourceDocumentException(
-                SourceDocumentException.EncodingRuleId, 1, 1, "Unsupported byte order mark (only UTF-8 is supported)");
-        }
-
-        return bytes;
-    }
-
-    /// <summary>
-    ///     Finds the line and column of a byte offset in UTF-8 content.
-    /// </summary>
-    /// <param name="content">Decoded content (without byte order mark).</param>
-    /// <param name="index">Byte index reported by the decoder; out-of-range values fall back to 1:1.</param>
-    /// <returns>The 1-based line and column of the byte.</returns>
-    private static (int Line, int Column) LocateByte(ReadOnlySpan<byte> content, int index)
-    {
-        if (index < 0 || index > content.Length)
-        {
-            return (1, 1);
-        }
-
-        // Count line feeds before the bad byte, then measure the partial line in UTF-16 units
-        var before = content[..index];
-        var line = 1;
-        var lineStartByte = 0;
-        for (var i = 0; i < before.Length; i++)
-        {
-            if (before[i] == (byte)'\n')
-            {
-                line++;
-                lineStartByte = i + 1;
-            }
-        }
-
-        return (line, Encoding.UTF8.GetCharCount(before[lineStartByte..]) + 1);
-    }
-
-    /// <summary>
     ///     Finds the zero-based index of the line containing an offset.
     /// </summary>
     /// <param name="offset">A valid offset into the text.</param>
@@ -425,4 +397,95 @@ internal sealed class SourceDocument
 
         return low;
     }
+}
+
+/// <summary>
+///     Line terminator styles that LintMark can write back to disk.
+/// </summary>
+/// <remarks>
+///     Only LF and CRLF are modeled. A bare carriage return (classic Mac style) is deliberately
+///     not representable: <see cref="SourceDocument"/> reports it as a failure instead of silently
+///     rewriting it, because the Markdown parser treats it inconsistently.
+/// </remarks>
+internal enum LineEnding
+{
+    /// <summary>
+    ///     Unix-style line feed (<c>\n</c>).
+    /// </summary>
+    Lf,
+
+    /// <summary>
+    ///     Windows-style carriage return followed by line feed (<c>\r\n</c>).
+    /// </summary>
+    CrLf
+}
+
+/// <summary>
+///     Counts of the original line terminators found in a source file.
+/// </summary>
+/// <param name="LfCount">Number of bare line feeds (<c>\n</c> not preceded by <c>\r</c>).</param>
+/// <param name="CrLfCount">Number of <c>\r\n</c> pairs.</param>
+/// <remarks>
+///     The counts (rather than a single style flag) are kept because mixed files exist in
+///     practice; the formatter needs them to decide whether a file is mixed and which style is the
+///     majority. Immutable value type; safe for concurrent use.
+/// </remarks>
+internal readonly record struct LineEndingInfo(int LfCount, int CrLfCount)
+{
+    /// <summary>
+    ///     Gets a value indicating whether the file contains both LF and CRLF terminators.
+    /// </summary>
+    public bool IsMixed => LfCount > 0 && CrLfCount > 0;
+}
+
+/// <summary>
+///     Describes a file that cannot be turned into a <see cref="SourceDocument"/>.
+/// </summary>
+/// <remarks>
+///     A typed exception (rather than a message) is used so the engine can report the failure
+///     as <c>path:line:col: rule-id message</c> without parsing text. The position is 1-based and
+///     refers to the first offending byte or character when it is known, otherwise to 1:1.
+///     Instances are immutable and safe to share between threads.
+/// </remarks>
+public sealed class SourceDocumentException : Exception
+{
+    /// <summary>
+    ///     Rule identifier reported when the file is not valid UTF-8 or carries a non-UTF-8 byte order mark.
+    /// </summary>
+    public const string EncodingRuleId = "file-encoding-error";
+
+    /// <summary>
+    ///     Rule identifier reported when the file contains a bare carriage return.
+    /// </summary>
+    public const string LineEndingRuleId = "file-line-ending-error";
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SourceDocumentException"/> class.
+    /// </summary>
+    /// <param name="ruleId">Kebab-case rule identifier to report the failure under.</param>
+    /// <param name="line">1-based line of the first offending character (1 when unknown).</param>
+    /// <param name="column">1-based column of the first offending character (1 when unknown).</param>
+    /// <param name="message">Human-readable description of the failure (single line, no path).</param>
+    public SourceDocumentException(string ruleId, int line, int column, string message)
+        : base(message)
+    {
+        RuleId = ruleId;
+        Line = line;
+        Column = column;
+    }
+
+    /// <summary>
+    ///     Gets the kebab-case rule identifier the failure is reported under.
+    /// </summary>
+    public string RuleId { get; }
+
+    /// <summary>
+    ///     Gets the 1-based line of the first offending character.
+    /// </summary>
+    public int Line { get; }
+
+    /// <summary>
+    ///     Gets the 1-based column (UTF-16 code units, tab counted as one) of the first offending character.
+    /// </summary>
+    public int Column { get; }
 }

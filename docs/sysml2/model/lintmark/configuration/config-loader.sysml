@@ -22,14 +22,12 @@ package LintMark {
     }
 
     part def ConfigLoader {
-        doc /* Finds, reads and validates the .lintmark.yaml configuration that applies to a Markdown file, caching results per directory and per file (also documents the ConfigParser, ConfigLoadResult and ConfigError supporting types). */
+        doc /* Finds, reads and validates the .lintmark.yaml configuration that applies to a Markdown file (the nearest one up the directory tree, an explicit file, or the built-in defaults), caching results per directory and per file, and reports every problem with its position (also documents the ConfigParser, ConfigLoadResult and ConfigError supporting types). */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
                 "src/DemaConsulting.LintMark/Configuration/ConfigLoader.cs",
-                "src/DemaConsulting.LintMark/Configuration/ConfigParser.cs",
-                "src/DemaConsulting.LintMark/Configuration/ConfigLoadResult.cs",
-                "src/DemaConsulting.LintMark/Configuration/ConfigError.cs");
+                "src/DemaConsulting.LintMark/Configuration/ConfigParser.cs");
             testFiles = (
                 "test/DemaConsulting.LintMark.Tests/Configuration/ConfigLoaderTests.cs",
                 "test/DemaConsulting.LintMark.Tests/Configuration/ConfigLoaderParseTests.cs");
@@ -39,33 +37,16 @@ package LintMark {
         }
 
         // The YAML library supplies the events with positions; the loader builds the configuration, its
-        // link conversion options and every enumerated setting from them, and the line ending is the
-        // document model's type.
+        // link conversion options and every enumerated setting from them.
         dependency ConfigLoader to YamlDotNet;
         dependency ConfigLoader to LintMarkConfig;
-        dependency ConfigLoader to LinkRefactorOptions;
-        dependency ConfigLoader to LineEnding;
 
-        // Type-level use of the setting enumerations when reading and checking each setting.
-        dependency ConfigLoader to WrapMode;
-        dependency ConfigLoader to HeadingStyle;
-        dependency ConfigLoader to BulletMarker;
-        dependency ConfigLoader to OrderedStyle;
-        dependency ConfigLoader to EmphasisMarker;
-        dependency ConfigLoader to FenceMarker;
-        dependency ConfigLoader to CodeBlockStyle;
-        dependency ConfigLoader to HardBreakStyle;
-        dependency ConfigLoader to ThematicBreakStyle;
-        dependency ConfigLoader to TableStyle;
-        dependency ConfigLoader to BareUrlStyle;
-        dependency ConfigLoader to TrailingWhitespaceStyle;
-
-        // The loader returns its outcome and every problem as these value types.
-        dependency ConfigLoader to ConfigLoadResult;
-        dependency ConfigLoader to ConfigError;
+        // The configuration text is decoded with the source document, so that an invalid byte sequence is
+        // reported like one in a Markdown file, and its settings use the line ending type of that model.
+        dependency ConfigLoader to SourceDocument;
 
         // Rule names in the rules block are resolved to canonical ids, aliases and dropped aliases by the
-        // rule catalog (the configuration parser belongs to this unit).
+        // rule catalog.
         dependency ConfigLoader to RuleCatalog;
     }
 }

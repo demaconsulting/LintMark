@@ -4,85 +4,56 @@
 
 ### Purpose
 
-`Program` is the entry point and execution orchestrator for the LintMark. Its single
-responsibility is to create a `Context` from the command-line arguments, dispatch to the
-appropriate handler based on the parsed flags, and return the exit code.
+`Program` is the entry point of the tool. Its single responsibility is to create a `Context` from the command-line
+arguments, dispatch to the one action those arguments select (version, help, self-validation or linting), turn
+expected errors into a message and exit code 1, and return the exit code that the context accumulated.
 
 ### Data Model
 
-**Version**: `string` (static property) — The tool version read from
-`AssemblyInformationalVersionAttribute` on every access, falling back to `AssemblyVersion`, then
-`"0.0.0"`. No caching is applied; callers that need the value more than once should store it
-locally.
+**Version**: a static string property. It reads `AssemblyInformationalVersionAttribute` of the executing assembly on
+every access, falls back to the assembly version, and finally to the placeholder `0.0.0`. Nothing is cached.
+
+`Program` holds no other state: it is a static class, and everything that varies per run lives in the `Context`.
 
 ### Key Methods
 
-**Main**: Entry point for the tool process.
+**Main(args)**: the process entry point; returns an `int` exit code.
 
-- *Parameters*: `string[] args` — command-line arguments from the host environment.
-- *Returns*: `int` — exit code; 0 for success, 1 for expected errors.
-- *Preconditions*: None.
-- *Postconditions*: Exit code reflects whether any errors were reported during execution.
+1. Creates the context with `Context.Create(args)` inside a `using`, so the log file is closed on every path.
+2. Calls `Run(context)`.
+3. Returns `context.ExitCode`, which is 0 unless something was written as an error, and then 1.
 
-Creates a `Context` using `Context.Create(args)`, calls `Run(context)`, and returns
-`context.ExitCode`. Catches `ArgumentException` and `InvalidOperationException` — writes
-`"Error: {message}"` to stderr and returns 1. Catches any other `Exception` — writes
-`"Unexpected error: {message}"` to stderr and re-throws so the runtime can record it.
+**Run(context)**: dispatches in priority order and executes only the first match.
 
-**Run**: Dispatches execution based on parsed flags.
+1. `--version`: writes the version string alone, without the banner, and returns.
+2. Otherwise prints the banner (tool name with version, the copyright line, a blank line).
+3. `--help`: prints the usage text (paths, then every option) and returns.
+4. `--validate`: calls `Validation.Run(context)` and returns.
+5. Otherwise creates a `LintMarkEngine` and calls its `Run(context)`, which lints, fixes or diffs the selected files.
 
-- *Parameters*: `Context context` — the parsed context.
-- *Returns*: `void`.
-- *Preconditions*: `context` is not null.
-- *Postconditions*: Exactly one handler has been called.
-
-Inspects flags in priority
-order: (1) if `context.Version` is true, calls `context.WriteLine(Version)` and returns; (2) calls
-`PrintBanner`; (3) if `context.Help` is true, calls `PrintHelp` and returns; (4) if `context.Validate` is
-true, calls `Validation.Run(context)`; (5) otherwise calls `LintMarkEngine.Run(context)`, which selects,
-processes, optionally rewrites (`--fix`), and reports the files.
-
-**PrintBanner**: Writes the tool name, version, and copyright line to `context`.
-
-- *Parameters*: `Context context` — output target.
-- *Returns*: `void`.
-
-**PrintHelp**: Writes the usage synopsis (`Usage: lintmark [options] [paths...]`), the description
-of the path arguments (including the `!` exclusion prefix and the `**/*.md` default), and the
-options table (including `--check`, which reports problems without writing any file (the default); `--fix`, which
-rewrites files into canonical form when every safety check passes and then reports the problems that remain (not with
-`--check` or `--diff`); `--diff`, which prints a unified diff of what `--fix` would change and writes no file;
-`--config <file>`, which uses a named configuration file instead of
-discovering `.lintmark.yaml`, and `--no-config`, which ignores `.lintmark.yaml` and `.editorconfig` and uses the
-built-in defaults) to `context`.
-
-- *Parameters*: `Context context` — output target.
-- *Returns*: `void`.
+**PrintBanner** and **PrintHelp** write only through `context.WriteLine`, so `--silent` and `--log` apply to them. The
+usage text is the user-visible description of the options parsed by `Context`; the two must be kept in step.
 
 ### Error Handling
 
-`Main` handles errors at two levels. Expected errors (`ArgumentException` and
-`InvalidOperationException`) are written to stderr as `"Error: {message}"` and cause exit
-code 1 without a stack trace; this includes the usage errors raised by `Context.Create` when
-`--validate` is combined with paths, `--check`, `--fix`, `--diff`, `--config`, or `--no-config`, when `--fix` is
-combined with `--check` or `--diff`, when `--config` is combined with
-`--no-config`, or when `--config` has no filename. Unexpected errors (`Exception`) are written to
-stderr as `"Unexpected error: {message}"` and re-thrown so the runtime can record them in event logs.
-`Run`, `PrintBanner`, and `PrintHelp` do not catch exceptions; all errors
-propagate to `Main`. Failures of individual files are not exceptions: `LintMarkEngine` reports them
-through `Context.WriteError`, which makes the exit code 1; so are configuration problems, which are also reported by
-the engine, and so are the safety refusals and write failures of the fix option.
+`Main` distinguishes three cases:
+
+- `ArgumentException` (an invalid command line, including an invalid rule list for `--enable` or `--disable`) and
+  `InvalidOperationException` (the log file cannot be opened): the message is written to standard error as
+  `Error: {message}` and `Main` returns 1, with no stack trace.
+- Any other exception is unexpected: `Unexpected error: {message}` is written to standard error and the exception is
+  re-thrown so that the runtime records it in the event log; the process then ends with the runtime's failure code.
+- Findings of a lint run are not exceptions. They are written through `Context.WriteError`, which sets the exit code
+  to 1, so a run with any finding returns 1 and a clean run returns 0.
+
+Because the console messages of `Main` go straight to standard error, they ignore `--silent` and the log file.
 
 ### Dependencies
 
-- **Context** — `Program` reads parsed flags from `Context` and calls `Context.WriteLine` and
-  `Context.WriteError` for all output.
-- **Validation** — `Program.Run` calls `Validation.Run(context)` when the `--validate` flag is
-  set.
-- **LintMarkEngine** — `Run` calls `LintMarkEngine.Run(context)` to process the selected Markdown files; the
-  engine chooses the configuration sources from the `--config` and `--no-config` options and acts on the `--fix`
-  and `--diff` options.
+`Context` (arguments and output), `LintMarkEngine` (the linting run) and `Validation` (self-validation). The version
+comes from the assembly metadata through reflection.
 
 ### Callers
 
-N/A - entry point, called by the host environment.
+The .NET runtime calls `Main`. `Validation` calls `Run` and `Version` to exercise the version and help actions of the
+tool itself.

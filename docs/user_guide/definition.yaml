@@ -6,7 +6,14 @@ resource-path:
 input-files:
   - docs/user_guide/title.txt
   - docs/user_guide/introduction.md
+  - docs/user_guide/usage.md
+  - docs/user_guide/configuration.md
   - docs/user_guide/formatting-rules.md
+  - docs/user_guide/lint-rules.md
+  - docs/user_guide/wrapping.md
+  - docs/user_guide/tables-and-links.md
+  - docs/user_guide/suppression.md
+  - docs/user_guide/migrating-from-markdownlint.md
 template: template.html
 table-of-contents: true
 number-sections: true

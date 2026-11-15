@@ -2,1323 +2,619 @@
 # LintMark System-Level Requirements
 #
 # PURPOSE:
-# - Define system-level requirements describing what end-users need the tool to provide
-# - These requirements capture the externally visible behavior of the complete system
-# - System requirements are validated through integration tests that exercise the
-#   published dotnet DLL end-to-end
+# - Define the externally visible behavior that users need from the tool, at feature level
+# - System requirements are validated through integration tests that run the published dotnet DLL end to end
+# - Each requirement is decomposed into the subsystem requirements and the requirements of the units directly
+#   under the system (Program, Context, Validation) that provide it
 
 sections:
   - title: LintMark Requirements
     requirements:
       - id: LintMark-System-Version
-        title: The tool shall display version information when the version flag is provided.
+        title: The tool shall print its version, and nothing else, when the version option is given.
         tags: [system]
         justification: |
-          Users need to quickly identify the version of the tool they are using for
-          troubleshooting and compatibility verification. The version display must
-          work from a standard dotnet invocation without additional configuration.
+          Users and scripts need to identify the installed version for troubleshooting and compatibility checks.
         children:
-          - LintMark-Program-Version
-          - LintMark-Cli-Version
+          - LintMark-Program-Dispatch
+          - LintMark-Context-Options
         tests:
           - LintMark_VersionFlag_Provided_OutputsVersion
 
       - id: LintMark-System-Help
-        title: The tool shall display usage information when the help flag is provided.
+        title: The tool shall print usage information that describes every option when a help option is given.
         tags: [system]
         justification: |
-          Users need access to command-line usage documentation without requiring
-          external resources. Help output must be accessible from a standard dotnet
-          invocation and must list the available options so that users can self-serve.
+          Users need the option reference at the command line without an external document.
         children:
-          - LintMark-Program-Help
-          - LintMark-Cli-Help
+          - LintMark-Program-Dispatch
+          - LintMark-Context-Options
         tests:
           - LintMark_HelpFlag_Provided_OutputsUsageInformation
-          - LintMark_HelpFlag_Provided_ListsPathsAndCheckOption
-          - LintMark_HelpFlag_Provided_ListsConfigOptions
 
-      - id: LintMark-System-Validate
-        title: The tool shall execute self-validation tests when the validate flag is provided.
+      - id: LintMark-System-DefaultBehavior
+        title: >-
+          The tool shall, when no path is given, print its banner and check every Markdown file below the working
+          directory except those in the folders that the default ignore patterns exclude (`.git`, `node_modules`,
+          `.venv`, `generated`, `thirdparty`, and `.agent-logs`).
         tags: [system]
         justification: |
-          Regulated environments require tool qualification evidence to demonstrate
-          that the tool functions correctly in its deployment environment before it
-          is used to generate compliance artifacts. The validation mode exercises
-          core behaviors and produces a structured test result file, providing the
-          qualification evidence required by quality management systems.
+          Running the tool in a repository root must do the useful thing without any arguments.
         children:
-          - LintMark-Program-Validate
-          - LintMark-Cli-Validate
-          - LintMark-SelfTest-Qualification
+          - LintMark-Program-Banner
+          - LintMark-Engine-Discovery
         tests:
-          - LintMark_ValidateFlag_Provided_RunsValidation
+          - LintMark_DefaultBehavior_NoPaths_ProcessesMarkdownUnderWorkingDirectory
+
+      - id: LintMark-System-SelectFiles
+        title: >-
+          The tool shall process the Markdown files named by file paths, directories, and glob patterns, minus the
+          files matched by exclusion patterns, each file once, including a file named explicitly inside a folder
+          that is skipped by default, and without being stopped by a link that leads back into a folder it is
+          already searching.
+        tags: [system]
+        justification: |
+          Users must be able to target a whole repository, a folder, or a few files and exclude what they do not
+          own, while a file they name on purpose is never silently skipped. Repositories contain links between
+          folders, and a link that loops must not make the tool fail.
+        children:
+          - LintMark-Engine-Discovery
+        tests:
+          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
+          - LintMark_SelectFiles_DirectoryGlobAndExclusion_SelectEachFileOnce
+          - LintMark_SelectFiles_DirectoryLinkCycle_ChecksEachFileOnceAndExitsNormally
+
+      - id: LintMark-System-Check
+        title: >-
+          The tool shall, by default and with the check option, report the problems it finds and never write a
+          file.
+        tags: [system]
+        justification: |
+          Checking is the safe default, so it can run in continuous integration and on a user's documents
+          without any risk.
+        children:
+          - LintMark-Engine-Processing
+          - LintMark-Engine-Reporting
+        tests:
+          - LintMark_CheckFlag_Provided_LintsWithoutWriting
+
+      - id: LintMark-System-Fix
+        title: >-
+          The tool shall, with the fix option, rewrite each file into its canonical form and then report the
+          problems that remain.
+        tags: [system]
+        justification: |
+          Most formatting problems have exactly one correct fix, and users want the tool to apply it instead
+          of only complaining.
+        children:
+          - LintMark-Engine-Processing
+          - LintMark-Engine-Writing
+        tests:
+          - LintMark_FixFlag_CrlfFile_RewritesToLf
+          - LintMark_FixFlag_Twice_SecondRunReportsNothing
+
+      - id: LintMark-System-Diff
+        title: >-
+          The tool shall, with the diff option, print the changes the fix option would make as a unified diff
+          and write nothing.
+        tags: [system]
+        justification: |
+          Users want to review a rewrite before they allow it, and tools can apply a diff.
+        children:
+          - LintMark-Engine-Reporting
+        tests:
+          - LintMark_DiffFlag_FormattingViolations_ShowsTheChange
+
+      - id: LintMark-System-OptionConflicts
+        title: >-
+          The tool shall reject unknown options, conflicting options, and invalid option values as usage errors
+          that exit with status 1.
+        tags: [system]
+        justification: |
+          A mistyped or contradictory command line must fail loudly instead of doing something different from
+          what the user asked.
+        children:
+          - LintMark-Context-Options
+          - LintMark-Program-ErrorHandling
+        tests:
+          - LintMark_UnknownArgument_Provided_ReturnsError
+          - LintMark_FixWithCheck_Combined_ReturnsError
+          - LintMark_EnableFlag_UnknownRule_IsAUsageError
+
+      - id: LintMark-System-ExplicitConfig
+        title: >-
+          The tool shall use the configuration file named by the config option instead of discovering one, and
+          use the defaults, ignoring editor settings too, when the no-config option is given.
+        tags: [system]
+        justification: |
+          Users must be able to pin the configuration in a script and to run with known defaults.
+        children:
+          - LintMark-Configuration-Discovery
+        tests:
+          - LintMark_ExplicitConfig_ConfigFileGiven_ReplacesDiscovery
+          - LintMark_ExplicitConfig_NoConfigGiven_UsesDefaultsAndIgnoresEditorConfig
+
+      - id: LintMark-System-RuleSwitches
+        title: >-
+          The tool shall switch rules on and off by id or by markdownlint number with the enable and disable
+          options, which win over the configuration file.
+        tags: [system]
+        justification: |
+          A single run must be able to add or drop a rule without editing the configuration.
+        children:
+          - LintMark-Configuration-Settings
+          - LintMark-Linting-Catalog
+          - LintMark-Context-Options
+        tests:
+          - LintMark_EnableAndDisableFlags_Provided_SwitchLintOnlyRules
+          - LintMark_EnableFlag_UnknownRule_IsAUsageError
 
       - id: LintMark-System-Silent
-        title: The tool shall suppress console output when the silent flag is provided.
+        title: The tool shall print nothing to the console when the silent option is given.
         tags: [system]
         justification: |
-          Enables automated scripts and CI/CD pipelines to run the tool without
-          cluttering output logs when only the exit code is needed.
+          Scripts that only need the exit status must be able to run the tool without console noise.
         children:
-          - LintMark-Cli-Silent
+          - LintMark-Context-Output
         tests:
           - LintMark_SilentFlag_Provided_SuppressesOutput
 
       - id: LintMark-System-Log
-        title: The tool shall write output to a log file when the log flag is provided.
+        title: The tool shall also write everything it prints to the file named by the log option.
         tags: [system]
         justification: |
-          Provides persistent logging for debugging and compliance audit trails.
-          Log files enable post-run inspection of tool output without requiring
-          console capture.
+          Build systems keep the report of a run as an artifact.
         children:
-          - LintMark-Cli-Log
+          - LintMark-Context-LogFile
         tests:
           - LintMark_LogFlag_Provided_WritesOutputToFile
 
-      - id: LintMark-System-ErrorHandling
-        title: The tool shall return a non-zero exit code for unrecognized arguments.
-        tags: [system]
-        justification: |
-          A non-zero exit code enables CI/CD pipelines to detect and
-          surface misconfiguration failures automatically.
-        children:
-          - LintMark-Program-ExitCode
-          - LintMark-Cli-ExitCode
-        tests:
-          - LintMark_UnknownArgument_Provided_ReturnsError
-
-      - id: LintMark-System-ErrorMessage
-        title: The tool shall report an error message for unrecognized arguments.
-        tags: [system]
-        justification: |
-          Clear feedback for unrecognized arguments helps users quickly correct
-          mistakes and prevents silent misconfiguration.
-        children:
-          - LintMark-Cli-InvalidArgs
-          - LintMark-Cli-ErrorOutput
-        tests:
-          - LintMark_UnknownArgument_Provided_ReturnsError
-
-      - id: LintMark-System-Results
+      - id: LintMark-System-SelfValidation
         title: >-
-          The tool shall write self-validation results to a standard test result
-          file when the `--results` flag is provided.
+          The tool shall run built-in self-validation tests and print a summary, headed at the Markdown heading
+          depth given by the depth option (one by default), when the validate option is given.
         tags: [system]
         justification: |
-          Enables integration with CI/CD systems that expect standard test result formats.
-          TRX format is compatible with MSTest; JUnit XML is compatible with many CI tools.
+          Regulated environments need evidence that the installed tool works before they rely on it, and the
+          summary is pasted into documents whose heading structure the user controls.
         children:
-          - LintMark-Cli-Results
-          - LintMark-SelfTest-ResultsOutput
-        tests:
-          - LintMark_ValidateWithTrxResults_Requested_GeneratesTrxFile
-          - LintMark_ValidateWithXmlResults_Requested_GeneratesJUnitFile
-
-      - id: LintMark-System-Depth
-        title: The tool shall adjust the heading depth of validation output when the `--depth` flag is provided.
-        tags: [system]
-        justification: |
-          Enables validation output to be embedded within larger markdown documents at
-          the appropriate heading level, supporting documentation workflows that combine
-          multiple reports.
-        children:
-          - LintMark-Cli-Depth
+          - LintMark-Validation-SelfTests
+          - LintMark-Program-Dispatch
+          - LintMark-Context-Options
         tests:
           - LintMark_ValidateFlag_Provided_RunsValidation
-          - LintMark_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel
+          - LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth
 
-      - id: LintMark-System-ValidateFailure
-        title: The tool shall return a non-zero exit code when the results file cannot be written.
-        tags: [system]
-        justification: |
-          A non-zero exit code on results-write failure enables CI/CD pipelines to detect
-          and surface output errors automatically, preventing silent loss of validation
-          evidence in compliance-critical workflows.
-        children:
-          - LintMark-SelfTest-InvalidExtension
-        tests:
-          - LintMark_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero
-
-      - id: LintMark-System-DefaultBehavior
-        title: The tool shall display a banner then run the default tool logic when invoked without any action flags.
-        tags: [system]
-        justification: |
-          When a user invokes the tool without any recognized action flag, the tool shall
-          display a banner identifying itself and run its primary logic so that the
-          invocation is never silently empty.
-        children:
-          - LintMark-Cli-ArgumentParsing
-          - LintMark-Cli-OutputChannels
-        tests:
-          - LintMark_NoArguments_Invoked_DisplaysBanner
-
-      - id: LintMark-System-ResultAlias
-        title: The tool shall accept `--result` as a legacy alias for `--results`.
-        tags: [system]
-        justification: |
-          Backward compatibility with scripts that use the earlier `--result` spelling
-          prevents breakage when upgrading to newer tool versions.
-        children:
-          - LintMark-Cli-ResultAlias
-        tests:
-          - LintMark_ResultAlias_LegacyFlag_WritesResultsFile
-
-      - id: LintMark-System-SelectFiles
+      - id: LintMark-System-ValidationResults
         title: >-
-          The tool shall select the Markdown files to process from the paths, directories, glob patterns, and
-          exclusions given on the command line, and from the current directory when none is given.
+          The tool shall write the self-validation results to the TRX or JUnit file named by the results option.
         tags: [system]
         justification: |
-          Users need to point the tool at individual files, whole folders, or patterns, and to leave
-          some files out. Markdown that belongs to third-party packages or to version control is not
-          the user's own and must not be processed unless the user names the file deliberately.
+          Qualification evidence must be machine readable, so that requirements tracing tools can use it.
         children:
-          - LintMark-Cli-Paths
-          - LintMark-Engine-Discovery
-          - LintMark-Engine-ThirdPartyFolders
+          - LintMark-Validation-ResultsFile
+          - LintMark-Validation-ResultsFormatError
         tests:
-          - LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt
-          - LintMark_GlobAndExclude_Provided_SkipsExcludedFiles
-          - LintMark_ThirdPartyFolderProvided_SkipsItsFiles
-          - LintMark_ExplicitFileInThirdPartyFolder_IsProcessed
+          - LintMark_ValidateWithTrxResults_Requested_GeneratesTrxFile
 
-      - id: LintMark-System-ParseFiles
+      - id: LintMark-System-ExitCodes
         title: >-
-          The tool shall read and understand every selected Markdown file, including its suppression comments
-          and link reference definitions, without reporting a problem for valid content.
+          The tool shall exit with status 0 when nothing is reported, and with status 1 when it reports any
+          finding or error, or when the command line is invalid.
         tags: [system]
         justification: |
-          Reading and understanding Markdown files faithfully, so that a file can later be rewritten
-          without being altered, is the foundation of linting and formatting them. A capability that is
-          correct for the repository's own documentation is the prerequisite for every later lint rule
-          and formatting feature, and a problem in one file must not stop the others from being read.
+          Scripts and pipelines decide whether a step failed from the exit status.
         children:
-          - LintMark-Program-Lint
-          - LintMark-Engine-Processing
-          - LintMark-Document-Load
-          - LintMark-Document-WriteBack
-          - LintMark-Document-LineEndingStyle
-          - LintMark-Document-Blocks
-          - LintMark-Document-Dialect
-          - LintMark-Document-Suppressions
-          - LintMark-Document-References
-          - LintMark-Document-ReferenceLookup
-          - LintMark-Document-ImmutableResults
+          - LintMark-Context-ExitStatus
+          - LintMark-Program-ErrorHandling
         tests:
           - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
-          - LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess
-          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
-
-      - id: LintMark-System-ReportFailures
-        title: >-
-          The tool shall report each problem it finds in a selected Markdown file, such as a file that cannot
-          be read or decoded or content that does not follow the preferred style, on its own line as
-          `path:line:col: rule-id message`.
-        tags: [system]
-        justification: |
-          Users and build pipelines need to be told precisely which file has a problem and what it is,
-          in a regular format that editors and scripts can read. Every rule identifier in a report must
-          be one that the tool documents, so that users can look it up and switch it off where that is
-          allowed.
-        children:
-          - LintMark-Engine-FailureReport
-          - LintMark-Document-InvalidContent
-          - LintMark-Document-Positions
-          - LintMark-Reporting-TextLineFormat
-          - LintMark-Reporting-TextRelativePath
-          - LintMark-Reporting-TextForwardSlashes
-          - LintMark-Reporting-TextOutsidePath
-          - LintMark-Reporting-TextDiagnosticOnce
-          - LintMark-Linting-DiagnosticContent
-          - LintMark-Linting-DiagnosticValidity
-          - LintMark-Linting-DiagnosticEquality
-          - LintMark-Linting-RuleIdentifiers
-        tests:
-          - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
           - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
-          - LintMark_LineEnding_MixedFile_ReportsAndFixes
-          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
+          - LintMark_UnknownArgument_Provided_ReturnsError
 
-      - id: LintMark-System-SilentOnSuccess
-        title: The tool shall report nothing for a selected Markdown file in which it finds no problem.
-        tags: [system]
-        justification: |
-          Silence for good files keeps the logs of large runs short and makes any output a sign that
-          something needs attention.
-        children:
-          - LintMark-Engine-SilentOnSuccess
-          - LintMark-Reporting-TextSilentWhenEmpty
-        tests:
-          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
-          - LintMark_RepositoryDocumentation_Provided_ReturnsSuccess
-
-      - id: LintMark-System-FailureExitStatus
+      - id: LintMark-System-ProblemReports
         title: >-
-          The tool shall exit with a non-zero status when it reported a problem, and with zero when it
-          reported none.
+          The tool shall report every finding as a line with the file path, line, column, rule id, and message,
+          in a stable order.
         tags: [system]
         justification: |
-          Build pipelines and scripts act on the exit status without reading the output, so it must
-          distinguish a clean run from a run with problems.
+          Editors and build systems parse findings to link them to the source, and the same input must always
+          give the same report.
         children:
-          - LintMark-Engine-FailureExitStatus
-          - LintMark-Reporting-ExitStatusOnDiagnostic
-          - LintMark-Reporting-ExitStatusWhenSilent
-          - LintMark-Reporting-ExitStatusDiffOnly
+          - LintMark-Engine-Reporting
+          - LintMark-Linting-Findings
         tests:
-          - LintMark_PathsProvided_ValidMarkdown_ReturnsSuccess
-          - LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError
-          - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
-          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
-
-      - id: LintMark-System-Check
-        title: The tool shall accept a check option that reports problems without modifying any file.
-        tags: [system]
-        justification: |
-          CI/CD pipelines and pre-commit hooks need a mode that can only observe files. Accepting the
-          option explicitly lets scripts state that intent, also next to modes that modify files. The
-          problems it reports are those that the fix option would remove or refuse to remove.
-        children:
-          - LintMark-Cli-Check
-        tests:
-          - LintMark_CheckFlag_Provided_LintsWithoutWriting
-
-      - id: LintMark-System-DeterministicOutput
-        title: >-
-          The tool shall produce the same output, the same files, and the same exit code for the same inputs
-          regardless of how many files are processed concurrently or in what order the arguments are given.
-        tags: [system]
-        justification: |
-          Build logs, code review comments, and automated comparisons depend on reproducible output, and
-          a rewrite must give the same files however the work was scheduled. Reports must therefore
-          never depend on scheduling or on the order in which paths were typed.
-        children:
-          - LintMark-Engine-DeterministicOrder
-          - LintMark-Cli-ThreadSafeOutput
-          - LintMark-Document-ConcurrentParse
-          - LintMark-Configuration-ConcurrentUse
-          - LintMark-Configuration-ImmutableResults
-          - LintMark-Engine-ConfigurationIndependence
-          - LintMark-Engine-DeterministicFix
-          - LintMark-Reporting-DeterministicOutput
-        tests:
-          - LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder
-          - LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder
-
-      - id: LintMark-System-ValidateExclusive
-        title: >-
-          The tool shall reject the validate option combined with paths, the check option, the fix option, the
-          diff option, the config option, or the no-config option with an error.
-        tags: [system]
-        justification: |
-          Self-validation is a separate mode of operation. Silently ignoring file or configuration
-          arguments while reporting a successful validation could give users the false impression that
-          their files were checked.
-        children:
-          - LintMark-Cli-ValidateExclusive
-        tests:
-          - LintMark_ValidateWithPaths_Combined_ReturnsError
-          - LintMark_ValidateWithCheck_Combined_ReturnsError
-          - LintMark_ValidateWithFix_Combined_ReturnsError
-          - LintMark_ValidateWithDiff_Combined_ReturnsError
-          - LintMark_ValidateWithConfig_Combined_ReturnsError
-          - LintMark_ValidateWithNoConfig_Combined_ReturnsError
+          - LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage
+          - LintMark_CheckFlag_OverlongParagraph_ReportsLineLengthAtTheFirstColumnBeyondTheWidth
 
       - id: LintMark-System-ConfigDiscovery
         title: >-
-          The tool shall process each Markdown file with the nearest `.lintmark.yaml` in the file's directory or
-          a parent directory up to and including the repository root, without combining it with any other
-          configuration file.
+          The tool shall apply to each file the nearest .lintmark.yaml in its folder or above it, without merging
+          configuration files.
         tags: [system]
         justification: |
-          Users keep a configuration with the documents it governs. Looking upward from each document, and
-          never beyond the repository, makes it easy to tell which file governs a document and keeps
-          settings of unrelated projects out. Different folders of one repository can then have their
-          own settings.
+          Different parts of a repository need different settings, and the rule that decides which applies must
+          be simple enough to predict.
         children:
           - LintMark-Configuration-Discovery
-          - LintMark-Configuration-NoMerging
-          - LintMark-Engine-EffectiveConfiguration
         tests:
           - LintMark_ConfigDiscovery_NearestConfigInvalid_ReportsItsErrors
-          - LintMark_ConfigDiscovery_FartherConfigInvalidNearestValid_ReturnsSuccess
-          - LintMark_ConfigDiscovery_ConfigAboveRepositoryRoot_IsNotUsed
-
-      - id: LintMark-System-ConfigOption
-        title: >-
-          The tool shall process every selected file with the configuration file named by the config option,
-          instead of discovering one.
-        tags: [system]
-        justification: |
-          Teams that share one configuration between several projects, and users who run the tool outside
-          a repository, need to name the file to use.
-        children:
-          - LintMark-Cli-ConfigOption
-          - LintMark-Configuration-ExplicitFile
-          - LintMark-Engine-ExplicitConfiguration
-        tests:
-          - LintMark_ConfigOption_FileProvided_UsesItInsteadOfDiscovery
-
-      - id: LintMark-System-ConfigOptionProblems
-        title: >-
-          The tool shall report a problem with the configuration file named by the config option as a
-          configuration problem, also when no Markdown file is selected.
-        tags: [system]
-        justification: |
-          A configuration file that was named but cannot be used must be reported instead of replaced by
-          other settings, whether or not the selection of files happens to contain any.
-        children:
-          - LintMark-Configuration-ExplicitFileProblems
-          - LintMark-Engine-ExplicitConfigurationProblems
-        tests:
-          - LintMark_ConfigOption_MissingFile_ReportsErrorAndReturnsError
-          - LintMark_ConfigOption_MissingFileNoMarkdownFiles_ReportsErrorAndReturnsError
-
-      - id: LintMark-System-NoConfigOption
-        title: >-
-          The tool shall ignore both `.lintmark.yaml` and `.editorconfig` files and use the built-in defaults
-          when the no-config option is provided.
-        tags: [system]
-        justification: |
-          Running the tool exactly as shipped is the way to rule configuration out as the cause of a
-          surprise, and the way to get a result that does not depend on the machine.
-        children:
-          - LintMark-Cli-NoConfigOption
-          - LintMark-Engine-NoConfig
-        tests:
-          - LintMark_NoConfigOption_InvalidConfigPresent_IgnoresIt
-
-      - id: LintMark-System-ConfigExclusive
-        title: The tool shall reject the config option combined with the no-config option with an error.
-        tags: [system]
-        justification: |
-          Naming a configuration file and asking for none contradict each other. Silently choosing one
-          would hide the contradiction.
-        children:
-          - LintMark-Cli-ConfigExclusive
-        tests:
-          - LintMark_ConfigAndNoConfig_Combined_ReturnsError
-
-      - id: LintMark-System-ConfigDefaults
-        title: >-
-          The tool shall use the documented default for every setting that is not configured, including when
-          there is no configuration file or the file is empty.
-        tags: [system]
-        justification: |
-          The tool must work without any configuration, and a configuration should state only what differs
-          from the preferred style.
-        children:
-          - LintMark-Configuration-Defaults
-        tests:
-          - LintMark_ConfigDefaults_NoConfigFile_ReturnsSuccess
-          - LintMark_ConfigDefaults_EmptyConfigFile_ReturnsSuccess
-          - LintMark_ConfigDefaults_PartialConfigFile_ReturnsSuccess
 
       - id: LintMark-System-ConfigSettings
         title: >-
-          The tool shall accept a `.lintmark.yaml` file that uses any documented setting.
+          The tool shall provide every documented setting with its documented default, and apply a changed setting
+          to the behavior it names.
         tags: [system]
         justification: |
-          The configuration file is how users express their preferred style and which checks they want:
-          the formatting and linting settings, rules switched on or off by name or legacy rule number,
-          link conversion, and ignore patterns. Users who come from other Markdown tools write the rule
-          numbers they know, and equivalent files must mean the same however they are laid out.
+          Teams have different house styles, and an unset setting must behave the same on every machine.
         children:
           - LintMark-Configuration-Settings
-          - LintMark-Configuration-EquivalentLayouts
-          - LintMark-Configuration-RuleRegistryUse
-          - LintMark-Linting-RuleIdentifiers
-          - LintMark-Linting-RuleLegacyNumbers
-          - LintMark-Linting-RuleDefaults
         tests:
-          - LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess
+          - LintMark_ConfigSettings_StyleValues_ChangeTheFormattedOutput
+          - LintMark_ConfigSettings_NumericAndSwitchValues_ChangeWhatIsKept
 
-      - id: LintMark-System-ConfigInvalidSyntax
+      - id: LintMark-System-ConfigValidation
         title: >-
-          The tool shall report a configuration file that cannot be read as a set of settings, because its
-          syntax, structure, or text encoding is not supported, as a configuration problem.
+          The tool shall report each problem in a configuration file, once, with its position, and shall not
+          rewrite any file that the faulty configuration applies to.
         tags: [system]
         justification: |
-          A configuration that is silently ignored would reformat a documentation set in a style the user
-          did not choose. Failing loudly protects the user's files.
+          A mistyped setting must be found and fixed, and a rewrite based on settings that were misread could
+          damage documents.
         children:
-          - LintMark-Configuration-InvalidSyntax
-          - LintMark-Configuration-UnsupportedStructure
-          - LintMark-Configuration-UnsupportedText
-        tests:
-          - LintMark_ConfigValidation_MalformedYaml_ReportsErrorAndReturnsError
-          - LintMark_ConfigValidation_TwoDocuments_ReportsErrorAndReturnsError
-          - LintMark_ConfigValidation_Utf16File_ReportsErrorAndReturnsError
-
-      - id: LintMark-System-ConfigUnknownSettings
-        title: >-
-          The tool shall report a setting, rule, or link conversion option that it does not know as a
-          configuration problem.
-        tags: [system]
-        justification: |
-          A misspelled setting that is silently ignored would reformat a documentation set in a style the
-          user did not choose. Failing loudly protects the user's files.
-        children:
-          - LintMark-Configuration-UnknownSettings
-        tests:
-          - LintMark_ConfigValidation_UnknownKey_ReportsErrorAndReturnsError
-
-      - id: LintMark-System-ConfigInvalidValues
-        title: >-
-          The tool shall reject a setting value that is not allowed and report it as a configuration problem.
-        tags: [system]
-        justification: |
-          An invalid value that is ignored or partially applied would reformat a documentation set in a
-          style the user did not choose. Failing loudly protects the user's files.
-        children:
-          - LintMark-Configuration-InvalidValues
+          - LintMark-Configuration-Validation
+          - LintMark-Engine-Processing
         tests:
           - LintMark_ConfigValidation_InvalidValue_ReportsErrorAndReturnsError
-
-      - id: LintMark-System-ConfigConflictingEntries
-        title: >-
-          The tool shall report a setting given more than once, or a rule named more than once, as a
-          configuration problem.
-        tags: [system]
-        justification: |
-          Which of two conflicting entries would win is not obvious, and silently taking one would hide a
-          mistake in the user's configuration.
-        children:
-          - LintMark-Configuration-ConflictingEntries
-        tests:
-          - LintMark_ConfigValidation_DuplicateSetting_ReportsErrorAndReturnsError
-
-      - id: LintMark-System-ConfigInputLimits
-        title: >-
-          The tool shall report a configuration file that exceeds the size or nesting limits documented in the
-          user guide as a configuration problem.
-        tags: [system]
-        justification: |
-          A damaged or hostile configuration file, for example one arriving in a pull request that a build
-          pipeline checks, must be rejected promptly and must not be able to stall or bring down the run.
-        children:
-          - LintMark-Configuration-SizeLimit
-          - LintMark-Configuration-NestingLimit
-        tests:
-          - LintMark_ConfigLimits_OversizedFile_ReportsErrorAndReturnsError
-          - LintMark_ConfigLimits_DeeplyNestedFile_ReportsErrorWithinTimeBound
-
-      - id: LintMark-System-ConfigErrorFormat
-        title: >-
-          The tool shall report each configuration problem on its own line as `path:line:col: config-error
-          message`, with the position inside the configuration file.
-        tags: [system]
-        justification: |
-          Users and build pipelines need to be told precisely what is wrong with a configuration and where,
-          in the same regular format as every other problem, without having to fix problems one run at a
-          time.
-        children:
-          - LintMark-Engine-ConfigErrorFormat
-          - LintMark-Configuration-ErrorPositions
-          - LintMark-Configuration-AllErrorsReported
-        tests:
-          - LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage
-
-      - id: LintMark-System-ConfigErrorPathDisplay
-        title: >-
-          The tool shall show the path of a configuration problem relative to the current directory with
-          forward slashes, also when the file lies outside the current directory.
-        tags: [system]
-        justification: |
-          The user must be able to open the named file from where the tool was run, whatever the platform
-          separator.
-        children:
-          - LintMark-Engine-ConfigErrorPathDisplay
-        tests:
-          - LintMark_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithRelativeForwardSlashPath
-
-      - id: LintMark-System-ConfigErrorOnce
-        title: >-
-          The tool shall report a configuration problem once, however many Markdown files use that
-          configuration.
-        tags: [system]
-        justification: |
-          One broken configuration used by hundreds of files would otherwise bury the report.
-        children:
-          - LintMark-Engine-ConfigErrorOnce
-        tests:
-          - LintMark_ConfigErrors_SharedByManyFiles_ReportedOnce
-
-      - id: LintMark-System-ConfigErrorOrder
-        title: >-
-          The tool shall order configuration problems together with the other problems by path and then by
-          position.
-        tags: [system]
-        justification: |
-          Reproducible output is required for comparing runs and for stable build logs.
-        children:
-          - LintMark-Engine-ConfigErrorOrder
-          - LintMark-Configuration-ErrorOrder
-        tests:
-          - LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder
-
-      - id: LintMark-System-ConfigErrorIsolation
-        title: >-
-          The tool shall still read and check every selected Markdown file when a configuration problem is
-          reported.
-        tags: [system]
-        justification: |
-          A configuration problem must not hide the state of the documents, so that one run shows every
-          problem there is to fix.
-        children:
-          - LintMark-Engine-ConfigErrorIsolation
-        tests:
-          - LintMark_ConfigErrors_InvalidConfig_StillReportsFileFailures
-
-      - id: LintMark-System-ConfigErrorExitStatus
-        title: The tool shall exit with a non-zero status when a configuration problem was reported.
-        tags: [system]
-        justification: |
-          Build pipelines and scripts act on the exit status without reading the output, and a run with an
-          invalid configuration did not do what the user asked.
-        children:
-          - LintMark-Engine-ConfigErrorExitStatus
-        tests:
-          - LintMark_ConfigErrors_Reported_ReturnsError
-
-      - id: LintMark-System-EditorConfigTolerance
-        title: >-
-          The tool shall not report an error for `.editorconfig` settings that it cannot use.
-        tags: [system]
-        justification: |
-          Projects keep editor settings for other file types and tools in the same files. Settings meant for
-          them, such as an unsupported or unset line ending, malformed lines, or unrelated properties, must
-          never break a run. The line ending that the editor settings do give is used like the one of a
-          configuration file, and settings that cannot be read at all are reported.
-        children:
-          - LintMark-Configuration-EditorConfigTolerance
-        tests:
-          - LintMark_EditorConfig_UnsupportedOrUnusedSettings_Provided_ReturnsSuccess
-
-      - id: LintMark-System-EditorSettingsProblems
-        title: >-
-          The tool shall report `.editorconfig` settings that apply to a Markdown file but cannot be read as a
-          configuration problem at line 1 and column 1 of that Markdown file.
-        tags: [system]
-        justification: |
-          Settings that cannot be read leave the tool without the line ending that the project asked
-          for. Using another one in silence would rewrite files in a style nobody chose, so the problem
-          must be shown. The Markdown file is the only place that the tool can point to, because the
-          settings file may be unreadable as a whole.
-        children:
-          - LintMark-Configuration-EditorSettingsProblems
-          - LintMark-Engine-EditorSettingsProblems
-        tests:
-          - LintMark_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile
-
-      - id: LintMark-System-FixOption
-        title: >-
-          The tool shall accept a fix option that rewrites each selected file so that it follows the preferred
-          style.
-        tags: [system]
-        justification: |
-          Reporting problems is not enough for large documentation sets. Users want the tool to repair
-          what it can, and a second run of the fix option must find nothing more to repair.
-        children:
-          - LintMark-Cli-Fix
-          - LintMark-Engine-Fix
-          - LintMark-Formatting-ApplyEdits
-          - LintMark-Engine-DefaultFormattingRulesFixed
-        tests:
-          - LintMark_FixFlag_CrlfFile_RewritesToLf
-          - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
-          - LintMark_FixFlag_Twice_SecondRunReportsNothing
-
-      - id: LintMark-System-FixReportsRemaining
-        title: >-
-          The tool shall report with the fix option only the problems that remain after the files were
-          rewritten.
-        tags: [system]
-        justification: |
-          A problem that was repaired must not be reported as if it were still there, or a pipeline that
-          fixes and then checks could never succeed. Problems that the tool cannot repair must still
-          fail the run.
-        children:
-          - LintMark-Engine-FixReportsRemaining
-          - LintMark-Linting-DiagnosticFixable
-          - LintMark-Linting-RuleKinds
-        tests:
-          - LintMark_FixFlag_CrlfFile_RewritesToLf
-          - LintMark_FixFlag_Twice_SecondRunReportsNothing
-
-      - id: LintMark-System-FixKeepsByteOrderMark
-        title: The tool shall keep the byte order mark of a file that it rewrites.
-        tags: [system]
-        justification: |
-          A byte order mark is part of how the author's tools recognize the encoding of the file.
-          Removing or adding it is a change that nobody asked for.
-        children:
-          - LintMark-Engine-FixKeepsByteOrderMark
-          - LintMark-Document-WriteBack
-        tests:
-          - LintMark_FixFlag_BomFile_KeepsBomAndText
-
-      - id: LintMark-System-FixKeepsOtherText
-        title: >-
-          The tool shall leave the text of a rewritten file exactly as it was wherever the preferred style
-          requires no change or the author suppressed the rule.
-        tags: [system]
-        justification: |
-          Rewriting must change only what the style asks for. Every other character is the author's, and
-          an author who switched a rule off for a passage expects the passage to stay as written.
-          The system tests show this for files that need no change and for a rule that the author
-          switched off.
-        children:
-          - LintMark-Formatting-VerbatimByDefault
-          - LintMark-Formatting-SuppressedBlocksVerbatim
-          - LintMark-Formatting-SuppressionInsideBlockVerbatim
-          - LintMark-Formatting-UnchangedTextKept
-        tests:
-          - LintMark_FixFlag_CleanFile_LeavesBytesUnchanged
-          - LintMark_FixFlag_BomFile_KeepsBomAndText
-          - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
-
-      - id: LintMark-System-FixExclusive
-        title: The tool shall reject the fix option combined with the check option or the diff option with an error.
-        tags: [system]
-        justification: |
-          Asking to check only and to modify files in the same command contradict each other. Choosing
-          one silently could modify files that the user meant only to look at.
-        children:
-          - LintMark-Cli-FixExclusive
-        tests:
-          - LintMark_FixWithCheck_Combined_ReturnsError
-          - LintMark_FixWithDiff_Combined_ReturnsError
-
-      - id: LintMark-System-DiffOption
-        title: >-
-          The tool shall accept a diff option that prints a unified diff of what the fix option would change.
-        tags: [system]
-        justification: |
-          Users and reviewers want to see a rewrite before it is made, in the form that code review and
-          patch tools already understand.
-        children:
-          - LintMark-Cli-Diff
-          - LintMark-Engine-Diff
-          - LintMark-Reporting-UnifiedDiff
-          - LintMark-Reporting-LineEndingNote
-          - LintMark-Engine-DefaultFormattingRulesPreviewed
-        tests:
-          - LintMark_DiffFlag_CleanFile_PrintsNothing
-          - LintMark_DiffFlag_FormattingViolations_ShowsTheChange
-
-      - id: LintMark-System-NoWriteWithoutFix
-        title: The tool shall modify no file unless the fix option is given.
-        tags: [system]
-        justification: |
-          Checking and previewing must be safe to run anywhere, on any files, at any time. Only an
-          explicit request may change the user's files.
-        children:
-          - LintMark-Engine-NoWriteWithoutFix
-        tests:
-          - LintMark_CheckFlag_Provided_LintsWithoutWriting
-          - LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing
-
-      - id: LintMark-System-LineEndingStyle
-        title: >-
-          The tool shall give a file the line ending named by the `end-of-line` setting of its configuration,
-          otherwise the one named by its `.editorconfig` settings, otherwise the one that most of its lines use.
-        tags: [system]
-        justification: |
-          Projects decide their line ending in a configuration file or in their editor settings, and
-          files that nobody decided about must not be converted wholesale. The order follows the
-          specificity of the source: the tool's own configuration first, the shared editor settings
-          next, and the file's own habit last.
-        children:
-          - LintMark-Engine-LineEndingStyle
-          - LintMark-Configuration-EditorConfigLineEnding
-          - LintMark-Formatting-LineEndingConfigured
-          - LintMark-Formatting-LineEndingMajority
-        tests:
-          - LintMark_LineEnding_ConfigWins_FixWritesCrlf
-          - LintMark_LineEnding_EditorConfigUsed_FixWritesCrlf
-          - LintMark_LineEnding_MajorityUsed_FixWritesMajority
-
-      - id: LintMark-System-LineEndingReport
-        title: >-
-          The tool shall report a file whose line endings are not all the line ending that the file should
-          have as a `line-ending` problem.
-        tags: [system]
-        justification: |
-          Mixed or unwanted line endings produce noisy changes in version control and confuse editors.
-          The fix option repairs them, and a check must show them.
-        children:
-          - LintMark-Formatting-LineEndingViolation
-          - LintMark-Formatting-LineEndingNoViolation
-          - LintMark-Reporting-TextLineFormat
-        tests:
-          - LintMark_LineEnding_MixedFile_ReportsAndFixes
-
-      - id: LintMark-System-FormattingViolationsReported
-        title: >-
-          The tool shall report each place at which a formatting rule would change a file as a problem under
-          the identifier of that rule, at the line and column of the change.
-        tags: [system]
-        justification: |
-          Users who check files, for example in a pipeline, need to know which rule found a problem and where,
-          so that they can repair it by hand, switch the rule off for a passage, or run the fix option.
-        children:
-          - LintMark-Formatting-EditsReported
-          - LintMark-Linting-FormattingRulesRegistered
-          - LintMark-Engine-DefaultFormattingRulesChecked
-        tests:
-          - LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing
-
-      - id: LintMark-System-FormattingFixStable
-        title: >-
-          The tool shall find nothing more to change or report in a file that the fix option has rewritten
-          for the formatting rules.
-        tags: [system]
-        justification: |
-          A fix that needed several runs, or that undid its own work, could not be trusted in a pipeline
-          that fixes and then checks.
-        children:
-          - LintMark-Formatting-FormattingStable
-        tests:
-          - LintMark_FixFlag_FormattingRules_SecondRunReportsNothing
-
-      - id: LintMark-System-FormattingRulesAlwaysApplied
-        title: >-
-          The tool shall treat the name or legacy rule number of a formatting rule that is always applied as an
-          unknown rule when it is listed in the `rules` setting of a configuration.
-        tags: [system]
-        justification: |
-          The formatting rules define the canonical form of a file. Switching one off in the configuration
-          would make the result depend on a setting that the rule does not have, so a rule is only
-          switched off for a passage, with a suppression comment, and a configuration that lists one is
-          reported.
-        children:
-          - LintMark-Linting-FormattingRulesNotConfigurable
-        tests:
-          - LintMark_ConfigRules_AlwaysAppliedRuleByAlias_ReportsUnknownRule
-
-      - id: LintMark-System-RuleAliasSuppression
-        title: >-
-          The tool shall leave a part of a file unchanged when a suppression comment names a formatting rule
-          that applies there by its legacy rule number.
-        tags: [system]
-        justification: |
-          Authors who come from other Markdown tools know the rules by their numbers, and write
-          suppression comments with them. A comment that did nothing would silently change their text.
-        children:
-          - LintMark-Document-SuppressionRuleAliases
-          - LintMark-Formatting-SuppressedBlocksVerbatim
-        tests:
-          - LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation
-          - LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation
-
-      - id: LintMark-System-TrailingWhitespace
-        title: >-
-          The tool shall remove the spaces and tabs at the end of each line of text of a file, while a line
-          that ends a hard line break keeps exactly two spaces.
-        tags: [system]
-        justification: |
-          Trailing whitespace is invisible, makes version control show lines as changed, and is usually a
-          mistake. Two spaces at the end of a line are a hard line break in Markdown and must keep that
-          meaning.
-        children:
-          - LintMark-Formatting-TrailingWhitespaceRemoved
-          - LintMark-Formatting-HardBreakKept
-        tests:
-          - LintMark_FixFlag_TrailingWhitespace_RemovesItAndKeepsHardBreak
-          - LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing
-
-      - id: LintMark-System-HardTabs
-        title: >-
-          The tool shall replace each tab character in the text of a file by spaces up to the next tab stop of
-          four columns, but not in code, HTML, or other literal text.
-        tags: [system]
-        justification: |
-          Tabs show at different widths in different tools, so text that uses them looks different for
-          different readers. Literal text keeps its tabs, because they are part of its content.
-        children:
-          - LintMark-Formatting-TabsExpanded
-        tests:
-          - LintMark_FixFlag_HardTabs_ExpandsTabsInTextOnly
-
-      - id: LintMark-System-MaxBlankLines
-        title: >-
-          The tool shall reduce each run of blank lines between the blocks of a file to the number given by the
-          `max-blank-lines` setting of its configuration, one when the configuration gives none.
-        tags: [system]
-        justification: |
-          Long runs of blank lines are visual noise that carries no meaning in Markdown. Projects that want
-          more air between sections choose the number.
-        children:
-          - LintMark-Formatting-BlankRunsCollapsed
-        tests:
-          - LintMark_FixFlag_MaxBlankLines_CollapsesToTheMaximum
-
-      - id: LintMark-System-FinalNewline
-        title: >-
-          The tool shall end a file with exactly one line ending when the `final-newline` setting of its
-          configuration is on, which is the default.
-        tags: [system]
-        justification: |
-          Tools and version control treat a file without a final line ending, or with extra blank lines at the
-          end, differently. Projects have a convention and the tool applies it.
-        children:
-          - LintMark-Formatting-FinalNewline
-        tests:
-          - LintMark_FixFlag_FinalNewline_EndsWithExactlyOneLineEnding
-
-      - id: LintMark-System-FinalNewlineOptional
-        title: >-
-          The tool shall end a file with no line ending when the `final-newline` setting of its configuration
-          is off.
-        tags: [system]
-        justification: |
-          Some projects keep files without a final line ending, and the tool applies that convention when the
-          configuration says so.
-        children:
-          - LintMark-Formatting-FinalNewlineOptional
-        tests:
-          - LintMark_FixFlag_FinalNewlineOff_RemovesTheLineEnding
-
-      - id: LintMark-System-HeadingStyle
-        title: >-
-          The tool shall write each setext heading in the ATX form (`# Title`), unless the conversion could
-          change the meaning of the text.
-        tags: [system]
-        justification: |
-          One heading style makes a document consistent and its headings easy to find. A conversion that
-          could change what the text means or how it renders is not made.
-        children:
-          - LintMark-Formatting-HeadingStyle
-        tests:
-          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
-
-      - id: LintMark-System-HeadingClosingSigns
-        title: >-
-          The tool shall remove the closing number signs of each ATX heading.
-        tags: [system]
-        justification: |
-          Closing number signs add nothing to a heading, and headings with and without them in one document
-          are inconsistent.
-        children:
-          - LintMark-Formatting-HeadingClosingSigns
-        tests:
-          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
-
-      - id: LintMark-System-HeadingSpace
-        title: >-
-          The tool shall put exactly one space between the number signs of a heading and its text.
-        tags: [system]
-        justification: |
-          Extra spaces or tabs after the number signs are inconsistent and have no meaning.
-        children:
-          - LintMark-Formatting-HeadingSpace
-        tests:
-          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
-
-      - id: LintMark-System-HeadingStartLeft
-        title: >-
-          The tool shall start each heading that is not inside a quote or list at the left margin.
-        tags: [system]
-        justification: |
-          An indented heading looks like a mistake, and four spaces would make it code. Headings inside a
-          quote or list keep the indentation that belongs to the container.
-        children:
-          - LintMark-Formatting-HeadingStartLeft
-        tests:
-          - LintMark_FixFlag_Headings_BecomeAtxWithOneSpace
-
-      - id: LintMark-System-HeadingBlankLines
-        title: >-
-          The tool shall separate each heading that is not inside a quote or list from the blocks around it by
-          a blank line.
-        tags: [system]
-        justification: |
-          Many Markdown parsers need the blank line, and all readers find the document easier to read with it.
-        children:
-          - LintMark-Formatting-HeadingSpacing
-        tests:
-          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
-
-      - id: LintMark-System-FenceBlankLines
-        title: >-
-          The tool shall separate each fenced code block that is not inside a quote or list from the blocks
-          around it by a blank line.
-        tags: [system]
-        justification: |
-          A fence that touches the text around it is hard to read and is not recognized by every parser.
-        children:
-          - LintMark-Formatting-FenceSpacing
-        tests:
-          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
-
-      - id: LintMark-System-ListBlankLines
-        title: >-
-          The tool shall separate each list that is not inside a quote or list from the blocks around it by a
-          blank line.
-        tags: [system]
-        justification: |
-          A list that touches the text around it is hard to read and is not recognized by every parser.
-        children:
-          - LintMark-Formatting-ListSpacing
-        tests:
-          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
-
-      - id: LintMark-System-TableBlankLines
-        title: >-
-          The tool shall separate each table that is not inside a quote or list from the blocks around it by a
-          blank line.
-        tags: [system]
-        justification: |
-          A table that touches the text around it is not recognized by every parser.
-        children:
-          - LintMark-Formatting-TableSpacing
-        tests:
-          - LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks
-
-      - id: LintMark-System-ThematicBreakStyle
-        title: >-
-          The tool shall write each thematic break as three dashes, asterisks, or underscores, as the
-          `thematic-break` setting of its configuration says, three dashes when the configuration gives none.
-        tags: [system]
-        justification: |
-          One way to write a break makes a document consistent. A break that would then change the meaning of
-          the text around it, as a line of dashes under text does, is left as the author wrote it.
-        children:
-          - LintMark-Formatting-ThematicBreakStyle
-        tests:
-          - LintMark_FixFlag_ThematicBreak_UsesTheConfiguredStyle
-
-      - id: LintMark-System-CodeFenceStyle
-        title: >-
-          The tool shall write the fence of each fenced code block with backticks or tildes, as the `code-fence`
-          setting of its configuration says, backticks when the configuration gives none.
-        tags: [system]
-        justification: |
-          One fence character makes a document consistent. A fence that cannot be converted without changing
-          the block is left as written.
-        children:
-          - LintMark-Formatting-CodeFenceStyle
-        tests:
-          - LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence
-
-      - id: LintMark-System-CodeBlockStyle
-        title: >-
-          The tool shall write each code block that is indented, and is not inside a quote or list, as a fenced
-          code block with the content that it had.
-        tags: [system]
-        justification: |
-          Indented code is easily confused with a list continuation or with text that was indented by
-          accident, and it cannot carry a language. Fenced code is explicit.
-        children:
-          - LintMark-Formatting-CodeBlockStyle
-        tests:
-          - LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence
-
-      - id: LintMark-System-BulletMarkerStyle
-        title: >-
-          The tool shall write the marker of each item of a bullet list as the marker character that the `bullet`
-          setting of its configuration says, a dash when the configuration gives none.
-        tags: [system]
-        justification: |
-          One marker character makes the lists of a project consistent, and projects differ in the character they
-          prefer.
-        children:
-          - LintMark-Formatting-BulletMarkerStyle
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-
-      - id: LintMark-System-ListsNeverMergedOrSplit
-        title: >-
-          The tool shall never merge two lists into one or split a list into two when it writes the markers of
-          lists.
-        tags: [system]
-        justification: |
-          Two lists that differ only by their markers are two lists, and rewriting must not change how the
-          document renders.
-        children:
-          - LintMark-Formatting-ListsNeverMergedOrSplit
-        tests:
-          - LintMark_FixFlag_BulletLists_AreNeverMergedOrSplit
-
-      - id: LintMark-System-OrderedNumberingIncrementing
-        title: >-
-          The tool shall number each item of an ordered list one higher than the item before it, counting from the
-          number of the first item, when the `ordered-style` setting of its configuration is `incrementing`, which
-          is the default.
-        tags: [system]
-        justification: |
-          Counting numbers show the position of each item, also in the source text. The first number decides where
-          the list starts counting when it is rendered, so it stays as written.
-        children:
-          - LintMark-Formatting-OrderedNumberingIncrementing
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-
-      - id: LintMark-System-OrderedNumberingOne
-        title: >-
-          The tool shall give each item of an ordered list the number of the first item when the `ordered-style`
-          setting of its configuration is `one`.
-        tags: [system]
-        justification: |
-          Projects that want to insert items without renumbering the others write every item with the same number.
-        children:
-          - LintMark-Formatting-OrderedNumberingOne
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-
-      - id: LintMark-System-ListIndentation
-        title: >-
-          The tool shall write the items of each list at the columns that the `list-indent` setting of its
-          configuration asks for, two spaces of indentation for a nested bullet list when the configuration gives
-          none.
-        tags: [system]
-        justification: |
-          Items in different columns look like a mistake and can change which item a line belongs to, and one
-          indentation for nested lists makes the lists of a project consistent. The system tests show the default
-          indentation of a nested bullet list, the setting that asks for four spaces, and items that start in
-          different columns.
-        children:
-          - LintMark-Formatting-ListItemsAligned
-          - LintMark-Formatting-ListStartsAtMargin
-          - LintMark-Formatting-NestedBulletIndent
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-          - LintMark_FixFlag_NestedBulletIndent_UsesTheConfiguredIndent
-          - LintMark_FixFlag_ListItemColumns_AreAligned
-
-      - id: LintMark-System-ListStructureKept
-        title: >-
-          The tool shall keep every line and block of a list in the item that it belongs to when it changes the
-          list.
-        tags: [system]
-        justification: |
-          A line that leaves its item changes what the document says. Items move together with their continuation
-          lines, paragraphs, nested lists, and code.
-        children:
-          - LintMark-Formatting-ListStructureKept
-        tests:
-          - LintMark_FixFlag_ListItemsWithContent_MoveWithTheirItem
-
-      - id: LintMark-System-ListMarkerSpace
-        title: >-
-          The tool shall put exactly one space between the marker of each list item and its text, where that keeps
-          the meaning of the text.
-        tags: [system]
-        justification: |
-          Extra spaces after a marker have no meaning and make the lists of a project inconsistent. With five
-          spaces the text is a code block, and removing spaces would change the block.
-        children:
-          - LintMark-Formatting-ListMarkerSpace
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-
-      - id: LintMark-System-BlockQuoteMarkerSpace
-        title: >-
-          The tool shall put exactly one space after each block quote marker, where the spaces are not content or
-          structure of the quote.
-        tags: [system]
-        justification: |
-          Extra spaces after a quote marker have no meaning and make the quotes of a project inconsistent. In code,
-          HTML, lists, and tables the spaces are content or structure, so they stay.
-        children:
-          - LintMark-Formatting-BlockQuoteMarkerSpace
-        tests:
-          - LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically
-
-      - id: LintMark-System-EmphasisStyle
-        title: >-
-          The tool shall write each emphasis in the text of a paragraph with the delimiter character that the
-          `emphasis` setting of its configuration says, an asterisk when the configuration gives none, where that
-          keeps the meaning of the text.
-        tags: [system]
-        justification: |
-          Underscores and asterisks mean the same emphasis, and one of them makes the documents of a project
-          consistent. An underscore does not emphasize inside a word, so such an emphasis keeps its asterisks.
-        children:
-          - LintMark-Formatting-EmphasisStyle
-        tests:
-          - LintMark_FixFlag_InlineText_IsWrittenCanonically
-
-      - id: LintMark-System-StrongStyle
-        title: >-
-          The tool shall write each strong emphasis in the text of a paragraph with the delimiter character that the
-          `strong` setting of its configuration says, an asterisk when the configuration gives none, where that
-          keeps the meaning of the text.
-        tags: [system]
-        justification: |
-          Double underscores and double asterisks mean the same strong emphasis, and one of them makes the
-          documents of a project consistent.
-        children:
-          - LintMark-Formatting-StrongStyle
-        tests:
-          - LintMark_FixFlag_InlineText_IsWrittenCanonically
-
-      - id: LintMark-System-BareUrlsAutolinked
-        title: >-
-          The tool shall wrap each bare http, https, or ftp URL in the text of a paragraph in angle brackets when
-          the `bare-urls` setting of its configuration is `autolink`, which is the default.
-        tags: [system]
-        justification: |
-          A URL in angle brackets is explicitly a link in every Markdown processor, while a bare one is a link in
-          some processors only. Links, code, HTML, and addresses that would render differently are not touched.
-        children:
-          - LintMark-Formatting-BareUrlsAutolinked
-        tests:
-          - LintMark_FixFlag_InlineText_IsWrittenCanonically
-
-      - id: LintMark-System-BareUrlsLeft
-        title: >-
-          The tool shall keep each bare URL in the text of a paragraph as written when the `bare-urls` setting of
-          its configuration is `leave`.
-        tags: [system]
-        justification: |
-          Projects that want bare URLs choose to keep them, and the other rules still apply.
-        children:
-          - LintMark-Formatting-BareUrlsLeft
-        tests:
-          - LintMark_FixFlag_InlineText_IsWrittenCanonically
-
-      - id: LintMark-System-CodeContentKept
-        title: >-
-          The tool shall never change the content of code, HTML, math, or front matter when it rewrites a file.
-        tags: [system]
-        justification: |
-          Whitespace, blank lines, and tabs are part of the content of literal text, and changing them
-          changes what the document means or how it renders.
-        children:
-          - LintMark-Formatting-CodeContentKept
-          - LintMark-Formatting-UnclosedFencesKept
-        tests:
-          - LintMark_FixFlag_CodeHtmlMathAndFrontMatter_AreNeverChanged
-
-      - id: LintMark-System-NestedBlocksKept
-        title: >-
-          The tool shall not add or remove blank lines inside a quote or list when it rewrites a file.
-        tags: [system]
-        justification: |
-          A blank line inside a list can turn a tight list into a loose one and change how the list renders,
-          so the tool changes only what it can show to be harmless there.
-        children:
-          - LintMark-Formatting-NestedBlocksKept
-        tests:
-          - LintMark_FixFlag_NestedBlocks_KeepTheirSpacing
-
-      - id: LintMark-System-AtomicReplace
-        title: >-
-          The tool shall never leave a partly written file or a temporary file behind when it rewrites a
-          file.
-        tags: [system]
-        justification: |
-          A run that is interrupted, or a disk that fills up, must not cost the user a document. The
-          file is either the old one or the new one, and the directory holds nothing else.
-        children:
-          - LintMark-Engine-AtomicReplace
-        tests:
-          - LintMark_FixFlag_Rewrite_LeavesNoTemporaryFiles
-
-      - id: LintMark-System-SafeRewrite
-        title: >-
-          The tool shall leave a file exactly as it is, and report why, when it cannot show that rewriting it
-          keeps the meaning of the document.
-        tags: [system]
-        justification: |
-          A formatter that damages a document is worse than none. Rewriting is therefore allowed only
-          when rendering, structure, and stability of the result have been checked, and a refusal is
-          reported so that it cannot pass unnoticed. A change of the line endings can change how a document
-          renders, so it is checked in the same way as a change of the text.
-          None of the rules of the tool is meant to damage a document, so the system tests show the refusals
-          that do not depend on a faulty rule, and the refusals caused by a rule that damages a document are
-          shown by the Engine subsystem tests with deliberately faulty rules.
-        children:
-          - LintMark-Engine-SafeRewrite
-          - LintMark-Safety-HtmlEquivalence
-          - LintMark-Safety-LineEndingEquivalence
-          - LintMark-Safety-StructureEquivalence
-          - LintMark-Safety-Idempotency
-          - LintMark-Safety-IdempotencyFailsClosed
-          - LintMark-Safety-ReportsDifference
-          - LintMark-Safety-PassedCheckHasNoDescription
-          - LintMark-Formatting-ConflictingEdits
-          - LintMark-Formatting-OutOfRangeEdits
-          - LintMark-Formatting-FormatterFailuresPropagate
-          - LintMark-Formatting-GridBorderLookalikeNotEdited
-          - LintMark-Formatting-GridBorderLookalikeNotSeparated
-        tests:
-          - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
-          - LintMark_FixFlag_CodeSpanLineEndingChange_LeavesFileUntouched
           - LintMark_FixFlag_InvalidConfig_LeavesFileUntouched
-
-      - id: LintMark-System-GridTableInvalid
-        title: >-
-          The tool shall report a document that contains a line that looks like the border of a grid table
-          but is not part of a valid grid table as a `grid-table-invalid` problem at that line.
-        tags: [system]
-        justification: |
-          A table that is written wrongly is read by the Markdown parser as ordinary text, and a rewrite
-          that treats it as text would change it. The author must be told which line to repair.
-        children:
-          - LintMark-Document-GridFallback
-          - LintMark-Engine-GridTableInvalid
-        tests:
-          - LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine
-
-      - id: LintMark-System-GridTableNeverRewritten
-        title: >-
-          The tool shall never rewrite a document that contains a line that looks like the border of a grid
-          table but is not part of a valid grid table, whether or not the problem is reported.
-        tags: [system]
-        justification: |
-          The document cannot be understood reliably, so no rewrite can be shown to be safe.
-          Switching off the report of the problem must not switch off this protection.
-        children:
-          - LintMark-Engine-GridTableNeverRewritten
-          - LintMark-Formatting-FormatUnsafeUntouched
-        tests:
-          - LintMark_GridTableInvalid_Disabled_StillNotRewritten
-          - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
 
       - id: LintMark-System-IgnorePatterns
         title: >-
-          The tool shall skip a selected file that matches an `ignore` pattern of its configuration, with the
-          pattern taken relative to the directory of that configuration file.
+          The tool shall skip the files matched by the ignore patterns of a configuration file, except files named
+          explicitly on the command line.
         tags: [system]
         justification: |
-          Generated, vendored, or draft documents belong to a project without being its to format.
-          Listing them once in the configuration is simpler than excluding them in every command.
+          Generated and vendored documents must be excluded once, in the repository, but a user who names a file
+          wants it processed.
         children:
-          - LintMark-Engine-IgnorePatterns
+          - LintMark-Configuration-Ignore
+          - LintMark-Engine-Discovery
         tests:
           - LintMark_IgnorePatterns_GlobSelected_SkipsMatches
-          - LintMark_IgnorePatterns_ExcludeOnCommandLine_StillApplies
 
-      - id: LintMark-System-IgnoreExplicitFile
+      - id: LintMark-System-LineEndings
         title: >-
-          The tool shall process a file that is named on the command line even when an `ignore` pattern
-          matches it.
+          The tool shall write the line ending named by the configuration, else by the editor settings, else the
+          majority line ending of the file, and keep a byte order mark and the text.
         tags: [system]
         justification: |
-          Naming a file is a deliberate choice, as it already is for files in third-party folders. It
-          also keeps pre-commit hooks that pass the files they were given predictable.
+          Mixed line endings create noisy differences, but forcing a line ending on a repository that does not
+          want one would be worse.
         children:
-          - LintMark-Engine-IgnoreExplicitFile
+          - LintMark-Configuration-LineEnding
+          - LintMark-Document-Parsing
+          - LintMark-Formatting-Orchestration
         tests:
-          - LintMark_IgnorePatterns_ExplicitFile_IsProcessed
+          - LintMark_LineEnding_ConfigWins_FixWritesCrlf
+          - LintMark_FixFlag_BomFile_KeepsBomAndText
+          - LintMark_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile
+
+      - id: LintMark-System-RuleAliases
+        title: >-
+          The tool shall accept markdownlint rule numbers wherever a rule id is accepted, ignore the numbers of
+          rules it dropped, and report findings with rule ids.
+        tags: [system]
+        justification: |
+          Teams migrating from markdownlint keep their configuration and comments, and reports stay readable.
+        children:
+          - LintMark-Linting-Catalog
+          - LintMark-Configuration-Settings
+        tests:
+          - LintMark_RuleAliases_MdNumbersInConfigAndComments_AreAcceptedAndFindingsUseIds
+
+      - id: LintMark-System-SuppressionComments
+        title: >-
+          The tool shall leave a passage alone, and report nothing for it, between a disable comment naming a rule
+          (or all rules) and the matching enable comment.
+        tags: [system]
+        justification: |
+          Some text must stay as written on purpose, and the exemption must be visible in the document itself.
+        children:
+          - LintMark-Document-Suppression
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_SuppressionComments_DisabledFormattingRule_LeavesPassageAlone
+          - LintMark_SuppressionComments_DisabledLintRuleByNumber_ReportsNothingInTheRegion
+
+      - id: LintMark-System-SafeRewrite
+        title: >-
+          The tool shall replace a file atomically, never over a file that changed in the meantime, and write
+          nothing for a document that is unsafe to format.
+        tags: [system]
+        justification: |
+          A formatter must never lose or corrupt a user's work, even when interrupted, raced, or given a
+          document it cannot understand.
+        children:
+          - LintMark-Engine-Writing
+          - LintMark-Formatting-Protection
+        tests:
+          - LintMark_FixFlag_Rewrite_LeavesNoTemporaryFiles
+          - LintMark_FixFlag_GridTableFallback_LeavesFileUntouched
+          - LintMark_FixFlag_InvalidConfig_LeavesFileUntouched
+
+      - id: LintMark-System-FixStability
+        title: >-
+          The tool shall produce output that a second fix run does not change, and never change code, HTML, math,
+          or front matter.
+        tags: [system]
+        justification: |
+          A formatter that keeps changing its own output cannot be used in a pipeline, and text it does not
+          understand must keep its meaning.
+        children:
+          - LintMark-Formatting-Protection
+          - LintMark-Formatting-Edits
+          - LintMark-Formatting-Orchestration
+        tests:
+          - LintMark_FixFlag_Twice_SecondRunReportsNothing
+          - LintMark_FixFlag_FormattingRules_SecondRunReportsNothing
+
+      - id: LintMark-System-FixKeepsLintFindings
+        title: >-
+          The tool shall never edit a file to resolve a lint-only finding, and shall report the remaining
+          findings of a fixed file at their positions in the written file.
+        tags: [system]
+        justification: |
+          Problems that need an author's judgment must stay visible, and their positions must be correct
+          after the rewrite.
+        children:
+          - LintMark-Engine-Processing
+          - LintMark-Linting-Findings
+        tests:
+          - LintMark_FixFlag_LintOnlyFindings_AreKeptAndReportedAtWrittenPositions
+
+      - id: LintMark-System-Whitespace
+        title: >-
+          The tool shall remove trailing whitespace, replace tabs, limit consecutive blank lines, and end the file
+          with exactly one line ending.
+        tags: [system]
+        justification: |
+          Whitespace noise hides real differences in reviews.
+        children:
+          - LintMark-Formatting-Passes
+        tests:
+          - LintMark_Whitespace_TrailingTabsBlankLinesAndFinalNewline_AreFixed
+
+      - id: LintMark-System-Headings
+        title: >-
+          The tool shall write headings in the ATX style with one space after the number signs, no closing number
+          signs, no indentation, and one blank line around them.
+        tags: [system]
+        justification: |
+          A single heading style keeps documents consistent and parses the same in every renderer.
+        children:
+          - LintMark-Formatting-Blocks-LeafBlocks
+        tests:
+          - LintMark_Headings_SetextClosedIndentedAndSpacing_AreNormalized
+
+      - id: LintMark-System-BlockSpacing
+        title: The tool shall keep one blank line around fenced code blocks, lists, and tables.
+        tags: [system]
+        justification: |
+          Some renderers fail to recognize a block that runs into the text before it.
+        children:
+          - LintMark-Formatting-Passes
+        tests:
+          - LintMark_BlockSpacing_FencesListsAndTables_GetSurroundingBlankLines
+
+      - id: LintMark-System-CodeBlocks
+        title: The tool shall write code blocks as fenced blocks with the configured fence character.
+        tags: [system]
+        justification: |
+          One code block style is easier to read and to edit, and fenced blocks can carry a language.
+        children:
+          - LintMark-Formatting-Blocks-LeafBlocks
+        tests:
+          - LintMark_CodeBlocks_IndentedAndTildeFence_AreWrittenAsBacktickFences
+
+      - id: LintMark-System-ThematicBreaks
+        title: The tool shall write thematic breaks in the configured style.
+        tags: [system]
+        justification: |
+          One style distinguishes breaks from emphasis and list markers at a glance.
+        children:
+          - LintMark-Formatting-Blocks-LeafBlocks
+        tests:
+          - LintMark_ThematicBreaks_StarsAndUnderscores_AreWrittenAsDashes
+
+      - id: LintMark-System-Lists
+        title: >-
+          The tool shall write lists with the configured bullet marker, numbering, indentation, and marker spacing,
+          without merging or splitting lists.
+        tags: [system]
+        justification: |
+          List style is a visible part of a house style, but changing the structure of a list changes the meaning
+          of the document.
+        children:
+          - LintMark-Formatting-Blocks-Containers
+        tests:
+          - LintMark_Lists_BulletOrderedIndentAndMarkerSpace_AreNormalized
+          - LintMark_Lists_AdjacentListsWithDifferentMarkers_AreNeverMerged
+
+      - id: LintMark-System-BlockQuotes
+        title: The tool shall write block quotes with one space after each quote marker.
+        tags: [system]
+        justification: |
+          Uniform quotes are easier to read and to edit.
+        children:
+          - LintMark-Formatting-Blocks-Containers
+        tests:
+          - LintMark_BlockQuotes_ExtraSpacesAfterMarker_AreReducedToOne
+
+      - id: LintMark-System-InlineStyle
+        title: >-
+          The tool shall write emphasis, strong text, and bare URLs in the configured style and remove padding
+          inside code spans, outside code, HTML, and links.
+        tags: [system]
+        justification: |
+          Inline spellings vary a lot between authors, and one style keeps differences small.
+        children:
+          - LintMark-Formatting-Inline-Normalization
+        tests:
+          - LintMark_InlineStyle_EmphasisStrongBareUrlAndCodeSpan_AreNormalized
+
+      - id: LintMark-System-Tables
+        title: >-
+          The tool shall write pipe tables with a leading and trailing pipe in the compact layout by default or in
+          the aligned layout when configured.
+        tags: [system]
+        justification: |
+          Tables are edited often, and a consistent layout keeps differences small, while the compact layout
+          avoids rewriting a whole table for one long cell.
+        children:
+          - LintMark-Formatting-Blocks-Tables
+        tests:
+          - LintMark_Tables_DefaultCompactAndAlignedSetting_AreLaidOut
+
+      - id: LintMark-System-LinkRefactor
+        title: >-
+          The tool shall, only when enabled, convert long inline links to reference links with one block of
+          definitions.
+        tags: [system]
+        justification: |
+          Long link destinations make lines unreadable, but converting links is a style decision that the user must
+          opt in to.
+        children:
+          - LintMark-Formatting-Inline-LinkRefactor
+        tests:
+          - LintMark_LinkRefactor_LongInlineLink_BecomesReferenceLinkOnlyWhenEnabled
+
+      - id: LintMark-System-WrapFill
+        title: >-
+          The tool shall rewrap only the paragraphs that have a breakable line longer than the line length (120 by
+          default, 0 for unlimited), and keep all other paragraphs byte for byte.
+        tags: [system]
+        justification: |
+          Rewrapping everything would turn a formatting run into a huge difference, so only text that violates the
+          limit may change.
+        children:
+          - LintMark-Formatting-Blocks-Paragraphs
+        tests:
+          - LintMark_CheckFlag_OverlongParagraph_ReportsLineLengthAtTheFirstColumnBeyondTheWidth
+          - LintMark_FixFlag_OverlongParagraph_IsWrappedWithinTheWidth
+          - LintMark_FixFlag_ParagraphsWithinTheWidth_StayByteIdentical
+
+      - id: LintMark-System-WrapModes
+        title: >-
+          The tool shall, when configured, put one sentence on each line (sentence) or break only too-long
+          sentences at clauses (semantic), and report paragraphs in another layout under the paragraph-wrap rule.
+        tags: [system]
+        justification: |
+          Teams that write one sentence per line get small, readable differences, and need the tool to keep it.
+        children:
+          - LintMark-Formatting-Blocks-Paragraphs
+          - LintMark-Formatting-Inline-Wrapping
+        tests:
+          - LintMark_WrapModes_SentenceAndSemantic_PlaceLineBreaksAtBoundaries
+          - LintMark_WrapModes_ParagraphWrapRule_ReportsLayoutAndCanBeDisabled
+
+      - id: LintMark-System-WrapSafety
+        title: >-
+          The tool shall keep links, code spans, HTML, and hard breaks whole when it breaks lines, never start a
+          line with block syntax, and report an overflow it cannot fix instead of guessing.
+        tags: [system]
+        justification: |
+          A line break in the wrong place changes the rendered document, so a long line is better than a broken
+          one.
+        children:
+          - LintMark-Formatting-Inline-Wrapping
+          - LintMark-Formatting-Blocks-Paragraphs
+        tests:
+          - LintMark_WrapSafety_AtomsHardBreaksAndBlockSyntax_AreKeptIntact
+          - LintMark_WrapSafety_LazyListContinuation_IsReportedAndLeftAsWritten
 
       - id: LintMark-System-DisplayWidth
         title: >-
-          The tool shall measure the length of a line of text in terminal display columns, counting wide
-          East Asian characters and emoji as two columns and combining and control characters as none.
+          The tool shall measure line length in display columns, counting wide characters as two columns.
         tags: [system]
         justification: |
-          Line length limits exist for readers, and readers see columns, not characters. A limit that
-          counted characters would make Japanese, Korean, Chinese, and emoji text look much longer
-          than the limit. The measurement is not observable through the command line yet, because the
-          rules that apply a width limit are added later, so the only evidence available at this
-          level is the Utilities subsystem test.
+          Text that is too wide on screen must be found even when the number of characters is small.
         children:
-          - LintMark-Utilities-DisplayWidth
+          - LintMark-Document-DisplayWidth
         tests:
-          - UtilitiesSubsystem_TextWidth_MixedScriptLine_MeasuresDisplayColumns
+          - LintMark_DisplayWidth_WideCharacters_CountAsTwoColumns
+
+      - id: LintMark-System-LintHeadings
+        title: >-
+          The tool shall report the heading problems that need an author's judgment: skipped levels, duplicate
+          headings, trailing punctuation, emphasis used as a heading, and a missing space after number signs.
+        tags: [system]
+        justification: |
+          These problems hurt navigation and accessibility, and only the author knows the right fix.
+        children:
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_LintHeadings_HeadingProblems_AreReportedWithRuleAndPosition
+
+      - id: LintMark-System-LintLinks
+        title: >-
+          The tool shall report the link and image problems that need an author's judgment: missing alt text,
+          empty links, broken fragments, undefined or unused references, reversed syntax, and spaces in links.
+        tags: [system]
+        justification: |
+          Broken links and inaccessible images are found by readers, so authors need to find them first.
+        children:
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_LintLinks_LinkProblems_AreReportedWithRuleAndPosition
+
+      - id: LintMark-System-LintCode
+        title: >-
+          The tool shall report code block problems: a fence without a language, an unclosed fence, and dollar
+          signs in shell code.
+        tags: [system]
+        justification: |
+          Code blocks without a language lose highlighting, and an unclosed fence swallows the rest of the page.
+        children:
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_LintCode_FenceAndShellProblems_AreReportedWithRuleAndPosition
+
+      - id: LintMark-System-LintTables
+        title: >-
+          The tool shall report table problems: rows with the wrong number of cells, tables wider than the line
+          length, and damaged or unformatted grid tables.
+        tags: [system]
+        justification: |
+          Malformed tables render wrongly, and the tool will not rewrite what it cannot read with certainty.
+        children:
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_LintTables_TableProblems_AreReportedWithRuleAndPosition
+
+      - id: LintMark-System-LintMisc
+        title: >-
+          The tool shall report unused footnotes, blank lines inside block quotes, and spaces inside emphasis
+          markers.
+        tags: [system]
+        justification: |
+          These mistakes silently change how a document renders, and authors need to be told.
+        children:
+          - LintMark-Linting-LintChecks
+        tests:
+          - LintMark_LintMisc_FootnoteQuoteAndEmphasisProblems_AreReportedWithRuleAndPosition
+
+      - id: LintMark-System-FileProblems
+        title: >-
+          The tool shall report files it cannot read, decode, or parse as findings, and continue with the other
+          files, including a file whose inline elements are nested too deeply for the tool to process.
+        tags: [system]
+        justification: |
+          One unreadable file must not hide the problems in all the others or abort a long run, and a hostile or
+          generated file must not be able to crash the tool.
+        children:
+          - LintMark-Document-Parsing
+          - LintMark-Engine-Processing
+        tests:
+          - LintMark_PathsProvided_MissingFile_ReportsReadErrorAndReturnsError
+          - LintMark_FileProblems_UnreadableFiles_AreReportedWithoutStoppingTheRun
+          - LintMark_FileProblems_DeeplyNestedEmphasis_IsReportedWithoutStoppingTheRun

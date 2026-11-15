@@ -4,17 +4,24 @@ LintMark checks and rewrites Markdown files with a fixed set of formatting rules
 which a file differs from its canonical form, and every rule has a stable identifier. Most rules also have a legacy
 number from markdownlint (for example `MD009`) that you can use in a suppression comment.
 
+There are 26 formatting rules that are always applied, and three formatting rules that a configuration can switch off
+(`line-length`, `paragraph-wrap`, and `link-refactor`). The rules that only report a problem, without changing the
+file, are described in *Lint Rules*. This page describes the rules that rewrite; the layout of paragraphs, tables, and
+links has pages of its own: *Wrapping Paragraphs* and *Tables and Links*.
+
 ## How the Rules Work
 
 - **Check**: `lintmark docs` reports every place that a rule would change, as `path:line:col: rule-id message`, and
   exits with `1` when it reports anything.
-- **Fix**: `lintmark --fix docs` makes the changes, writes only files that pass every safety check (see *Safety
-  Checks*), and reports what remains. A second run over the same files reports nothing and changes nothing.
+- **Fix**: `lintmark --fix docs` makes the changes, writes the files that change, and reports what remains. A second
+  run over the same files reports nothing and changes nothing.
 - **Diff**: `lintmark --diff docs` first reports the findings, as in check mode, and then prints a unified diff of what
   `--fix` would change. It writes no file, and because it reports the findings, it exits with `1` when there are any.
-- **Always applied**: A formatting rule cannot be switched off in the `rules` setting of the configuration: its
-  identifier and its legacy number are unknown names there. Its *settings* (such as `code-fence`) choose the form that
-  it writes. To leave a passage alone, use a suppression comment (see *Suppressing a Rule*).
+- **Always applied**: A formatting rule that is listed in the section *Rules and Settings at a Glance* cannot be
+  switched off in the `rules` setting of the configuration: its identifier and its legacy number are unknown names
+  there. Its *settings* (such as `code-fence`) choose the form that it writes. To leave a passage alone, use a
+  suppression comment (see *Suppression Comments*). The exceptions are `line-length` (`MD013`), `paragraph-wrap`, and
+  `link-refactor` (`MD054`), which `rules` and the options `--enable` and `--disable` can switch on and off.
 - **Content is never changed**: Code (fenced, indented, and inline), HTML, math, front matter, and grid tables keep
   their content, including whitespace and blank lines. Links keep their text and destination. Text that LintMark
   cannot read with certainty is left as it is, and so is a rewrite that could change what the document means or how
@@ -28,6 +35,25 @@ In the examples below, a dot (`·`) stands for a space and an arrow (`→`) for 
 so that the whitespace is visible. Write the real characters in a file.
 
 ## Whitespace
+
+### line-ending
+
+Writes every line ending of a file in one style. A file that has only one kind of line ending keeps it, unless the
+configuration asks for the other kind; a file with mixed line endings is written in the style that the configuration
+names, or in the style that most of its lines have. A bare carriage return (a line ending that is neither LF nor CRLF)
+is not rewritten: it is reported as the failure `file-line-ending-error`.
+
+- **Setting**: `end-of-line`: `lf` or `crlf`. There is no default value. Without the setting, the `end_of_line` property
+  of the `.editorconfig` files that apply to the file (`lf` or `crlf`) decides, and without that, the majority style of
+  the file. `--no-config` also ignores `.editorconfig`.
+- **Alias**: none. The rule cannot be suppressed by a comment, because a line ending belongs to the whole file.
+- **Example** (`end-of-line: crlf`, in a file whose lines end with LF):
+
+  ```text
+  a.md:1:1: line-ending Line endings are LF; expected CRLF
+  ```
+
+  For a file with both endings, the message is `Mixed line endings (2 CRLF, 3 LF); expected LF`.
 
 ### trailing-whitespace (MD009)
 
@@ -54,14 +80,16 @@ Whitespace inside code, inline code, inline HTML, and link destinations or title
 
 Use a backslash at the end of a line if you prefer a hard break that does not depend on trailing spaces; LintMark
 leaves it as it is. The setting `hard-break` (`spaces` or `backslash`) is validated but does not convert one form into
-the other yet.
+the other: a hard break keeps the form that it has.
 
 ### hard-tabs (MD010)
 
 Replaces each tab in the text of a paragraph or heading by spaces up to the next tab stop of four columns. A tab in
-the indentation of a line, in code (also inline code), in a table, in a link destination or title, at the end of a line
-(the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block that
-LintMark does not rewrite stays as it is.
+the indentation of a line, in code (also inline code), in a table, in a link destination or title, in the label of a
+reference link, at the end of a line
+(the trailing whitespace rule owns that whitespace, and spaces there could turn into a line break), and in any block
+that LintMark does not rewrite stays as it is. A tab in the text of a link, inline or reference, is replaced like any
+other tab in the text.
 
 - **Setting**: none; the tab stops are four columns wide.
 - **Before**: `a→b` and `abc→d`
@@ -142,7 +170,8 @@ list, one whose text ends with a number sign or a backslash, and one whose text 
 
 Puts exactly one space between the number signs of a heading and its text. Text that starts with number signs but has
 no space after them (`#Title`) is a paragraph, not a heading, and is never changed: adding the space would change how
-the document renders. (The rules `MD018` and `MD020`, which report such text, are not part of LintMark yet.)
+the document renders. The lint-only rules `heading-missing-space` (`MD018`) and `heading-closed-missing-space` (`MD020`)
+report such text (see *Lint Rules*).
 
 - **Setting**: none.
 - **Before**: `##····Title`
@@ -518,9 +547,10 @@ continue a paragraph.
 
 ## Inline Text
 
-These rules change the delimiters of emphasis and strong emphasis and wrap bare URLs. They work on the text of a
-paragraph. The text of tables and headings is not normalized, and code spans, link and image destinations, HTML, and
-math keep their content. Emphasis in link text and in an image description is written like any other emphasis
+These rules change the delimiters of emphasis and strong emphasis, wrap bare URLs, and remove needless spaces inside
+code spans. They work on the text of a paragraph. The text of tables and headings is not normalized, and code spans,
+link and image destinations, HTML, and math keep their content. Emphasis in link text and in an image description is
+written like any other emphasis
 (`[_a_](url)` becomes `[*a*](url)`). Emphasis or strong emphasis that ends the last paragraph of a footnote is left as
 written; everything else in a footnote is normalized. A paragraph that holds a delimiter that LintMark cannot pair with
 certainty is left whole: unpaired or mixed delimiters (`_one` and `*two_`) and nested emphasis
@@ -578,12 +608,144 @@ changed.
   www.example.com or user@example.com.
   ```
 
-### What is not fixed
+### code-span-space (MD038)
 
-The legacy rules `MD037` (spaces inside emphasis markers), `MD038` (spaces inside code spans), and `MD039` (spaces
-inside link text) are not fixed, and LintMark does not know these numbers as rule names yet. Removing the spaces would
-change how the text renders (a literal `* text *` would become emphasis, and code and link text would lose
-characters). They are planned as checks that only report a problem, in a later release.
+Removes the one space on each side of a code span that is padded with exactly one space on each side. The padding is
+not part of the code, and a renderer removes it anyway, so removing it does not change how the text renders.
+
+- **Setting**: none. The rule is always applied, and it is not listed in `rules`. A suppression comment switches it
+  off for a passage (`code-span-space` or `MD038`).
+- **Before**:
+
+  ```text
+  Use ` code ` and ` padded ` here, but `  two  ` and ` one` and `` ` tick `` and `   ` stay.
+  ```
+
+- **After**:
+
+  ```text
+  Use `code` and `padded` here, but `  two  ` and ` one` and `` ` tick `` and `   ` stay.
+  ```
+
+- **Reported**: As `code-span-space` at the opening backtick of the first padded code span of a line, with the message
+  `A code span has a space after its opening backtick and before its closing backtick that it does not need.`
+
+The padding is needed, and so it is kept, in these cases:
+
+- The content of the code span starts or ends with a backtick (the third kept span of the example): the space
+  separates the content from the delimiter.
+- The padding is on one side only, or is wider than one space (the first two kept spans of the example): removing a
+  space would change the content.
+- The code span consists of spaces only (the last span of the example).
+- The code span continues over more than one line, or it is in a heading or in a table cell. The text of headings and
+  tables is not normalized.
+
+### Checks that only report
+
+Two more cases of text that looks wrong are not rewritten, because removing the spaces would change how the text
+renders: spaces inside emphasis markers (a literal `* text *` would become emphasis) and spaces inside link text (the
+link text would lose characters). The lint-only rules `emphasis-space` (`MD037`) and `link-space` (`MD039`) report
+them (see *Lint Rules*).
+
+## Tables
+
+These rules put a blank line around a table and write it in the configured layout. Their details, the aligned layout,
+and the width handling are in *Tables and Links*. `table-blank-lines` (`MD058`) is described in the section *Blocks*.
+
+### table-pipe-style (MD055)
+
+Writes a pipe at the start and at the end of every line of a table.
+
+- **Setting**: none.
+- **Before**: `a | b`, `-|-`, `1 | 2` on three lines.
+- **After**: `| a | b |`, `| --- | --- |`, `| 1 | 2 |`.
+
+### table-column-style (MD060)
+
+Writes the cells of a table in the layout of the setting `tables`: the compact layout, with one blank on each side of a
+cell and a short delimiter row, or the aligned layout, with every column padded to its widest cell. The aligned layout
+is used only when the table fits the line length.
+
+- **Setting**: `tables`: `compact` or `aligned`. The default is `compact`.
+- **Before**: `|---|:-:|` as the delimiter row.
+- **After** (default setting): `| --- | :---: |`.
+
+## Links
+
+### link-refactor (MD054)
+
+Converts an inline link whose source is wider than a threshold to a reference link, and collects the definitions at the
+end of the document. It does nothing until the option `link-refactor.enabled` is `true`. The options, the labels, and
+an example are in *Tables and Links*.
+
+- **Setting**: `link-refactor`, a group of options: `enabled` (default `false`), `threshold` (`60`), `in-tables`
+  (`true`), `break-link-text` (`false`), `label-max-length` (`40`), and `definitions-marker`
+  (`<!-- Link References -->`).
+- **Switching it off**: `rules: link-refactor: false`, or `--disable link-refactor`.
+- **Before** (with `link-refactor.enabled: true`):
+
+  ```text
+  See [the guide](https://example.com/lintmark/docs/user_guide/introduction.md "Guide") now.
+  ```
+
+- **After**:
+
+  ```text
+  See [the guide][the-guide] now.
+
+  <!-- Link References -->
+  [the-guide]: https://example.com/lintmark/docs/user_guide/introduction.md "Guide"
+  ```
+
+## Paragraphs
+
+### line-length (MD013)
+
+Wraps a paragraph that has a line wider than the limit. The rule fills only what overflows: a paragraph is rewrapped
+only when at least one of its lines is wider than `line-length`, and a paragraph that fits is never touched, however
+its lines are broken. The width is measured in display columns. The details, with examples, are in *Wrapping
+Paragraphs*.
+
+- **Settings**: `line-length` is the width in display columns; the default is `120`, and `0` means unlimited, which
+  switches the rule off. `wrap` selects the method: `fill` (the default) re-wraps only over-wide paragraphs, `sentence`
+  starts every sentence on a new line, and `semantic` does the same and breaks a sentence that is wider than
+  `line-length` only at the latest clause break (`,` `;` `:` and the dash) that fits.
+- **Switching it off**: Besides `line-length: 0`, the `rules` setting switches this rule off by its identifier or its
+  legacy number (`line-length: false` or `MD013: false`). A suppression comment (`line-length` or `MD013`) leaves a
+  passage alone.
+- **Before** (`line-length: 50`):
+
+  ```text
+  LintMark rewraps a paragraph only when a line is wider than the limit, and it keeps the words in order.
+  ```
+
+- **After**:
+
+  ```text
+  LintMark rewraps a paragraph only when a line is
+  wider than the limit, and it keeps the words in
+  order.
+  ```
+
+### paragraph-wrap
+
+Lays out every paragraph the way the `sentence` or `semantic` mode of `wrap` asks: one sentence per line. In the default
+`fill` mode this rule reports nothing. It has no legacy number, and it can be switched off in `rules` like
+`line-length`.
+
+- **Setting**: `wrap`: `fill`, `sentence`, or `semantic`. The default is `fill`.
+- **Before** (`wrap: sentence`):
+
+  ```text
+  LintMark is a formatter. It rewrites Markdown files, e.g. a README.
+  ```
+
+- **After**:
+
+  ```text
+  LintMark is a formatter.
+  It rewrites Markdown files, e.g. a README.
+  ```
 
 ## Suppressing a Rule
 
@@ -598,47 +760,53 @@ Text that keeps its trailing whitespace.
 <!-- lintmark-enable trailing-whitespace -->
 
 <!-- markdownlint-disable-next-line MD022 -->
-# A heading that touches the text after it
+## A heading that touches the text after it
 Text without a blank line before it.
 
 <!-- lintmark-disable-file final-newline -->
 ```
 
-- `disable` and `enable` mark a region, `disable-next-line` and `disable-line` mark one line, `disable-file` marks the
-  whole file, and a comment without rule names applies to all rules.
-- A block is left exactly as it is when any rule that applies to it is suppressed anywhere inside the block.
-- `prettier-ignore` (and `prettier-ignore-start` with `prettier-ignore-end`) leaves the next block, or everything
-  between the comments, as it is.
-- A name that is not a rule suppresses nothing.
+All the forms of comment, the scope of each, and what cannot be suppressed are described in *Suppression Comments*.
 
 ## Rules and Settings at a Glance
 
-| Rule identifier       | Alias            | Setting (default)                        |
-| --------------------- | ---------------- | ---------------------------------------- |
-| `trailing-whitespace` | `MD009`          | `trailing-whitespace: strip`             |
-| `hard-tabs`           | `MD010`          | none                                     |
-| `max-blank-lines`     | `MD012`          | `max-blank-lines: 1`                     |
-| `heading-style`       | `MD003`, `MD021` | `heading-style: atx`                     |
-| `heading-space`       | `MD019`          | none                                     |
-| `heading-start-left`  | `MD023`          | none                                     |
-| `heading-blank-lines` | `MD022`          | none                                     |
-| `fence-blank-lines`   | `MD031`          | none                                     |
-| `list-blank-lines`    | `MD032`          | none                                     |
-| `table-blank-lines`   | `MD058`          | none                                     |
-| `thematic-break`      | `MD035`          | `thematic-break: dashes`                 |
-| `code-block-style`    | `MD046`          | `code-block-style: fenced`               |
-| `code-fence`          | `MD048`          | `code-fence: backtick`                   |
-| `final-newline`       | `MD047`          | `final-newline: true`                    |
-| `bullet`              | `MD004`          | `bullet: dash`                           |
-| `ordered-style`       | `MD029`          | `ordered-style: incrementing`            |
-| `list-indent`         | `MD005`, `MD007` | `list-indent: 2`                         |
-| `list-marker-space`   | `MD030`          | none                                     |
-| `blockquote-space`    | `MD027`          | none                                     |
-| `emphasis`            | `MD049`          | `emphasis: asterisk`                     |
-| `strong`              | `MD050`          | `strong: asterisk`                       |
-| `bare-urls`           | `MD034`          | `bare-urls: autolink`                    |
+| Rule identifier | Alias | Switchable in `rules` | Setting (default) |
+| --- | --- | --- | --- |
+| `line-length` | `MD013` | yes | `line-length: 120` |
+| `paragraph-wrap` | none | yes | `wrap: fill` |
+| `link-refactor` | `MD054` | yes | `link-refactor.enabled: false` |
+| `line-ending` | none | no | `end-of-line` (no default) |
+| `trailing-whitespace` | `MD009` | no | `trailing-whitespace: strip` |
+| `hard-tabs` | `MD010` | no | none |
+| `max-blank-lines` | `MD012` | no | `max-blank-lines: 1` |
+| `heading-style` | `MD003`, `MD021` | no | `heading-style: atx` |
+| `heading-space` | `MD019` | no | none |
+| `heading-start-left` | `MD023` | no | none |
+| `heading-blank-lines` | `MD022` | no | none |
+| `fence-blank-lines` | `MD031` | no | none |
+| `list-blank-lines` | `MD032` | no | none |
+| `table-blank-lines` | `MD058` | no | none |
+| `table-pipe-style` | `MD055` | no | none |
+| `table-column-style` | `MD060` | no | `tables: compact` |
+| `thematic-break` | `MD035` | no | `thematic-break: dashes` |
+| `code-block-style` | `MD046` | no | `code-block-style: fenced` |
+| `code-fence` | `MD048` | no | `code-fence: backtick` |
+| `final-newline` | `MD047` | no | `final-newline: true` |
+| `bullet` | `MD004` | no | `bullet: dash` |
+| `ordered-style` | `MD029` | no | `ordered-style: incrementing` |
+| `list-indent` | `MD005`, `MD007` | no | `list-indent: 2` |
+| `list-marker-space` | `MD030` | no | none |
+| `blockquote-space` | `MD027` | no | none |
+| `emphasis` | `MD049` | no | `emphasis: asterisk` |
+| `strong` | `MD050` | no | `strong: asterisk` |
+| `bare-urls` | `MD034` | no | `bare-urls: autolink` |
+| `code-span-space` | `MD038` | no | none |
 
-The line ending rule `line-ending` is described under *Line Endings and .editorconfig*; it has no legacy number and cannot
-be suppressed. The rules that report problems without rewriting (for example `heading-increment`), the rules for
-paragraphs, tables, and links, and the legacy rules `MD037`, `MD038`, and `MD039` (see *What is not fixed*) are not
-implemented yet.
+The table lists the 26 rules that are always applied, as well as the three rules that `rules` can switch off. A rule
+that is not switchable is applied to every file; a setting, where one exists, chooses the form that the rule writes. A
+suppression comment is the way to leave a passage alone. `line-length: 0` means that there is no limit. The setting
+`hard-break` (`spaces` or `backslash`) is validated, but the rule `trailing-whitespace` does not convert one form into
+the other.
+
+The rules that report problems without rewriting (for example `heading-increment`) are described in *Lint Rules*, and
+they can all be switched on and off in `rules`.

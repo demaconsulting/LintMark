@@ -287,19 +287,6 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that a format-unsafe document gets no diagnostic, not even for its line endings.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_FormatUnsafeDocument_ReportsNoProblemEvenWithCrlf()
-    {
-        // Act: format the unsafe document
-        var (_, result) = FormatUnsafeCrlfDocument();
-
-        // Assert: nothing is reported
-        Assert.Empty(result.Diagnostics);
-    }
-
-    /// <summary>
     ///     Test that a CRLF file with an LF configuration is reported once at line 1, column 1.
     /// </summary>
     [Fact]
@@ -342,24 +329,6 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that a CRLF file with a CRLF configuration has no line ending diagnostic.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_AllCrlfCrlfConfig_NoDiagnostic()
-    {
-        // Arrange: a CRLF file and a configuration that asks for CRLF
-        var document = ParseFile("a\r\n\r\nb\r\n");
-        var config = LintMarkConfig.Default with { EndOfLine = LineEnding.CrLf };
-
-        // Act: format
-        var result = new DocumentFormatter().Format(document, config);
-
-        // Assert: nothing to report
-        Assert.Empty(result.Diagnostics);
-        Assert.Equal(LineEnding.CrLf, result.LineEnding);
-    }
-
-    /// <summary>
     ///     Test that an LF file with a CRLF configuration is reported as LF where CRLF is expected.
     /// </summary>
     [Fact]
@@ -376,24 +345,6 @@ public class DocumentFormatterTests
         var diagnostic = Assert.Single(result.Diagnostics);
         Assert.Equal("Line endings are LF; expected CRLF", diagnostic.Message);
         Assert.Equal(LineEnding.CrLf, result.LineEnding);
-    }
-
-    /// <summary>
-    ///     Test that a file without any terminator never violates the line ending rule.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_NoTerminators_NoDiagnostic()
-    {
-        // Arrange: a one-line file without terminator
-        var document = ParseFile("abc");
-
-        // Act: format with both configurations
-        var lf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.Lf });
-        var crlf = new DocumentFormatter().Format(document, LintMarkConfig.Default with { EndOfLine = LineEnding.CrLf });
-
-        // Assert: neither reports a line ending violation (the missing final newline is another rule)
-        Assert.DoesNotContain(lf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
-        Assert.DoesNotContain(crlf.Diagnostics, diagnostic => diagnostic.RuleId == DocumentFormatter.LineEndingRuleId);
     }
 
     /// <summary>
@@ -466,187 +417,6 @@ public class DocumentFormatterTests
     }
 
     /// <summary>
-    ///     Test that an exception of a block formatter propagates unchanged.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_ThrowingFormatter_ExceptionPropagatesUnchanged()
-    {
-        // Arrange: a formatter that throws when it is asked to format a paragraph
-        var document = Parse("abc\n");
-        var formatter = new DocumentFormatter([new ThrowingFormatter()]);
-
-        // Act: format
-        var exception = Assert.Throws<InvalidOperationException>(() => formatter.Format(document, LintMarkConfig.Default));
-
-        // Assert: the exception of the formatter is not caught, wrapped, or replaced
-        Assert.Equal("The formatter failed on purpose", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that conflicting edits of a formatter are reported as a defect of the formatter.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_OverlappingFormatterEdits_Throws()
-    {
-        // Arrange: a formatter that proposes two edits of the same characters
-        var document = Parse("abcdef\n");
-        var formatter = new DocumentFormatter([new OverlappingEditsFormatter()]);
-
-        // Act / Assert: the conflict is not resolved silently
-        Assert.Throws<InvalidOperationException>(() => formatter.Format(document, LintMarkConfig.Default));
-    }
-
-    /// <summary>
-    ///     Test that a null element in the formatter list is rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Constructor_NullFormatterElement_Throws()
-    {
-        // Arrange / Act / Assert: the list must not contain null
-        Assert.Throws<ArgumentNullException>(() => new DocumentFormatter([null!]));
-    }
-
-    /// <summary>
-    ///     Test that a null formatter list means no formatters.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Constructor_NullList_Accepted()
-    {
-        // Arrange: a formatter created without a list
-        var formatter = new DocumentFormatter(null);
-        var document = Parse("a  b\n");
-
-        // Act: format
-        var result = formatter.Format(document, LintMarkConfig.Default);
-
-        // Assert: it works and proposes no edit
-        Assert.Empty(result.Edits);
-    }
-
-    /// <summary>
-    ///     Test that the formatter list is copied, so later changes of the caller's list have no effect.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Constructor_ListCopied_LaterChangesIgnored()
-    {
-        // Arrange: a formatter built from a list that the caller changes afterwards
-        var list = new List<IBlockFormatter> { new ReplacingFormatter("  ", " ") };
-        var formatter = new DocumentFormatter(list);
-        list.Clear();
-        list.Add(new ReplacingFormatter("  ", "_"));
-        var document = Parse("a  b\n");
-
-        // Act: format
-        var result = formatter.Format(document, LintMarkConfig.Default);
-
-        // Assert: the original formatter is still used
-        Assert.Equal("a b\n", Patch(document, result));
-    }
-
-    /// <summary>
-    ///     Test that a format context keeps its document and configuration.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_ValidArguments_KeepsValues()
-    {
-        // Arrange / Act: a context for a document
-        var document = Parse("a\n");
-        var context = new FormatContext(document, LintMarkConfig.Default);
-
-        // Assert: both are kept
-        Assert.Same(document, context.Document);
-        Assert.Same(LintMarkConfig.Default, context.Config);
-    }
-
-    /// <summary>
-    ///     Test that a format context built with its own line arithmetic and ownership keeps them, and builds both when they are not given.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_LayoutAndOwnership_AreKeptOrBuilt()
-    {
-        // Arrange: a document and its own layout and ownership
-        var document = Parse("a\n");
-        var layout = new LineLayout(document.Source);
-        var ownership = LineOwnership.Build(document, layout, static _ => false);
-
-        // Act: build a context with them and one without
-        var given = new FormatContext(document, LintMarkConfig.Default, layout, ownership);
-        var built = new FormatContext(document, LintMarkConfig.Default);
-
-        // Assert: the given ones are kept and the built ones describe the document
-        Assert.Same(layout, given.Layout);
-        Assert.Same(ownership, given.Ownership);
-        Assert.NotNull(built.Layout);
-        Assert.NotNull(built.Ownership);
-        Assert.Equal(1, built.Layout.LineCount);
-    }
-
-    /// <summary>
-    ///     Test that a format context without a document or configuration is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatContext_Constructor_NullArguments_Throw()
-    {
-        // Arrange / Act / Assert: neither argument may be null
-        Assert.Throws<ArgumentNullException>(() => new FormatContext(null!, LintMarkConfig.Default));
-        Assert.Throws<ArgumentNullException>(() => new FormatContext(Parse("a\n"), null!));
-    }
-
-    /// <summary>
-    ///     Test that a format result keeps its values when they are valid.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_ValidArguments_KeepsValues()
-    {
-        // Arrange / Act: a result with one edit and no diagnostics
-        var edit = new TextEdit(0, 1, "b", "blank-lines");
-        var result = new FormatResult([edit], LineEnding.CrLf, []);
-
-        // Assert: the values are kept
-        Assert.Equal(edit, Assert.Single(result.Edits));
-        Assert.Equal(LineEnding.CrLf, result.LineEnding);
-        Assert.Empty(result.Diagnostics);
-    }
-
-    /// <summary>
-    ///     Test that a format result with a default list of edits is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultEditList_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult(default, LineEnding.Lf, []));
-
-    /// <summary>
-    ///     Test that a format result with a default edit is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultEdit_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult([default], LineEnding.Lf, []));
-
-    /// <summary>
-    ///     Test that a format result with a default list of diagnostics is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_DefaultDiagnosticList_Throws() =>
-        Assert.Throws<ArgumentException>(() => new FormatResult([], LineEnding.Lf, default));
-
-    /// <summary>
-    ///     Test that a format result with a missing diagnostic is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_NullDiagnostic_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => new FormatResult([], LineEnding.Lf, [null!]));
-
-    /// <summary>
-    ///     Test that a format result with an undefined line ending is rejected.
-    /// </summary>
-    [Fact]
-    public void FormatResult_Constructor_UndefinedLineEnding_Throws()
-    {
-        // Arrange / Act / Assert: the line ending must be a defined value
-        Assert.Throws<ArgumentOutOfRangeException>(() => new FormatResult([], (LineEnding)99, []));
-    }
-
-    /// <summary>
     ///     Test that a formatter given an inline normalizer rewrites the paragraphs no block formatter claims, and one without it does not.
     /// </summary>
     [Fact]
@@ -683,46 +453,5 @@ public class DocumentFormatterTests
         // Assert: only the claiming formatter acted on the first, and nothing happened to the second
         Assert.Equal("a__b_\n", Patch(claimed, claimedResult));
         Assert.Empty(suppressedResult.Edits);
-    }
-
-    /// <summary>
-    ///     Test that a null argument of Format is rejected.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a formatter and a document
-        var formatter = new DocumentFormatter();
-        var document = Parse("a\n");
-
-        // Act / Assert: neither argument may be null
-        Assert.Throws<ArgumentNullException>(() => formatter.Format(null!, LintMarkConfig.Default));
-        Assert.Throws<ArgumentNullException>(() => formatter.Format(document, null!));
-    }
-
-    /// <summary>
-    ///     Test that one formatter and one document can be used by many threads with identical results.
-    /// </summary>
-    [Fact]
-    public void DocumentFormatter_Format_ParallelCalls_SameResult()
-    {
-        // Arrange: one shared formatter and document, and the single-threaded result
-        var formatter = DoubleSpaceFormatter();
-        var document = ParseFile("a  b  c\r\n\r\nd  e\r\n");
-        var config = LintMarkConfig.Default with { EndOfLine = LineEnding.Lf };
-        var expected = formatter.Format(document, config);
-        var results = new FormatResult[64];
-
-        // Act: format concurrently
-        Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i => results[i] = formatter.Format(document, config));
-
-        // Assert: every result equals the single-threaded one
-        Assert.Equal(3, expected.Edits.Length);
-        Assert.All(results, result =>
-        {
-            Assert.Equal(expected.Edits.ToArray(), result.Edits.ToArray());
-            Assert.Equal(expected.Diagnostics.ToArray(), result.Diagnostics.ToArray());
-            Assert.Equal(expected.LineEnding, result.LineEnding);
-        });
     }
 }

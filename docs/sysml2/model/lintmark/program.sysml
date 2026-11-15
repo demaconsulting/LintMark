@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def Program {
-        doc /* Entry point and execution orchestrator. */
+        doc /* Entry point and execution orchestrator: it creates the context from the command line, answers the version, help, and self-validation requests, and otherwise hands the file processing to the engine and returns the exit code. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Program.cs");

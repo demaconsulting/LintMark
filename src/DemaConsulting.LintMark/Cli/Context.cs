@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.Collections.Immutable;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Cli;
 
@@ -52,24 +52,44 @@ internal sealed class Context : IDisposable
     private bool _hasErrors;
 
     /// <summary>
+    ///     The values of every <c>--enable</c> option, in the order given.
+    /// </summary>
+    private readonly List<string> _enable = [];
+
+    /// <summary>
+    ///     The values of every <c>--disable</c> option, in the order given.
+    /// </summary>
+    private readonly List<string> _disable = [];
+
+    /// <summary>
+    ///     The positional path arguments in the order given.
+    /// </summary>
+    private readonly List<string> _paths = [];
+
+    /// <summary>
+    ///     The log file path given with <c>--log</c>.
+    /// </summary>
+    private string? _logFile;
+
+    /// <summary>
     ///     Gets a value indicating whether the version flag was specified.
     /// </summary>
-    public bool Version { get; private init; }
+    public bool Version { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the help flag was specified.
     /// </summary>
-    public bool Help { get; private init; }
+    public bool Help { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the silent flag was specified.
     /// </summary>
-    public bool Silent { get; private init; }
+    public bool Silent { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the validate flag was specified.
     /// </summary>
-    public bool Validate { get; private init; }
+    public bool Validate { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the check flag was specified.
@@ -78,24 +98,24 @@ internal sealed class Context : IDisposable
     ///     Check mode reports problems without writing any file. It is the default behavior, so the
     ///     flag is an explicit statement of the default and never changes processing.
     /// </remarks>
-    public bool Check { get; private init; }
+    public bool Check { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the fix flag was specified: files are rewritten into canonical form
-    ///     (when every safety check passes) and the problems that remain are reported.
+    ///     and the problems that remain are reported.
     /// </summary>
-    public bool Fix { get; private init; }
+    public bool Fix { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether the diff flag was specified: a unified diff of what the fix flag
     ///     would change is printed and nothing is written.
     /// </summary>
-    public bool Diff { get; private init; }
+    public bool Diff { get; private set; }
 
     /// <summary>
     ///     Gets the positional path arguments (files, directories, globs and <c>!</c> excludes) in the order given.
     /// </summary>
-    public IReadOnlyList<string> Paths { get; private init; } = ImmutableArray<string>.Empty;
+    public IReadOnlyList<string> Paths => _paths;
 
     /// <summary>
     ///     Gets the path of the configuration file given with <c>--config</c>, as written on the command line,
@@ -104,23 +124,28 @@ internal sealed class Context : IDisposable
     /// <remarks>
     ///     A relative path is relative to the current directory. When present, configuration discovery is not used.
     /// </remarks>
-    public string? ConfigFile { get; private init; }
+    public string? ConfigFile { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether <c>--no-config</c> was specified: both <c>.lintmark.yaml</c> and
     ///     <c>.editorconfig</c> are ignored and the built-in defaults apply.
     /// </summary>
-    public bool NoConfig { get; private init; }
+    public bool NoConfig { get; private set; }
+
+    /// <summary>
+    ///     Gets the rules forced on or off with <c>--enable</c> and <c>--disable</c>; they win over the configuration.
+    /// </summary>
+    public RuleOverrides RuleOverrides { get; private set; } = RuleOverrides.None;
 
     /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
-    public string? ResultsFile { get; private init; }
+    public string? ResultsFile { get; private set; }
 
     /// <summary>
     ///     Gets the heading depth for markdown output (default is 1).
     /// </summary>
-    public int HeadingDepth { get; private init; } = 1;
+    public int HeadingDepth { get; private set; } = 1;
 
     /// <summary>
     ///     Gets the proposed exit code for the application (0 for success, 1 for errors).
@@ -152,7 +177,8 @@ internal sealed class Context : IDisposable
     ///     Thrown when arguments are invalid, including when <c>--validate</c> is combined with paths, <c>--check</c>,
     ///     <c>--fix</c>, <c>--diff</c>, <c>--config</c> or <c>--no-config</c>, when <c>--fix</c> is combined with
     ///     <c>--check</c> or <c>--diff</c>, when <c>--config</c> is combined with <c>--no-config</c>, or when
-    ///     <c>--config</c> has no (or a blank) filename.
+    ///     <c>--config</c> has no (or a blank) filename, or when <c>--enable</c> or <c>--disable</c> has no list of rule ids, names a rule that
+    ///     cannot be switched (unknown, or always applied), has an empty entry, or names the same rule as the other option.
     /// </exception>
     /// <exception cref="InvalidOperationException">Thrown when the specified log file cannot be opened.</exception>
     public static Context Create(string[] args)
@@ -160,50 +186,37 @@ internal sealed class Context : IDisposable
         // Validate input
         ArgumentNullException.ThrowIfNull(args);
 
-        var parser = new ArgumentParser();
-        parser.ParseArguments(args);
+        var result = new Context();
+        result.ParseArguments(args);
 
         // Self-validation is a separate mode: lint arguments would be silently ignored, so reject them
-        if (parser.Validate
-            && (parser.Check || parser.Fix || parser.Diff || parser.Paths.Count > 0 || parser.ConfigFile != null || parser.NoConfig))
+        if (result.Validate
+            && (result.Check || result.Fix || result.Diff || result._paths.Count > 0 || result.ConfigFile != null || result.NoConfig
+                || result._enable.Count > 0 || result._disable.Count > 0))
         {
             throw new ArgumentException(
-                "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
+                "--validate cannot be combined with paths, --check, --fix, --diff, --config, --no-config, --enable, or --disable",
                 nameof(args));
         }
 
         // Fixing writes files, checking and diffing promise not to
-        if (parser.Fix && (parser.Check || parser.Diff))
+        if (result.Fix && (result.Check || result.Diff))
         {
             throw new ArgumentException("--fix cannot be combined with --check or --diff", nameof(args));
         }
 
         // A named configuration file and "no configuration" contradict each other
-        if (parser.ConfigFile != null && parser.NoConfig)
+        if (result.ConfigFile != null && result.NoConfig)
         {
             throw new ArgumentException("--config cannot be combined with --no-config", nameof(args));
         }
 
-        var result = new Context
-        {
-            Version = parser.Version,
-            Help = parser.Help,
-            Silent = parser.Silent,
-            Validate = parser.Validate,
-            Check = parser.Check,
-            Fix = parser.Fix,
-            Diff = parser.Diff,
-            Paths = parser.Paths.ToImmutableArray(),
-            ConfigFile = parser.ConfigFile,
-            NoConfig = parser.NoConfig,
-            ResultsFile = parser.ResultsFile,
-            HeadingDepth = parser.HeadingDepth
-        };
+        result.RuleOverrides = RuleOverrides.Create(result._enable, result._disable);
 
         // Open log file if specified
-        if (parser.LogFile != null)
+        if (result._logFile != null)
         {
-            result.OpenLogFile(parser.LogFile);
+            result.OpenLogFile(result._logFile);
         }
 
         return result;
@@ -236,211 +249,145 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
-    ///     Helper class for parsing command-line arguments
+    ///     Parses command-line arguments
     /// </summary>
-    private sealed class ArgumentParser
+    /// <param name="args">Command-line arguments.</param>
+    private void ParseArguments(string[] args)
     {
-        /// <summary>
-        ///     Gets a value indicating whether the version flag was specified.
-        /// </summary>
-        public bool Version { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the help flag was specified.
-        /// </summary>
-        public bool Help { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the silent flag was specified.
-        /// </summary>
-        public bool Silent { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the validate flag was specified.
-        /// </summary>
-        public bool Validate { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the check flag was specified.
-        /// </summary>
-        public bool Check { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the fix flag was specified.
-        /// </summary>
-        public bool Fix { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the diff flag was specified.
-        /// </summary>
-        public bool Diff { get; private set; }
-
-        /// <summary>
-        ///     Gets the positional path arguments in the order given.
-        /// </summary>
-        public List<string> Paths { get; } = [];
-
-        /// <summary>
-        ///     Gets the configuration file path given with <c>--config</c>.
-        /// </summary>
-        public string? ConfigFile { get; private set; }
-
-        /// <summary>
-        ///     Gets a value indicating whether the no-config flag was specified.
-        /// </summary>
-        public bool NoConfig { get; private set; }
-
-        /// <summary>
-        ///     Gets the log file path.
-        /// </summary>
-        public string? LogFile { get; private set; }
-
-        /// <summary>
-        ///     Gets the validation results file path.
-        /// </summary>
-        public string? ResultsFile { get; private set; }
-
-        /// <summary>
-        ///     Gets the heading depth for markdown output.
-        /// </summary>
-        public int HeadingDepth { get; private set; } = 1;
-
-        /// <summary>
-        ///     Parses command-line arguments
-        /// </summary>
-        /// <param name="args">Command-line arguments.</param>
-        public void ParseArguments(string[] args)
+        int i = 0;
+        while (i < args.Length)
         {
-            // Validate input
-            ArgumentNullException.ThrowIfNull(args);
+            var arg = args[i++];
+            i = ParseArgument(arg, args, i);
+        }
+    }
 
-            int i = 0;
-            while (i < args.Length)
-            {
-                var arg = args[i++];
-                i = ParseArgument(arg, args, i);
-            }
+    /// <summary>
+    ///     Parses a single argument
+    /// </summary>
+    /// <param name="arg">Argument to parse</param>
+    /// <param name="args">All arguments</param>
+    /// <param name="index">Current index</param>
+    /// <returns>Updated index</returns>
+    private int ParseArgument(string arg, string[] args, int index)
+    {
+        switch (arg)
+        {
+            case "-v":
+            case "--version":
+                Version = true;
+                return index;
+
+            case "-?":
+            case "-h":
+            case "--help":
+                Help = true;
+                return index;
+
+            case "--silent":
+                Silent = true;
+                return index;
+
+            case "--validate":
+                Validate = true;
+                return index;
+
+            case "--check":
+                Check = true;
+                return index;
+
+            case "--fix":
+                Fix = true;
+                return index;
+
+            case "--diff":
+                Diff = true;
+                return index;
+
+            case "--config":
+                ConfigFile = GetRequiredStringArgument(arg, args, index, "a configuration filename argument");
+                if (string.IsNullOrWhiteSpace(ConfigFile) || ConfigFile.StartsWith('-'))
+                {
+                    throw new ArgumentException($"{arg} requires a configuration filename argument", nameof(args));
+                }
+
+                return index + 1;
+
+            case "--no-config":
+                NoConfig = true;
+                return index;
+
+            case "--enable":
+                _enable.Add(GetRequiredStringArgument(arg, args, index, "a comma-separated list of rule ids"));
+                return index + 1;
+
+            case "--disable":
+                _disable.Add(GetRequiredStringArgument(arg, args, index, "a comma-separated list of rule ids"));
+                return index + 1;
+
+            case "--log":
+                _logFile = GetRequiredStringArgument(arg, args, index, "a filename argument");
+                return index + 1;
+
+            case "--results":
+            case "--result":
+                ResultsFile = GetRequiredStringArgument(arg, args, index, "a results filename argument");
+                return index + 1;
+
+            case "--depth":
+                HeadingDepth = GetRequiredIntArgument(arg, args, index, "a heading depth argument", 1, 6);
+                return index + 1;
+
+            default:
+                // Anything that does not start with a dash is a path (file, directory, glob or ! exclude);
+                // every other dashed token (including a lone dash) is an unsupported option
+                if (arg.Length > 0 && arg[0] != '-')
+                {
+                    _paths.Add(arg);
+                    return index;
+                }
+
+                throw new ArgumentException($"Unsupported argument '{arg}'", nameof(args));
+        }
+    }
+
+    /// <summary>
+    ///     Gets a required string argument value
+    /// </summary>
+    /// <param name="arg">Argument name</param>
+    /// <param name="args">All arguments</param>
+    /// <param name="index">Current index</param>
+    /// <param name="description">Description of what's required</param>
+    /// <returns>Argument value</returns>
+    private static string GetRequiredStringArgument(string arg, string[] args, int index, string description)
+    {
+        if (index >= args.Length)
+        {
+            throw new ArgumentException($"{arg} requires {description}", nameof(args));
         }
 
-        /// <summary>
-        ///     Parses a single argument
-        /// </summary>
-        /// <param name="arg">Argument to parse</param>
-        /// <param name="args">All arguments</param>
-        /// <param name="index">Current index</param>
-        /// <returns>Updated index</returns>
-        private int ParseArgument(string arg, string[] args, int index)
+        return args[index];
+    }
+
+    /// <summary>
+    ///     Gets a required integer argument value
+    /// </summary>
+    /// <param name="arg">Argument name</param>
+    /// <param name="args">All arguments</param>
+    /// <param name="index">Current index</param>
+    /// <param name="description">Description of what's required</param>
+    /// <param name="min">Minimum valid value (inclusive)</param>
+    /// <param name="max">Maximum valid value (inclusive)</param>
+    /// <returns>Argument value as an integer in [min, max]</returns>
+    private static int GetRequiredIntArgument(string arg, string[] args, int index, string description, int min = 1, int max = int.MaxValue)
+    {
+        var value = GetRequiredStringArgument(arg, args, index, description);
+        if (!int.TryParse(value, out var result) || result < min || result > max)
         {
-            switch (arg)
-            {
-                case "-v":
-                case "--version":
-                    Version = true;
-                    return index;
-
-                case "-?":
-                case "-h":
-                case "--help":
-                    Help = true;
-                    return index;
-
-                case "--silent":
-                    Silent = true;
-                    return index;
-
-                case "--validate":
-                    Validate = true;
-                    return index;
-
-                case "--check":
-                    Check = true;
-                    return index;
-
-                case "--fix":
-                    Fix = true;
-                    return index;
-
-                case "--diff":
-                    Diff = true;
-                    return index;
-
-                case "--config":
-                    ConfigFile = GetRequiredStringArgument(arg, args, index, "a configuration filename argument");
-                    if (string.IsNullOrWhiteSpace(ConfigFile) || ConfigFile.StartsWith('-'))
-                    {
-                        throw new ArgumentException($"{arg} requires a configuration filename argument", nameof(args));
-                    }
-
-                    return index + 1;
-
-                case "--no-config":
-                    NoConfig = true;
-                    return index;
-
-                case "--log":
-                    LogFile = GetRequiredStringArgument(arg, args, index, "a filename argument");
-                    return index + 1;
-
-                case "--results":
-                case "--result":
-                    ResultsFile = GetRequiredStringArgument(arg, args, index, "a results filename argument");
-                    return index + 1;
-
-                case "--depth":
-                    HeadingDepth = GetRequiredIntArgument(arg, args, index, "a heading depth argument", 1, 6);
-                    return index + 1;
-
-                default:
-                    // Anything that does not start with a dash is a path (file, directory, glob or ! exclude);
-                    // every other dashed token (including a lone dash) is an unsupported option
-                    if (arg.Length > 0 && arg[0] != '-')
-                    {
-                        Paths.Add(arg);
-                        return index;
-                    }
-
-                    throw new ArgumentException($"Unsupported argument '{arg}'", nameof(args));
-            }
+            throw new ArgumentException($"{arg} requires an integer between {min} and {max} for {description}", nameof(args));
         }
 
-        /// <summary>
-        ///     Gets a required string argument value
-        /// </summary>
-        /// <param name="arg">Argument name</param>
-        /// <param name="args">All arguments</param>
-        /// <param name="index">Current index</param>
-        /// <param name="description">Description of what's required</param>
-        /// <returns>Argument value</returns>
-        private static string GetRequiredStringArgument(string arg, string[] args, int index, string description)
-        {
-            if (index >= args.Length)
-            {
-                throw new ArgumentException($"{arg} requires {description}", nameof(args));
-            }
-
-            return args[index];
-        }
-
-        /// <summary>
-        ///     Gets a required integer argument value
-        /// </summary>
-        /// <param name="arg">Argument name</param>
-        /// <param name="args">All arguments</param>
-        /// <param name="index">Current index</param>
-        /// <param name="description">Description of what's required</param>
-        /// <param name="min">Minimum valid value (inclusive)</param>
-        /// <param name="max">Maximum valid value (inclusive)</param>
-        /// <returns>Argument value as an integer in [min, max]</returns>
-        private static int GetRequiredIntArgument(string arg, string[] args, int index, string description, int min = 1, int max = int.MaxValue)
-        {
-            var value = GetRequiredStringArgument(arg, args, index, description);
-            if (!int.TryParse(value, out var result) || result < min || result > max)
-            {
-                throw new ArgumentException($"{arg} requires an integer between {min} and {max} for {description}", nameof(args));
-            }
-
-            return result;
-        }
+        return result;
     }
 
     /// <summary>

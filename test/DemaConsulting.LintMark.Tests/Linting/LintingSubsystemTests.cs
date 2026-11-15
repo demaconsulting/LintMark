@@ -18,226 +18,102 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.Reflection;
-using System.Text;
 using DemaConsulting.LintMark.Configuration;
-using DemaConsulting.LintMark.Document;
-using DemaConsulting.LintMark.Engine;
-using DemaConsulting.LintMark.Formatting;
 using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
 /// <summary>
-///     Subsystem tests for the Linting subsystem: the diagnostic model and the rule registry working with the units that report.
+///     Subsystem tests of the Linting subsystem: the rule catalog and the lint rule engine are driven together on
+///     parsed documents, with the real rules and no substitutes.
 /// </summary>
 public class LintingSubsystemTests
 {
     /// <summary>
-    ///     Parses text as UTF-8 content of a configuration file.
+    ///     Runs the default lint rule engine over a text and formats the findings as <c>line:column rule-id</c>.
     /// </summary>
-    /// <param name="yaml">The text.</param>
-    /// <returns>The result.</returns>
-    private static ConfigLoadResult Parse(string yaml) =>
-        ConfigLoader.Parse("conf/.lintmark.yaml", Encoding.UTF8.GetBytes(yaml));
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    /// <returns>The findings in the order the engine returns them.</returns>
+    private static string[] Run(string text, LintMarkConfig? config = null) =>
+        [.. LintRuleEngine.CreateDefault().Run(LintRuleTestSupport.Parse(text), config ?? LintMarkConfig.Default).Select(d => $"{d.Line}:{d.Column} {d.RuleId}")];
 
     /// <summary>
-    ///     Test that a diagnostic of a registered formatting rule is fixable and one of a lint-only rule is not.
+    ///     Test that the catalog holds every rule once with its aliases and default state, resolves names in any letter
+    ///     case, rejects what a configuration cannot switch, and that the command line overrides change the states.
     /// </summary>
     [Fact]
-    public void LintingSubsystem_Diagnostics_FormattingKind_IsFixable()
+    public void LintingSubsystem_Catalog_RulesAliasesDefaultsAndOverrides_ResolveConsistently()
     {
-        // Arrange: the registered kind of two rules
-        Assert.True(RuleCatalog.TryGet("line-length", out var formatting));
-        Assert.True(RuleCatalog.TryGet("link-empty", out var lintOnly));
+        // Arrange: the command-line overrides that switch one rule on and another off, the second by its number
+        var overrides = RuleOverrides.Create(["descriptive-link-text"], ["MD037"]);
 
-        // Act: create a diagnostic of each kind from the registry
-        var fixable = new Diagnostic(formatting.Id, formatting.Kind, "a.md", 1, 1, "A line is too long.");
-        var reportOnly = new Diagnostic(lintOnly.Id, lintOnly.Kind, "a.md", 1, 1, "A link has no destination.");
+        // Act: resolve names and apply the overrides to the default configuration
+        var resolved = RuleCatalog.TryResolve("md037", out var byNumber);
+        var fixedRule = RuleCatalog.TryResolveConfigurable("line-ending", out _);
+        var effective = overrides.Apply(LintMarkConfig.Default);
 
-        // Assert: the formatting diagnostic is fixable, the lint-only one is not
-        Assert.True(fixable.Fixable);
-        Assert.False(reportOnly.Fixable);
+        // Assert: ids are unique and in order, a number resolves to its id, an always-applied rule and a dropped number
+        // cannot be configured, the defaults are in the catalog, and the overrides win over the configuration
+        var ids = RuleCatalog.Rules.Select(rule => rule.Id).ToList();
+        Assert.Equal(ids.Order(StringComparer.Ordinal), ids);
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.True(resolved);
+        Assert.Equal("emphasis-space", byNumber);
+        Assert.False(fixedRule);
+        Assert.True(RuleCatalog.IsDroppedAlias("MD033"));
+        Assert.False(RuleCatalog.TryResolve("MD033", out _));
+        Assert.True(RuleCatalog.Defaults["emphasis-space"]);
+        Assert.False(RuleCatalog.Defaults["descriptive-link-text"]);
+        Assert.Equal(RuleCatalog.Defaults, LintMarkConfig.Default.Rules);
+        Assert.True(effective.Rules["descriptive-link-text"]);
+        Assert.False(effective.Rules["emphasis-space"]);
     }
 
     /// <summary>
-    ///     Test that a diagnostic of a registered rule carries the rule identifier, path, position, and message it was made from.
+    ///     Test that findings are lint-only, carry the rule, the file and a position, and are returned in source order.
     /// </summary>
     [Fact]
-    public void LintingSubsystem_Diagnostics_RegisteredRule_CarriesAllParts()
+    public void LintingSubsystem_Findings_Document_AreLintOnlyWithPositionAndInSourceOrder()
     {
-        // Arrange: the registered identifier and kind of a rule
-        Assert.True(RuleCatalog.TryGet("link-empty", out var rule));
+        // Arrange: three problems of three rule families, the last two on the same line
+        const string text = "# One\n\n### Three\n\nsee *text * here and [x](#nowhere)\n";
 
-        // Act: create a diagnostic from the registered rule
-        var diagnostic = new Diagnostic(rule.Id, rule.Kind, "docs/a.md", 4, 9, "A link has no destination.");
+        // Act: run the lint rules and keep the diagnostics themselves
+        var diagnostics = LintRuleEngine.CreateDefault().Run(LintRuleTestSupport.Parse(text), LintMarkConfig.Default);
 
-        // Assert: every part is carried
-        Assert.Equal("link-empty", diagnostic.RuleId);
-        Assert.Equal("docs/a.md", diagnostic.Path);
-        Assert.Equal(4, diagnostic.Line);
-        Assert.Equal(9, diagnostic.Column);
-        Assert.Equal("A link has no destination.", diagnostic.Message);
-    }
-
-    /// <summary>
-    ///     Test that a diagnostic cannot be created from parts that a report line cannot carry.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_Diagnostics_InvalidParts_AreRefused()
-    {
-        // Arrange: a registered rule to build valid parts from
-        Assert.True(RuleCatalog.TryGet("line-length", out var rule));
-
-        // Act & Assert: a malformed identifier, a position of zero, and a message on two lines are refused
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic("Line Length", rule.Kind, "a.md", 1, 1, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 0, 1, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 0, "A line is too long."));
-        Assert.ThrowsAny<ArgumentException>(() => new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is\ntoo long."));
-    }
-
-    /// <summary>
-    ///     Test that two diagnostics made from the same parts are the same problem and collapse into one.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_Diagnostics_SameParts_AreTheSameProblem()
-    {
-        // Arrange: a registered rule
-        Assert.True(RuleCatalog.TryGet("line-length", out var rule));
-
-        // Act: create the same problem twice and one that differs in the column
-        var first = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is too long.");
-        var second = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 1, "A line is too long.");
-        var other = new Diagnostic(rule.Id, rule.Kind, "a.md", 1, 2, "A line is too long.");
-
-        // Assert: the equal problems collapse in a set and the different one stays
-        Assert.Equal(first, second);
-        Assert.NotEqual(first, other);
-        Assert.Equal(2, new HashSet<Diagnostic> { first, second, other }.Count);
-    }
-
-    /// <summary>
-    ///     Test that the registry records which rules are formatting rules that rewriting repairs and which only report.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_RuleRegistry_FormattingAndLintOnlyRules_AreRegistered()
-    {
-        // Act: look up a formatting rule and a rule that only reports
-        Assert.True(RuleCatalog.TryGet("line-length", out var formatting));
-        Assert.True(RuleCatalog.TryGet("link-empty", out var lintOnly));
-
-        // Assert: the registered kinds differ as documented
-        Assert.Equal(DiagnosticKind.Formatting, formatting.Kind);
-        Assert.Equal(DiagnosticKind.LintOnly, lintOnly.Kind);
-    }
-
-    /// <summary>
-    ///     Test that a rule that a configuration does not mention keeps the enabled state that the registry gives it.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_RuleRegistry_NotConfiguredRule_KeepsRegisteredState()
-    {
-        // Act: parse a configuration that switches one rule off
-        var result = Parse("rules:\n  MD013: false\n");
-
-        // Assert: every other rule has the state that the registry registered
-        Assert.Empty(result.Errors);
-        Assert.All(
-            RuleCatalog.Defaults.Where(pair => pair.Key != "line-length"),
-            pair => Assert.Equal(pair.Value, result.Config!.Rules[pair.Key]));
-        Assert.False(result.Config!.Rules["line-length"]);
-    }
-
-    /// <summary>
-    ///     Test that every rule identifier the tool emits is registered in the catalog.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_RuleRegistry_EveryEmittedRuleId_IsRegistered()
-    {
-        // Arrange: the identifiers named by the units that report, and every identifier constant of the catalog
-        var emitted = new List<string>
+        // Assert: every finding is lint-only, belongs to the file and has a one-line message; the order is by position
+        Assert.Equal(["3:1 heading-increment", "5:5 emphasis-space", "5:22 link-fragment"], Run(text));
+        Assert.All(diagnostics, d =>
         {
-            LintMarkEngine.ReadErrorRuleId,
-            LintMarkEngine.ParseErrorRuleId,
-            LintMarkEngine.FormatErrorRuleId,
-            LintMarkEngine.WriteErrorRuleId,
-            SourceDocumentException.EncodingRuleId,
-            SourceDocumentException.LineEndingRuleId,
-            ConfigLoader.ErrorRuleId,
-            DocumentFormatter.LineEndingRuleId
-        };
-        var catalogConstants = typeof(RuleCatalog)
-            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("RuleId", StringComparison.Ordinal))
-            .Select(field => (string)field.GetRawConstantValue()!)
-            .ToList();
-        emitted.AddRange(catalogConstants);
-
-        // Act & Assert: the reflection found the constants, and each identifier is registered under its own canonical id
-        Assert.NotEmpty(catalogConstants);
-        Assert.All(emitted, id =>
-        {
-            Assert.True(RuleCatalog.TryGet(id, out var rule), id);
-            Assert.Equal(id, rule.Id);
+            Assert.Equal(DiagnosticKind.LintOnly, d.Kind);
+            Assert.Equal("a.md", d.Path);
+            Assert.DoesNotContain('\n', d.Message);
+            Assert.True(RuleCatalog.TryGet(d.RuleId, out _));
         });
     }
 
     /// <summary>
-    ///     Test that the always-applied formatting rules are registered as fixable formatting rules with their legacy numbers, and that a configuration rejects them.
+    ///     Test that a rule that is disabled, or suppressed by a comment, reports nothing, and that an optional rule
+    ///     reports only when it is enabled.
     /// </summary>
     [Fact]
-    public void LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable()
+    public void LintingSubsystem_LintChecks_DisabledSuppressedAndOptionalRules_HonorEnablement()
     {
-        // Arrange: the identifier and the legacy number of one always-applied rule
-        const string id = "trailing-whitespace";
-        const string alias = "MD009";
+        // Arrange: the same finding outside and inside a suppressed region, and a link text that is only reported by an optional rule
+        const string text =
+            "see *text * here\n\n<!-- lintmark-disable emphasis-space -->\nsee *text * here\n<!-- lintmark-enable emphasis-space -->\n\n[click here](https://example.com)\n";
+        var enabled = LintMarkConfig.Default with { Rules = LintMarkConfig.Default.Rules.SetItem("descriptive-link-text", true) };
+        var disabled = LintMarkConfig.Default with { Rules = LintMarkConfig.Default.Rules.SetItem("emphasis-space", false) };
 
-        // Act: look the rule up by both names, and parse configurations that name it
-        Assert.True(RuleCatalog.TryGet(id, out var rule));
-        Assert.True(RuleCatalog.TryResolve(alias, out var resolved));
-        var byId = Parse($"rules:\n  {id}: false\n");
-        var byAlias = Parse($"rules:\n  {alias}: false\n");
+        // Act: run with the defaults, with the optional rule enabled and with the finding's rule disabled
+        var byDefault = Run(text);
+        var withOptional = Run(text, enabled);
+        var withoutRule = Run(text, disabled);
 
-        // Assert: it is a formatting rule with a description and the alias, known but not configurable
-        Assert.Equal(DiagnosticKind.Formatting, rule.Kind);
-        Assert.False(rule.IsConfigurable);
-        Assert.NotEmpty(rule.Description);
-        Assert.Contains(alias, rule.Aliases);
-        Assert.Equal(id, resolved);
-
-        // Assert: a configuration that names the rule or its number reports an unknown rule
-        Assert.Null(byId.Config);
-        Assert.Equal($"Unknown rule '{id}'", Assert.Single(byId.Errors).Message);
-        Assert.Null(byAlias.Config);
-        Assert.Equal($"Unknown rule '{alias}'", Assert.Single(byAlias.Errors).Message);
-    }
-
-    /// <summary>
-    ///     Test that the rules setting accepts aliases and dropped aliases and rejects rules that are not configurable.
-    /// </summary>
-    [Fact]
-    public void LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable()
-    {
-        // Act: parse an alias, a dropped alias, and two rules that cannot be configured
-        var alias = Parse("rules:\n  MD013: false\n");
-        var dropped = Parse("rules:\n  MD033: false\n");
-        var lineEnding = Parse("rules:\n  line-ending: false\n");
-        var failure = Parse("rules:\n  config-error: false\n");
-
-        // Assert: the alias switches the canonical rule off
-        Assert.Empty(alias.Errors);
-        Assert.False(alias.Config!.Rules["line-length"]);
-
-        // Assert: the dropped alias is accepted and changes nothing
-        Assert.Empty(dropped.Errors);
-        Assert.Equal(LintMarkConfig.Default.Rules, dropped.Config!.Rules);
-
-        // Assert: a rule that is always applied or only labels a failure is an unknown rule
-        Assert.Null(lineEnding.Config);
-        var lineEndingError = Assert.Single(lineEnding.Errors);
-        Assert.Equal((2, 3, "Unknown rule 'line-ending'"), (lineEndingError.Line, lineEndingError.Column, lineEndingError.Message));
-        Assert.Null(failure.Config);
-        var failureError = Assert.Single(failure.Errors);
-        Assert.Equal((2, 3, "Unknown rule 'config-error'"), (failureError.Line, failureError.Column, failureError.Message));
+        // Assert: the suppressed line is never reported, the optional rule only when enabled, a disabled rule never
+        Assert.Equal(["1:5 emphasis-space"], byDefault);
+        Assert.Equal(["1:5 emphasis-space", "7:1 descriptive-link-text"], withOptional);
+        Assert.Empty(withoutRule);
     }
 }

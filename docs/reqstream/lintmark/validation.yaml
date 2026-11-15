@@ -1,0 +1,47 @@
+---
+# Software Unit Requirements for the Validation Unit
+#
+# The Validation unit runs the tool's built-in self-tests, reports their outcome, and writes the results in a
+# format that qualification evidence can consume.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Validation Requirements
+        requirements:
+          - id: LintMark-Validation-SelfTests
+            title: >-
+              The Validation unit shall run the built-in self-tests against the tool itself and report the total,
+              passed, and failed counts under a heading at the depth the context gives, ending with exit status 0
+              when every test passes.
+            justification: |
+              Users in regulated environments must be able to show that the installed tool works, without any
+              external test setup, and to place the report under the headings of their own documents.
+            tests:
+              - Validation_Run_WithSilentContext_PrintsSummary
+              - Validation_Run_DepthTwo_HeadsTheSummaryAtThatDepth
+              - Validation_Run_WithSilentContext_ExitCodeIsZero
+              - Validation_Run_NullContext_ThrowsArgumentNullException
+
+          - id: LintMark-Validation-ResultsFile
+            title: >-
+              The Validation unit shall write the self-test results to the file named by the results option as a
+              TRX file for the extension .trx and as a JUnit XML file for the extension .xml.
+            justification: |
+              Qualification evidence is collected by tools that read the standard TRX and JUnit formats.
+            children:
+              - LintMark-OTS-TestResults-Trx
+              - LintMark-OTS-TestResults-JUnit
+            tests:
+              - Validation_Run_WithTrxResultsFile_WritesTrxFile
+              - Validation_Run_WithXmlResultsFile_WritesXmlFile
+
+          - id: LintMark-Validation-ResultsFormatError
+            title: >-
+              The Validation unit shall report a results file with an unsupported extension as an error, write
+              no file, and end with a non-zero exit status.
+            justification: |
+              A results file that is silently not written would leave a pipeline without evidence, so the
+              failure must be visible in the exit status.
+            tests:
+              - Validation_Run_WithUnsupportedResultsFormat_DoesNotWriteFile

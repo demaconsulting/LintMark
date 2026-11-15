@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def InlineSubsystem {
-        doc /* Holds the inline normalizer of the tool, which proposes the changes that write the emphasis, strong emphasis, and bare URLs inside each paragraph that no block formatter claims in canonical form, and only where the paragraph renders the same afterwards. */
+        doc /* Works on the inline content of paragraphs: it writes emphasis, strong emphasis, bare URLs, and code spans in the canonical form, splits a paragraph into the words a wrap may move, lays those words out as lines under the wrap rules, and converts inline links to reference links. */
 
         metadata info : SoftwareInfo {
             testFiles = ("test/DemaConsulting.LintMark.Tests/Formatting/Inline/InlineSubsystemTests.cs");
@@ -12,5 +12,8 @@ package LintMark {
         }
 
         part inlineNormalizer : InlineNormalizer;
+        part atomTokenizer : AtomTokenizer;
+        part lineWrapper : LineWrapper;
+        part linkRefactorer : LinkRefactorer;
     }
 }

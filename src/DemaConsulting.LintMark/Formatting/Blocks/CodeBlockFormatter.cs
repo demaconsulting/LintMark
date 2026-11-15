@@ -94,17 +94,12 @@ internal sealed class CodeBlockFormatter : IBlockFormatter
     /// <param name="block">The code block. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives the edits. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a closed fenced or an indented code block.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a closed fenced or an indented code block, not {block.Kind}.", nameof(block));
-        }
 
         var layout = new LineLayout(context.Document.Source);
         var target = context.Config.CodeFence == FenceMarker.Tilde ? '~' : '`';

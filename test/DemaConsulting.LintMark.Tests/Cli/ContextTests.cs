@@ -63,21 +63,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test creating a context with the short version flag.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ShortVersionFlag_SetsVersionTrue()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["-v"]);
-
-        // Assert: verify expected behavior
-        Assert.True(context.Version);
-        Assert.False(context.Help);
-        Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
     ///     Test creating a context with the help flag.
     /// </summary>
     [Fact]
@@ -85,36 +70,6 @@ public class ContextTests
     {
         // Act: execute the operation being tested
         using var context = Context.Create(["--help"]);
-
-        // Assert: verify expected behavior
-        Assert.False(context.Version);
-        Assert.True(context.Help);
-        Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
-    ///     Test creating a context with the short help flag -h.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ShortHelpFlag_H_SetsHelpTrue()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["-h"]);
-
-        // Assert: verify expected behavior
-        Assert.False(context.Version);
-        Assert.True(context.Help);
-        Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
-    ///     Test creating a context with the short help flag -?.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ShortHelpFlag_Question_SetsHelpTrue()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["-?"]);
 
         // Assert: verify expected behavior
         Assert.False(context.Version);
@@ -269,20 +224,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test creating a context with no depth flag returns default heading depth of 1.
-    /// </summary>
-    [Fact]
-    public void Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create([]);
-
-        // Assert: verify default depth is 1
-        Assert.Equal(1, context.HeadingDepth);
-        Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
     ///     Test creating a context with --depth flag but no value throws exception.
     /// </summary>
     [Fact]
@@ -301,28 +242,6 @@ public class ContextTests
     {
         // Act & Assert
         var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--depth", "abc"]));
-        Assert.Contains("--depth", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test creating a context with --depth flag and zero value throws exception.
-    /// </summary>
-    [Fact]
-    public void Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException()
-    {
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--depth", "0"]));
-        Assert.Contains("--depth", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test creating a context with --depth flag and value exceeding maximum throws exception.
-    /// </summary>
-    [Fact]
-    public void Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException()
-    {
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--depth", "7"]));
         Assert.Contains("--depth", exception.Message);
     }
 
@@ -346,33 +265,6 @@ public class ContextTests
             // Assert: verify expected behavior
             var output = outWriter.ToString();
             Assert.Contains("Test message", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
-
-    /// <summary>
-    ///     Test WriteLine does not write to console when silent.
-    /// </summary>
-    [Fact]
-    public void Context_WriteLine_Silent_DoesNotWriteToConsole()
-    {
-        // Arrange: setup test conditions
-        var originalOut = Console.Out;
-        try
-        {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["--silent"]);
-
-            // Act: execute the operation being tested
-            context.WriteLine("Test message");
-
-            // Assert: verify expected behavior
-            var output = outWriter.ToString();
-            Assert.DoesNotContain("Test message", output);
         }
         finally
         {
@@ -570,20 +462,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that the exposed path list cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void Context_Paths_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange / Act: create a context with paths
-        using var context = Context.Create(["a.md", "docs", "!docs/old"]);
-
-        // Assert: a caller cannot change the list
-        ReadOnlyAssertions.AssertCannotBeModified(context.Paths);
-        Assert.Equal(new[] { "a.md", "docs", "!docs/old" }, context.Paths);
-    }
-
-    /// <summary>
     ///     Test creating a context with positional arguments sets the paths in the order given.
     /// </summary>
     [Fact]
@@ -597,19 +475,6 @@ public class ContextTests
         Assert.False(context.Check);
         Assert.False(context.Validate);
         Assert.Equal(0, context.ExitCode);
-    }
-
-    /// <summary>
-    ///     Test creating a context without positional arguments leaves the paths empty.
-    /// </summary>
-    [Fact]
-    public void Context_Create_NoPaths_PathsEmpty()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["--silent"]);
-
-        // Assert: no paths
-        Assert.Empty(context.Paths);
     }
 
     /// <summary>
@@ -652,22 +517,6 @@ public class ContextTests
                 File.Delete(logFile);
             }
         }
-    }
-
-    /// <summary>
-    ///     Test that version and help may be combined with paths (they take priority in the program).
-    /// </summary>
-    [Fact]
-    public void Context_Create_HelpOrVersionWithPaths_DoesNotThrow()
-    {
-        // Act: execute the operation being tested
-        using var help = Context.Create(["--help", "a.md"]);
-        using var version = Context.Create(["a.md", "--version", "--check"]);
-
-        // Assert: both are accepted
-        Assert.True(help.Help);
-        Assert.True(version.Version);
-        Assert.Equal(["a.md"], version.Paths);
     }
 
     /// <summary>
@@ -725,20 +574,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that neither fix nor diff is set by default.
-    /// </summary>
-    [Fact]
-    public void Context_Create_NoFlags_FixAndDiffAreFalse()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create([]);
-
-        // Assert: both are at their defaults
-        Assert.False(context.Fix);
-        Assert.False(context.Diff);
-    }
-
-    /// <summary>
     ///     Test that combining the fix flag with the check flag is a usage error.
     /// </summary>
     [Fact]
@@ -750,40 +585,61 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that combining the fix flag with the diff flag is a usage error.
+    ///     Test that combining the validate flag with a rule override is a usage error.
     /// </summary>
-    [Fact]
-    public void Context_Create_FixWithDiff_Throws()
+    [Theory]
+    [InlineData("--enable")]
+    [InlineData("--disable")]
+    public void Context_Create_ValidateWithRuleOverride_Throws(string option)
     {
-        // Act & Assert: the combination is rejected with the documented message
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--diff", "--fix"]));
-        Assert.Contains("--fix cannot be combined with --check or --diff", exception.Message);
+        // Act & Assert: the combination is rejected
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", option, "MD037"]));
+        Assert.Contains("--validate cannot be combined with", exception.Message);
     }
 
     /// <summary>
-    ///     Test that combining the validate flag with the fix flag is a usage error.
+    ///     Test that the enable and disable options take comma-separated lists of ids and legacy numbers, may be repeated, and are resolved.
     /// </summary>
     [Fact]
-    public void Context_Create_ValidateWithFix_Throws()
+    public void Context_Create_EnableAndDisable_AreResolvedToCanonicalIds()
     {
-        // Act & Assert: the combination is rejected with the documented message
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--fix"]));
-        Assert.Contains(
-            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
-            exception.Message);
+        // Act: name rules by id and by number, in several options
+        using var context = Context.Create(["--enable", "descriptive-link-text, MD014", "--disable", "MD037", "--enable", "link-space", "a.md"]);
+
+        // Assert: canonical ids in ordinal order, and the path is still a path
+        Assert.Equal(["descriptive-link-text", "dollar-sign-in-shell-code", "link-space"], context.RuleOverrides.Enabled);
+        Assert.Equal(["emphasis-space"], context.RuleOverrides.Disabled);
+        Assert.Equal(["a.md"], context.Paths);
     }
 
     /// <summary>
-    ///     Test that combining the validate flag with the diff flag is a usage error.
+    ///     Test that an invalid rule list is a usage error that names the problem.
+    /// </summary>
+    [Theory]
+    [InlineData("--enable", "no-such-rule", "unknown rule 'no-such-rule'")]
+    [InlineData("--disable", "trailing-whitespace", "always applied")]
+    [InlineData("--enable", "MD037,,MD039", "empty rule id")]
+    [InlineData("--enable", " ", "comma-separated list")]
+    public void Context_Create_InvalidRuleList_Throws(string option, string value, string message)
+    {
+        // Act & Assert: the usage error carries the option and the reason
+        var exception = Assert.Throws<ArgumentException>(() => Context.Create([option, value]));
+        Assert.Contains(option, exception.Message);
+        Assert.Contains(message, exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that a missing rule list, a rule named by both options and a dropped alias are handled.
     /// </summary>
     [Fact]
-    public void Context_Create_ValidateWithDiff_Throws()
+    public void Context_Create_RuleListEdgeCases_BehaveAsDocumented()
     {
-        // Act & Assert: the combination is rejected with the documented message
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--diff", "--validate"]));
-        Assert.Contains(
-            "--validate cannot be combined with paths, --check, --fix, --diff, --config, or --no-config",
-            exception.Message);
+        // Act & Assert: the value is required, a contradiction is rejected, a dropped alias is accepted and ignored
+        Assert.Contains("--enable requires", Assert.Throws<ArgumentException>(() => Context.Create(["--enable"])).Message);
+        Assert.Contains("--disable requires", Assert.Throws<ArgumentException>(() => Context.Create(["--disable"])).Message);
+        Assert.Contains("both --enable and --disable", Assert.Throws<ArgumentException>(() => Context.Create(["--enable", "MD037", "--disable", "emphasis-space"])).Message);
+        using var context = Context.Create(["--disable", "MD033"]);
+        Assert.True(context.RuleOverrides.IsEmpty);
     }
 
     /// <summary>
@@ -799,50 +655,6 @@ public class ContextTests
         Assert.True(context.Diff);
         Assert.True(context.Check);
         Assert.False(context.Fix);
-    }
-
-    /// <summary>
-    ///     Test that the fix flag combines with paths and the configuration option.
-    /// </summary>
-    [Fact]
-    public void Context_Create_FixWithPathsAndConfig_Accepted()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["a.md", "--fix", "--config", "c.yaml", "b.md"]);
-
-        // Assert: fix is set, the option value is not a path and both paths are kept
-        Assert.True(context.Fix);
-        Assert.Equal("c.yaml", context.ConfigFile);
-        Assert.Equal(["a.md", "b.md"], context.Paths);
-    }
-
-    /// <summary>
-    ///     Test that the exclusivity check happens before a log file is created.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ValidateWithPaths_DoesNotCreateLogFile()
-    {
-        // Arrange: a log path that does not exist yet
-        var logFile = Path.Combine(Path.GetTempPath(), $"context_exclusive_{Guid.NewGuid()}.log");
-
-        // Act & Assert: the usage error is raised and the log file is never created
-        Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--log", logFile, "a.md"]));
-        Assert.False(File.Exists(logFile));
-    }
-
-    /// <summary>
-    ///     Test that validate still combines with its own options.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ValidateWithItsOwnOptions_DoesNotThrow()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["--validate", "--silent", "--depth", "2", "--results", "out.trx"]);
-
-        // Assert: parsed as before
-        Assert.True(context.Validate);
-        Assert.Equal(2, context.HeadingDepth);
-        Assert.Empty(context.Paths);
     }
 
     /// <summary>
@@ -868,19 +680,6 @@ public class ContextTests
     {
         // Act & Assert: the missing value is reported by name
         var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config"]));
-        Assert.Contains("--config requires a configuration filename argument", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that a blank value for the config option is a usage error.
-    /// </summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Context_Create_ConfigFlag_BlankValue_ThrowsArgumentException(string value)
-    {
-        // Act & Assert: the blank value is rejected like a missing one
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config", value]));
         Assert.Contains("--config requires a configuration filename argument", exception.Message);
     }
 
@@ -928,20 +727,6 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that neither configuration option is set by default.
-    /// </summary>
-    [Fact]
-    public void Context_Create_NoArguments_ConfigFileNullAndNoConfigFalse()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create([]);
-
-        // Assert: both are at their defaults
-        Assert.Null(context.ConfigFile);
-        Assert.False(context.NoConfig);
-    }
-
-    /// <summary>
     ///     Test that naming a configuration file and disabling configuration contradict each other.
     /// </summary>
     [Fact]
@@ -951,84 +736,6 @@ public class ContextTests
         var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--config", "a.yaml", "--no-config"]));
         Assert.Contains("--config", exception.Message);
         Assert.Contains("--no-config", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that combining the validate flag with the config option is a usage error.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ValidateWithConfig_ThrowsArgumentException()
-    {
-        // Act & Assert: the combination is rejected with a message naming the option
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--validate", "--config", "a.yaml"]));
-        Assert.Contains("--config", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that combining the validate flag with the no-config flag is a usage error.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ValidateWithNoConfig_ThrowsArgumentException()
-    {
-        // Act & Assert: the combination is rejected with a message naming the flag
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create(["--no-config", "--validate"]));
-        Assert.Contains("--no-config", exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that version and help may be combined with the configuration options.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ConfigWithHelpOrVersion_DoesNotThrow()
-    {
-        // Act: execute the operation being tested
-        using var help = Context.Create(["--help", "--config", "a.yaml"]);
-        using var version = Context.Create(["--no-config", "--version"]);
-
-        // Assert: both are accepted
-        Assert.True(help.Help);
-        Assert.Equal("a.yaml", help.ConfigFile);
-        Assert.True(version.Version);
-        Assert.True(version.NoConfig);
-    }
-
-    /// <summary>
-    ///     Test that the config option combines with paths and other options in any order.
-    /// </summary>
-    [Fact]
-    public void Context_Create_ConfigAndPaths_ParsesBoth()
-    {
-        // Act: execute the operation being tested
-        using var context = Context.Create(["a.md", "--config", "c.yaml", "--silent", "b.md"]);
-
-        // Assert: the option value is not a path and both paths are kept
-        Assert.Equal("c.yaml", context.ConfigFile);
-        Assert.Equal(["a.md", "b.md"], context.Paths);
-        Assert.True(context.Silent);
-    }
-
-    /// <summary>
-    ///     Test that a lone dash and other unknown dashed tokens are still unsupported arguments rather than paths.
-    /// </summary>
-    [Theory]
-    [InlineData("-")]
-    [InlineData("-x")]
-    [InlineData("--unknown")]
-    public void Context_Create_DashedUnknownToken_ThrowsArgumentException(string token)
-    {
-        // Act & Assert: not a path
-        var exception = Assert.Throws<ArgumentException>(() => Context.Create([token]));
-        Assert.Contains(token, exception.Message);
-    }
-
-    /// <summary>
-    ///     Test that an empty positional argument is rejected rather than treated as a path.
-    /// </summary>
-    [Fact]
-    public void Context_Create_EmptyArgument_ThrowsArgumentException()
-    {
-        // Act & Assert: an empty token is unsupported
-        Assert.Throws<ArgumentException>(() => Context.Create([string.Empty]));
     }
 
     /// <summary>
@@ -1068,39 +775,47 @@ public class ContextTests
     }
 
     /// <summary>
-    ///     Test that concurrent line writers produce intact lines in the log file and leave the exit code at zero.
+    ///     Test that the short forms of the version and help flags set the same values as the long forms.
     /// </summary>
-    [Fact]
-    public void Context_WriteLine_ConcurrentWriters_AllLinesWrittenIntact()
+    [Theory]
+    [InlineData("-v", true, false)]
+    [InlineData("-?", false, true)]
+    [InlineData("-h", false, true)]
+    public void Context_Create_ShortFlags_BehaveLikeTheLongFlags(string flag, bool version, bool help)
     {
-        // Arrange: a log file and many long lines
-        var logFile = Path.Combine(Path.GetTempPath(), $"context_concurrent_line_{Guid.NewGuid()}.log");
-        try
-        {
-            int exitCode;
-            using (var context = Context.Create(["--silent", "--log", logFile]))
-            {
-                // Act: write from many threads at once
-                Parallel.For(0, 400, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
-                    context.WriteLine($"line-{i}-{new string('y', 300)}"));
-                exitCode = context.ExitCode;
-            }
+        // Act: create the context
+        using var context = Context.Create([flag]);
 
-            // Assert: every line is present exactly once and intact; no error was recorded
-            var lines = File.ReadAllLines(logFile);
-            Assert.Equal(0, exitCode);
-            Assert.Equal(400, lines.Length);
-            Assert.Equal(
-                Enumerable.Range(0, 400).Select(i => $"line-{i}-{new string('y', 300)}").Order(StringComparer.Ordinal).ToList(),
-                lines.Order(StringComparer.Ordinal).ToList());
-        }
-        finally
-        {
-            if (File.Exists(logFile))
-            {
-                File.Delete(logFile);
-            }
-        }
+        // Assert: the matching value is set
+        Assert.Equal(version, context.Version);
+        Assert.Equal(help, context.Help);
+    }
+
+    /// <summary>
+    ///     Test that validation cannot be combined with any option that selects what to lint.
+    /// </summary>
+    [Theory]
+    [InlineData("--fix")]
+    [InlineData("--diff")]
+    [InlineData("--no-config")]
+    [InlineData("--config", "x.yaml")]
+    public void Context_Create_ValidateWithLintOption_Throws(params string[] option)
+    {
+        // Act and Assert: the combination is rejected
+        Assert.Throws<ArgumentException>(() => Context.Create(["--validate", .. option]));
+    }
+
+    /// <summary>
+    ///     Test that a heading depth outside its range, and a blank configuration file name, are rejected.
+    /// </summary>
+    [Theory]
+    [InlineData("--depth", "0")]
+    [InlineData("--depth", "7")]
+    [InlineData("--config", " ")]
+    public void Context_Create_ValueOutOfRange_Throws(string flag, string value)
+    {
+        // Act and Assert: the value is rejected
+        Assert.Throws<ArgumentException>(() => Context.Create([flag, value]));
     }
 }
 

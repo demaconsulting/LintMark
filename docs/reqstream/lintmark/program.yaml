@@ -1,59 +1,46 @@
 ---
-# Software Unit Requirements for the Program Class
+# Software Unit Requirements for the Program Unit
 #
-# The Program unit is the top-level command dispatcher for the tool.
+# The Program unit is the entry point of the tool: it chooses the one action that the command line selects and
+# turns invalid command lines into an error message and exit status 1.
 
 sections:
   - title: LintMark Requirements
     sections:
       - title: Program Requirements
         requirements:
-          - id: LintMark-Program-Version
-            title: The Program class shall support -v and --version flags to display version information.
+          - id: LintMark-Program-Dispatch
+            title: >-
+              The Program unit shall perform only the highest-priority action that the command line selects, in
+              the order version, help, self-validation, and linting of the selected files.
             justification: |
-              Users need to quickly identify the version of the tool they are using for
-              troubleshooting and compatibility verification.
+              Users combine options freely, and the tool has to behave predictably when more than one action is
+              requested, so that a version query never starts a lint run.
             tests:
               - Program_Run_WithVersionFlag_DisplaysVersionOnly
-              - Program_Run_WithShortVersionFlag_DisplaysVersion
-              - Program_Version_ReturnsNonEmptyString
-
-          - id: LintMark-Program-Help
-            title: The Program class shall support -?, -h, and --help flags to display usage information.
-            justification: |
-              Users need access to command-line usage documentation without requiring
-              external resources.
-            tests:
+              - Program_Run_VersionAndHelpFlags_VersionTakesPriority
               - Program_Run_WithHelpFlag_DisplaysUsageInformation
-              - Program_Run_WithShortHelpFlag_DisplaysUsage
-              - Program_Run_WithQuestionMarkFlag_DisplaysUsage
-              - Program_Run_WithHelpFlag_ListsCheckOptionAndPaths
-              - Program_Run_WithHelpFlag_ListsConfigOptions
-              - Program_Run_HelpFlag_ListsFixAndDiffOptions
-
-          - id: LintMark-Program-Validate
-            title: The Program class shall support --validate flag to invoke the self-validation framework.
-            justification: |
-              Provides a built-in mechanism to verify the tool is functioning correctly
-              in the deployment environment.
-            tests:
               - Program_Run_WithValidateFlag_RunsValidation
-
-          - id: LintMark-Program-Lint
-            title: >-
-              The Program class shall lint the Markdown files selected on the command line when no version,
-              help, or validate option is given.
-            justification: |
-              Linting Markdown files is the primary purpose of the tool, so running it with only file
-              selections must do the obvious thing instead of printing nothing or failing.
-            tests:
               - Program_Run_WithPathArgument_RunsEngine
-              - Program_Run_NoArguments_DisplaysDefaultBehavior
 
-          - id: LintMark-Program-ExitCode
-            title: The Program class shall return a non-zero exit code on failure.
+          - id: LintMark-Program-Banner
+            title: >-
+              The Program unit shall print the tool name with its version and the copyright line before every
+              action except the version query, which prints the version alone.
             justification: |
-              Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
-              programmatically via the process exit code.
+              The banner identifies the tool and version in logs and console output, while the version query has
+              to be usable in scripts that read only the version number.
+            tests:
+              - Program_Run_NoArguments_DisplaysDefaultBehavior
+              - Program_Run_WithVersionFlag_DisplaysVersionOnly
+              - Program_Run_VersionAndHelpFlags_VersionTakesPriority
+
+          - id: LintMark-Program-ErrorHandling
+            title: >-
+              The Program unit shall report an invalid command line as a one-line error message on standard
+              error, without a stack trace, and end with exit status 1.
+            justification: |
+              Users and scripts need a clear message and a failing status for usage problems, not a crash report.
             tests:
               - Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode
+              - Program_Main_WithInvalidArgs_WritesErrorMessageToStandardError

@@ -59,14 +59,9 @@ internal sealed class EditorConfigResolver
     private const string EndOfLineProperty = "end_of_line";
 
     /// <summary>
-    ///     Resolves the chain of settings files for a directory.
+    ///     The library parser; safe for concurrent use.
     /// </summary>
-    private readonly Func<string, EditorConfigResolvedChain> _resolveChain;
-
-    /// <summary>
-    ///     Evaluates a file against a resolved chain.
-    /// </summary>
-    private readonly Func<string, EditorConfigResolvedChain, FileConfiguration> _evaluate;
+    private readonly EditorConfigParser _parser = new();
 
     /// <summary>
     ///     Resolved chains (or the reason they could not be read) by directory.
@@ -74,46 +69,15 @@ internal sealed class EditorConfigResolver
     private readonly ConcurrentDictionary<string, Lazy<(EditorConfigResolvedChain? Chain, string? Problem)>> _chains = new(StringComparer.Ordinal);
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="EditorConfigResolver"/> class that reads the real file system.
-    /// </summary>
-    public EditorConfigResolver()
-    {
-        var parser = new EditorConfigParser();
-        _resolveChain = parser.GetResolvedChainForDirectory;
-        _evaluate = parser.Parse;
-    }
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="EditorConfigResolver"/> class with replaceable library calls (a test seam).
-    /// </summary>
-    /// <param name="resolveChain">Resolves the chain of settings files for a directory. Must not be null.</param>
-    /// <param name="evaluate">Evaluates a file against a chain. Must not be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    internal EditorConfigResolver(
-        Func<string, EditorConfigResolvedChain> resolveChain,
-        Func<string, EditorConfigResolvedChain, FileConfiguration> evaluate)
-    {
-        ArgumentNullException.ThrowIfNull(resolveChain);
-        ArgumentNullException.ThrowIfNull(evaluate);
-        _resolveChain = resolveChain;
-        _evaluate = evaluate;
-    }
-
-    /// <summary>
     ///     Determines the line ending the editor settings specify for a Markdown file.
     /// </summary>
-    /// <param name="markdownFile">Path of the Markdown file (it need not exist); relative paths are resolved against the current directory. Must not be null or empty.</param>
+    /// <param name="markdownFile">Path of the Markdown file (it need not exist); relative paths are resolved against the current directory.</param>
     /// <returns>
     ///     The specified line ending, "not specified", or a message when the settings could not be read.
     ///     Never throws for file-system or content problems.
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="markdownFile"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="markdownFile"/> is empty.</exception>
     public EditorConfigResult Resolve(string markdownFile)
     {
-        // Validate input
-        ArgumentException.ThrowIfNullOrEmpty(markdownFile);
-
         // Resolve the full path exactly once; a path that cannot be resolved has no settings
         string fullPath;
         string? directory;
@@ -144,7 +108,7 @@ internal sealed class EditorConfigResolver
         // Evaluate this file against the chain and interpret the raw property
         try
         {
-            var configuration = _evaluate(fullPath, chain);
+            var configuration = _parser.Parse(fullPath, chain);
             return configuration.Properties.TryGetValue(EndOfLineProperty, out var raw)
                 ? new EditorConfigResult(Interpret(raw), null)
                 : EditorConfigResult.NotSpecified;
@@ -164,7 +128,7 @@ internal sealed class EditorConfigResolver
     {
         try
         {
-            return (_resolveChain(directory), null);
+            return (_parser.GetResolvedChainForDirectory(directory), null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or SecurityException)
         {
@@ -186,4 +150,46 @@ internal sealed class EditorConfigResolver
 
         return string.Equals(raw, "crlf", StringComparison.OrdinalIgnoreCase) ? LineEnding.CrLf : null;
     }
+}
+
+/// <summary>
+///     The editor-settings outcome for one Markdown file: the line ending the editor settings specify, or why they could not be read.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Supporting type of <see cref="EditorConfigResolver"/>. "Not specified" (both members
+///         <see langword="null"/>) is an ordinary outcome, not an error: editor settings are shared with
+///         other file types and often say nothing about line endings.
+///     </para>
+///     <para>
+///         Thread safety: instances are immutable and may be shared between threads.
+///     </para>
+/// </remarks>
+internal sealed record EditorConfigResult
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="EditorConfigResult"/> class.
+    /// </summary>
+    /// <param name="endOfLine">The line ending the editor settings specify, or <see langword="null"/>.</param>
+    /// <param name="errorMessage">Why the settings could not be read, or <see langword="null"/>.</param>
+    public EditorConfigResult(LineEnding? endOfLine, string? errorMessage)
+    {
+        EndOfLine = endOfLine;
+        ErrorMessage = errorMessage?.ReplaceLineEndings(" ");
+    }
+
+    /// <summary>
+    ///     Gets the outcome in which the editor settings say nothing about the line ending.
+    /// </summary>
+    public static EditorConfigResult NotSpecified { get; } = new(null, null);
+
+    /// <summary>
+    ///     Gets the line ending the editor settings specify, or <see langword="null"/> when they do not.
+    /// </summary>
+    public LineEnding? EndOfLine { get; }
+
+    /// <summary>
+    ///     Gets why the editor settings could not be read, or <see langword="null"/> when they could.
+    /// </summary>
+    public string? ErrorMessage { get; }
 }

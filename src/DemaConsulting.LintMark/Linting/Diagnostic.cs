@@ -23,154 +23,55 @@ namespace DemaConsulting.LintMark.Linting;
 /// <summary>
 ///     One finding about a file: a problem in the file, in its configuration, or in an attempt to rewrite it.
 /// </summary>
+/// <param name="RuleId">Kebab-case rule identifier the finding is reported under.</param>
+/// <param name="Kind">Whether rewriting the file removes the finding.</param>
+/// <param name="Path">Full path of the file the finding belongs to (the reporter makes it relative).</param>
+/// <param name="Line">1-based line.</param>
+/// <param name="Column">1-based column.</param>
+/// <param name="Message">Single-line description without the path.</param>
 /// <remarks>
 ///     <para>
 ///         The single diagnostic model exists so that every finding of the tool (read and parse failures,
-///         configuration problems, formatting violations and safety refusals) is created, ordered,
-///         de-duplicated and reported the same way. Whether a diagnostic is
-///         <see cref="Fixable"/> is derived from its <see cref="Kind"/> so the two can never disagree.
+///         configuration problems, formatting violations and format refusals) is created, ordered,
+///         de-duplicated and reported the same way.
 ///     </para>
 ///     <para>
 ///         The record is immutable and has value equality over all members, which the reporter uses to report
-///         the same finding once. The path is the full path of the file (the reporter makes it relative);
-///         positions are 1-based; the message is a single line without the path. Rule identifiers are checked
-///         for their shape (kebab-case) but not against <see cref="RuleCatalog"/>, so a unit that reports can
-///         be tested without the catalog; a test proves that every identifier the tool emits is registered.
-///     </para>
-///     <para>
-///         Thread safety: instances are immutable and may be shared between threads.
+///         the same finding once. Thread safety: instances are immutable and may be shared between threads.
 ///     </para>
 /// </remarks>
-internal sealed record Diagnostic
+internal sealed record Diagnostic(string RuleId, DiagnosticKind Kind, string Path, int Line, int Column, string Message)
 {
     /// <summary>
-    ///     The characters that end a line: CR, LF, NEL (U+0085), line separator (U+2028) and paragraph separator (U+2029).
+    ///     Creates a finding that is only reported.
     /// </summary>
-    private const string LineBreakCharacters = "\r\n\u0085\u2028\u2029";
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="Diagnostic"/> class.
-    /// </summary>
-    /// <param name="ruleId">Kebab-case rule identifier (lowercase letters and digits separated by single hyphens).</param>
-    /// <param name="kind">Whether rewriting the file removes the finding.</param>
-    /// <param name="path">Full path of the file the finding belongs to. Must not be blank.</param>
+    /// <param name="path">Path of the file.</param>
+    /// <param name="ruleId">Rule identifier.</param>
     /// <param name="line">1-based line.</param>
     /// <param name="column">1-based column.</param>
-    /// <param name="message">Single-line description without the path. Must not be blank and must not contain a line break.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="ruleId"/>, <paramref name="path"/> or <paramref name="message"/> is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="ruleId"/> is not kebab-case, <paramref name="path"/> or <paramref name="message"/>
-    ///     is blank, or <paramref name="message"/> contains a line break.
-    /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when <paramref name="kind"/> is not a defined member, or <paramref name="line"/> or
-    ///     <paramref name="column"/> is less than one.
-    /// </exception>
-    public Diagnostic(string ruleId, DiagnosticKind kind, string path, int line, int column, string message)
-    {
-        // Validate every argument so that an invalid diagnostic can never be created
-        ArgumentNullException.ThrowIfNull(ruleId);
-        ArgumentNullException.ThrowIfNull(path);
-        ArgumentNullException.ThrowIfNull(message);
-        if (!IsKebabCase(ruleId))
-        {
-            throw new ArgumentException("The rule identifier must be kebab-case (lowercase letters and digits separated by hyphens).", nameof(ruleId));
-        }
+    /// <param name="message">Description; line breaks are replaced so the report stays one line per finding.</param>
+    /// <returns>The finding.</returns>
+    public static Diagnostic LintOnly(string path, string ruleId, int line, int column, string message) =>
+        new(ruleId, DiagnosticKind.LintOnly, path, line, column, message.ReplaceLineEndings(" "));
+}
 
-        if (!Enum.IsDefined(kind))
-        {
-            throw new ArgumentOutOfRangeException(nameof(kind), kind, "Not a defined DiagnosticKind value.");
-        }
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentException("The path must not be blank.", nameof(path));
-        }
-
-        ArgumentOutOfRangeException.ThrowIfLessThan(line, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(column, 1);
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            throw new ArgumentException("The message must not be blank.", nameof(message));
-        }
-
-        if (message.AsSpan().IndexOfAny(LineBreakCharacters) >= 0)
-        {
-            throw new ArgumentException("The message must be a single line.", nameof(message));
-        }
-
-        RuleId = ruleId;
-        Kind = kind;
-        Path = path;
-        Line = line;
-        Column = column;
-        Message = message;
-    }
+/// <summary>
+///     Whether a diagnostic can be removed by rewriting the file or can only be reported.
+/// </summary>
+/// <remarks>
+///     The kind is what makes the fix option's contract checkable: a <see cref="Formatting"/> diagnostic is
+///     one that the formatter removes when it rewrites the file, a <see cref="LintOnly"/> diagnostic is
+///     reported and stays until a person changes the file.
+/// </remarks>
+internal enum DiagnosticKind
+{
+    /// <summary>
+    ///     A problem that is only reported (file problems, configuration problems, format refusals and lint rules).
+    /// </summary>
+    LintOnly,
 
     /// <summary>
-    ///     Gets the kebab-case identifier of the rule the finding is reported under.
+    ///     A violation of canonical form that rewriting the file removes.
     /// </summary>
-    public string RuleId { get; }
-
-    /// <summary>
-    ///     Gets whether rewriting the file removes the finding.
-    /// </summary>
-    public DiagnosticKind Kind { get; }
-
-    /// <summary>
-    ///     Gets the full path of the file the finding belongs to.
-    /// </summary>
-    public string Path { get; }
-
-    /// <summary>
-    ///     Gets the 1-based line of the finding.
-    /// </summary>
-    public int Line { get; }
-
-    /// <summary>
-    ///     Gets the 1-based column of the finding.
-    /// </summary>
-    public int Column { get; }
-
-    /// <summary>
-    ///     Gets the single-line description of the finding, without the path.
-    /// </summary>
-    public string Message { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether rewriting the file removes the finding.
-    /// </summary>
-    /// <remarks>
-    ///     Computed from <see cref="Kind"/>, never stored, so the flag and the kind cannot disagree.
-    /// </remarks>
-    public bool Fixable => Kind == DiagnosticKind.Formatting;
-
-    /// <summary>
-    ///     Determines whether a text is a kebab-case identifier.
-    /// </summary>
-    /// <param name="value">The text to test.</param>
-    /// <returns>
-    ///     <see langword="true"/> when the text is non-empty, starts with a lowercase letter, and consists of
-    ///     lowercase letters and digits separated by single hyphens (no trailing or doubled hyphen).
-    /// </returns>
-    private static bool IsKebabCase(string value)
-    {
-        if (value.Length == 0 || !char.IsAsciiLetterLower(value[0]) || value[^1] == '-')
-        {
-            return false;
-        }
-
-        // Every character must be a lowercase letter, a digit, or a hyphen that does not follow another hyphen
-        for (var i = 1; i < value.Length; i++)
-        {
-            var c = value[i];
-            var valid = char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || (c == '-' && value[i - 1] != '-');
-            if (!valid)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    Formatting
 }

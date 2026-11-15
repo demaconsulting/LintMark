@@ -1,132 +1,101 @@
 # Introduction
 
-This document provides the detailed design for the LintMark, a .NET command-line
-tool from DEMA Consulting for markdown linting and formatting. It covers local
-software items (systems, subsystems, and units) and the OTS software items they consume.
+This document provides the detailed design for LintMark, a .NET command-line tool from DEMA Consulting for Markdown
+linting and formatting. It covers the local software items (system, subsystems, and units) and the OTS software items
+they consume.
 
 ## Purpose
 
-The purpose of this document is to describe the internal design of each software unit that
-comprises the LintMark. It captures data models, algorithms, key methods, and
-inter-unit interactions at a level of detail sufficient for formal code review, compliance
-verification, and future maintenance. A reviewer should be able to understand how each item
-satisfies its requirements without reading source code. The document does not restate
-requirements; it explains how they are realized.
+The purpose of this document is to describe the internal design of each software item that comprises LintMark. It
+captures data models, algorithms, key methods, and inter-item interactions at a level of detail sufficient for formal
+code review, compliance verification, and future maintenance. A reviewer should be able to understand how each item
+satisfies its requirements without reading source code. The document does not restate requirements; it explains how
+they are realized.
 
 ## Scope
 
 Local items:
 
-- **LintMark**: system, subsystem, and unit design for all local components.
+- **LintMark**: the system, its 5 subsystems (`Configuration`, `Document`, `Engine`, `Linting`, `Formatting`), the 2
+  nested subsystems of `Formatting` (`Blocks` and `Inline`), and its 30 units.
 
 OTS items:
 
-- **BuildMark**: integration and usage design.
-- **EditorConfig**: integration and usage design.
-- **FileAssert**: integration and usage design.
-- **FileSystemGlobbing**: integration and usage design.
-- **Markdig**: integration and usage design.
-- **Pandoc**: integration and usage design.
-- **ReqStream**: integration and usage design.
-- **ReviewMark**: integration and usage design.
-- **SarifMark**: integration and usage design.
-- **SonarMark**: integration and usage design.
-- **SysML2Tools**: integration and usage design.
-- **VersionMark**: integration and usage design.
-- **WeasyPrint**: integration and usage design.
-- **xUnit**: integration and usage design.
-- **YamlDotNet**: integration and usage design.
+- **Runtime libraries** shipped with the tool: Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig, and TestResults.
+- **Build and pipeline tools**: BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark,
+  SysML2Tools, VersionMark, WeasyPrint, and xUnit.
 
-The following topics are out of scope:
+For OTS items only the integration and usage design is documented; the internal design of an OTS item is out of scope.
 
-- Design documents are not produced for the test projects or build pipeline CI configuration
-- The internal design of OTS software items is excluded; only integration and usage design is documented
+The following are explicitly out of scope:
+
+- Test projects (`test/`) and the build pipeline (CI configuration).
+- Build-time-only package references without behavior (for example SourceLink and analyzers).
+- The development tool `tools/LintMark.Verify` and its test project. It is not part of the shipped system and is not a
+  software item: it has no requirements, design, or review set of its own.
+
+Verification tooling: the correctness of the tool's rewrites is verified at development time, not by run-time checks.
+The shipped tool contains no run-time proof, re-check, or equivalence step. The corpus harness `tools/LintMark.Verify`
+is a non-shipping development tool: it runs the tool over a corpus of Markdown documents and checks that the output
+keeps the document structure, renders to equivalent HTML, and is stable when formatted again, using deterministic
+rules. It is described in the verification documents, and its own tests run in the normal test pipeline.
 
 ## Software Structure
 
-The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the diagram
-below by SysML2Tools as part of the build pipeline. AI agents should query the SysML2 model
-directly (see the `sysml2tools-query` skill) rather than parsing this diagram or the prose
-elsewhere in this document. The model captures the shipped system's runtime composition only:
-the local software items and the OTS libraries the shipped tool consumes (Markdig,
-FileSystemGlobbing, YamlDotNet, and EditorConfig, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS
-items listed in Scope above are build-time/pipeline tooling, documented separately (see `docs/design/ots.md`)
-rather than modeled as SysML2 parts. The system is made of the entry point `Program` and ten subsystems: `Cli`,
-`Configuration`, `Document`, `Engine`, `Formatting`, `Linting`, `Reporting`, `Safety`, `SelfTest`, and `Utilities`.
-`Linting` (findings and the rule registry), `Formatting` (edits and the document formatter), `Safety` (the checks that
-decide whether a rewrite may be written), and `Reporting` (text and diff output) are the subsystems that make rewriting
-files possible and safe; `AtomicFileWriter` is a unit of the `Engine` subsystem and `TextWidth` a unit of the
-`Utilities` subsystem. `Formatting` contains two nested subsystems: `Blocks`, which holds the block formatters of the
-tool (`HeadingFormatter`, `CodeBlockFormatter`, `ThematicBreakFormatter`, `ListFormatter`, and `BlockQuoteFormatter`),
-and `Inline`, which holds the inline normalizer (`InlineNormalizer`); they are the only nested subsystems.
+The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the diagram below by SysML2Tools as
+part of the build pipeline. AI agents should query the SysML2 model directly (see the `sysml2tools-query` skill) rather
+than parsing this diagram or the prose elsewhere in this document. The model captures the shipped system's runtime
+composition: the local software items and the OTS libraries the shipped tool consumes (Markdig, FileSystemGlobbing,
+YamlDotNet, EditorConfig, and TestResults, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS items listed in
+Scope are build-time or pipeline tools, documented in `docs/design/ots.md` and not modeled as parts.
+
+The system consists of three units that sit directly under it (`Program`, `Context`, and `Validation`) and five
+subsystems: `Configuration` (settings, `.lintmark.yaml`, `.editorconfig`), `Document` (decoding, parsing, suppression
+comments, and text width), `Linting` (rule registry, diagnostics, and lint-only rules), `Formatting` (the canonical
+form and edit composition), and `Engine` (discovery, per-file pipeline, writing, and reporting). `Formatting` contains
+two nested subsystems: `Blocks` (the heading, code block, thematic break, block quote, list, table, and paragraph
+formatters) and `Inline` (inline normalization, atom tokenizing, line wrapping, and link refactoring). They are the only
+nested subsystems.
 
 ![Software Structure](SoftwareStructureView.svg)
-
-The diagram below is a placeholder that complements the structure view by showing how data flows
-at run time: replace its TODO boxes to show how your tool's entry point, Cli, subsystems, inputs,
-and outputs fit together.
-
-![Placeholder architecture diagram: replace the TODO boxes for your tool entry point, Cli,
-subsystems, support units, dependencies, inputs, and outputs with the real ones](architecture.svg)
 
 ## Folder Layout
 
 - **src/** - source files and projects
   - **DemaConsulting.LintMark/** - main application source
-    - **Cli/** - command-line interface subsystem
-    - **Configuration/** - configuration subsystem
-      - `LintMarkConfig.cs`, `LinkRefactorOptions.cs`, and the twelve setting enumerations
-        (`WrapMode.cs`, `HeadingStyle.cs`, `BulletMarker.cs`, `OrderedStyle.cs`, `EmphasisMarker.cs`,
-        `FenceMarker.cs`, `CodeBlockStyle.cs`, `HardBreakStyle.cs`, `ThematicBreakStyle.cs`, `TableStyle.cs`,
-        `BareUrlStyle.cs`, `TrailingWhitespaceStyle.cs`) - the `LintMarkConfig` unit
-      - `ConfigLoader.cs`, `ConfigParser.cs`, `ConfigLoadResult.cs`, `ConfigError.cs` - the `ConfigLoader` unit
-      - `EditorConfigResolver.cs`, `EditorConfigResult.cs` - the `EditorConfigResolver` unit
-    - **Document/** - document loading and parsing subsystem
-      - `ParsedDocument.cs` and `GridTableFallback.cs` - supporting types of the `DocumentParser` unit
-    - **Engine/** - file discovery, parallel processing, and writing subsystem
-      - `FileDiscovery.cs`, `DiscoveredFile.cs` - the `FileDiscovery` unit
-      - `LintMarkEngine.cs`, `FileResult.cs`, `FileChange.cs` - the `LintMarkEngine` unit
-      - `AtomicFileWriter.cs` - the `AtomicFileWriter` unit
-    - **Formatting/** - formatting subsystem (edits, patching, and the document formatter)
-      - `TextEdit.cs`, `EditSet.cs` - the `EditSet` unit
-      - `SourcePatcher.cs` - the `SourcePatcher` unit
-      - `DocumentFormatter.cs`, `IBlockFormatter.cs`, `FormatContext.cs`, `FormatResult.cs` - the `DocumentFormatter`
-        unit, with the internal helpers `LineLayout.cs`, `LineOwnership.cs`, `InlineMap.cs`, `LeafWhitespace.cs`,
-        `FrontMatterGuard.cs`, `BlankLinePass.cs`, `BlockSpacingPass.cs`, and `TrailerPass.cs`
-      - **Blocks/** - the nested `Blocks` subsystem (block formatters)
-        - `HeadingFormatter.cs` - the `HeadingFormatter` unit
-        - `CodeBlockFormatter.cs` - the `CodeBlockFormatter` unit
-        - `ThematicBreakFormatter.cs` - the `ThematicBreakFormatter` unit
-        - `ListFormatter.cs` - the `ListFormatter` unit, with the supporting types `ListModel.cs` and `ListPlan.cs`
-        - `BlockQuoteFormatter.cs` - the `BlockQuoteFormatter` unit
-      - **Inline/** - the nested `Inline` subsystem (inline rewriting)
-        - `InlineNormalizer.cs` - the `InlineNormalizer` unit, with the supporting types `InlineCandidates.cs` and
-          `ParagraphProof.cs`
-    - **Linting/** - findings and rule registry subsystem
-      - `Diagnostic.cs`, `DiagnosticKind.cs` - the `Diagnostic` unit
-      - `RuleCatalog.cs`, `RuleInfo.cs` - the `RuleCatalog` unit
-    - **Reporting/** - text and diff output subsystem
-      - `TextReporter.cs` - the `TextReporter` unit
-      - `DiffReporter.cs`, `FileDiff.cs` - the `DiffReporter` unit
-    - **Safety/** - rewrite safety checks subsystem
-      - `HtmlEquivalenceChecker.cs`, `StructuralTokenChecker.cs`, `IdempotencyChecker.cs`, `EquivalenceResult.cs` - one
-        unit each
-      - `SafetyStatus.cs` - supporting type shared by the checks and the engine
-    - **SelfTest/** - self-validation subsystem
-    - **Utilities/** - shared utilities subsystem (`PathHelpers.cs` and `TextWidth.cs`)
+    - `Program.cs` - the `Program` unit
+    - **Cli/** - `Context.cs`: the `Context` unit
+    - **SelfTest/** - `Validation.cs`: the `Validation` unit
+    - **Configuration/** - `Configuration` subsystem
+      - `LintMarkConfig.cs` - the `LintMarkConfig` unit (the settings record, the setting enumerations, and
+        `LinkRefactorOptions`)
+      - `ConfigLoader.cs`, `ConfigParser.cs` - the `ConfigLoader` unit (with `ConfigLoadResult` and `ConfigError`)
+      - `EditorConfigResolver.cs` - the `EditorConfigResolver` unit
+    - **Document/** - `Document` subsystem
+      - `SourceDocument.cs` - the `SourceDocument` unit
+      - `DocumentParser.cs`, `ParsedDocument.cs`, `ReferenceIndex.cs` - the `DocumentParser` unit
+      - `SuppressionMap.cs` - the `SuppressionMap` unit
+      - `TextWidth.cs` - the `TextWidth` unit
+    - **Engine/** - `Engine` subsystem
+      - `FileDiscovery.cs`, `LintMarkEngine.cs`, `AtomicFileWriter.cs` - one unit each
+    - **Reporting/** - `TextReporter.cs`, `DiffReporter.cs`: the `Reporters` unit of the `Engine` subsystem
+    - **Linting/** - `Linting` subsystem
+      - `RuleCatalog.cs`, `Diagnostic.cs` - the `RuleCatalog` unit
+      - `LintRuleEngine.cs`, `HeadingRules.cs`, `LinkRules.cs`, `StructureRules.cs`, `TableRules.cs` - the `LintRules`
+        unit
+    - **Formatting/** - `Formatting` subsystem
+      - `DocumentFormatter.cs`, `LineLayout.cs`, `LineOwnership.cs` - the `DocumentFormatter` unit
+      - `LeafWhitespace.cs`, `SpacingPasses.cs` - the `WhitespacePasses` unit
+      - `Edits.cs`, `EditRebaser.cs` - the `EditSet` unit
+      - **Blocks/** - nested `Blocks` subsystem: `HeadingFormatter.cs`, `CodeBlockFormatter.cs`,
+        `ThematicBreakFormatter.cs`, `BlockQuoteFormatter.cs`, `ListFormatter.cs` (with `ListModel.cs`),
+        `TableFormatter.cs`, `ParagraphFormatter.cs` - one unit each
+      - **Inline/** - nested `Inline` subsystem: `InlineNormalizer.cs`, `AtomTokenizer.cs`, `LineWrapper.cs` (with
+        `WrapGuard.cs`), `LinkRefactorer.cs` - one unit each
 - **test/** - test projects (not covered by design documents)
   - **DemaConsulting.LintMark.Tests/** - unit, subsystem, and system tests for the local items
   - **OtsSoftwareTests/** - integration tests for the OTS libraries
-
-## Document Conventions
-
-Throughout this document:
-
-- Class names, method names, property names, and file names appear in `monospace` font.
-- The word **shall** denotes a design constraint that the implementation must satisfy.
-- Section headings within each unit chapter follow a consistent structure: overview, data model,
-  methods/algorithms, and interactions with other units.
-- Text tables are used in preference to diagrams, which may not render in all PDF viewers.
+- **tools/** - non-shipping development tools (`LintMark.Verify` and its tests); not software items
 
 ## Companion Artifact Structure
 
@@ -135,37 +104,36 @@ Local software items have corresponding artifacts in parallel directory trees:
 - Requirements: `docs/reqstream/{system}/.../{item}.yaml` (kebab-case)
 - Design docs: `docs/design/{system}/.../{item}.md` (kebab-case)
 - Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
+- SysML2 model: `docs/sysml2/model/{system}/.../{item}.sysml` (kebab-case)
 - Source code: `src/{System}/.../{Item}.cs` (PascalCase for C#)
 - Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
 
-For example, the `Safety` subsystem and its `HtmlEquivalenceChecker` unit have the design documents
-`docs/design/lintmark/safety.md` and `docs/design/lintmark/safety/html-equivalence-checker.md`, the source folder
-`src/DemaConsulting.LintMark/Safety/`, and the test files `SafetySubsystemTests.cs` and
-`HtmlEquivalenceCheckerTests.cs` under `test/DemaConsulting.LintMark.Tests/Safety/`. A unit that is classified as a
-unit of one subsystem keeps the folder of that subsystem in every artifact tree: `AtomicFileWriter` is a unit of the
-`Engine` subsystem (`docs/design/lintmark/engine/atomic-file-writer.md`) and `TextWidth` is a unit of the `Utilities`
-subsystem (`docs/design/lintmark/utilities/text-width.md`). A supporting type that has no design document of its own
-is described in the document of the unit that owns it (for example `TextEdit` in the `EditSet` design, and
-`SafetyStatus` in the `Safety` subsystem design). A nested subsystem keeps the folder of its parent in every artifact
-tree: the `Blocks` subsystem of `Formatting` has the design document `docs/design/lintmark/formatting/blocks.md`, its
-units have `docs/design/lintmark/formatting/blocks/heading-formatter.md` and the like, the source folder
-`src/DemaConsulting.LintMark/Formatting/Blocks/`, and the test files `BlocksSubsystemTests.cs` and
-`HeadingFormatterTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Blocks/`. The `Inline` subsystem of
-`Formatting` follows the same pattern: `docs/design/lintmark/formatting/inline.md`, its unit
-`docs/design/lintmark/formatting/inline/inline-normalizer.md`, the source folder
-`src/DemaConsulting.LintMark/Formatting/Inline/`, and the test files `InlineSubsystemTests.cs` and
-`InlineNormalizerTests.cs` under `test/DemaConsulting.LintMark.Tests/Formatting/Inline/`.
+A unit keeps the folder of its parent subsystem in every artifact tree, whatever the source folder is. For example, the
+`LintMarkEngine` unit of the `Engine` subsystem has the design document
+`docs/design/lintmark/engine/lint-mark-engine.md`, the requirements file
+`docs/reqstream/lintmark/engine/lint-mark-engine.yaml`, the verification document
+`docs/verification/lintmark/engine/lint-mark-engine.md`, and the source file `Engine/LintMarkEngine.cs`; the `Reporters`
+unit has the same artifact folders but its source is in `Reporting/`. A nested subsystem keeps the folder of its parent:
+the `Blocks` subsystem has `docs/design/lintmark/formatting/blocks.md` and its units are under
+`docs/design/lintmark/formatting/blocks/`.
 
-OTS items have integration/usage design documentation parallel to system folders:
+A unit may own several source files and its tests may be spread over several test files (for example the `LintRules`
+unit owns four rule families). A supporting type, such as a record, enumeration, or interface, has no document of its
+own: it is described in the design of the unit that owns it (for example `Diagnostic` in the `RuleCatalog` design,
+`ReferenceIndex` in the `DocumentParser` design, and `TextReporter` in the `Reporters` design). The Folder Layout above
+and the SysML2 model name the files of each unit.
+
+OTS items have integration and usage design documentation parallel to the system folders:
 
 - Requirements: `docs/reqstream/ots/{ots-name}.yaml`
 - Design: `docs/design/ots/{ots-name}.md`
 - Verification: `docs/verification/ots/{ots-name}.md`
 - Tests (when no other evidence exists): `test/OtsSoftwareTests/{OtsName}Tests.cs` (PascalCase for C#)
 
-Review-sets: defined in `.reviewmark.yaml`
+Review-sets are defined in `.reviewmark.yaml`.
 
 ## References
 
 - LintMark User Guide
 - LintMark Repository (<https://github.com/demaconsulting/LintMark>)
+- CommonMark Specification (<https://spec.commonmark.org/>)

@@ -21,7 +21,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Security;
-using System.Text;
+using DemaConsulting.LintMark.Document;
 
 namespace DemaConsulting.LintMark.Configuration;
 
@@ -77,11 +77,6 @@ internal sealed class ConfigLoader
     ///     Size of the buffer used to read a configuration file.
     /// </summary>
     private const int ReadBufferSize = 8192;
-
-    /// <summary>
-    ///     Strict UTF-8 decoding: invalid bytes are reported instead of replaced.
-    /// </summary>
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>
     ///     The result shared by every load that finds no configuration.
@@ -288,26 +283,15 @@ internal sealed class ConfigLoader
             return Failure(path, "The configuration file is larger than 1 MiB");
         }
 
-        // Strip the byte order mark and decode strictly
-        if (HasUnsupportedByteOrderMark(content))
-        {
-            return Failure(path, "Unsupported byte order mark (only UTF-8 is supported)");
-        }
-
-        if (content.Length >= 3 && content[0] == 0xEF && content[1] == 0xBB && content[2] == 0xBF)
-        {
-            content = content[3..];
-        }
-
+        // Strip the byte order mark and decode strictly, like a Markdown file
         string text;
         try
         {
-            text = StrictUtf8.GetString(content);
+            text = SourceDocument.Decode(content, out _);
         }
-        catch (DecoderFallbackException ex)
+        catch (SourceDocumentException ex)
         {
-            var (line, column) = LocateByte(content, ex.Index);
-            return new ConfigLoadResult(null, path, [new ConfigError(path, line, column, "Invalid UTF-8 byte sequence")]);
+            return new ConfigLoadResult(null, path, [new ConfigError(path, ex.Line, ex.Column, ex.Message)]);
         }
 
         return ConfigParser.Parse(path, text);
@@ -401,50 +385,110 @@ internal sealed class ConfigLoader
 
         return null;
     }
+}
 
+/// <summary>
+///     The outcome of loading a configuration: either a valid configuration or the list of problems found.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Supporting type of <see cref="ConfigLoader"/>. A load never yields a half-valid configuration:
+///         <see cref="Config"/> is set exactly when <see cref="Errors"/> is empty, which makes it
+///         impossible to use settings from a file that was reported as invalid. The errors are stored
+///         sorted by line, column and message so the report does not depend on discovery order.
+///     </para>
+///     <para>
+///         Thread safety: instances are immutable and may be shared between threads.
+///     </para>
+/// </remarks>
+internal sealed record ConfigLoadResult
+{
     /// <summary>
-    ///     Determines whether content starts with a UTF-16 or UTF-32 byte order mark.
+    ///     Initializes a new instance of the <see cref="ConfigLoadResult"/> class.
     /// </summary>
-    /// <param name="bytes">The content.</param>
-    /// <returns><see langword="true"/> for an unsupported mark.</returns>
-    private static bool HasUnsupportedByteOrderMark(ReadOnlySpan<byte> bytes)
+    /// <param name="config">The valid configuration, or <see langword="null"/> when there are errors.</param>
+    /// <param name="sourcePath">Full path of the file the configuration came from; <see langword="null"/> for built-in defaults.</param>
+    /// <param name="errors">The problems found; empty exactly when <paramref name="config"/> is set.</param>
+    public ConfigLoadResult(LintMarkConfig? config, string? sourcePath, ImmutableArray<ConfigError> errors)
     {
-        // UTF-16 LE/BE (FF FE / FE FF; the first also covers UTF-32 LE) and UTF-32 BE (00 00 FE FF)
-        var isUtf16 = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
-        var isUtf32Be = bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xFE && bytes[3] == 0xFF;
-        return isUtf16 || isUtf32Be;
+        // Store the errors in report order
+        Config = config;
+        SourcePath = sourcePath;
+        Errors =
+        [
+            .. errors
+                .OrderBy(static e => e.Line)
+                .ThenBy(static e => e.Column)
+                .ThenBy(static e => e.Message, StringComparer.Ordinal)
+        ];
     }
 
     /// <summary>
-    ///     Finds the line and column of a byte offset in UTF-8 content.
+    ///     Gets the valid configuration, or <see langword="null"/> when the source had errors.
     /// </summary>
-    /// <param name="content">The content without byte order mark.</param>
-    /// <param name="index">The byte index reported by the decoder; out-of-range values fall back to 1:1.</param>
-    /// <returns>The 1-based line and column of the byte.</returns>
-    private static (int Line, int Column) LocateByte(ReadOnlySpan<byte> content, int index)
+    public LintMarkConfig? Config { get; }
+
+    /// <summary>
+    ///     Gets the full path of the configuration file, or <see langword="null"/> when built-in defaults apply.
+    /// </summary>
+    public string? SourcePath { get; }
+
+    /// <summary>
+    ///     Gets the problems found, sorted by line, column and message (empty when <see cref="Config"/> is set).
+    /// </summary>
+    public ImmutableArray<ConfigError> Errors { get; }
+}
+
+/// <summary>
+///     One problem found in a configuration source, with the position it is reported at.
+/// </summary>
+/// <remarks>
+///     Supporting type of <see cref="ConfigLoader"/>. Immutable. The message is kept on one line (line
+///     breaks are replaced by spaces) so that one problem is always one line of output.
+/// </remarks>
+internal sealed record ConfigError
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ConfigError"/> class.
+    /// </summary>
+    /// <param name="path">Path of the file the problem is reported against. Must not be null or empty.</param>
+    /// <param name="line">1-based line.</param>
+    /// <param name="column">1-based column.</param>
+    /// <param name="message">Description of the problem without the path or position. Must not be null or blank.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or <paramref name="message"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="line"/> or <paramref name="column"/> is less than one.</exception>
+    public ConfigError(string path, int line, int column, string message)
     {
-        if (index < 0 || index > content.Length)
-        {
-            return (1, 1);
-        }
+        // Validate input
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentOutOfRangeException.ThrowIfLessThan(line, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(column, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        // Count line breaks before the bad byte (LF, CRLF or a lone CR, as in the nesting scan and in YAML),
-        // then measure the partial line in UTF-16 units
-        var before = content[..index];
-        var line = 1;
-        var lineStart = 0;
-        for (var i = 0; i < before.Length; i++)
-        {
-            // A CR directly before an LF belongs to the same line break; the LF is the one counted
-            var isBreak = before[i] == (byte)'\n'
-                          || (before[i] == (byte)'\r' && (i + 1 >= content.Length || content[i + 1] != (byte)'\n'));
-            if (isBreak)
-            {
-                line++;
-                lineStart = i + 1;
-            }
-        }
-
-        return (line, Encoding.UTF8.GetCharCount(before[lineStart..]) + 1);
+        Path = path;
+        Line = line;
+        Column = column;
+        Message = message.ReplaceLineEndings(" ");
     }
+
+    /// <summary>
+    ///     Gets the path of the file the problem is reported against.
+    /// </summary>
+    public string Path { get; }
+
+    /// <summary>
+    ///     Gets the 1-based line of the problem.
+    /// </summary>
+    public int Line { get; }
+
+    /// <summary>
+    ///     Gets the 1-based column of the problem (UTF-16 code units; a tab counts as one).
+    /// </summary>
+    public int Column { get; }
+
+    /// <summary>
+    ///     Gets the single-line description of the problem.
+    /// </summary>
+    public string Message { get; }
 }

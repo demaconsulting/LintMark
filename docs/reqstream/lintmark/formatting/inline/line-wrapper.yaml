@@ -1,0 +1,73 @@
+---
+# Software Unit Requirements for the LineWrapper Unit
+#
+# The LineWrapper unit lays the words of a paragraph segment out in lines for the fill, sentence, and semantic modes,
+# measured in display columns, and never starts a line with block syntax.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            sections:
+              - title: LineWrapper Requirements
+                requirements:
+                  - id: LintMark-Formatting-Inline-LineWrapper-Fill
+                    title: >-
+                      The LineWrapper unit shall fill lines greedily with whole words up to the width, measured in
+                      display columns, and let a word wider than the width stand alone on its line.
+                    justification: |
+                      Width is what a reader sees, so wide and combining characters count by column, and a word that
+                      cannot be split must not be cut to meet the limit.
+                    tests:
+                      - LineWrapper_Wrap_AtomsThatDoNotFit_GoToTheNextLine
+                      - LineWrapper_Wrap_LineExactlyAsWideAsTheWidth_Stays
+                      - LineWrapper_Wrap_AtomWiderThanTheWidth_StandsAloneOnItsLine
+                      - LineWrapper_Wrap_WideAndCombiningCharacters_AreCountedInColumns
+                      - LineWrapper_Wrap_FirstWidthSmallerThanTheRest_AppliesToTheFirstLineOnly
+                      - LineWrapper_Wrap_ModesAreIdempotent
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-Sentences
+                    title: >-
+                      The LineWrapper unit shall start a new line at every sentence start in the sentence mode, and
+                      fill a sentence that is too wide.
+                    justification: |
+                      A sentence per line is the layout that makes prose diffs readable, and a sentence that is
+                      too wide for a line must still respect the width.
+                    tests:
+                      - LineWrapper_Wrap_SentenceMode_PutsEverySentenceOnItsOwnLine
+                      - LineWrapper_Wrap_SentenceModeTooWideSentence_IsFilled
+                      - LineWrapper_Wrap_UnlimitedWidth_WritesOneSentencePerLine
+                      - SentenceSplitter_FindSentenceStarts_SentenceEnd_IsFound
+                      - SentenceSplitter_FindSentenceStarts_SingleAtomAndEmpty_HaveNoStart
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-Semantic
+                    title: >-
+                      The LineWrapper unit shall break a sentence that is too wide in the semantic mode at the
+                      latest clause start that lets the rest fit, and fill it when no clause start qualifies.
+                    justification: |
+                      Clause breaks keep the phrases of long sentences together, and the fill fallback guarantees a
+                      layout even when the text has no usable clause punctuation.
+                    tests:
+                      - LineWrapper_Wrap_SemanticMode_BreaksATooWideSentenceAtTheLatestFittingClause
+                      - LineWrapper_Wrap_SemanticModeWithoutClauseStart_IsFilled
+                      - LineWrapper_Wrap_SemanticModeClauseBreakBeyondTheWidth_IsFilled
+                      - LineWrapper_Wrap_SemanticModeAtomWithInnerComma_IsKeptWhole
+                      - SentenceSplitter_FindClauseStarts_ClausePunctuation_IsFound
+                      - SentenceSplitter_FindClauseStarts_NotClausePunctuation_IsNotSplit
+
+                  - id: LintMark-Formatting-Inline-LineWrapper-BlockSyntaxGuard
+                    title: >-
+                      The LineWrapper unit shall never start a line with a word that could be read as block syntax,
+                      and shall report an overflow when no other break exists.
+                    justification: |
+                      A line that starts with a list marker, heading marker, or fence would change the structure
+                      of the document, so a longer line is the safer result.
+                    tests:
+                      - LineWrapper_Wrap_BreakBeforeGuardedAtom_MovesEarlier
+                      - LineWrapper_Wrap_GuardedAtomsInARow_KeepTheLineAndReportTheOverflow
+                      - LineWrapper_Wrap_BlockSyntaxAtTheBreak_IsKeptOffTheLineStart
+                      - LineWrapper_Wrap_SentenceStartThatIsBlockSyntax_StaysOnTheLineBefore
+                      - BlockSyntaxGuard_IsGuardedLineStart_BulletMarkers_AreGuarded
+                      - BlockSyntaxGuard_IsGuardedLineStart_OrdinaryText_IsNotGuarded

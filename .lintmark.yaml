@@ -1,0 +1,14 @@
+---
+# LintMark configuration for this repository.
+#
+# All formatting settings use the built-in defaults. The ignore list repeats the
+# built-in defaults (a configured list replaces them) and adds .corpus/, the
+# git-ignored verification corpus fetched by tools/LintMark.Verify/fetch-corpus.ps1.
+ignore:
+  - ".git/**"
+  - "node_modules/**"
+  - "**/.venv/**"
+  - "**/generated/**"
+  - "**/thirdparty/**"
+  - ".agent-logs/**"
+  - ".corpus/**"

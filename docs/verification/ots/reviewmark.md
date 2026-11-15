@@ -33,16 +33,12 @@ from a test configuration.
 
 **Expected**: Exits 0 and produces a non-empty review plan markdown file.
 
-**Requirement coverage**: `LintMark-OTS-ReviewMark`.
-
 #### ReviewMark_ReviewReportGeneration
 
 **Scenario**: ReviewMark self-validation uses `--definition` and `--report` to generate a review
 report from a test configuration and evidence store.
 
 **Expected**: Exits 0 and produces a non-empty review report.
-
-**Requirement coverage**: `LintMark-OTS-ReviewMark`.
 
 #### ReviewMark_Enforce
 
@@ -51,8 +47,6 @@ issues.
 
 **Expected**: Exits with a non-zero exit code when review issues are present.
 
-**Requirement coverage**: `LintMark-OTS-ReviewMark-Enforce`.
-
 #### ReviewMark_Elaborate
 
 **Scenario**: ReviewMark self-validation uses `--elaborate` to print a Markdown elaboration of a
@@ -60,13 +54,9 @@ named review set.
 
 **Expected**: Exits 0 and prints the review-set ID, fingerprint, and file list.
 
-**Requirement coverage**: `LintMark-OTS-ReviewMark-Elaborate`.
-
 #### ReviewMark_Lint
 
 **Scenario**: ReviewMark self-validation uses `--lint` to validate a definition file and report
 issues.
 
 **Expected**: Correctly reports structural and semantic issues found in the test definition.
-
-**Requirement coverage**: `LintMark-OTS-ReviewMark-Lint`.

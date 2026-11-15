@@ -1,0 +1,277 @@
+{
+  "schema": 1,
+  "description": "The curated verification corpus of tools/LintMark.Verify, read by fetch-corpus.ps1. Diversity over quantity: spec and conformance examples, adversarial Markdown tool fixtures, small real-world samples and the DEMA repositories.",
+  "fields": {
+    "name": "Unique source name; the folder .corpus/<category>/<name>/ receives the produced files.",
+    "category": "spec | fixture | realworld | dema.",
+    "repo": "GitHub owner/name (members: each member names its own repo).",
+    "ref": "The default branch of the repository, checked when the manifest was written. The resolved commit SHA is written to .corpus/<category>/<name>/SOURCE.txt, never here.",
+    "paths": "Repository paths that are considered: a prefix that ends with '/' or one exact file. Only the files picked from them are downloaded.",
+    "keepFiles": "true: whole files are kept (default for extractor 'none'). Files that are not named *.md get '.md' appended so the verifier finds them.",
+    "include": "Regex (on the repository-relative path, forward slashes) that selects the whole files; default: \\.(md|markdown)$.",
+    "exclude": "Array of regexes; files that match any are never used.",
+    "cap": "Largest number of whole files per repository, picked deterministically (sorted, evenly spread). Absent: no cap.",
+    "extractor": "none | commonmark-examples | markdig-examples | fixture-dots | pandoc-cmd (see fetch-corpus.ps1). The first two read the spec example fence format; fixture-dots reads the title/input/output blocks separated by '.' lines; pandoc-cmd reads the markdown stdin of Pandoc cram tests.",
+    "extractFrom": "Regex that selects the files given to the extractor.",
+    "exampleCap": "Largest number of extracted examples per repository, picked deterministically. Absent: no cap.",
+    "dedupeAgainst": "Names of sources whose extracted examples are not extracted again (exact content match); they must come earlier in this file.",
+    "members": "An aggregate source: every member names a repo (plus the fields above that it overrides); output goes to files/<owner>__<repo>/ and examples/<owner>__<repo>/.",
+    "local": "dema only: a folder that is verified in place with the verifier's --dema option and never fetched.",
+    "notes": "Why the source is here."
+  },
+  "sources": [
+    {
+      "name": "commonmark-spec",
+      "category": "spec",
+      "repo": "commonmark/commonmark-spec",
+      "ref": "master",
+      "paths": ["spec.txt"],
+      "keepFiles": false,
+      "extractor": "commonmark-examples",
+      "extractFrom": "^spec\\.txt$",
+      "notes": "The CommonMark specification: every example (about 650) as its own file; the tab arrow is converted to a real tab."
+    },
+    {
+      "name": "gfm-spec",
+      "category": "spec",
+      "repo": "github/cmark-gfm",
+      "ref": "master",
+      "paths": ["test/"],
+      "keepFiles": false,
+      "extractor": "commonmark-examples",
+      "extractFrom": "^test/(spec|extensions|smart_punct|regression|extensions-table-prefer-style-attributes|extensions-full-info-string)\\.txt$",
+      "dedupeAgainst": ["commonmark-spec"],
+      "notes": "The GitHub Flavored Markdown spec and the cmark-gfm extension tests (tables, strikethrough, task lists, autolinks, regressions). Examples that are also in the CommonMark spec are not repeated."
+    },
+    {
+      "name": "markdig-spec",
+      "category": "spec",
+      "repo": "xoofx/markdig",
+      "ref": "main",
+      "paths": ["src/Markdig.Tests/Specs/"],
+      "keepFiles": true,
+      "include": "^src/Markdig\\.Tests/Specs/[^/]+\\.md$",
+      "extractor": "markdig-examples",
+      "extractFrom": "^src/Markdig\\.Tests/Specs/[^/]+\\.md$",
+      "exampleCap": 300,
+      "dedupeAgainst": ["commonmark-spec", "gfm-spec"],
+      "notes": "Markdig's extension specs (pipe and grid tables, footnotes, definition lists, abbreviations, attributes, math, emoji, ...): the whole spec files and their examples."
+    },
+    {
+      "name": "pandoc-testsuite",
+      "category": "spec",
+      "repo": "jgm/pandoc",
+      "ref": "main",
+      "paths": ["test/", "MANUAL.txt", "doc/"],
+      "keepFiles": true,
+      "include": "^(MANUAL\\.txt|doc/[^/]+\\.md|test/(testsuite\\.txt|markdown-reader-more\\.txt|markdown-citations\\.txt|pipe-tables\\.txt|tables\\.txt|tables\\.markdown|writer\\.markdown|lhs-test\\.markdown|[^/]+\\.md))$",
+      "extractor": "none",
+      "notes": "Pandoc's Markdown test documents and its manual, which uses every Pandoc extension."
+    },
+    {
+      "name": "pandoc-cmd",
+      "category": "spec",
+      "repo": "jgm/pandoc",
+      "ref": "main",
+      "paths": ["test/command/"],
+      "keepFiles": false,
+      "extractor": "pandoc-cmd",
+      "extractFrom": "^test/command/[^/]+\\.md$",
+      "exampleCap": 100,
+      "notes": "Pandoc's command tests (cram format): the Markdown that is given on standard input to a Markdown reader (markdown, commonmark, gfm and their variants)."
+    },
+    {
+      "name": "markdownlint",
+      "category": "fixture",
+      "repo": "DavidAnson/markdownlint",
+      "ref": "main",
+      "paths": ["test/"],
+      "include": "^test/.*\\.md$",
+      "cap": 100,
+      "extractor": "none",
+      "notes": "markdownlint's rule fixtures: deliberately badly formatted Markdown."
+    },
+    {
+      "name": "prettier",
+      "category": "fixture",
+      "repo": "prettier/prettier",
+      "ref": "main",
+      "paths": ["tests/format/markdown/"],
+      "include": "\\.(md|markdown)$",
+      "cap": 100,
+      "extractor": "none",
+      "notes": "Prettier's Markdown formatting inputs (lists, code, tables, CJK, liquid, wiki links, front matter, math, JSX); snapshots are not used."
+    },
+    {
+      "name": "mdformat",
+      "category": "fixture",
+      "ref": "master",
+      "keepFiles": false,
+      "extractor": "fixture-dots",
+      "exampleCap": 120,
+      "members": [
+        { "repo": "hukkin/mdformat", "ref": "master", "paths": ["tests/data/"], "extractFrom": "^tests/data/[^/]+\\.md$" },
+        { "repo": "executablebooks/mdformat-tables", "ref": "master", "paths": ["tests/"], "extractFrom": "^tests/fixtures[^/]*\\.md$" },
+        { "repo": "executablebooks/mdformat-footnote", "ref": "master", "paths": ["tests/fixtures/"], "extractFrom": "^tests/fixtures/[^/]+\\.md$" },
+        { "repo": "executablebooks/mdformat-myst", "ref": "master", "paths": ["tests/data/"], "extractFrom": "^tests/data/[^/]+\\.md$" },
+        { "repo": "executablebooks/mdformat-deflist", "ref": "master", "paths": ["tests/"], "extractFrom": "^tests/fixtures\\.md$" }
+      ],
+      "notes": "mdformat's own style tests and its plugins' fixtures (tables, footnotes, MyST, definition lists): the input of each title/input/output block."
+    },
+    {
+      "name": "remark",
+      "category": "fixture",
+      "ref": "main",
+      "keepFiles": true,
+      "extractor": "none",
+      "members": [
+        { "repo": "syntax-tree/mdast-util-from-markdown", "ref": "main", "paths": ["test/fixtures/"], "include": "^test/fixtures/[^/]+\\.md$" },
+        { "repo": "remarkjs/remark-gfm", "ref": "main", "paths": ["test/fixtures/"], "include": "^test/fixtures/[^/]+/input\\.md$" },
+        { "repo": "remarkjs/remark-frontmatter", "ref": "main", "paths": ["test/fixtures/"], "include": "^test/fixtures/[^/]+/input\\.md$" }
+      ],
+      "notes": "The remark family's fixtures. remark itself keeps them in the mdast-util-from-markdown, remark-gfm and remark-frontmatter repositories (the remark repository holds none); only inputs are used."
+    },
+    {
+      "name": "markdown-it",
+      "category": "fixture",
+      "ref": "master",
+      "keepFiles": false,
+      "extractor": "fixture-dots",
+      "exampleCap": 120,
+      "members": [
+        { "repo": "markdown-it/markdown-it", "ref": "master", "paths": ["test/fixtures/markdown-it/"], "extractFrom": "^test/fixtures/markdown-it/[^/]+\\.txt$" },
+        { "repo": "executablebooks/mdit-py-plugins", "ref": "master", "paths": ["tests/fixtures/"], "extractFrom": "^tests/fixtures/[^/]+\\.md$" },
+        { "repo": "executablebooks/markdown-it-py", "ref": "master", "paths": ["tests/test_port/fixtures/"], "extractFrom": "^tests/test_port/fixtures/[^/]+\\.md$", "exclude": ["commonmark_spec\\.md$"] }
+      ],
+      "notes": "markdown-it's extra fixtures (linkify, typographer, tables, strikethrough, XSS, normalization) and the fixtures of its Python port and plugins (admonitions, containers, footnotes, math, attributes, ...): the input of each block."
+    },
+    {
+      "name": "rumdl",
+      "category": "fixture",
+      "repo": "rvben/rumdl",
+      "ref": "main",
+      "paths": ["tests/", "docs/"],
+      "cap": 60,
+      "extractor": "none",
+      "notes": "rumdl's test fixtures and its documentation (flavors: MkDocs, MDX, Quarto)."
+    },
+    {
+      "name": "awesome-lists",
+      "category": "realworld",
+      "ref": "main",
+      "extractor": "none",
+      "members": [
+        { "repo": "sindresorhus/awesome", "ref": "main", "paths": [""], "cap": 10 },
+        { "repo": "vinta/awesome-python", "ref": "master", "paths": ["README.md"] },
+        { "repo": "avelino/awesome-go", "ref": "main", "paths": ["README.md"] },
+        { "repo": "sindresorhus/awesome-nodejs", "ref": "main", "paths": ["readme.md"] }
+      ],
+      "notes": "Link-heavy and table-heavy awesome lists."
+    },
+    {
+      "name": "cjk-docs",
+      "category": "realworld",
+      "ref": "main",
+      "extractor": "none",
+      "members": [
+        { "repo": "vuejs-translations/docs-zh-cn", "ref": "main", "paths": ["src/"], "cap": 40 },
+        { "repo": "vuejs-translations/docs-ja", "ref": "main", "paths": ["src/"], "cap": 40 }
+      ],
+      "notes": "Chinese and Japanese translations of the Vue documentation: CJK text, full-width punctuation, custom containers."
+    },
+    {
+      "name": "mkdocs-material",
+      "category": "realworld",
+      "repo": "squidfunk/mkdocs-material",
+      "ref": "master",
+      "paths": ["docs/"],
+      "cap": 80,
+      "extractor": "none",
+      "notes": "MkDocs Material documentation: admonitions, content tabs, attribute lists, abbreviations, footnotes."
+    },
+    {
+      "name": "docusaurus",
+      "category": "realworld",
+      "repo": "facebook/docusaurus",
+      "ref": "main",
+      "paths": ["packages/", "website/"],
+      "cap": 80,
+      "extractor": "none",
+      "notes": "Docusaurus: the Markdown (not MDX) files of its packages and website, many of them fixtures with front matter, admonitions and headings with ids."
+    },
+    {
+      "name": "jekyll",
+      "category": "realworld",
+      "repo": "jekyll/jekyll",
+      "ref": "master",
+      "paths": ["docs/"],
+      "cap": 80,
+      "extractor": "none",
+      "notes": "Jekyll documentation and posts: front matter, Liquid tags, highlight blocks."
+    },
+    {
+      "name": "rust-book",
+      "category": "realworld",
+      "repo": "rust-lang/book",
+      "ref": "main",
+      "paths": ["src/"],
+      "cap": 80,
+      "extractor": "none",
+      "notes": "The Rust Book (mdBook): long prose, many fenced code blocks, includes."
+    },
+    {
+      "name": "semantic-line-breaks",
+      "category": "realworld",
+      "ref": "main",
+      "extractor": "none",
+      "members": [
+        { "repo": "rust-lang/rustc-dev-guide", "ref": "main", "paths": ["src/"], "cap": 80 },
+        { "repo": "sembr/sembr.org", "ref": "main", "paths": [""] }
+      ],
+      "notes": "Prose with semantic line breaks (one sentence or clause per line): the rustc developer guide uses them, as does the site of the sembr specification."
+    },
+    {
+      "name": "readmes",
+      "category": "realworld",
+      "ref": "main",
+      "extractor": "none",
+      "members": [
+        { "repo": "facebook/react", "ref": "main", "paths": ["README.md"] },
+        { "repo": "psf/requests", "ref": "main", "paths": ["README.md"] },
+        { "repo": "rust-lang/cargo", "ref": "master", "paths": ["README.md"] },
+        { "repo": "golang/go", "ref": "master", "paths": ["README.md"] },
+        { "repo": "denoland/deno", "ref": "main", "paths": ["README.md"] },
+        { "repo": "pallets/flask", "ref": "main", "paths": ["README.md"] },
+        { "repo": "expressjs/express", "ref": "master", "paths": ["Readme.md"] },
+        { "repo": "nodejs/node", "ref": "main", "paths": ["README.md"] },
+        { "repo": "kubernetes/kubernetes", "ref": "master", "paths": ["README.md"] },
+        { "repo": "tensorflow/tensorflow", "ref": "master", "paths": ["README.md"] },
+        { "repo": "dotnet/runtime", "ref": "main", "paths": ["README.md"] },
+        { "repo": "microsoft/vscode", "ref": "main", "paths": ["README.md"] },
+        { "repo": "vuejs/core", "ref": "main", "paths": ["README.md"] },
+        { "repo": "numpy/numpy", "ref": "main", "paths": ["README.md"] },
+        { "repo": "rails/rails", "ref": "main", "paths": ["README.md"] },
+        { "repo": "ohmyzsh/ohmyzsh", "ref": "master", "paths": ["README.md"] },
+        { "repo": "home-assistant/developers.home-assistant", "ref": "master", "paths": ["docs/"], "cap": 15 }
+      ],
+      "notes": "README.md files of popular projects across ecosystems (JavaScript, Python, Rust, Go, .NET, Ruby, C++, shell), plus a few Home Assistant developer pages."
+    },
+    {
+      "name": "github-docs",
+      "category": "realworld",
+      "repo": "github/docs",
+      "ref": "main",
+      "paths": ["content/", "data/reusables/"],
+      "cap": 80,
+      "extractor": "none",
+      "notes": "A sample of GitHub Docs: Liquid tags, variables and conditionals, reusables, tables, alerts."
+    },
+    {
+      "name": "dema",
+      "category": "dema",
+      "local": "C:\\work\\DemaConsulting",
+      "extractor": "none",
+      "notes": "Every Git repository of DEMA Consulting under the local root, verified in place by the verifier's --dema option (read-only); never fetched."
+    }
+  ]
+}

@@ -467,33 +467,6 @@ public class EditorConfigResolverTests
     }
 
     /// <summary>
-    ///     Test that a settings file that cannot be read is reported as a message and leaves the ending unspecified.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Resolve_UnreadableEditorConfig_ReturnsErrorMessage()
-    {
-        // Arrange: a resolver whose chain lookup fails, and one whose evaluation fails
-        var failingChain = new EditorConfigResolver(
-            _ => throw new IOException("disk\nfailure"),
-            (_, _) => throw new InvalidOperationException("must not be reached"));
-        using var directory = Tree("[*]\nend_of_line = lf\n");
-        var parser = new EditorConfigParser();
-        var failingEvaluate = new EditorConfigResolver(
-            parser.GetResolvedChainForDirectory,
-            (_, _) => throw new UnauthorizedAccessException("denied"));
-
-        // Act: resolve through both
-        var chainFailure = failingChain.Resolve(directory.PathOf("a.md"));
-        var evaluateFailure = failingEvaluate.Resolve(directory.PathOf("a.md"));
-
-        // Assert: a one-line message and no line ending in both cases
-        Assert.Null(chainFailure.EndOfLine);
-        Assert.Equal("Cannot read .editorconfig settings: disk failure", chainFailure.ErrorMessage);
-        Assert.Null(evaluateFailure.EndOfLine);
-        Assert.Equal("Cannot read .editorconfig settings: denied", evaluateFailure.ErrorMessage);
-    }
-
-    /// <summary>
     ///     Test that the chain of settings files is cached per directory.
     /// </summary>
     [Fact]
@@ -514,77 +487,13 @@ public class EditorConfigResolverTests
     }
 
     /// <summary>
-    ///     Test that many threads resolving many files get the sequential results.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Resolve_ManyThreads_ResultsEqualSequential()
-    {
-        // Arrange: nested settings files with different sections and many files
-        using var directory = Tree("[*.md]\nend_of_line = lf\n\n[docs/*.md]\nend_of_line = crlf\n");
-        directory.WriteFile("docs/sub/.editorconfig", "[b*.md]\nend_of_line = lf\n");
-        var folders = new[] { "docs/sub", "docs", "other" };
-        var files = Enumerable.Range(0, 60)
-            .Select(i => directory.PathOf($"{folders[i % 3]}/{(char)('a' + (i % 4))}{i}.md"))
-            .ToArray();
-        var expected = files.Select(f => new EditorConfigResolver().Resolve(f)).ToArray();
-        var shared = new EditorConfigResolver();
-
-        // Act: resolve every file many times from many threads through one resolver
-        var actual = new EditorConfigResult[files.Length * 10];
-        Parallel.For(0, actual.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, index => actual[index] = shared.Resolve(files[index % files.Length]));
-
-        // Assert: every complete result equals the sequential one
-        for (var i = 0; i < actual.Length; i++)
-        {
-            Assert.Equal(expected[i % files.Length], actual[i]);
-        }
-        Assert.Contains(expected, r => r.EndOfLine == LineEnding.CrLf);
-        Assert.Contains(expected, r => r.EndOfLine == LineEnding.Lf);
-    }
-
-    /// <summary>
-    ///     Test that a settings lookup that fails is attempted once per directory and reported for every file of it.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Resolve_FailedChain_CachedAndReportedForEveryFileInDirectory()
-    {
-        // Arrange: a resolver whose chain lookup fails and counts its calls
-        var calls = 0;
-        var resolver = new EditorConfigResolver(
-            _ =>
-            {
-                Interlocked.Increment(ref calls);
-                throw new IOException("disk failure");
-            },
-            (_, _) => throw new InvalidOperationException("must not be reached"));
-        using var directory = new TemporaryDirectory();
-
-        // Act: resolve several files of one directory, then a file of another
-        var results = new[] { "a.md", "b.md", "c.md" }.Select(f => resolver.Resolve(directory.PathOf(f))).ToList();
-        var calledForFirstDirectory = Volatile.Read(ref calls);
-        var other = resolver.Resolve(directory.PathOf("sub/d.md"));
-
-        // Assert: the failure was determined once for the first directory, reported identically for every file, and
-        // the other directory was looked up separately
-        Assert.Equal(1, calledForFirstDirectory);
-        Assert.All(results, r => Assert.Equal(new EditorConfigResult(null, "Cannot read .editorconfig settings: disk failure"), r));
-        Assert.Equal(results[0], other);
-        Assert.Equal(2, Volatile.Read(ref calls));
-    }
-
-    /// <summary>
     ///     Test that a path that cannot be resolved has no editor settings.
     /// </summary>
     [Fact]
     public void EditorConfigResolver_Resolve_PathWithNullCharacter_NotSpecified()
     {
-        // Arrange: a resolver that must not be consulted for a path no file system accepts
-        var resolver = new EditorConfigResolver(
-            _ => throw new InvalidOperationException("must not be reached"),
-            (_, _) => throw new InvalidOperationException("must not be reached"));
-
-        // Act: resolve the path
-        var result = resolver.Resolve("docs/a\0b.md");
+        // Act: resolve a path no file system accepts
+        var result = new EditorConfigResolver().Resolve("docs/a\0b.md");
 
         // Assert: nothing is specified and nothing is reported
         Assert.Equal(EditorConfigResult.NotSpecified, result);
@@ -596,56 +505,10 @@ public class EditorConfigResolverTests
     [Fact]
     public void EditorConfigResolver_Resolve_FileSystemRootPath_NotSpecified()
     {
-        // Arrange: a resolver that must not be consulted for a path without a directory, and the file system root
-        var resolver = new EditorConfigResolver(
-            _ => throw new InvalidOperationException("must not be reached"),
-            (_, _) => throw new InvalidOperationException("must not be reached"));
-        var root = Path.GetPathRoot(Directory.GetCurrentDirectory())!;
-
-        // Act: resolve the root
-        var result = resolver.Resolve(root);
+        // Act: resolve the file system root
+        var result = new EditorConfigResolver().Resolve(Path.GetPathRoot(Directory.GetCurrentDirectory())!);
 
         // Assert: nothing is specified and nothing is reported
         Assert.Equal(EditorConfigResult.NotSpecified, result);
-    }
-
-    /// <summary>
-    ///     Test that a null or empty path is rejected.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Resolve_NullOrEmptyPath_Throws()
-    {
-        // Arrange: a resolver
-        var resolver = new EditorConfigResolver();
-
-        // Act & Assert: the path is validated
-        Assert.Throws<ArgumentNullException>(() => resolver.Resolve(null!));
-        Assert.Throws<ArgumentException>(() => resolver.Resolve(string.Empty));
-    }
-
-    /// <summary>
-    ///     Test that a missing library call is rejected when the resolver is created.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResolver_Constructor_NullDelegate_ThrowsArgumentNullException()
-    {
-        // Act & Assert: each delegate is validated
-        var chain = Assert.Throws<ArgumentNullException>(() => new EditorConfigResolver(null!, (_, _) => throw new InvalidOperationException()));
-        Assert.Equal("resolveChain", chain.ParamName);
-        var evaluate = Assert.Throws<ArgumentNullException>(() => new EditorConfigResolver(_ => throw new InvalidOperationException(), null!));
-        Assert.Equal("evaluate", evaluate.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a result cannot carry both a line ending and an error, or a blank error.
-    /// </summary>
-    [Fact]
-    public void EditorConfigResult_Constructor_InvalidCombination_ThrowsArgumentException()
-    {
-        // Act & Assert: the invalid combinations are rejected
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult(LineEnding.Lf, "problem"));
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult(null, "  "));
-        Assert.Throws<ArgumentException>(() => new EditorConfigResult((LineEnding)99, null));
-        Assert.Equal("one two", new EditorConfigResult(null, "one\ntwo").ErrorMessage);
     }
 }

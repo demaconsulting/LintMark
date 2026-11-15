@@ -48,31 +48,12 @@ public partial class LintMarkEngineTests
 
         // Act: process it as a file that was found, not named
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
 
         // Assert: skipped without a report
         Assert.True(result.Ignored);
         Assert.Empty(result.Diagnostics);
         Assert.Null(result.Change);
-    }
-
-    /// <summary>
-    ///     Test that an ignored file that does not exist produces no read error.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Process_IgnoredFileWithMissingContent_NoReadError()
-    {
-        // Arrange: an ignored path without a file
-        using var directory = new TemporaryDirectory();
-        var path = directory.PathOf("node_modules/pkg/missing.md");
-
-        // Act: process it as a file that was found
-        var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDefaults(), null, directory.FullPath));
-
-        // Assert: skipped, nothing read, nothing reported
-        Assert.True(result.Ignored);
-        Assert.Empty(result.Diagnostics);
     }
 
     /// <summary>
@@ -87,7 +68,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as an explicit file
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: true)], ConfigLoader.ForDefaults(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: true)], ConfigLoader.ForDefaults(), null, directory.FullPath));
 
         // Assert: read and reported
         Assert.False(result.Ignored);
@@ -107,7 +88,7 @@ public partial class LintMarkEngineTests
 
         // Act: process it as a file that was found
         var result = Assert.Single(new LintMarkEngine(1).Process(
-            [new DiscoveredFile(path, isExplicit: false)], ConfigLoader.ForDiscovery(), null, directory.FullPath));
+            [new DiscoveredFile(path, IsExplicit: false)], ConfigLoader.ForDiscovery(), null, directory.FullPath));
 
         // Assert: the file was read and reported, the configuration problem is carried, and it is not ignored
         Assert.False(result.Ignored);
@@ -134,83 +115,6 @@ public partial class LintMarkEngineTests
         // Assert: the ignored file is not reported
         Assert.Equal(0, exitCode);
         Assert.Empty(lines);
-    }
-
-    /// <summary>
-    ///     Test that the files found below a directory argument that an ignore pattern matches are skipped.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreDirectorySelected_SkipsMatches()
-    {
-        // Arrange: a broken file in a generated folder below a documentation folder, and a broken file beside it
-        using var directory = new TemporaryDirectory();
-        WriteBroken(directory, "docs/generated/bad.md");
-        WriteBroken(directory, "docs/bad.md");
-
-        // Act: run with the folder (the built-in ignore patterns skip generated folders)
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "docs");
-
-        // Assert: only the file that is not ignored is reported
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["docs/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
-    }
-
-    /// <summary>
-    ///     Test that the default selection skips what the built-in ignore patterns match.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreDefaultSelection_SkipsDefaultPatterns()
-    {
-        // Arrange: broken files in folders that the built-in patterns ignore, and one that is not ignored
-        using var directory = new TemporaryDirectory();
-        WriteBroken(directory, "sub/generated/bad.md");
-        WriteBroken(directory, ".agent-logs/bad.md");
-        WriteBroken(directory, "thirdparty/bad.md");
-        WriteBroken(directory, "visible/bad.md");
-
-        // Act: run with the default pattern
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2));
-
-        // Assert: only the visible file is reported
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["visible/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
-    }
-
-    /// <summary>
-    ///     Test that a file named on the command line is not ignored.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreExplicitFile_IsProcessed()
-    {
-        // Arrange: a broken file in a folder that the built-in patterns ignore
-        using var directory = new TemporaryDirectory();
-        WriteBroken(directory, "generated/bad.md");
-
-        // Act: run with the file named
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "generated/bad.md");
-
-        // Assert: it is read and reported
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["generated/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
-    }
-
-    /// <summary>
-    ///     Test that an exclude on the command line still removes a file that is also named.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreExcludeOnCommandLine_BothApply()
-    {
-        // Arrange: a broken file in an ignored folder, one in another folder, both named
-        using var directory = new TemporaryDirectory();
-        WriteBroken(directory, "generated/bad.md");
-        WriteBroken(directory, "other/bad.md");
-
-        // Act: run with both named and one excluded
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), "generated/bad.md", "other/bad.md", "!other/**");
-
-        // Assert: the excluded file is gone, the named file in the ignored folder is still processed
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["generated/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
     }
 
     /// <summary>
@@ -262,45 +166,6 @@ public partial class LintMarkEngineTests
     }
 
     /// <summary>
-    ///     Test that the built-in ignore patterns still apply when no configuration is used.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreNoConfig_DefaultStillApplies()
-    {
-        // Arrange: a configuration that would ignore nothing useful, and broken files in ignored and visible folders
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"nothing/**\"\n");
-        WriteBroken(directory, "generated/bad.md");
-        WriteBroken(directory, "visible/bad.md");
-
-        // Act: run without configuration
-        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--no-config");
-
-        // Assert: the built-in patterns skip the generated folder; the configuration file was not consulted
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["visible/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
-    }
-
-    /// <summary>
-    ///     Test that a file outside the folder that the patterns are relative to is never ignored.
-    /// </summary>
-    [Fact]
-    public void LintMarkEngine_Run_IgnoreOutsideDirectory_NeverIgnored()
-    {
-        // Arrange: the current folder is a sub folder, and a broken file in a generated folder beside it
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("sub/a.md");
-        WriteBroken(directory, "other/generated/bad.md");
-
-        // Act: run inside the sub folder with a glob that reaches the other folder
-        var (exitCode, lines) = ExecuteIn(directory, "sub", new LintMarkEngine(1), "../other/**/*.md");
-
-        // Assert: the file is outside the folder the built-in patterns are relative to, so it is processed
-        Assert.Equal(1, exitCode);
-        Assert.Equal(["../other/generated/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
-    }
-
-    /// <summary>
     ///     Test that a file with an invalid configuration is processed even if it would be ignored, and never rewritten.
     /// </summary>
     [Fact]
@@ -324,5 +189,142 @@ public partial class LintMarkEngineTests
             ],
             lines);
         AssertUntouched(mixed, Utf8("a\r\nb\nc\r\n"), writeTime);
+    }
+
+    /// <summary>
+    ///     Writes a nested repository (a folder with its own <c>.git</c> directory) holding a broken file.
+    /// </summary>
+    /// <param name="directory">The temporary directory.</param>
+    /// <param name="repository">The relative path of the nested repository.</param>
+    /// <param name="file">The relative path of the broken file inside the repository.</param>
+    private static void WriteNestedRepository(TemporaryDirectory directory, string repository, string file)
+    {
+        Directory.CreateDirectory(directory.PathOf($"{repository}/.git"));
+        WriteBroken(directory, $"{repository}/{file}");
+    }
+
+    /// <summary>
+    ///     Test that a nested repository below an ignored folder is not entered, although its own <c>.git</c> ends the configuration search.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_IgnoredFolderHoldsNestedRepository_Pruned()
+    {
+        // Arrange: the root configuration ignores a folder that holds clones, each with its own .git and no configuration
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \".corpus/**\"\n");
+        WriteNestedRepository(directory, ".corpus/.clones/one", "bad.md");
+        WriteNestedRepository(directory, ".corpus/.clones/two", "docs/bad.md");
+        directory.WriteFile("ok.md");
+
+        // Act: run with the default pattern and with a glob
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2));
+        var (globExitCode, globLines) = Execute(directory, new LintMarkEngine(2), "**/*.md");
+
+        // Assert: nothing below the ignored folder is read or reported
+        Assert.Equal(0, exitCode);
+        Assert.Empty(lines);
+        Assert.Equal(0, globExitCode);
+        Assert.Empty(globLines);
+    }
+
+    /// <summary>
+    ///     Test that a nested repository that is not ignored still uses its own configuration for its files.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_NestedRepositoryNotIgnored_UsesOwnConfig()
+    {
+        // Arrange: a root configuration that ignores another folder, and a nested repository with its own ignore list
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \".corpus/**\"\n");
+        directory.WriteFile("vendor/lib/.lintmark.yaml", "ignore:\n  - \"skip/**\"\n");
+        WriteNestedRepository(directory, "vendor/lib", "bad.md");
+        WriteBroken(directory, "vendor/lib/skip/bad.md");
+        WriteNestedRepository(directory, ".corpus/clone", "bad.md");
+
+        // Act: run with the default pattern
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2));
+
+        // Assert: the nested repository is linted under its own ignore list; the root's ignored folder is not
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["vendor/lib/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that a file named on the command line is processed even inside an ignored nested repository.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ExplicitFileInIgnoredNestedRepository_IsProcessed()
+    {
+        // Arrange: an ignored folder that holds a nested repository with a broken file
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \".corpus/**\"\n");
+        WriteNestedRepository(directory, ".corpus/clone", "bad.md");
+
+        // Act: name the file
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(1), ".corpus/clone/bad.md");
+
+        // Assert: it is read and reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal([".corpus/clone/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that a directory argument prunes by the configuration that applies at that directory.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_DirectoryArgumentBelowConfig_PrunesIgnoredNestedRepository()
+    {
+        // Arrange: the root configuration ignores a folder below the directory that is scanned
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"docs/archive/**\"\n");
+        WriteNestedRepository(directory, "docs/archive/clone", "bad.md");
+        WriteBroken(directory, "docs/bad.md");
+
+        // Act: scan the directory
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "docs");
+
+        // Assert: the patterns, relative to the configuration, prune the nested repository
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["docs/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that no configuration means the built-in ignore patterns prune, nested repositories included.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_NoConfig_BuiltInIgnorePrunesNestedRepository()
+    {
+        // Arrange: a configuration that --no-config must not read, and a nested repository below a built-in ignored folder
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
+        WriteNestedRepository(directory, "generated/clone", "bad.md");
+        WriteBroken(directory, "drafts/bad.md");
+
+        // Act: run without configuration
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--no-config");
+
+        // Assert: the built-in list prunes generated/; the configuration's own list is not used
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["drafts/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
+    }
+
+    /// <summary>
+    ///     Test that an explicit configuration prunes relative to its own folder, nested repositories included.
+    /// </summary>
+    [Fact]
+    public void LintMarkEngine_Run_ExplicitConfig_PrunesNestedRepositoryBelowItsFolder()
+    {
+        // Arrange: an explicit configuration that ignores "x/**", with nested repositories below it and beside it
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("conf/custom.yaml", "ignore:\n  - \"x/**\"\n");
+        WriteNestedRepository(directory, "conf/x/clone", "bad.md");
+        WriteNestedRepository(directory, "x/clone", "bad.md");
+
+        // Act: run with the explicit configuration
+        var (exitCode, lines) = Execute(directory, new LintMarkEngine(2), "--config", "conf/custom.yaml");
+
+        // Assert: only the repository outside the configuration's folder is reported
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["x/clone/bad.md:1:1: file-encoding-error Invalid UTF-8 byte sequence"], lines);
     }
 }

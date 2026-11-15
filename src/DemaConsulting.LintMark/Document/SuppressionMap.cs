@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
@@ -117,27 +118,18 @@ internal sealed partial class SuppressionMap
     /// <summary>
     ///     Builds the suppression map of a parsed document.
     /// </summary>
-    /// <param name="source">The LF-normalized source. Must not be null.</param>
-    /// <param name="blocks">The flattened, source-ordered blocks (used to find the block after a <c>prettier-ignore</c>). Must not be null.</param>
-    /// <param name="ast">The syntax tree used to find inline HTML comments. Must not be null.</param>
-    /// <param name="canonicalizeRuleId">
-    ///     Optional rule identifier alias-resolving function; <see langword="null"/> means identity.
-    /// </param>
+    /// <param name="source">The LF-normalized source.</param>
+    /// <param name="blocks">The flattened, source-ordered blocks (used to find the block after a <c>prettier-ignore</c>).</param>
+    /// <param name="ast">The syntax tree used to find inline HTML comments.</param>
+    /// <param name="canonicalize">The rule identifier alias-resolving function.</param>
     /// <returns>The suppression map.</returns>
     /// <remarks>Pure with respect to its inputs; thread-safe.</remarks>
-    /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
     public static SuppressionMap Build(
         SourceDocument source,
         IReadOnlyList<BlockInfo> blocks,
         MarkdownDocument ast,
-        Func<string, string>? canonicalizeRuleId = null)
+        Func<string, string> canonicalize)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(blocks);
-        ArgumentNullException.ThrowIfNull(ast);
-
-        var canonicalize = canonicalizeRuleId ?? (static id => id);
         var ranges = new List<SuppressionRange>();
 
         // Directives are processed in source order so region state evolves as a reader would see it
@@ -541,4 +533,89 @@ internal sealed partial class SuppressionMap
             _stateStart = offset;
         }
     }
+}
+
+/// <summary>
+///     A half-open offset range in which a set of rules is suppressed.
+/// </summary>
+/// <param name="Start">Offset of the first suppressed character.</param>
+/// <param name="End">Exclusive end offset; <see cref="int.MaxValue"/> for ranges that run to the end of the file.</param>
+/// <param name="Rules">The rules suppressed in the range.</param>
+internal sealed record SuppressionRange(int Start, int End, RuleSet Rules);
+
+/// <summary>
+///     The set of rules a suppression range applies to.
+/// </summary>
+/// <remarks>
+///     Rule identifiers are compared using ordinal comparison ignoring case, after any alias canonicalization
+///     performed by the owner of the set. Immutable; safe for concurrent use.
+/// </remarks>
+internal sealed class RuleSet
+{
+    /// <summary>
+    ///     The listed rules (empty for <see cref="RuleSetKind.All"/>).
+    /// </summary>
+    private readonly FrozenSet<string> _rules;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="RuleSet"/> class.
+    /// </summary>
+    /// <param name="kind">How the rules are interpreted.</param>
+    /// <param name="rules">The listed rules (copied).</param>
+    private RuleSet(RuleSetKind kind, IEnumerable<string> rules)
+    {
+        Kind = kind;
+        _rules = rules.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Gets a set that selects every rule.
+    /// </summary>
+    public static RuleSet All { get; } = new(RuleSetKind.All, []);
+
+    /// <summary>
+    ///     Gets how the listed rules are interpreted.
+    /// </summary>
+    public RuleSetKind Kind { get; }
+
+    /// <summary>
+    ///     Creates a set that selects exactly the listed rules.
+    /// </summary>
+    /// <param name="rules">Rule identifiers. Must not be null.</param>
+    /// <returns>The new set.</returns>
+    public static RuleSet Only(IEnumerable<string> rules) => new(RuleSetKind.Only, rules);
+
+    /// <summary>
+    ///     Creates a set that selects every rule except the listed ones.
+    /// </summary>
+    /// <param name="rules">Rule identifiers to exclude. Must not be null.</param>
+    /// <returns>The new set.</returns>
+    public static RuleSet AllExcept(IEnumerable<string> rules) => new(RuleSetKind.AllExcept, rules);
+
+    /// <summary>
+    ///     Determines whether a rule is selected.
+    /// </summary>
+    /// <param name="ruleId">Rule identifier (already canonicalized by the caller).</param>
+    /// <returns><see langword="true"/> when the rule is selected.</returns>
+    public bool Contains(string ruleId) => Kind switch
+    {
+        RuleSetKind.All => true,
+        RuleSetKind.Only => _rules.Contains(ruleId),
+        _ => !_rules.Contains(ruleId)
+    };
+}
+
+/// <summary>
+///     How a <see cref="RuleSet"/> selects rules.
+/// </summary>
+internal enum RuleSetKind
+{
+    /// <summary>Every rule is selected.</summary>
+    All,
+
+    /// <summary>Only the listed rules are selected.</summary>
+    Only,
+
+    /// <summary>Every rule except the listed ones is selected (a region that disabled everything, then re-enabled some rules).</summary>
+    AllExcept
 }

@@ -1,0 +1,81 @@
+---
+# Software Unit Requirements for the ParagraphFormatter Unit
+#
+# The ParagraphFormatter unit decides how a paragraph is laid out: an overflow-only fill by default, the sentence or
+# semantic layout when configured, and unchanged text with a report where rewriting would not be safe.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: ParagraphFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-OverflowFill
+                    title: >-
+                      The ParagraphFormatter unit shall rewrap a paragraph in the fill mode only when the settings ask
+                      for wrapping and a line is wider than the line length and can be broken, filling it up to the
+                      width and keeping hard breaks and container prefixes, and shall refuse a missing argument.
+                    justification: |
+                      Hand-wrapped text that fits must never be touched, so that diffs stay small and authors keep
+                      their layout, while real overflow is repaired in a way that renders the same. A line length of 0
+                      or a switched-off rule means no wrapping at all.
+                    tests:
+                      - ParagraphFormatter_Format_OverflowingParagraph_IsFilledUpToTheWidth
+                      - ParagraphFormatter_Format_ParagraphWithinTheWidth_IsKeptAsWritten
+                      - ParagraphFormatter_Format_CodeSpansAndUrls_AreNeverSplit
+                      - ParagraphFormatter_Format_HardBreaks_StayWhereTheyAre
+                      - ParagraphFormatter_Format_ListItems_KeepTheIndentationOfTheContent
+                      - DocumentFormatter_Format_ParagraphsThatFit_AreLeftAsWritten
+                      - ParagraphFormatter_Format_SettingsThatDisableWrapping_KeepTheParagraph
+                      - ParagraphFormatter_IsEnabled_LengthRuleOrLayoutRule_EitherOneAsksForWrapping
+                      - ParagraphFormatter_Format_NullArguments_ThrowArgumentNullException
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-SentenceLayout
+                    title: >-
+                      The ParagraphFormatter unit shall put every sentence of a paragraph on its own line in the
+                      sentence mode, joining sentences broken by hand, and report a paragraph in another layout at
+                      the first line that differs.
+                    justification: |
+                      One sentence per line gives readable diffs. A layout that is the same for every paragraph
+                      can be checked and enforced, independent of the line length.
+                    tests:
+                      - DocumentFormatter_Format_SentencesOnOneLine_AreSplitAndReportedAsParagraphWrap
+                      - DocumentFormatter_Format_ParagraphInTheLayout_IsLeftAsWrittenAndWrappedLinesAreJoined
+                      - DocumentFormatter_Format_RuleCombinationsInTheSentenceMode_AreIndependent
+                      - ParagraphFormatter_IsLayoutEnforced_WrapModeAndRule_DecideWhetherTheLayoutIsChecked
+                      - ParagraphFormatter_Format_SentencesOnOneLineThatFits_ProposeTheLayoutAsParagraphWrap
+                      - ParagraphFormatter_Format_ParagraphAlreadyInTheLayout_ProposesNothing
+                      - ParagraphFormatter_Format_WideParagraphInTheSentenceMode_ReportsOverflowAndLayout
+                      - ParagraphFormatter_Format_SecondLineDiffers_LayoutFindingIsAtThatLine
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-SemanticLayout
+                    title: >-
+                      The ParagraphFormatter unit shall lay out a paragraph in the semantic mode with one sentence per
+                      line and break only a sentence that is too wide, at the latest clause start that fits the next
+                      line.
+                    justification: |
+                      Breaking at clause boundaries keeps long sentences readable without the ragged text that a
+                      plain fill produces.
+                    tests:
+                      - DocumentFormatter_Format_RuleCombinationsInTheSemanticMode_AreIndependent
+                      - DocumentFormatter_Format_SentencesOnOneLine_AreSplitAndReportedAsParagraphWrap
+                      - ParagraphFormatter_Format_WideSentenceInTheSemanticMode_BreaksAtTheLatestFittingClause
+
+                  - id: LintMark-Formatting-Blocks-ParagraphFormatter-KeptAsWritten
+                    title: >-
+                      The ParagraphFormatter unit shall keep a paragraph as written when rewriting it could change
+                      its meaning or when a rule is suppressed in it, and report an overflow that rewriting cannot fix.
+                    justification: |
+                      A rewrap must never change how a document renders, and an author must still learn of a line
+                      that is too wide when the tool is unable to repair it.
+                    tests:
+                      - ParagraphFormatter_Format_SuppressedRule_KeepsTheParagraphAsWritten
+                      - ParagraphFormatter_Format_PandocStructuralParagraph_IsKeptAsWritten
+                      - ParagraphFormatter_Format_TabInTheParagraph_IsKeptAsWritten
+                      - ParagraphFormatter_Format_LazyListLine_KeepsTheParagraphAndReportsIt
+                      - ParagraphFormatter_Format_NoGoodBreak_ReportsTheResidualOverflow
+                      - ParagraphFormatter_Format_LayoutThatWouldOpenAnHtmlBlock_IsAFindingWithoutAnEdit
+                      - DocumentFormatter_Format_NoGoodBreak_ReportsAFindingThatCannotBeFixed

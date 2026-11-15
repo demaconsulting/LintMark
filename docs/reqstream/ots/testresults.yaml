@@ -1,0 +1,28 @@
+---
+# TestResults OTS Software Requirements
+#
+# Requirements for the DemaConsulting.TestResults library functionality that LintMark relies on to write the
+# self-validation results files.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: TestResults Requirements
+        requirements:
+          - id: LintMark-OTS-TestResults-Trx
+            title: TestResults shall write passed and failed test results as a valid TRX file.
+            justification: |
+              Self-validation evidence is consumed from TRX files by the requirements trace matrix, so the
+              file must be valid and keep every test name and outcome.
+            tags: [ots]
+            tests:
+              - TestResults_TrxSerializer_PassedAndFailedResults_WritesValidTrx
+
+          - id: LintMark-OTS-TestResults-JUnit
+            title: TestResults shall write passed and failed test results as a valid JUnit XML file.
+            justification: |
+              Some continuous-integration systems consume JUnit XML instead of TRX, so the file must be valid
+              and mark only the failed tests as failures.
+            tags: [ots]
+            tests:
+              - TestResults_JUnitSerializer_PassedAndFailedResults_WritesValidJUnit

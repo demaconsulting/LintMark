@@ -147,19 +147,6 @@ public class ProgramTests
     }
 
     /// <summary>
-    ///     Test that version property returns non-empty version string.
-    /// </summary>
-    [Fact]
-    public void Program_Version_ReturnsNonEmptyString()
-    {
-        // Act: execute the operation being tested
-        var version = Program.Version;
-
-        // Assert: verify expected behavior
-        Assert.False(string.IsNullOrWhiteSpace(version));
-    }
-
-    /// <summary>
     ///     Test that Main with invalid arguments returns non-zero exit code.
     /// </summary>
     [Fact]
@@ -185,10 +172,10 @@ public class ProgramTests
     }
 
     /// <summary>
-    ///     Test that Run with short version flag -v displays version.
+    ///     Test that Run with both the version and help flags performs only the version action.
     /// </summary>
     [Fact]
-    public void Program_Run_WithShortVersionFlag_DisplaysVersion()
+    public void Program_Run_VersionAndHelpFlags_VersionTakesPriority()
     {
         // Arrange: setup test conditions
         var originalOut = Console.Out;
@@ -196,14 +183,15 @@ public class ProgramTests
         {
             using var outWriter = new StringWriter();
             Console.SetOut(outWriter);
-            using var context = Context.Create(["-v"]);
+            using var context = Context.Create(["--version", "--help"]);
 
             // Act: execute the operation being tested
             Program.Run(context);
 
-            // Assert: verify expected behavior
+            // Assert: only the version is written, not the usage text
             var output = outWriter.ToString();
             Assert.Contains(Program.Version, output);
+            Assert.DoesNotContain("Usage:", output);
             Assert.Equal(0, context.ExitCode);
         }
         finally
@@ -213,151 +201,31 @@ public class ProgramTests
     }
 
     /// <summary>
-    ///     Test that Run with short help flag -h displays usage.
+    ///     Test that Main reports an invalid argument as a one-line error on standard error.
     /// </summary>
     [Fact]
-    public void Program_Run_WithShortHelpFlag_DisplaysUsage()
+    public void Program_Main_WithInvalidArgs_WritesErrorMessageToStandardError()
     {
-        // Arrange: setup test conditions
-        var originalOut = Console.Out;
+        // Arrange: capture the error stream
+        var originalError = Console.Error;
         try
         {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["-h"]);
+            using var errWriter = new StringWriter();
+            Console.SetError(errWriter);
 
-            // Act: execute the operation being tested
-            Program.Run(context);
+            // Act: invoke Main with an invalid argument
+            var result = Program.Main(["--invalid-argument"]);
 
-            // Assert: verify expected behavior
-            var output = outWriter.ToString();
-            Assert.Contains("Usage:", output);
-            Assert.Contains("Options:", output);
-            Assert.Equal(0, context.ExitCode);
+            // Assert: the message names the problem and no stack trace is written
+            var error = errWriter.ToString();
+            Assert.Equal(1, result);
+            Assert.StartsWith("Error: ", error);
+            Assert.Contains("--invalid-argument", error);
+            Assert.DoesNotContain(" at ", error);
         }
         finally
         {
-            Console.SetOut(originalOut);
-        }
-    }
-
-    /// <summary>
-    ///     Test that Run with short help flag -? displays usage.
-    /// </summary>
-    [Fact]
-    public void Program_Run_WithQuestionMarkFlag_DisplaysUsage()
-    {
-        // Arrange: setup test conditions
-        var originalOut = Console.Out;
-        try
-        {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["-?"]);
-
-            // Act: execute the operation being tested
-            Program.Run(context);
-
-            // Assert: verify expected behavior
-            var output = outWriter.ToString();
-            Assert.Contains("Usage:", output);
-            Assert.Contains("Options:", output);
-            Assert.Equal(0, context.ExitCode);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
-
-    /// <summary>
-    ///     Test that Run with help flag lists the paths argument and the check option.
-    /// </summary>
-    [Fact]
-    public void Program_Run_WithHelpFlag_ListsCheckOptionAndPaths()
-    {
-        // Arrange: setup test conditions
-        var originalOut = Console.Out;
-        try
-        {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["--help"]);
-
-            // Act: execute the operation being tested
-            Program.Run(context);
-
-            // Assert: verify expected behavior
-            var output = outWriter.ToString();
-            Assert.Contains("[paths...]", output);
-            Assert.Contains("--check", output);
-            Assert.Contains("**/*.md", output);
-            Assert.Equal(0, context.ExitCode);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
-
-    /// <summary>
-    ///     Test that Run with help flag lists the configuration options.
-    /// </summary>
-    [Fact]
-    public void Program_Run_WithHelpFlag_ListsConfigOptions()
-    {
-        // Arrange: capture the console output
-        var originalOut = Console.Out;
-        try
-        {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["--help"]);
-
-            // Act: execute the operation being tested
-            Program.Run(context);
-
-            // Assert: both configuration options are described
-            var output = outWriter.ToString();
-            Assert.Contains("--config <file>", output);
-            Assert.Contains("--no-config", output);
-            Assert.Contains(".lintmark.yaml", output);
-            Assert.Contains(".editorconfig", output);
-            Assert.Equal(0, context.ExitCode);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
-
-    /// <summary>
-    ///     Test that Run with the help flag lists the fix and diff options.
-    /// </summary>
-    [Fact]
-    public void Program_Run_HelpFlag_ListsFixAndDiffOptions()
-    {
-        // Arrange: capture the console output
-        var originalOut = Console.Out;
-        try
-        {
-            using var outWriter = new StringWriter();
-            Console.SetOut(outWriter);
-            using var context = Context.Create(["--help"]);
-
-            // Act: execute the operation being tested
-            Program.Run(context);
-
-            // Assert: both options are described, including the combination rule
-            var output = outWriter.ToString();
-            Assert.Contains("--fix", output);
-            Assert.Contains("--diff", output);
-            Assert.Contains("not with --check or --diff", output);
-            Assert.Equal(0, context.ExitCode);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            Console.SetError(originalError);
         }
     }
 

@@ -28,6 +28,20 @@ namespace DemaConsulting.LintMark.Tests;
 internal static class Runner
 {
     /// <summary>
+    ///     Runs the specified program in a working directory and captures its output.
+    /// </summary>
+    /// <param name="workingDirectory">Directory the program starts in.</param>
+    /// <param name="output">Program output (stdout and stderr combined).</param>
+    /// <param name="program">Program name or path.</param>
+    /// <param name="arguments">Program arguments.</param>
+    /// <returns>Program exit code.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when process fails to start.</exception>
+    public static int Run(string workingDirectory, out string output, string program, params string[] arguments)
+    {
+        return RunCore(workingDirectory, out output, program, arguments);
+    }
+
+    /// <summary>
     ///     Runs the specified program and captures its output.
     /// </summary>
     /// <param name="output">Program output (stdout and stderr combined).</param>
@@ -37,6 +51,20 @@ internal static class Runner
     /// <exception cref="InvalidOperationException">Thrown when process fails to start.</exception>
     public static int Run(out string output, string program, params string[] arguments)
     {
+        return RunCore(null, out output, program, arguments);
+    }
+
+    /// <summary>
+    ///     Runs the specified program, optionally in a working directory, and captures its output.
+    /// </summary>
+    /// <param name="workingDirectory">Directory the program starts in, or <see langword="null"/> for the current one.</param>
+    /// <param name="output">Program output (stdout and stderr combined).</param>
+    /// <param name="program">Program name or path.</param>
+    /// <param name="arguments">Program arguments.</param>
+    /// <returns>Program exit code.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when process fails to start.</exception>
+    private static int RunCore(string? workingDirectory, out string output, string program, string[] arguments)
+    {
         // Construct the start information
         var startInfo = new ProcessStartInfo(program)
         {
@@ -45,6 +73,10 @@ internal static class Runner
             UseShellExecute = false,
             CreateNoWindow = true
         };
+        if (workingDirectory is not null)
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+        }
 
         // Add the arguments
         foreach (var argument in arguments)

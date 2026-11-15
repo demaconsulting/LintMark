@@ -20,7 +20,6 @@
 
 using System.Collections.Immutable;
 using System.Security;
-using System.Text;
 using DemaConsulting.LintMark.Cli;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
@@ -29,19 +28,18 @@ using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 using DemaConsulting.LintMark.Reporting;
-using DemaConsulting.LintMark.Safety;
 
 namespace DemaConsulting.LintMark.Engine;
 
 /// <summary>
 ///     Discovers the Markdown files named on the command line, processes them in parallel (read, parse,
-///     configure, format and verify), optionally rewrites them, and reports every finding in a deterministic order.
+///     configure and format), optionally rewrites them, and reports every finding in a deterministic order.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Each file is processed independently by a worker: its configuration is loaded first (so that the
 ///         <c>ignore</c> patterns can skip it before it is read), then the file is read, decoded and parsed, and
-///         the document is formatted into a proposed rewrite that must pass every safety check. Workers never
+///         the document is formatted into a proposed rewrite. Workers never
 ///         write output, never write files and never touch the <see cref="Context"/>; they return a
 ///         <see cref="FileResult"/> stored by input index. After all workers finish, the files are rewritten
 ///         one after the other when the fix option is given, and all diagnostics are reported in order, so
@@ -56,15 +54,17 @@ namespace DemaConsulting.LintMark.Engine;
 ///         or editor settings are invalid is still read and parsed, so its own failures are still reported, but
 ///         it is never formatted and never rewritten. A configuration problem shared by many files is reported
 ///         once. The <c>ignore</c> patterns of the configuration skip the files that were found through a
-///         directory, a glob or the default pattern; a file named on the command line is never ignored.
+///         directory, a glob or the default pattern; a file named on the command line is never ignored. The
+///         patterns of the configuration that applies at each scan root (the current directory, a directory
+///         argument, or the directory a glob starts in) also prune discovery: an ignored directory is not
+///         entered, nested repositories included, while each file still uses its own nearest configuration.
 ///     </para>
 ///     <para>
-///         Safety is the central property of rewriting: a proposed rewrite is written only when the rendered
-///         HTML is equivalent, the Pandoc structure is unchanged, the rewritten text parses as before and
-///         formatting it again changes nothing. Any other outcome (including an exception in a check)
-///         leaves the file untouched and is reported as a diagnostic. A document the parser could only read by
-///         dropping grid tables is never rewritten and its offending line is reported. The checks run in check
-///         mode too, so what is reported predicts what the fix option does; only the write is gated.
+///         A document the parser could only read by dropping grid tables is never rewritten and its offending
+///         line is reported. A formatter that throws or proposes invalid edits fails its file only, which is
+///         left untouched. The block formatters decide what is safe to change with explicit rules; the whole-file
+///         properties (same page, same structure, stable second pass) are verified outside the product by
+///         the verification tool.
 ///     </para>
 ///     <para>
 ///         Every finding is reported, one per line, as <c>path:line:col: rule-id message</c> through
@@ -75,7 +75,7 @@ namespace DemaConsulting.LintMark.Engine;
 ///     </para>
 ///     <para>
 ///         Thread safety: an instance holds only immutable configuration and stateless collaborators;
-///         <see cref="Process(IReadOnlyList{string})"/> and <see cref="Run(Context)"/> may be called concurrently.
+///         <see cref="Run(Context)"/> may be called concurrently.
 ///     </para>
 /// </remarks>
 internal sealed class LintMarkEngine
@@ -106,30 +106,18 @@ internal sealed class LintMarkEngine
     private readonly int _maxDegreeOfParallelism;
 
     /// <summary>
-    ///     Processes a single file given its formatting configuration; replaceable so tests can control timing.
-    /// </summary>
-    private readonly Func<string, LintMarkConfig?, FileResult> _fileProcessor;
-
-    /// <summary>
-    ///     Parses a decoded document; replaceable so tests can simulate parser failures.
-    /// </summary>
-    private readonly Func<SourceDocument, ParsedDocument> _documentParser;
-
-    /// <summary>
-    ///     Creates the editor-settings resolver used by <see cref="Run(Context)"/>; replaceable so tests can
-    ///     simulate unreadable editor settings.
-    /// </summary>
-    private readonly Func<EditorConfigResolver> _editorConfigFactory;
-
-    /// <summary>
-    ///     Formats parsed documents; replaceable so tests can install block formatters, including broken ones.
+    ///     Formats parsed documents; replaceable so the verification tool and tests can install block formatters.
     /// </summary>
     private readonly DocumentFormatter _formatter;
 
     /// <summary>
+    ///     Runs the lint-only rules.
+    /// </summary>
+    private readonly LintRuleEngine _lintRules = LintRuleEngine.CreateDefault();
+
+    /// <summary>
     ///     Replaces the content of a file given the resolved target captured when it was read, the bytes it was
-    ///     computed from and the new bytes; replaceable so tests can simulate write failures and files that
-    ///     change (or links that are redirected) after they were read.
+    ///     computed from and the new bytes; replaceable so tests can simulate write failures.
     /// </summary>
     private readonly Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> _fileWriter;
 
@@ -146,52 +134,38 @@ internal sealed class LintMarkEngine
     ///     Initializes a new instance of the <see cref="LintMarkEngine"/> class.
     /// </summary>
     /// <param name="maxDegreeOfParallelism">Maximum number of files processed concurrently; 1 means sequential.</param>
-    /// <param name="fileProcessor">
-    ///     Optional replacement for the per-file processing (a test seam). It receives the path and the
-    ///     configuration the file may be formatted under (<see langword="null"/> when the file must not be
-    ///     formatted); <see langword="null"/> selects the real read, parse, format and verify.
-    /// </param>
-    /// <param name="documentParser">
-    ///     Optional replacement for the Markdown parsing step of the real per-file processing, including the
-    ///     parsing done by the safety checks (a test seam); <see langword="null"/> selects <see cref="DocumentParser.Parse"/>.
-    /// </param>
-    /// <param name="editorConfigFactory">
-    ///     Optional replacement for the creation of the editor-settings resolver used by <see cref="Run(Context)"/>
-    ///     (a test seam); <see langword="null"/> selects a resolver that reads the real file system.
-    /// </param>
     /// <param name="formatter">
-    ///     Optional replacement for the document formatter (a test seam that installs block formatters);
-    ///     <see langword="null"/> selects the production formatter with the heading, code block and thematic break formatters.
+    ///     Optional replacement for the document formatter; <see langword="null"/> selects <see cref="CreateDefaultFormatter"/>.
     /// </param>
     /// <param name="fileWriter">
     ///     Optional replacement for the atomic file write (a test seam). It receives the path, the resolved
     ///     target captured when the file was read, the bytes the rewrite was computed from and the new bytes;
     ///     <see langword="null"/> selects <see cref="AtomicFileWriter"/>.
     /// </param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than one.</exception>
     internal LintMarkEngine(
         int maxDegreeOfParallelism,
-        Func<string, LintMarkConfig?, FileResult>? fileProcessor = null,
-        Func<SourceDocument, ParsedDocument>? documentParser = null,
-        Func<EditorConfigResolver>? editorConfigFactory = null,
         DocumentFormatter? formatter = null,
         Action<string, string, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? fileWriter = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
-        _documentParser = documentParser ?? DocumentParser.Parse;
-        _fileProcessor = fileProcessor ?? ReadAndRewrite;
-        _editorConfigFactory = editorConfigFactory ?? (static () => new EditorConfigResolver());
-        _formatter = formatter ?? new DocumentFormatter(
-            [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter()],
-            new InlineNormalizer());
+        _formatter = formatter ?? CreateDefaultFormatter();
         _fileWriter = fileWriter ?? (static (path, target, original, content) => AtomicFileWriter.Write(path, target, original.Span, content.Span));
     }
 
     /// <summary>
+    ///     Creates the production document formatter with every block formatter.
+    /// </summary>
+    /// <returns>A new formatter; the verification tool uses it to format a second time.</returns>
+    internal static DocumentFormatter CreateDefaultFormatter() => new(
+        [new HeadingFormatter(), new CodeBlockFormatter(), new ThematicBreakFormatter(), new ListFormatter(), new BlockQuoteFormatter(), new TableFormatter()],
+        new InlineNormalizer(),
+        new ParagraphFormatter(),
+        new LinkRefactorer());
+
+    /// <summary>
     ///     Discovers, processes, optionally rewrites, and reports the files selected by the context.
     /// </summary>
-    /// <param name="context">The context supplying the path and configuration arguments and receiving the reports. Must not be null.</param>
+    /// <param name="context">The context supplying the path and configuration arguments and receiving the reports.</param>
     /// <remarks>
     ///     Diagnostics and configuration problems are written through <see cref="Context.WriteError"/>, which
     ///     makes the exit code 1. Discovery runs against the current directory. <c>--no-config</c> selects
@@ -203,21 +177,18 @@ internal sealed class LintMarkEngine
     ///     reported and stays as it was. With <c>--diff</c> the unified diff is written to standard output.
     ///     Without either option nothing is written to disk.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a path argument is empty (reported by the caller as a usage error).</exception>
     public void Run(Context context)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(context);
-
         // Discover the files against the current directory
         var baseDirectory = Directory.GetCurrentDirectory();
-        var files = FileDiscovery.DiscoverFiles(context.Paths, baseDirectory);
-
-        // Choose the configuration sources from the command line, then process; no output happens until all workers are done
+        // Choose the configuration sources from the command line; discovery prunes by the ignore patterns that apply at each scan root
         var loader = CreateLoader(context);
-        var editorConfig = context.NoConfig ? null : _editorConfigFactory();
-        var results = Process(files, loader, editorConfig, baseDirectory);
+        var files = FileDiscovery.DiscoverFiles(context.Paths, baseDirectory, scanRoot => GetScanRootIgnore(loader, scanRoot, baseDirectory));
+
+        // Process; no output happens until all workers are done
+        var editorConfig = context.NoConfig ? null : new EditorConfigResolver();
+        var results = Process(files, loader, editorConfig, baseDirectory, context.RuleOverrides, context.Fix);
 
         // Write the rewrites one after the other (never from a worker), then collect what remains to report
         List<Diagnostic> diagnostics = context.Fix ? WriteChanges(results) : [.. results.SelectMany(static r => r.Diagnostics)];
@@ -225,8 +196,7 @@ internal sealed class LintMarkEngine
             .SelectMany(static r => r.ConfigErrors)
             .Concat(loader.InitialErrors)
             .Distinct()
-            .Select(static e => new Diagnostic(
-                ConfigLoader.ErrorRuleId, DiagnosticKind.LintOnly, e.Path, e.Line, e.Column, e.Message.ReplaceLineEndings(" "))));
+            .Select(static e => Diagnostic.LintOnly(e.Path, ConfigLoader.ErrorRuleId, e.Line, e.Column, e.Message)));
 
         // Report in one deterministic order; the diff goes to standard output after the findings
         TextReporter.Report(diagnostics, baseDirectory, context);
@@ -242,48 +212,19 @@ internal sealed class LintMarkEngine
     }
 
     /// <summary>
-    ///     Processes files with the built-in default configuration, possibly in parallel, and returns their results in path order.
-    /// </summary>
-    /// <param name="files">Paths of the files to process; every file is treated as named on the command line. Must not be null.</param>
-    /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
-    /// <remarks>
-    ///     Equivalent to <see cref="Process(IReadOnlyList{string}, ConfigLoader, EditorConfigResolver?)"/> with a
-    ///     defaults-only loader and no editor settings: no configuration source is read.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> is null.</exception>
-    public IReadOnlyList<FileResult> Process(IReadOnlyList<string> files) => Process(files, ConfigLoader.ForDefaults(), null);
-
-    /// <summary>
-    ///     Processes files that were all named explicitly, attaches each file's effective configuration and returns the results in path order.
-    /// </summary>
-    /// <param name="files">Paths of the files to process; every file is treated as named on the command line, so no <c>ignore</c> pattern applies. Must not be null.</param>
-    /// <param name="loader">Supplies the configuration that applies to each file. Must not be null.</param>
-    /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
-    /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> (or an element) or <paramref name="loader"/> is null.</exception>
-    internal IReadOnlyList<FileResult> Process(IReadOnlyList<string> files, ConfigLoader loader, EditorConfigResolver? editorConfig)
-    {
-        // Validate the list here so that the projection below cannot hide a null argument
-        ArgumentNullException.ThrowIfNull(files);
-        ArgumentNullException.ThrowIfNull(loader);
-        if (files.Any(static file => file is null))
-        {
-            throw new ArgumentNullException(nameof(files), "The files must not contain null.");
-        }
-
-        DiscoveredFile[] named = [.. files.Select(static file => new DiscoveredFile(file, isExplicit: true))];
-        return Process(named, loader, editorConfig);
-    }
-
-    /// <summary>
     ///     Processes files, possibly in parallel, attaches each file's effective configuration and returns the results in path order.
     /// </summary>
-    /// <param name="files">The files to process. Must not be null.</param>
-    /// <param name="loader">Supplies the configuration that applies to each file. Must not be null.</param>
+    /// <param name="files">The files to process.</param>
+    /// <param name="loader">Supplies the configuration that applies to each file.</param>
     /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
     /// <param name="baseDirectory">
     ///     The directory that <c>ignore</c> patterns are relative to when no configuration file applies, or
     ///     <see langword="null"/> for the current directory.
+    /// </param>
+    /// <param name="overrides">The rules forced on or off by the command line; <see langword="null"/> for none.</param>
+    /// <param name="fix">
+    ///     Whether the rewrites will be written; each rewrite then also carries the findings that remain in the
+    ///     rewritten text, so they can be reported at the positions of the file as it is afterwards.
     /// </param>
     /// <returns>One result per input file, sorted by path (ordinal), independent of completion order.</returns>
     /// <remarks>
@@ -291,31 +232,24 @@ internal sealed class LintMarkEngine
     ///     outcome identical for any degree of parallelism and any scheduling. Workers must not write
     ///     output or files. The effective configuration is derived with a <c>with</c> expression on the immutable
     ///     configuration, so nothing shared is mutated. The editor settings are consulted only when the
-    ///     configuration gives no line ending. If a replaced file processor throws, the exception is
-    ///     propagated (wrapped in an <see cref="AggregateException"/> when run in parallel).
+    ///     configuration gives no line ending.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="files"/> or <paramref name="loader"/> is null, or a file has no path.</exception>
     internal IReadOnlyList<FileResult> Process(
         IReadOnlyList<DiscoveredFile> files,
         ConfigLoader loader,
         EditorConfigResolver? editorConfig,
-        string? baseDirectory = null)
+        string? baseDirectory = null,
+        RuleOverrides? overrides = null,
+        bool fix = false)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(files);
-        ArgumentNullException.ThrowIfNull(loader);
-        if (files.Any(static file => file.Path is null))
-        {
-            throw new ArgumentNullException(nameof(files), "The files must not contain a file without a path.");
-        }
-
         // Fix the base directory once, so every worker uses the same one
         var root = baseDirectory ?? Directory.GetCurrentDirectory();
+        var forced = overrides ?? RuleOverrides.None;
 
         // Process every file; each worker writes only its own slot
         var results = new FileResult[files.Count];
         var options = new ParallelOptions { MaxDegreeOfParallelism = _maxDegreeOfParallelism };
-        Parallel.For(0, files.Count, options, index => results[index] = ProcessFile(files[index], loader, editorConfig, root));
+        Parallel.For(0, files.Count, options, index => results[index] = ProcessFile(files[index], loader, editorConfig, root, forced, fix));
 
         // Order by path (stable) so the caller never observes scheduling order
         return [.. results.OrderBy(static r => r.Path, StringComparer.Ordinal)];
@@ -363,12 +297,12 @@ internal sealed class LintMarkEngine
             try
             {
                 _fileWriter(result.Path, change.ResolvedTarget, change.OriginalBytes.AsMemory(), change.NewBytes.AsMemory());
-                remaining.AddRange(result.Diagnostics.Where(static d => d.Kind != DiagnosticKind.Formatting));
+                remaining.AddRange(change.Remaining ?? [.. result.Diagnostics.Where(static d => d.Kind != DiagnosticKind.Formatting)]);
             }
             catch (Exception ex)
             {
                 remaining.AddRange(result.Diagnostics);
-                remaining.Add(Problem(result.Path, WriteErrorRuleId, 1, 1, $"Cannot write file: {ex.Message}"));
+                remaining.Add(Diagnostic.LintOnly(result.Path, WriteErrorRuleId, 1, 1, $"Cannot write file: {ex.Message}"));
             }
         }
 
@@ -376,12 +310,14 @@ internal sealed class LintMarkEngine
     }
 
     /// <summary>
-    ///     Processes one file: loads its configuration, skips it when ignored, and otherwise reads, parses, formats and verifies it.
+    ///     Processes one file: loads its configuration, skips it when ignored, and otherwise reads, parses and formats it.
     /// </summary>
     /// <param name="file">The file.</param>
     /// <param name="loader">Supplies the configuration that applies to the file.</param>
     /// <param name="editorConfig">Supplies the line ending from the editor settings, or <see langword="null"/> to ignore them.</param>
     /// <param name="baseDirectory">The directory that <c>ignore</c> patterns are relative to when no configuration file applies.</param>
+    /// <param name="overrides">The rules forced on or off by the command line, applied over the configuration of the file.</param>
+    /// <param name="fix">Whether a rewrite also carries the findings that remain in the rewritten text.</param>
     /// <returns>The result with its configuration or configuration problems.</returns>
     /// <remarks>
     ///     An invalid configuration leaves <see cref="FileResult.Config"/> null and carries the problems; the
@@ -389,7 +325,7 @@ internal sealed class LintMarkEngine
     ///     add one problem at the start of the Markdown file, keep the configuration with an unspecified line
     ///     ending, and also prevent formatting: the line ending the file should get is not known.
     /// </remarks>
-    private FileResult ProcessFile(DiscoveredFile file, ConfigLoader loader, EditorConfigResolver? editorConfig, string baseDirectory)
+    private FileResult ProcessFile(DiscoveredFile file, ConfigLoader loader, EditorConfigResolver? editorConfig, string baseDirectory, RuleOverrides overrides, bool fix)
     {
         // The configuration comes first, because its ignore patterns decide whether the file is read at all
         var load = loader.Load(file.Path);
@@ -400,11 +336,13 @@ internal sealed class LintMarkEngine
             return new FileResult(file.Path, []) { Config = loaded, Ignored = true };
         }
 
-        // An invalid configuration yields no settings, only its problems
-        if (load.Config is not { } config)
+        // An invalid configuration yields no settings, only its problems; the rules forced on the command line win over the file
+        if (load.Config is not { } loadedConfig)
         {
-            return _fileProcessor(file.Path, null) with { Config = null, ConfigErrors = load.Errors };
+            return ReadAndRewrite(file.Path, null, fix) with { Config = null, ConfigErrors = load.Errors };
         }
+
+        var config = overrides.Apply(loadedConfig);
 
         // The configuration's own line ending wins; the editor settings are consulted only when it gives none
         var errors = ImmutableArray<ConfigError>.Empty;
@@ -422,7 +360,7 @@ internal sealed class LintMarkEngine
         }
 
         // A file with a configuration problem is never formatted
-        return _fileProcessor(file.Path, errors.IsEmpty ? config : null) with { Config = config, ConfigErrors = errors };
+        return ReadAndRewrite(file.Path, errors.IsEmpty ? config : null, fix) with { Config = config, ConfigErrors = errors };
     }
 
     /// <summary>
@@ -435,12 +373,27 @@ internal sealed class LintMarkEngine
         load.SourcePath is null ? baseDirectory : Path.GetDirectoryName(Path.GetFullPath(load.SourcePath)) ?? baseDirectory;
 
     /// <summary>
-    ///     Reads, parses, formats and verifies one file, converting every expected failure into a diagnostic.
+    ///     Gets the <c>ignore</c> scope of the configuration that applies at a scan root.
+    /// </summary>
+    /// <param name="loader">Supplies the configuration that applies at the scan root.</param>
+    /// <param name="scanRoot">The full path of the scan root directory.</param>
+    /// <param name="baseDirectory">The directory to use when the configuration is not from a file.</param>
+    /// <returns>The patterns and the directory they are relative to; <see langword="null"/> when the configuration is invalid (its problems are reported per file).</returns>
+    private static IgnoreScope? GetScanRootIgnore(ConfigLoader loader, string scanRoot, string baseDirectory)
+    {
+        // The loader resolves per file, so ask for a hypothetical file in the scan root
+        var load = loader.Load(Path.Combine(scanRoot, "scan-root.md"));
+        return load.Config is { } config ? new IgnoreScope(GetIgnoreRoot(load, baseDirectory), config.Ignore) : null;
+    }
+
+    /// <summary>
+    ///     Reads, parses and formats one file, converting every expected failure into a diagnostic.
     /// </summary>
     /// <param name="path">Path of the file.</param>
     /// <param name="config">The configuration to format under, or <see langword="null"/> when the file must not be formatted.</param>
+    /// <param name="fix">Whether a rewrite also carries the findings that remain in the rewritten text.</param>
     /// <returns>The result; its diagnostic list is empty when the file was read, parsed and is compliant.</returns>
-    private FileResult ReadAndRewrite(string path, LintMarkConfig? config)
+    private FileResult ReadAndRewrite(string path, LintMarkConfig? config, bool fix)
     {
         // Resolve the links first and read the bytes from the resolved file, so the identity that is captured is the
         // one the bytes come from; read problems are reported rather than thrown
@@ -460,7 +413,7 @@ internal sealed class LintMarkEngine
         ParsedDocument document;
         try
         {
-            document = _documentParser(SourceDocument.Create(path, bytes));
+            document = DocumentParser.Parse(SourceDocument.Create(path, bytes));
         }
         catch (SourceDocumentException ex)
         {
@@ -474,41 +427,58 @@ internal sealed class LintMarkEngine
         }
 
         // A file that must not be formatted is only checked for problems it has on its own
-        return config is null ? new FileResult(path, []) : Rewrite(path, target, bytes, document, config);
+        return config is null ? new FileResult(path, []) : Rewrite(path, target, bytes, document, config, fix);
     }
 
     /// <summary>
-    ///     Formats a parsed document and verifies the proposed rewrite.
+    ///     Formats a parsed document and prepares the proposed rewrite.
     /// </summary>
     /// <param name="path">Path of the file.</param>
     /// <param name="target">The full path of the file the bytes were read from, with symbolic links resolved.</param>
     /// <param name="bytes">The exact bytes that were read.</param>
     /// <param name="document">The parsed document.</param>
     /// <param name="config">The configuration to format under.</param>
+    /// <param name="fix">Whether a change also carries the findings that remain in the rewritten text.</param>
     /// <returns>
-    ///     The result: the findings, and a change only when the proposed rewrite differs from the file and passed
-    ///     every safety check. A document that must not be rewritten yields the grid table finding and no change.
+    ///     The result: the findings, and a change only when the proposed rewrite differs from the file. A document
+    ///     that must not be rewritten yields the grid table finding and no change.
     /// </returns>
-    private FileResult Rewrite(string path, string target, byte[] bytes, ParsedDocument document, LintMarkConfig config)
+    private FileResult Rewrite(string path, string target, byte[] bytes, ParsedDocument document, LintMarkConfig config, bool fix)
     {
         var source = document.Source;
 
-        // A document the parser could only read by dropping grid tables is never formatted; its offending line is reported
+        // A document the parser could only read by dropping grid tables is never formatted; its offending line is reported,
+        // and the lint-only rules still run on the reading without grid tables
         if (document.GridFallback is { } grid)
         {
-            return new FileResult(path, ReportGridFallback(path, document, config, grid));
+            try
+            {
+                return new FileResult(path, ReportGridFallback(path, document, config, grid).AddRange(_lintRules.Run(document, config)));
+            }
+            catch (Exception ex)
+            {
+                return Failed(path, FormatErrorRuleId, 1, 1, $"Linting failed: {ex.GetType().Name}");
+            }
         }
 
-        // Format, then apply the edits; a formatter that throws or proposes invalid edits fails this file only
+        // Format, then apply the edits; a formatter that throws or proposes invalid edits fails this file only. The lint-only
+        // rules read the document as written, so what they report does not depend on what the formatter changes
         FormatResult format;
+        ImmutableArray<Diagnostic> diagnostics;
         string newLf;
+        ImmutableArray<Diagnostic>? remaining = null;
         try
         {
             format = _formatter.Format(document, config);
+            diagnostics = format.Diagnostics.AddRange(_lintRules.Run(document, config));
             newLf = SourcePatcher.Apply(source, format.Edits);
-            if (newLf.Contains('\r'))
+
+            // Under fix, the findings that rewriting does not remove are reported against the rewritten text, so their positions
+            // match the file on disk: the lint-only rules and the formatter's own lint-only findings are computed again on it
+            if (fix && newLf != source.Text)
             {
-                return Failed(path, FormatErrorRuleId, 1, 1, "Formatting failed: the result contains a carriage return");
+                var rewritten = DocumentParser.Parse(SourceDocument.FromText(path, newLf));
+                remaining = [.. _formatter.Format(rewritten, config).Diagnostics.Where(static d => d.Kind != DiagnosticKind.Formatting), .. _lintRules.Run(rewritten, config)];
             }
         }
         catch (Exception ex)
@@ -520,14 +490,7 @@ internal sealed class LintMarkEngine
         var newBytes = source.ToBytes(newLf, format.LineEnding);
         if (newBytes.AsSpan().SequenceEqual(bytes))
         {
-            return new FileResult(path, format.Diagnostics);
-        }
-
-        // Every rewrite that changes bytes must pass the safety checks, also one that changes the line endings alone:
-        // the Markdown parser renders some text differently for CRLF and LF
-        if (CheckSafety(path, source, newLf, bytes, newBytes, config) is { } refusal)
-        {
-            return new FileResult(path, format.Diagnostics.Add(refusal.Diagnostic)) { Safety = refusal.Status };
+            return new FileResult(path, diagnostics);
         }
 
         var change = new FileChange(
@@ -537,8 +500,11 @@ internal sealed class LintMarkEngine
             format.LineEnding,
             [.. bytes],
             [.. newBytes],
-            target);
-        return new FileResult(path, format.Diagnostics) { Change = change };
+            target)
+        {
+            Remaining = remaining
+        };
+        return new FileResult(path, diagnostics) { Change = change };
     }
 
     /// <summary>
@@ -550,8 +516,8 @@ internal sealed class LintMarkEngine
     /// <param name="grid">Where the offending line is.</param>
     /// <returns>One diagnostic, or none when the rule is switched off or suppressed at the offending line.</returns>
     /// <remarks>
-    ///     Switching the report off never lets the file be rewritten: that guard is a safety property and is
-    ///     applied by the caller regardless.
+    ///     Switching the report off never lets the file be rewritten: the guard is applied by the caller
+    ///     regardless (the formatters cannot edit a document that was read without its grid tables).
     /// </remarks>
     private static ImmutableArray<Diagnostic> ReportGridFallback(string path, ParsedDocument document, LintMarkConfig config, GridTableFallback grid)
     {
@@ -564,136 +530,8 @@ internal sealed class LintMarkEngine
 
         return
         [
-            Problem(path, rule, grid.Line, grid.Column, "Line looks like a grid table border but the table is not valid; the file is never rewritten")
+            Diagnostic.LintOnly(path, rule, grid.Line, grid.Column, "Line looks like a grid table border but the table is not valid; the file is never rewritten")
         ];
-    }
-
-    /// <summary>
-    ///     Runs the safety checks on a proposed rewrite.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="source">The original document.</param>
-    /// <param name="newLf">The proposed LF-normalized text.</param>
-    /// <param name="bytes">The exact bytes of the file.</param>
-    /// <param name="newBytes">The exact bytes that would be written; differ from <paramref name="bytes"/>.</param>
-    /// <param name="config">The configuration the rewrite was computed under.</param>
-    /// <returns>The status and diagnostic of the first check that failed, or <see langword="null"/> when every check passed.</returns>
-    /// <remarks>
-    ///     Order: rendered HTML of the LF-normalized text, rendered HTML of the text with the line endings it has
-    ///     on disk, Pandoc structure, that the rewritten text is still read with grid tables, and idempotency.
-    ///     A rewrite that changes the line endings alone leaves the LF-normalized text as it is, so only the
-    ///     rendering of the text on disk is checked for it, because the parser renders some text differently for
-    ///     CRLF and LF. A check that throws is a failed check (fail closed). The diagnostic is placed at the
-    ///     first line where the original and the proposed text differ.
-    /// </remarks>
-    private (SafetyStatus Status, Diagnostic Diagnostic)? CheckSafety(
-        string path,
-        SourceDocument source,
-        string newLf,
-        byte[] bytes,
-        byte[] newBytes,
-        LintMarkConfig config)
-    {
-        // Each check yields a verdict; the first that is not equivalent decides
-        var textChanged = !string.Equals(newLf, source.Text, StringComparison.Ordinal);
-        var checks = new List<(SafetyStatus Status, string RuleId, string Sentence, Func<EquivalenceResult> Run)>();
-
-        // The checks on the LF-normalized text are decided in advance when only the line endings change
-        if (textChanged)
-        {
-            checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders",
-                () => HtmlEquivalenceChecker.Check(source.Text, newLf)));
-        }
-
-        // The text as it is on disk, with its real line endings, always has to render the same
-        checks.Add((SafetyStatus.HtmlMismatch, RuleCatalog.HtmlMismatchRuleId, "The rewrite would change how the document renders because of its line endings",
-            () => HtmlEquivalenceChecker.CheckOnDisk(DecodeContent(bytes, source), DecodeContent(newBytes, source))));
-        if (textChanged)
-        {
-            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would change the Pandoc structure",
-                () => StructuralTokenChecker.Check(source.Text, newLf)));
-            checks.Add((SafetyStatus.StructureMismatch, RuleCatalog.StructureMismatchRuleId, "The rewrite would not be read as before",
-                () => CheckReparse(path, newLf)));
-            checks.Add((SafetyStatus.NotIdempotent, RuleCatalog.NotIdempotentRuleId, "Formatting is not stable",
-                () => IdempotencyChecker.Check(newLf, text => Reformat(path, text, config))));
-        }
-
-        foreach (var (status, ruleId, sentence, run) in checks)
-        {
-            var verdict = Verdict(run);
-            if (verdict.IsEquivalent)
-            {
-                continue;
-            }
-
-            // Position the finding where the proposed text first differs from the file; a change of the line endings alone is at 1:1
-            var index = textChanged ? Math.Min(EquivalenceResult.FirstDifference(source.Text, newLf), source.Text.Length) : 0;
-            var (line, column) = source.PositionOf(index);
-            var message = $"{sentence} ({verdict.Description}); the file is not rewritten";
-            return (status, Problem(path, ruleId, line, column, message));
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Decodes the bytes of a file, or of its proposed rewrite, to text with the line endings it has on disk.
-    /// </summary>
-    /// <param name="content">The bytes, starting with the byte order mark when the document had one.</param>
-    /// <param name="source">The original document, which says whether there is a byte order mark.</param>
-    /// <returns>The text without a byte order mark and with its line terminators unchanged.</returns>
-    private static string DecodeContent(byte[] content, SourceDocument source)
-    {
-        var skip = source.HasBom ? source.Encoding.GetPreamble().Length : 0;
-        return Encoding.UTF8.GetString(content, skip, content.Length - skip);
-    }
-
-    /// <summary>
-    ///     Runs one check and treats an exception as a failed check.
-    /// </summary>
-    /// <param name="check">The check.</param>
-    /// <returns>The verdict, or a failed verdict when the check threw.</returns>
-    private static EquivalenceResult Verdict(Func<EquivalenceResult> check)
-    {
-        try
-        {
-            return check();
-        }
-
-        // A check that cannot be completed must refuse the rewrite, whatever the cause
-        catch (Exception ex)
-        {
-            return EquivalenceResult.Different($"the check failed: {ex.GetType().Name}");
-        }
-    }
-
-    /// <summary>
-    ///     Checks that the proposed text is read with grid tables, as a document the formatter may touch.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="newLf">The proposed LF-normalized text.</param>
-    /// <returns>An equivalent result when the proposed text parses without the grid table fallback.</returns>
-    /// <remarks>
-    ///     An edit must not create a grid-table-looking line that is not a valid table: the rewritten file would
-    ///     then be one that this tool refuses to format, and rendered output cannot show the damage.
-    /// </remarks>
-    private EquivalenceResult CheckReparse(string path, string newLf) =>
-        _documentParser(SourceDocument.FromText(path, newLf)).IsFormatUnsafe
-            ? EquivalenceResult.Different("the rewritten text contains a grid table border line that is not part of a valid grid table")
-            : EquivalenceResult.Equivalent;
-
-    /// <summary>
-    ///     Formats LF-normalized text the way the engine formats a file; the formatting step of the idempotency check.
-    /// </summary>
-    /// <param name="path">Path of the file, for the document.</param>
-    /// <param name="text">The LF-normalized text.</param>
-    /// <param name="config">The configuration to format under.</param>
-    /// <returns>The formatted text.</returns>
-    private string Reformat(string path, string text, LintMarkConfig config)
-    {
-        var document = _documentParser(SourceDocument.FromText(path, text));
-        var format = _formatter.Format(document, config);
-        return SourcePatcher.Apply(document.Source, format.Edits);
     }
 
     /// <summary>
@@ -706,19 +544,7 @@ internal sealed class LintMarkEngine
     /// <param name="message">Description (line breaks are replaced so the report stays one line per diagnostic).</param>
     /// <returns>The result.</returns>
     private static FileResult Failed(string path, string ruleId, int line, int column, string message) =>
-        new(path, [Problem(path, ruleId, line, column, message)]);
-
-    /// <summary>
-    ///     Creates a diagnostic that is only reported.
-    /// </summary>
-    /// <param name="path">Path of the file.</param>
-    /// <param name="ruleId">Rule identifier.</param>
-    /// <param name="line">1-based line.</param>
-    /// <param name="column">1-based column.</param>
-    /// <param name="message">Description (line breaks are replaced so the report stays one line per diagnostic).</param>
-    /// <returns>The diagnostic.</returns>
-    private static Diagnostic Problem(string path, string ruleId, int line, int column, string message) =>
-        new(ruleId, DiagnosticKind.LintOnly, path, line, column, message.ReplaceLineEndings(" "));
+        new(path, [Diagnostic.LintOnly(path, ruleId, line, column, message)]);
 
     /// <summary>
     ///     Describes a read failure without leaking machine-specific text where a stable message exists.
@@ -731,4 +557,85 @@ internal sealed class LintMarkEngine
         UnauthorizedAccessException => "Access to the file is denied",
         _ => $"Cannot read file: {ex.Message}"
     };
+}
+
+/// <summary>
+///     The outcome of processing one file.
+/// </summary>
+/// <param name="Path">The path of the file as it was given to the engine.</param>
+/// <param name="Diagnostics">The findings about the file (empty when it was read, parsed and found compliant).</param>
+/// <param name="Config">
+///     The effective configuration of the file (the configuration that applies to it, with the line ending
+///     filled in from the editor settings when the configuration gives none), or <see langword="null"/> when
+///     the file's configuration is invalid or has not been attached.
+/// </param>
+/// <remarks>
+///     Workers return results and never write output; the engine emits them later in path order so
+///     output does not depend on scheduling. Immutable once created.
+/// </remarks>
+internal sealed record FileResult(string Path, ImmutableArray<Diagnostic> Diagnostics, LintMarkConfig? Config = null)
+{
+    /// <summary>
+    ///     Gets the configuration problems that apply to the file (empty when its configuration is valid).
+    /// </summary>
+    /// <remarks>
+    ///     The same problem is shared by every file that uses the same configuration; the engine reports each
+    ///     distinct problem once.
+    /// </remarks>
+    public ImmutableArray<ConfigError> ConfigErrors { get; init; } = ImmutableArray<ConfigError>.Empty;
+
+    /// <summary>
+    ///     Gets the rewrite that is ready to be written, or <see langword="null"/> when the file is not to be rewritten.
+    /// </summary>
+    /// <remarks>
+    ///     Set only for a rewrite that changes the bytes of the file; never set for a file with an invalid
+    ///     configuration, a format-unsafe document or a failure.
+    /// </remarks>
+    public FileChange? Change { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the file was skipped because an <c>ignore</c> pattern of its configuration matches it.
+    /// </summary>
+    /// <remarks>
+    ///     An ignored file is not read, produces no diagnostic and is never rewritten.
+    /// </remarks>
+    public bool Ignored { get; init; }
+}
+
+/// <summary>
+///     A rewrite of one file that is ready to be written.
+/// </summary>
+/// <param name="OriginalLf">The LF-normalized text as it is on disk.</param>
+/// <param name="NewLf">The LF-normalized text after rewriting.</param>
+/// <param name="OriginalEndings">The counts of the line terminators in the file as it is on disk.</param>
+/// <param name="TargetEnding">The line ending the file is written with.</param>
+/// <param name="OriginalBytes">The exact bytes the rewrite was computed from.</param>
+/// <param name="NewBytes">The exact bytes to write (byte order mark and line endings restored).</param>
+/// <param name="ResolvedTarget">The full path of the file the original bytes were read from, with symbolic links resolved at read time.</param>
+/// <remarks>
+///     A change exists only for a rewrite that differs from the file: for a file that must not be rewritten
+///     (an invalid configuration, a format-unsafe document, a failure) the result carries no change, so
+///     nothing downstream can write the file by mistake. The original bytes travel with the change so the
+///     writer can refuse to replace a file that changed after it was read, and so does the resolved target
+///     (the file that the path referred to through symbolic links when it was read), so the writer can also
+///     refuse when a link was redirected to a file with the same bytes. Immutable, including the byte arrays.
+/// </remarks>
+internal sealed record FileChange(
+    string OriginalLf,
+    string NewLf,
+    LineEndingInfo OriginalEndings,
+    LineEnding TargetEnding,
+    ImmutableArray<byte> OriginalBytes,
+    ImmutableArray<byte> NewBytes,
+    string ResolvedTarget)
+{
+    /// <summary>
+    ///     Gets the findings that remain in the rewritten text, with positions in the rewritten text, or
+    ///     <see langword="null"/> when they were not computed (the rewrite is not going to be written).
+    /// </summary>
+    /// <remarks>
+    ///     Reported instead of the findings of the original text once the rewrite is written, because the
+    ///     rewrite moves lines; the formatting findings are not among them, since rewriting resolves them.
+    /// </remarks>
+    public ImmutableArray<Diagnostic>? Remaining { get; init; }
 }

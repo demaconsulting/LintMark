@@ -1,0 +1,54 @@
+---
+# Software Unit Requirements for the AtomTokenizer Unit
+#
+# The AtomTokenizer unit cuts a paragraph into the words a wrap may move, keeps constructs whole, honors hard breaks,
+# and refuses paragraphs it cannot cut with certainty.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            sections:
+              - title: AtomTokenizer Requirements
+                requirements:
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-AtomsWhole
+                    title: >-
+                      The AtomTokenizer unit shall cut a paragraph into words at whitespace and keep links, code
+                      spans, URLs, inline HTML, math, entities, and Pandoc constructs whole.
+                    justification: |
+                      A wrap may only move whole words. Splitting inside a link, code span, or tag would change
+                      what the document says.
+                    tests:
+                      - AtomTokenizer_Tokenize_PlainWords_AreSeparatedAtWhitespace
+                      - AtomTokenizer_Tokenize_AngleBracketLinksAndBareUrls_AreOneAtom
+                      - AtomTokenizer_Tokenize_InlineHtml_TagsAreNotSplit
+                      - AtomTokenizer_Tokenize_InlineMath_IsOneAtom
+                      - AtomTokenizer_Tokenize_PandocConstructs_AreOneAtom
+                      - AtomTokenizer_Tokenize_MultiLineCodeSpan_JoinsTheLines
+
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-HardBreaks
+                    title: >-
+                      The AtomTokenizer unit shall end a segment at each hard line break, in either form, and never
+                      allow a word break where it would turn into a hard break.
+                    justification: |
+                      Hard breaks are deliberate line breaks of the author and must stay where they are, and a wrap
+                      must not create a new one by moving a trailing backslash.
+                    tests:
+                      - AtomTokenizer_Tokenize_HardBreakWithSpaces_EndsASegment
+                      - AtomTokenizer_Tokenize_HardBreakWithBackslash_EndsASegment
+                      - AtomTokenizer_Tokenize_WordEndingInBackslash_IsJoinedWithTheNextWord
+                      - AtomTokenizer_Tokenize_TaskMarker_IsJoinedWithTheNextWord
+
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-Refusal
+                    title: >-
+                      The AtomTokenizer unit shall refuse a paragraph whose constructs it cannot cut with certainty,
+                      such as a code span broken at a blank or delimiter or lines that do not fit the parsed spans.
+                    justification: |
+                      A refusal lets the caller keep the paragraph as written, which is safer than a guess that
+                      could corrupt a construct.
+                    tests:
+                      - AtomTokenizer_Tokenize_MultiLineCodeSpanWithBlankOrDelimiterAtTheBreak_IsRefused
+                      - AtomTokenizer_Tokenize_MultiLineCodeSpanPaddedOnBothSides_IsRefused
+                      - AtomTokenizer_Tokenize_LinesThatDoNotFitTheSpans_IsRefused

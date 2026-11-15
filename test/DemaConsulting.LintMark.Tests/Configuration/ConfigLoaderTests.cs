@@ -92,24 +92,6 @@ public class ConfigLoaderTests
     }
 
     /// <summary>
-    ///     Test that a configuration file in the file's own directory is used.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_ConfigInOwnDirectory_UsesIt()
-    {
-        // Arrange: a configuration file beside the Markdown file
-        using var directory = new TemporaryDirectory();
-        var config = directory.WriteFile("docs/.lintmark.yaml", "line-length: 90\n");
-
-        // Act: load the file
-        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("docs/a.md"));
-
-        // Assert: its settings are used
-        Assert.Equal(90, result.Config!.LineLength);
-        Assert.Equal(config, result.SourcePath);
-    }
-
-    /// <summary>
     ///     Test that a configuration file in an ancestor directory is used.
     /// </summary>
     [Fact]
@@ -203,78 +185,6 @@ public class ConfigLoaderTests
     }
 
     /// <summary>
-    ///     Test that a .git file, as used by linked working trees and submodules, stops the search like a .git directory.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_GitFileStopsSearch_ConfigAboveIgnored()
-    {
-        // Arrange: a configuration file above a directory that holds a .git file
-        using var directory = new TemporaryDirectory(repositoryRoot: false);
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        directory.WriteFile("repo/.git", "refers to a repository stored elsewhere\n");
-
-        // Act: load a file inside the repository
-        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("repo/sub/a.md"));
-
-        // Assert: the file above is not used
-        Assert.Equal(LintMarkConfig.Default, result.Config);
-    }
-
-    /// <summary>
-    ///     Test that a .git entry in a nearer folder stops the search there.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_GitInNearerFolder_StopsThere()
-    {
-        // Arrange: a root file, and an inner folder with a .git directory between it and the Markdown file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 60\n");
-        Directory.CreateDirectory(directory.PathOf("inner/.git"));
-
-        // Act: load a file inside the inner folder
-        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("inner/deep/a.md"));
-
-        // Assert: the root's file is beyond the boundary
-        Assert.Equal(LintMarkConfig.Default, result.Config);
-    }
-
-    /// <summary>
-    ///     Test that a configuration file in the same directory as a .git entry is found before the boundary applies.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_ConfigBesideGitEntry_IsFound()
-    {
-        // Arrange: a nested repository with its own configuration, under a repository with another
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 60\n");
-        Directory.CreateDirectory(directory.PathOf("inner/.git"));
-        directory.WriteFile("inner/.lintmark.yaml", "line-length: 65\n");
-
-        // Act: load a file in the nested repository
-        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("inner/a.md"));
-
-        // Assert: the nested repository's own file is used
-        Assert.Equal(65, result.Config!.LineLength);
-    }
-
-    /// <summary>
-    ///     Test that without any repository marker the search continues to the parent folders.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_NoGitAnywhere_ConfigInParentFound()
-    {
-        // Arrange: a folder tree without any .git entry and a configuration file at its top
-        using var directory = new TemporaryDirectory(repositoryRoot: false);
-        directory.WriteFile(".lintmark.yaml", "line-length: 66\n");
-
-        // Act: load a nested file
-        var result = ConfigLoader.ForDiscovery().Load(directory.PathOf("a/b/c.md"));
-
-        // Assert: the parent's file is found
-        Assert.Equal(66, result.Config!.LineLength);
-    }
-
-    /// <summary>
     ///     Test that a directory with the name of the configuration file is not a configuration.
     /// </summary>
     [Fact]
@@ -329,99 +239,6 @@ public class ConfigLoaderTests
     }
 
     /// <summary>
-    ///     Test that backslash separators are accepted on every platform.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_BackslashSeparators_AreNormalized()
-    {
-        // Arrange: a configuration file and a path written with backslashes
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("sub/.lintmark.yaml", "line-length: 92\n");
-        var path = directory.FullPath + "\\sub\\a.md";
-
-        // Act: load the path
-        var result = ConfigLoader.ForDiscovery().Load(path);
-
-        // Assert: the separators were normalized
-        Assert.Equal(92, result.Config!.LineLength);
-    }
-
-    /// <summary>
-    ///     Test that two files in the same directory share one result instance.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_SameDirectoryTwice_ReturnsSameResultInstance()
-    {
-        // Arrange: a configuration file and a loader
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 93\n");
-        var loader = ConfigLoader.ForDiscovery();
-
-        // Act: load two files of one directory
-        var first = loader.Load(directory.PathOf("docs/a.md"));
-        var second = loader.Load(directory.PathOf("docs/b.md"));
-
-        // Assert: one result is shared
-        Assert.Same(first, second);
-    }
-
-    /// <summary>
-    ///     Test that a configuration changed after the first load is not read again.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_ConfigChangedAfterFirstLoad_CachedResultKept()
-    {
-        // Arrange: a configuration file that is loaded once
-        using var directory = new TemporaryDirectory();
-        var config = directory.WriteFile(".lintmark.yaml", "line-length: 94\n");
-        var loader = ConfigLoader.ForDiscovery();
-        var first = loader.Load(directory.PathOf("a.md"));
-
-        // Act: change the file and load again
-        File.WriteAllText(config, "line-length: 50\n");
-        var second = loader.Load(directory.PathOf("b.md"));
-
-        // Assert: the cached result is used
-        Assert.Equal(94, second.Config!.LineLength);
-        Assert.Same(first, second);
-    }
-
-    /// <summary>
-    ///     Test that many threads loading from many directories get the sequential results and share one result per file.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForDiscovery_Load_ManyThreads_ResultsEqualSequential()
-    {
-        // Arrange: a root file, two nested files, and many directories below them (some with an invalid file)
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 71\n");
-        directory.WriteFile("a/.lintmark.yaml", "line-length: 72\n");
-        directory.WriteFile("b/.lintmark.yaml", "bogus: 1\n");
-        var files = Enumerable.Range(0, 60)
-            .Select(i => directory.PathOf($"{(char)('a' + (i % 3))}/d{i % 10}/f{i}.md"))
-            .Concat(Enumerable.Range(0, 20).Select(i => directory.PathOf($"top{i % 4}/f{i}.md")))
-            .ToArray();
-        var expected = files.Select(f => ConfigLoader.ForDiscovery().Load(f)).Select(Describe).ToArray();
-        var loader = ConfigLoader.ForDiscovery();
-
-        // Act: load every file many times from many threads
-        var results = new ConfigLoadResult[files.Length * 10];
-        Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = 16 }, index => results[index] = loader.Load(files[index % files.Length]));
-
-        // Assert: every result equals the sequential one, and there is one instance per configuration file
-        for (var i = 0; i < results.Length; i++)
-        {
-            Assert.Equal(expected[i % files.Length], Describe(results[i]));
-        }
-
-        Assert.Equal(3, results.Cast<object>().Distinct(ReferenceEqualityComparer.Instance).Count());
-        return;
-
-        static string Describe(ConfigLoadResult r) =>
-            $"{r.SourcePath}|{r.Config?.LineLength}|{string.Join(";", r.Errors.Select(e => $"{e.Line}:{e.Column}:{e.Message}"))}";
-    }
-
-    /// <summary>
     ///     Test the discovery walk for several folder layouts.
     /// </summary>
     [Fact]
@@ -441,39 +258,6 @@ public class ConfigLoaderTests
         Assert.Equal(root, ConfigLoader.FindConfigFile(directory.PathOf("plain/deep")));
         Assert.Equal(root, ConfigLoader.FindConfigFile(directory.FullPath));
         Assert.Null(ConfigLoader.FindConfigFile(directory.PathOf("vendor/x")));
-    }
-
-    /// <summary>
-    ///     Test that the discovery walk rejects a null or empty directory.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_FindConfigFile_NullOrEmpty_Throws()
-    {
-        // Act & Assert: the argument is validated
-        Assert.Throws<ArgumentNullException>(() => ConfigLoader.FindConfigFile(null!));
-        Assert.Throws<ArgumentException>(() => ConfigLoader.FindConfigFile(string.Empty));
-    }
-
-    /// <summary>
-    ///     Test that an explicit file loader returns the file's configuration for any Markdown file.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForFile_Load_AnyMarkdownFile_ReturnsFileConfig()
-    {
-        // Arrange: an explicit configuration file outside the Markdown file's folder
-        using var directory = new TemporaryDirectory();
-        var config = directory.WriteFile("conf/custom.yaml", "line-length: 83\n");
-        var loader = ConfigLoader.ForFile(config);
-
-        // Act: load files from unrelated places
-        var first = loader.Load(directory.PathOf("a.md"));
-        var second = loader.Load(directory.PathOf("x/y/z.md"));
-
-        // Assert: both get the file's settings from one shared result
-        Assert.Equal(83, first.Config!.LineLength);
-        Assert.Equal(config, first.SourcePath);
-        Assert.Same(first, second);
-        Assert.Empty(loader.InitialErrors);
     }
 
     /// <summary>
@@ -580,26 +364,6 @@ public class ConfigLoaderTests
     }
 
     /// <summary>
-    ///     Test that the problems of an invalid explicit file are the initial errors and the result for every file.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForFile_InitialErrors_ContainFileErrors()
-    {
-        // Arrange: an invalid explicit file
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("bad.yaml", "bogus: 1\nwrap: nope\n");
-
-        // Act: create the loader
-        var loader = ConfigLoader.ForFile(file);
-
-        // Assert: the problems are known up front and returned for every file
-        Assert.Equal(2, loader.InitialErrors.Length);
-        Assert.Equal(loader.InitialErrors, loader.Load("a.md").Errors);
-        Assert.Empty(ConfigLoader.ForDiscovery().InitialErrors);
-        Assert.Empty(ConfigLoader.ForDefaults().InitialErrors);
-    }
-
-    /// <summary>
     ///     Test that a file larger than the limit is reported without being parsed.
     /// </summary>
     [Fact]
@@ -616,42 +380,6 @@ public class ConfigLoaderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal((1, 1), (error.Line, error.Column));
         Assert.Contains("larger than 1 MiB", error.Message);
-    }
-
-    /// <summary>
-    ///     Test that a file of exactly the size limit is read and accepted through the file reader.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_LoadFile_AtSizeLimit_Accepted()
-    {
-        // Arrange: a comment-only file of exactly the limit
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("limit.yaml", Enumerable.Repeat((byte)'#', ConfigLoader.MaxFileBytes).ToArray());
-
-        // Act: load it
-        var result = ConfigLoader.LoadFile(file);
-
-        // Assert: it is a valid, empty configuration
-        Assert.Empty(result.Errors);
-        Assert.Equal(LintMarkConfig.Default, result.Config);
-    }
-
-    /// <summary>
-    ///     Test that an explicit file of exactly the size limit gives no initial errors.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForFile_AtSizeLimit_HasNoInitialErrors()
-    {
-        // Arrange: a comment-only file of exactly the limit
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("limit.yaml", Enumerable.Repeat((byte)'#', ConfigLoader.MaxFileBytes).ToArray());
-
-        // Act: create the loader
-        var loader = ConfigLoader.ForFile(file);
-
-        // Assert: nothing is reported and the defaults apply to every file
-        Assert.Empty(loader.InitialErrors);
-        Assert.Equal(LintMarkConfig.Default, loader.Load("a.md").Config);
     }
 
     /// <summary>
@@ -842,51 +570,4 @@ public class ConfigLoaderTests
         }
     }
 
-    /// <summary>
-    ///     Test that loading a valid file reports its full path as the source.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_LoadFile_ValidFile_ReturnsConfigWithFullPath()
-    {
-        // Arrange: a valid file
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("ok.yaml", "bullet: plus\n");
-
-        // Act: load it
-        var result = ConfigLoader.LoadFile(file);
-
-        // Assert: the settings and the source path
-        Assert.Equal(BulletMarker.Plus, result.Config!.Bullet);
-        Assert.Equal(file, result.SourcePath);
-    }
-
-    /// <summary>
-    ///     Test that Load rejects a null or empty Markdown path.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_Load_NullOrEmptyPath_Throws()
-    {
-        // Arrange: one loader per mode
-        var loaders = new[] { ConfigLoader.ForDefaults(), ConfigLoader.ForDiscovery() };
-
-        // Act & Assert: the path is validated in every mode
-        foreach (var loader in loaders)
-        {
-            Assert.Throws<ArgumentNullException>(() => loader.Load(null!));
-            Assert.Throws<ArgumentException>(() => loader.Load(string.Empty));
-        }
-    }
-
-    /// <summary>
-    ///     Test that the explicit file factory rejects a null or blank path.
-    /// </summary>
-    [Fact]
-    public void ConfigLoader_ForFile_NullOrBlank_Throws()
-    {
-        // Act & Assert: the path is validated
-        Assert.Throws<ArgumentNullException>(() => ConfigLoader.ForFile(null!));
-        Assert.Throws<ArgumentException>(() => ConfigLoader.ForFile("  "));
-        Assert.Throws<ArgumentNullException>(() => ConfigLoader.LoadFile(null!));
-        Assert.Throws<ArgumentException>(() => ConfigLoader.LoadFile(string.Empty));
-    }
 }

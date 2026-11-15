@@ -1,0 +1,55 @@
+---
+# Software Unit Requirements for the TableFormatter Unit
+#
+# The TableFormatter unit writes each pipe table in the compact or aligned layout and leaves tables it cannot read with
+# certainty as written.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Blocks Requirements
+            sections:
+              - title: TableFormatter Requirements
+                requirements:
+                  - id: LintMark-Formatting-Blocks-TableFormatter-PipeStyle
+                    title: >-
+                      The TableFormatter unit shall write every line of a pipe table with a pipe at both ends, one
+                      blank inside each pipe, and a minimal delimiter row, keeping the text of each cell.
+                    justification: |
+                      A uniform table layout is readable and gives small diffs, and the cell text is the content
+                      of the document, so only the blanks around it may change.
+                    tests:
+                      - TableFormatter_Format_CompactLayout_IsWrittenFromTheCells
+                      - TableFormatter_Format_CompactTable_ProposesNothing
+                      - TableFormatter_Format_TableInContainer_KeepsThePrefix
+                      - TableFormatter_Format_Edits_CarryTheRuleOfTheChange
+                      - PipeTable_ComposeCompact_Table_WritesOneBlankInsideEachPipe
+
+                  - id: LintMark-Formatting-Blocks-TableFormatter-Aligned
+                    title: >-
+                      The TableFormatter unit shall pad every column to its widest cell when the aligned style is
+                      configured, and fall back to the compact layout when an aligned line would exceed the line length.
+                    justification: |
+                      Aligned columns read well in plain text, but a layout that makes lines too wide would trade
+                      one problem for another, so the compact layout is the limit.
+                    tests:
+                      - TableFormatter_Format_AlignedLayout_PadsTheColumns
+                      - TableFormatter_Format_AlignedTableInContainer_KeepsThePrefix
+                      - TableFormatter_Format_AlignedTableThatDoesNotFit_FallsBackToCompact
+                      - TableFormatter_Format_AlignedAndCompactInputs_GiveTheSameResult
+                      - PipeTable_ComposeAligned_Table_PadsToTheWidestCell
+
+                  - id: LintMark-Formatting-Blocks-TableFormatter-InvalidLeftAlone
+                    title: >-
+                      The TableFormatter unit shall leave a table as written when it is not a pipe table or cannot be
+                      read with certainty, and never add or remove cells of a row with another length.
+                    justification: |
+                      Inventing or dropping content, or guessing at a table the parser reads differently, would
+                      damage the document, so the formatter must stay out of those cases.
+                    tests:
+                      - TableFormatter_CanFormat_Blocks_AcceptsOnlyPipeTables
+                      - TableFormatter_Format_RowsOfOtherLength_AreNeverRepaired
+                      - TableFormatter_Format_UncertainTable_IsLeftAsWritten
+                      - PipeTable_TryParse_UncertainOrOtherBlock_ReturnsNull

@@ -99,6 +99,7 @@ internal static class AtomicFileWriter
         // Validate input
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(expectedTarget);
+
         if (string.IsNullOrWhiteSpace(path))
         {
             throw new ArgumentException("The path must not be blank.", nameof(path));

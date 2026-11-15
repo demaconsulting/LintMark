@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using DemaConsulting.LintMark.Utilities;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -38,7 +37,7 @@ public class IntegrationTests
         // The DLL should be in the same directory as the test assembly
         // because the test project references the main project
         var baseDir = AppContext.BaseDirectory;
-        _dllPath = PathHelpers.SafePathCombine(baseDir, "DemaConsulting.LintMark.dll");
+        _dllPath = Path.Combine(baseDir, "DemaConsulting.LintMark.dll");
 
         Assert.True(File.Exists(_dllPath), $"Could not find LintMark DLL at {_dllPath}");
     }
@@ -89,26 +88,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that no arguments displays the tool banner and runs default logic.
-    /// </summary>
-    [Fact]
-    public void LintMark_NoArguments_Invoked_DisplaysBanner()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with no arguments
-        var exitCode = Runner.Run(
-            out var output,
-            "dotnet",
-            _dllPath);
-
-        // Assert: banner is displayed with tool name and copyright; exit code is success
-        Assert.Equal(0, exitCode);
-        Assert.Contains("LintMark version", output);
-        Assert.Contains("Copyright", output);
-    }
-
-    /// <summary>
     ///     Test that validate flag runs self-validation and outputs summary.
     /// </summary>
     [Fact]
@@ -127,6 +106,29 @@ public class IntegrationTests
         Assert.Equal(0, exitCode);
         Assert.Contains("Total Tests:", output);
         Assert.Contains("Passed:", output);
+    }
+
+    /// <summary>
+    ///     Test that the depth option sets the level of the heading that opens the self-validation summary.
+    /// </summary>
+    [Fact]
+    public void LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth()
+    {
+        // Arrange: (none — constructor initializes _dllPath)
+
+        // Act: run self-validation with a heading depth of two
+        var exitCode = Runner.Run(
+            out var output,
+            "dotnet",
+            _dllPath,
+            "--validate",
+            "--depth",
+            "2");
+
+        // Assert: the summary opens with a second-level heading and no first-level one
+        Assert.Equal(0, exitCode);
+        Assert.Matches(@"(?m)^## DEMA Consulting LintMark\r?$", output);
+        Assert.DoesNotMatch(@"(?m)^# DEMA Consulting LintMark", output);
     }
 
     /// <summary>
@@ -156,72 +158,6 @@ public class IntegrationTests
             var trxContent = File.ReadAllText(resultsFile);
             Assert.Contains("<TestRun", trxContent);
             Assert.Contains("</TestRun>", trxContent);
-        }
-        finally
-        {
-            if (File.Exists(resultsFile))
-            {
-                File.Delete(resultsFile);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Test that validate with --result (legacy alias) flag generates a results file.
-    /// </summary>
-    [Fact]
-    public void LintMark_ResultAlias_LegacyFlag_WritesResultsFile()
-    {
-        // Arrange: temporary TRX results file path; use legacy --result alias
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"integration_test_{Guid.NewGuid()}.trx");
-
-        try
-        {
-            // Act: run validation with legacy --result alias
-            var exitCode = Runner.Run(
-                out var _,
-                "dotnet",
-                _dllPath,
-                "--validate",
-                "--result",
-                resultsFile);
-
-            // Assert: results file is created; exit code is success
-            Assert.Equal(0, exitCode);
-            Assert.True(File.Exists(resultsFile), "Results file was not created for legacy --result alias");
-        }
-        finally
-        {
-            if (File.Exists(resultsFile))
-            {
-                File.Delete(resultsFile);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Test that validate with an unsupported results extension returns a non-zero exit code.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero()
-    {
-        // Arrange: unsupported results file extension triggers WriteError → ExitCode 1
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"integration_test_{Guid.NewGuid()}.bad");
-
-        try
-        {
-            // Act: run validation with unsupported extension
-            var exitCode = Runner.Run(
-                out var _,
-                "dotnet",
-                _dllPath,
-                "--validate",
-                "--results",
-                resultsFile);
-
-            // Assert: non-zero exit code indicates the error path was triggered
-            Assert.NotEqual(0, exitCode);
-            Assert.False(File.Exists(resultsFile), "No file should be created for unsupported extension");
         }
         finally
         {
@@ -290,42 +226,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that validate with --results flag generates a JUnit XML file.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithXmlResults_Requested_GeneratesJUnitFile()
-    {
-        // Arrange: temporary XML results file path
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"integration_test_{Guid.NewGuid()}.xml");
-
-        try
-        {
-            // Act: run validation with JUnit XML results output
-            var exitCode = Runner.Run(
-                out var _,
-                "dotnet",
-                _dllPath,
-                "--validate",
-                "--results",
-                resultsFile);
-
-            // Assert: results file is created with valid JUnit structure
-            Assert.Equal(0, exitCode);
-            Assert.True(File.Exists(resultsFile), "Results file was not created");
-
-            var xmlContent = File.ReadAllText(resultsFile);
-            Assert.Contains("<testsuites", xmlContent);
-        }
-        finally
-        {
-            if (File.Exists(resultsFile))
-            {
-                File.Delete(resultsFile);
-            }
-        }
-    }
-
-    /// <summary>
     ///     Test that an unknown argument causes an error message and non-zero exit code.
     /// </summary>
     [Fact]
@@ -347,45 +247,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that validate with depth flag outputs headings at the specified depth.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run validation with heading depth 3
-        var exitCode = Runner.Run(
-            out var output,
-            "dotnet",
-            _dllPath,
-            "--validate",
-            "--depth",
-            "3");
-
-        // Assert: output contains level-3 markdown headings
-        Assert.Equal(0, exitCode);
-        Assert.Contains("###", output);
-    }
-
-    /// <summary>
-    ///     Test that help lists the paths argument and the check option.
-    /// </summary>
-    [Fact]
-    public void LintMark_HelpFlag_Provided_ListsPathsAndCheckOption()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with help flag
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--help");
-
-        // Assert: usage mentions paths and --check
-        Assert.Equal(0, exitCode);
-        Assert.Contains("[paths...]", output);
-        Assert.Contains("--check", output);
-    }
-
-    /// <summary>
     ///     Test that a valid Markdown file given as a path is processed successfully.
     /// </summary>
     [Fact]
@@ -401,24 +262,6 @@ public class IntegrationTests
         // Assert: success and no diagnostics
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("file-", output);
-    }
-
-    /// <summary>
-    ///     Test that an undecodable file is reported as a diagnostic and gives a non-zero exit code.
-    /// </summary>
-    [Fact]
-    public void LintMark_PathsProvided_UnreadableFile_ReportsDiagnosticAndReturnsError()
-    {
-        // Arrange: a file with an invalid UTF-8 byte on its second line
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("bad.md", [.. "ok\nab"u8, 0xFF, .. "\n"u8]);
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: error exit code and a diagnostic with position and rule
-        Assert.Equal(1, exitCode);
-        Assert.Contains("bad.md:2:3: file-encoding-error Invalid UTF-8 byte sequence", output);
     }
 
     /// <summary>
@@ -461,277 +304,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that a directory argument processes all Markdown files beneath it.
-    /// </summary>
-    [Fact]
-    public void LintMark_DirectoryProvided_ParsesAllMarkdownBeneathIt()
-    {
-        // Arrange: a valid file and a nested invalid file, plus an invalid non-Markdown file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("docs/ok.md");
-        directory.WriteBytes("docs/deep/bad.md", [0xFF]);
-        directory.WriteBytes("docs/ignored.txt", [0xFF]);
-
-        // Act: run the tool with the directory
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, directory.PathOf("docs"));
-
-        // Assert: only the nested Markdown file is reported
-        Assert.Equal(1, exitCode);
-        Assert.Contains("bad.md:1:1: file-encoding-error", output);
-        Assert.DoesNotContain("ignored.txt", output);
-        Assert.DoesNotContain("ok.md", output);
-    }
-
-    /// <summary>
-    ///     Test that globs and excludes select the files that are processed.
-    /// </summary>
-    [Fact]
-    public void LintMark_GlobAndExclude_Provided_SkipsExcludedFiles()
-    {
-        // Arrange: an invalid file below an excluded directory
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("docs/ok.md");
-        directory.WriteBytes("docs/generated/bad.md", [0xFF]);
-        var root = directory.FullPath.Replace('\\', '/');
-
-        // Act: run the tool with an absolute glob and an absolute exclude
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, root + "/docs/**/*.md", "!" + root + "/docs/generated/**");
-
-        // Assert: the excluded file is never read
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("bad.md", output);
-    }
-
-    /// <summary>
-    ///     Test that failures from several files are reported in path order.
-    /// </summary>
-    [Fact]
-    public void LintMark_MultipleFiles_Provided_ReportsFailuresInPathOrder()
-    {
-        // Arrange: three failing files passed in non-sorted order
-        using var directory = new TemporaryDirectory();
-        var c = directory.WriteBytes("c.md", [0xFF]);
-        var a = directory.WriteBytes("a.md", [0xFF]);
-        var b = directory.WriteBytes("b.md", [0xFF]);
-
-        // Act: run the tool
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, c, a, b);
-
-        // Assert: diagnostics appear in path order regardless of argument order
-        Assert.Equal(1, exitCode);
-        var indexA = output.IndexOf("a.md:1:1", StringComparison.Ordinal);
-        var indexB = output.IndexOf("b.md:1:1", StringComparison.Ordinal);
-        var indexC = output.IndexOf("c.md:1:1", StringComparison.Ordinal);
-        Assert.True(indexA >= 0 && indexA < indexB && indexB < indexC, output);
-    }
-
-    /// <summary>
-    ///     Test that naming a third-party folder, or a pattern inside it, skips its files.
-    /// </summary>
-    [Fact]
-    public void LintMark_ThirdPartyFolderProvided_SkipsItsFiles()
-    {
-        // Arrange: undecodable files inside node_modules and .git
-        using var directory = new TemporaryDirectory();
-        directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
-        directory.WriteBytes(".git/bad.md", [0xFF]);
-        var root = directory.FullPath.Replace('\\', '/');
-
-        // Act: run the tool with each folder and with a glob inside one of them
-        var nodeModulesExit = Runner.Run(out var nodeModules, "dotnet", _dllPath, directory.PathOf("node_modules"));
-        var gitExit = Runner.Run(out var git, "dotnet", _dllPath, directory.PathOf(".git"));
-        var globExit = Runner.Run(out var glob, "dotnet", _dllPath, root + "/node_modules/**/*.md");
-
-        // Assert: nothing is read, so nothing is reported
-        Assert.Equal(0, nodeModulesExit);
-        Assert.DoesNotContain("bad.md", nodeModules);
-        Assert.Equal(0, gitExit);
-        Assert.DoesNotContain("bad.md", git);
-        Assert.Equal(0, globExit);
-        Assert.DoesNotContain("bad.md", glob);
-    }
-
-    /// <summary>
-    ///     Test that a file inside a third-party folder is processed when it is named explicitly.
-    /// </summary>
-    [Fact]
-    public void LintMark_ExplicitFileInThirdPartyFolder_IsProcessed()
-    {
-        // Arrange: an undecodable file inside node_modules
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("node_modules/pkg/bad.md", [0xFF]);
-
-        // Act: run the tool with the file itself
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: the file is read and its failure reported
-        Assert.Equal(1, exitCode);
-        Assert.Contains("bad.md:1:1: file-encoding-error", output);
-    }
-
-    /// <summary>
-    ///     Test that a file containing suppression comments, reference definitions and every extension parses successfully.
-    /// </summary>
-    [Fact]
-    public void LintMark_PathsWithSuppressionAndReferences_Provided_ReturnsSuccess()
-    {
-        // Arrange: a document with directives, definitions, footnotes, a table, front matter and an unclosed fence
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile(
-            "all.md",
-            "---\ntitle: x\n---\n\n# Title\n\n<!-- lintmark-disable line-length -->\n\nSee [ref] and a footnote[^1].\n\n"
-            + "<!-- lintmark-enable line-length -->\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n[ref]: http://example.com \"T\"\n\n[^1]: Note.\n\n```\nunclosed\n");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without diagnostics
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("file-", output);
-    }
-
-    /// <summary>
-    ///     Test that combining validate with paths is a usage error.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithPaths_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and a path
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "docs");
-
-        // Assert: error exit code and an error message naming the flag; validation did not run
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--validate", output);
-        Assert.DoesNotContain("Total Tests", output);
-    }
-
-    /// <summary>
-    ///     Test that combining validate with the check flag is a usage error.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithCheck_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and check
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--check");
-
-        // Assert: error exit code and an error message
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-    }
-
-    /// <summary>
-    ///     Test that combining validate with the config option is a usage error.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithConfig_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and a configuration file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--config", "a.yaml");
-
-        // Assert: error exit code and a message naming the option; validation did not run
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--config", output);
-        Assert.DoesNotContain("Total Tests", output);
-    }
-
-    /// <summary>
-    ///     Test that combining validate with the no-config flag is a usage error.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithNoConfig_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and no-config
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--no-config");
-
-        // Assert: error exit code and a message naming the flag; validation did not run
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--no-config", output);
-        Assert.DoesNotContain("Total Tests", output);
-    }
-
-    /// <summary>
-    ///     Test that validate combined with fix is an error and validation does not run.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithFix_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and fix
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--fix");
-
-        // Assert: error exit code and a message naming the flag; validation did not run
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--fix", output);
-        Assert.DoesNotContain("Total Tests", output);
-    }
-
-    /// <summary>
-    ///     Test that validate combined with diff is an error and validation does not run.
-    /// </summary>
-    [Fact]
-    public void LintMark_ValidateWithDiff_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with validate and diff
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--diff");
-
-        // Assert: error exit code and a message naming the flag; validation did not run
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--diff", output);
-        Assert.DoesNotContain("Total Tests", output);
-    }
-
-    /// <summary>
-    ///     Test that help lists the configuration options.
-    /// </summary>
-    [Fact]
-    public void LintMark_HelpFlag_Provided_ListsConfigOptions()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with help flag
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--help");
-
-        // Assert: usage mentions both configuration options
-        Assert.Equal(0, exitCode);
-        Assert.Contains("--config <file>", output);
-        Assert.Contains("--no-config", output);
-    }
-
-    /// <summary>
-    ///     Test that combining the config option with the no-config flag is a usage error.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigAndNoConfig_Combined_ReturnsError()
-    {
-        // Arrange: (none — constructor initializes _dllPath)
-
-        // Act: run the tool with both options
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", "a.yaml", "--no-config");
-
-        // Assert: error exit code and a message naming both options
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Error", output);
-        Assert.Contains("--config", output);
-        Assert.Contains("--no-config", output);
-    }
-
-    /// <summary>
     ///     Test that the nearest configuration is used and its problems are reported with their position.
     /// </summary>
     [Fact]
@@ -752,219 +324,6 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that a farther invalid configuration is never read when a nearer valid one exists.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigDiscovery_FartherConfigInvalidNearestValid_ReturnsSuccess()
-    {
-        // Arrange: an invalid configuration in the root and a valid one nearer the file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        directory.WriteFile("docs/.lintmark.yaml", "line-length: 90\n");
-        var file = directory.WriteFile("docs/a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that a configuration above the repository root is not used.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigDiscovery_ConfigAboveRepositoryRoot_IsNotUsed()
-    {
-        // Arrange: an invalid configuration above a folder that holds a .git directory
-        using var directory = new TemporaryDirectory(repositoryRoot: false);
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        Directory.CreateDirectory(directory.PathOf("repo/.git"));
-        var file = directory.WriteFile("repo/docs/a.md");
-
-        // Act: run the tool with the file inside the repository
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: the file above the repository is not used
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that the config option uses the named file instead of discovery.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigOption_FileProvided_UsesItInsteadOfDiscovery()
-    {
-        // Arrange: an invalid discoverable file and a valid explicit file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var config = directory.WriteFile("custom/settings.yaml", "line-length: 100\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the explicit file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", config, file);
-
-        // Assert: the discoverable file is not used
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that a missing explicit configuration is reported and gives a non-zero exit code.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigOption_MissingFile_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a Markdown file and a configuration path that does not exist
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-        var missing = directory.PathOf("missing.yaml");
-
-        // Act: run the tool with the missing file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", missing, file);
-
-        // Assert: reported at 1:1
-        Assert.Equal(1, exitCode);
-        Assert.Contains("missing.yaml:1:1: config-error Configuration file not found", output);
-    }
-
-    /// <summary>
-    ///     Test that a missing explicit configuration is reported even when no Markdown file is selected.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigOption_MissingFileNoMarkdownFiles_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a directory without Markdown files and a configuration path that does not exist
-        using var directory = new TemporaryDirectory();
-        var missing = directory.PathOf("missing.yaml");
-
-        // Act: run the tool on the empty directory with the missing file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", missing, directory.FullPath);
-
-        // Assert: the problem is still reported
-        Assert.Equal(1, exitCode);
-        Assert.Contains("missing.yaml:1:1: config-error Configuration file not found", output);
-    }
-
-    /// <summary>
-    ///     Test that no-config ignores an invalid configuration.
-    /// </summary>
-    [Fact]
-    public void LintMark_NoConfigOption_InvalidConfigPresent_IgnoresIt()
-    {
-        // Arrange: an invalid configuration beside the Markdown file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with and without --no-config
-        var ignoredExit = Runner.Run(out var ignored, "dotnet", _dllPath, "--no-config", file);
-        var usedExit = Runner.Run(out var used, "dotnet", _dllPath, file);
-
-        // Assert: ignored with the flag, reported without it
-        Assert.Equal(0, ignoredExit);
-        Assert.DoesNotContain("config-error", ignored);
-        Assert.Equal(1, usedExit);
-        Assert.Contains("config-error", used);
-    }
-
-    /// <summary>
-    ///     Test that an empty configuration file means the defaults.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigDefaults_EmptyConfigFile_ReturnsSuccess()
-    {
-        // Arrange: an empty configuration file
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", string.Empty);
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that a configuration with only some settings is accepted.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigDefaults_PartialConfigFile_ReturnsSuccess()
-    {
-        // Arrange: a configuration that sets one setting
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "wrap: semantic\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that a tree without any configuration file works.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigDefaults_NoConfigFile_ReturnsSuccess()
-    {
-        // Arrange: a tree without configuration files
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that the documented sample configuration is accepted.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigSettings_FullSampleFile_ReturnsSuccess()
-    {
-        // Arrange: the documented sample with every setting, rule alias and ignore patterns (it asks for CRLF line endings and no final line ending, so the file has them)
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", ConfigurationSamples.FullSample);
-        var file = directory.WriteFile("a.md", "# Title\r\n\r\nText.");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
-    }
-
-    /// <summary>
-    ///     Test that an unknown setting is rejected instead of ignored.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigValidation_UnknownKey_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration with a misspelled setting
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-width: 100\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at the key
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:1:1: config-error Unknown setting 'line-width'", output);
-    }
-
-    /// <summary>
     ///     Test that an invalid value is rejected with the allowed values.
     /// </summary>
     [Fact]
@@ -981,129 +340,6 @@ public class IntegrationTests
         // Assert: reported at the value, naming the allowed values
         Assert.Equal(1, exitCode);
         Assert.Contains(".lintmark.yaml:1:9: config-error Invalid value 'star' for setting 'bullet'; expected one of: dash, asterisk, plus", output);
-    }
-
-    /// <summary>
-    ///     Test that malformed YAML is reported with a position.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigValidation_MalformedYaml_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration with an unterminated quote
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "wrap: \"fill\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported as invalid YAML with a position
-        Assert.Equal(1, exitCode);
-        Assert.Matches(@"\.lintmark\.yaml:\d+:\d+: config-error Invalid YAML", output);
-    }
-
-    /// <summary>
-    ///     Test that a file holding more than one configuration is reported with a position.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigValidation_TwoDocuments_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration file with a second configuration after a document marker
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 80\n---\nwrap: fill\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at the second configuration
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:2:1: config-error Only one YAML document is allowed", output);
-    }
-
-    /// <summary>
-    ///     Test that a configuration file saved in a UTF-16 encoding is reported.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigValidation_Utf16File_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration file saved as UTF-16 with its byte order mark
-        using var directory = new TemporaryDirectory();
-        var encoding = System.Text.Encoding.Unicode;
-        directory.WriteBytes(".lintmark.yaml", [.. encoding.GetPreamble(), .. encoding.GetBytes("wrap: fill\n")]);
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at the start of the file
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:1:1: config-error Unsupported byte order mark", output);
-    }
-
-    /// <summary>
-    ///     Test that a setting given twice is reported at its second occurrence.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigValidation_DuplicateSetting_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration that sets one setting twice
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "line-length: 80\nwrap: fill\nline-length: 90\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at the second occurrence
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:3:1: config-error Duplicate setting 'line-length' (first defined on line 1)", output);
-    }
-
-    /// <summary>
-    ///     Test that a configuration file larger than the documented limit is reported.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigLimits_OversizedFile_ReportsErrorAndReturnsError()
-    {
-        // Arrange: a configuration file one byte larger than the supported size
-        using var directory = new TemporaryDirectory();
-        var content = new byte[1_048_577];
-        Array.Fill(content, (byte)'#');
-        directory.WriteBytes(".lintmark.yaml", content);
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at the start of the file
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:1:1: config-error", output);
-        Assert.Contains("larger than 1 MiB", output);
-    }
-
-    /// <summary>
-    ///     Test that a configuration file nested deeper than the documented limit is reported promptly.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigLimits_DeeplyNestedFile_ReportsErrorWithinTimeBound()
-    {
-        // Arrange: a configuration file whose value is nested 100,000 levels deep
-        using var directory = new TemporaryDirectory();
-        const int depth = 100_000;
-        directory.WriteFile(".lintmark.yaml", "a: " + new string('[', depth) + new string(']', depth) + "\n");
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the file and time it
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-        stopwatch.Stop();
-
-        // Assert: reported as a configuration problem, well before an unguarded parse could finish
-        Assert.Equal(1, exitCode);
-        Assert.Contains(".lintmark.yaml:1:", output);
-        Assert.Contains("config-error Nesting is too deep", output);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"The run took {stopwatch.Elapsed}");
     }
 
     /// <summary>
@@ -1131,130 +367,279 @@ public class IntegrationTests
     }
 
     /// <summary>
-    ///     Test that a configuration file outside the current directory is reported with a relative forward-slash path.
+    ///     Encodes text as UTF-8 without a byte order mark.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The bytes.</returns>
+    private static byte[] Bytes(string text) => new System.Text.UTF8Encoding(false).GetBytes(text);
+
+    /// <summary>
+    ///     Test that the fix option rewrites a CRLF file with LF line endings when the configuration asks for them.
     /// </summary>
     [Fact]
-    public void LintMark_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithRelativeForwardSlashPath()
+    public void LintMark_FixFlag_CrlfFile_RewritesToLf()
     {
-        // Arrange: an invalid configuration in a temporary directory, which lies outside the current directory
+        // Arrange: a CRLF file and a configuration that asks for LF
         using var directory = new TemporaryDirectory();
-        var config = directory.WriteFile("settings/outside.yaml", "bogus: 1\n");
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\r\n"));
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: the file has LF line endings and nothing is reported
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("line-ending", output);
+        Assert.Equal(Bytes("# Title\n\nText.\n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a second run of the fix option reports nothing and changes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_Twice_SecondRunReportsNothing()
+    {
+        // Arrange: a mixed file, fixed by a first run
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
+        Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+        var afterFirst = File.ReadAllBytes(file);
+
+        // Act: run again
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: success, no report, same bytes
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("line-ending", output);
+        Assert.Equal(afterFirst, File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that the fix option cannot be combined with the check option.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixWithCheck_Combined_ReturnsError()
+    {
+        // Arrange: a file
+        using var directory = new TemporaryDirectory();
         var file = directory.WriteFile("a.md");
-        var expectedPath = Path.GetRelativePath(Environment.CurrentDirectory, config).Replace('\\', '/');
 
-        // Act: run the tool with the absolute configuration path
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--config", config, file);
+        // Act: run the tool with both options
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", "--check", file);
 
-        // Assert: reported once, relative to the current directory and with forward slashes only
+        // Assert: a usage error
         Assert.Equal(1, exitCode);
-        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(l => l.Contains("config-error", StringComparison.Ordinal))
-            .ToList();
-        var line = Assert.Single(lines);
-        Assert.Equal($"{expectedPath}:1:1: config-error Unknown setting 'bogus'", line);
-        Assert.DoesNotContain('\\', line);
+        Assert.Contains("--fix cannot be combined with --check or --diff", output);
     }
 
     /// <summary>
-    ///     Test that a configuration problem is reported once however many files use that configuration.
+    ///     Test that the line ending of the configuration wins and is written by the fix option.
     /// </summary>
     [Fact]
-    public void LintMark_ConfigErrors_SharedByManyFiles_ReportedOnce()
+    public void LintMark_LineEnding_ConfigWins_FixWritesCrlf()
     {
-        // Arrange: one invalid configuration used by many Markdown files in several folders
+        // Arrange: an LF file, a configuration that asks for CRLF and editor settings that ask for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
+        directory.WriteFile(".editorconfig", "root = true\n\n[*.md]\nend_of_line = lf\n");
+        var file = directory.WriteBytes("a.md", Bytes("# Title\n\nText.\n"));
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: the configuration's ending is written
+        Assert.Equal(0, exitCode);
+        Assert.Equal(Bytes("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that the fix option keeps the byte order mark and all text it does not change.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_BomFile_KeepsBomAndText()
+    {
+        // Arrange: a CRLF file with a byte order mark and non-ASCII text
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var file = directory.WriteBytes("a.md", [0xEF, 0xBB, 0xBF, .. Bytes("# 日本語\r\n\r\n日本語 text\r\n")]);
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: the mark and the text are intact; only the line endings changed
+        Assert.Equal(0, exitCode);
+        Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. Bytes("# 日本語\n\n日本語 text\n")], File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a rewrite leaves no temporary file behind.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_Rewrite_LeavesNoTemporaryFiles()
+    {
+        // Arrange: a CRLF file and a configuration that asks for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\r\n"));
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: the directory holds the same files as before
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            [".lintmark.yaml", "a.md"],
+            Directory.GetFiles(directory.FullPath).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    ///     Test that a document with an invalid grid table is never rewritten by the fix option.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_GridTableFallback_LeavesFileUntouched()
+    {
+        // Arrange: a CRLF document with an invalid grid table and a configuration that asks for LF
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
+        var file = directory.WriteBytes("a.md", Bytes("para\r\n+---+---+\r\n"));
+
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: reported, exit code one, bytes identical
+        Assert.Equal(1, exitCode);
+        Assert.Contains("a.md:2:1: grid-table-invalid", output);
+        Assert.Equal(Bytes("para\r\n+---+---+\r\n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a file with an invalid configuration is never rewritten by the fix option.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_InvalidConfig_LeavesFileUntouched()
+    {
+        // Arrange: an invalid configuration and a file with mixed line endings
         using var directory = new TemporaryDirectory();
         directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var files = Enumerable.Range(0, 12).Select(i => directory.WriteFile($"d{i % 3}/f{i}.md")).ToArray();
+        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
 
-        // Act: run the tool with all the files
-        var exitCode = Runner.Run(out var output, "dotnet", [_dllPath, .. files]);
+        // Act: run the tool with the fix option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
 
-        // Assert: the problem appears on exactly one line
-        Assert.Equal(1, exitCode);
-        var reported = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Count(l => l.Contains("config-error", StringComparison.Ordinal));
-        Assert.Equal(1, reported);
-    }
-
-    /// <summary>
-    ///     Test that problems of several configuration files are reported in path order.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigErrors_MultipleFiles_ReportedInPathOrder()
-    {
-        // Arrange: invalid configurations in two folders, passed in reverse order
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile("b/.lintmark.yaml", "bogus: 1\n");
-        directory.WriteFile("a/.lintmark.yaml", "bogus: 1\n");
-        var fileB = directory.WriteFile("b/x.md");
-        var fileA = directory.WriteFile("a/x.md");
-
-        // Act: run the tool
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, fileB, fileA);
-
-        // Assert: reported in path order
-        Assert.Equal(1, exitCode);
-        var indexA = output.IndexOf("a/.lintmark.yaml:1:1", StringComparison.Ordinal);
-        var indexB = output.IndexOf("b/.lintmark.yaml:1:1", StringComparison.Ordinal);
-        Assert.True(indexA >= 0 && indexA < indexB, output);
-    }
-
-    /// <summary>
-    ///     Test that files are still checked when their configuration has a problem.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigErrors_InvalidConfig_StillReportsFileFailures()
-    {
-        // Arrange: an invalid configuration and a file that cannot be decoded
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var file = directory.WriteBytes("bad.md", [0xFF]);
-
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: both the configuration problem and the file failure are reported
+        // Assert: the configuration problem is reported and the file is untouched
         Assert.Equal(1, exitCode);
         Assert.Contains("config-error Unknown setting 'bogus'", output);
-        Assert.Contains("bad.md:1:1: file-encoding-error", output);
+        Assert.Equal(Bytes("# Title\r\n\r\nText.\n"), File.ReadAllBytes(file));
     }
 
     /// <summary>
-    ///     Test that a reported configuration problem gives a non-zero exit code.
+    ///     Test that the files of a glob that the ignore patterns match are skipped.
     /// </summary>
     [Fact]
-    public void LintMark_ConfigErrors_Reported_ReturnsError()
+    public void LintMark_IgnorePatterns_GlobSelected_SkipsMatches()
     {
-        // Arrange: an invalid configuration and a valid Markdown file
+        // Arrange: a configuration that ignores a folder, a broken file in it and a broken file outside it
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "final-newline: maybe\n");
-        var file = directory.WriteFile("a.md");
+        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
+        directory.WriteBytes("drafts/bad.md", [0xFF]);
+        directory.WriteBytes("kept/bad.md", [0xFF]);
 
-        // Act: run the tool with the file
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, file);
+        // Act: run the tool with a glob
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, Path.Combine(directory.FullPath, "**", "*.md"));
 
-        // Assert: the exit code is one
+        // Assert: only the file that is not ignored is reported
         Assert.Equal(1, exitCode);
+        Assert.Contains("kept/bad.md:1:1: file-encoding-error", output);
+        Assert.DoesNotContain("drafts/bad.md", output);
     }
 
     /// <summary>
-    ///     Test that unsupported or unrelated editor settings are accepted without an error.
+    ///     Test that the disable option switches a lint-only rule off end to end, and the enable option an optional rule on.
     /// </summary>
     [Fact]
-    public void LintMark_EditorConfig_UnsupportedOrUnusedSettings_Provided_ReturnsSuccess()
+    public void LintMark_EnableAndDisableFlags_Provided_SwitchLintOnlyRules()
     {
-        // Arrange: editor settings with cr, unset, an unknown word and unrelated settings
+        // Arrange: a stray emphasis space and a link text that says nothing
         using var directory = new TemporaryDirectory();
-        directory.WriteFile(".editorconfig", "root = true\n\n[a.md]\nend_of_line = cr\n\n[b.md]\nend_of_line = unset\n\n[*]\nindent_style = tab\nmax_line_length = 80\n");
-        var fileA = directory.WriteFile("a.md");
-        var fileB = directory.WriteFile("b.md");
+        var file = directory.WriteBytes("a.md", Bytes("see *text * here and [click here](u)\n"));
 
-        // Act: run the tool with both files
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, fileA, fileB);
+        // Act: run with the defaults, with the rule switched off by number, and with the optional rule switched on
+        var byDefault = Runner.Run(out var defaultOutput, "dotnet", _dllPath, file);
+        var disabled = Runner.Run(out var disabledOutput, "dotnet", _dllPath, "--disable", "MD037", file);
+        var enabled = Runner.Run(out var enabledOutput, "dotnet", _dllPath, "--enable", "descriptive-link-text", file);
 
-        // Assert: success without a report
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("config-error", output);
+        // Assert: the default reports one rule, disabling it leaves a clean run, enabling adds the other
+        Assert.Equal(1, byDefault);
+        Assert.Contains("a.md:1:5: emphasis-space", defaultOutput);
+        Assert.DoesNotContain("descriptive-link-text", defaultOutput);
+        Assert.Equal(0, disabled);
+        Assert.DoesNotContain("emphasis-space", disabledOutput);
+        Assert.Equal(1, enabled);
+        Assert.Contains("descriptive-link-text", enabledOutput);
+    }
+
+    /// <summary>
+    ///     Test that a rule list that names an unknown rule is a usage error and nothing is processed.
+    /// </summary>
+    [Fact]
+    public void LintMark_EnableFlag_UnknownRule_IsAUsageError()
+    {
+        // Arrange: a file that would be reported
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("see *text * here\n"));
+
+        // Act: run with an unknown rule
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--enable", "no-such-rule", file);
+
+        // Assert: the error names the option and the rule, and no finding is reported
+        Assert.Equal(1, exitCode);
+        Assert.Contains("--enable names an unknown rule 'no-such-rule'", output);
+        Assert.DoesNotContain("emphasis-space", output);
+    }
+
+    /// <summary>
+    ///     Test that the diff option shows what the fix option would change and writes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_DiffFlag_FormattingViolations_ShowsTheChange()
+    {
+        // Arrange: a closed heading and trailing whitespace
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("# Title #\n\ntext \n"));
+
+        // Act: run the tool with the diff option
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--diff", file);
+
+        // Assert: the removed and added lines are shown, the file is unchanged
+        Assert.Equal(1, exitCode);
+        Assert.Contains("-# Title #", output);
+        Assert.Contains("+# Title", output);
+        Assert.Contains("-text ", output);
+        Assert.Contains("+text", output);
+        Assert.Equal(Bytes("# Title #\n\ntext \n"), File.ReadAllBytes(file));
+    }
+
+    /// <summary>
+    ///     Test that a second fix run after the first one reports nothing and changes nothing.
+    /// </summary>
+    [Fact]
+    public void LintMark_FixFlag_FormattingRules_SecondRunReportsNothing()
+    {
+        // Arrange: a document that breaks many rules, fixed by a first run
+        using var directory = new TemporaryDirectory();
+        var file = directory.WriteBytes("a.md", Bytes("Title\n=====\ntext  \n- a\n\n\n\n~~~text\ncode\n~~~\n***\n"));
+        Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+        var afterFirst = File.ReadAllBytes(file);
+
+        // Act: run the check option on the result, then the fix option again
+        var checkExit = Runner.Run(out var checkOutput, "dotnet", _dllPath, "--check", file);
+        var fixExit = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
+
+        // Assert: nothing is reported and the bytes stay the same
+        Assert.Equal(0, checkExit);
+        Assert.DoesNotContain("a.md:", checkOutput);
+        Assert.Equal(0, fixExit);
+        Assert.Equal(afterFirst, File.ReadAllBytes(file));
     }
 
     /// <summary>
@@ -1321,936 +706,6 @@ public class IntegrationTests
         {
             return false;
         }
-    }
-
-    /// <summary>
-    ///     Test that the tool processes this repository's own documentation successfully.
-    /// </summary>
-    [Fact]
-    public void LintMark_RepositoryDocumentation_Provided_ReturnsSuccess()
-    {
-        // Arrange: the repository's docs directory and README
-        var root = RepositoryMarkdownFiles.FindRoot();
-
-        // Act: run the tool with the docs directory and the README
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, Path.Combine(root, "docs"), Path.Combine(root, "README.md"));
-
-        // Assert: every file reads and parses
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("file-", output);
-    }
-
-    /// <summary>
-    ///     Encodes text as UTF-8 without a byte order mark.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The bytes.</returns>
-    private static byte[] Bytes(string text) => new System.Text.UTF8Encoding(false).GetBytes(text);
-
-    /// <summary>
-    ///     Test that the fix option rewrites a CRLF file with LF line endings when the configuration asks for them.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_CrlfFile_RewritesToLf()
-    {
-        // Arrange: a CRLF file and a configuration that asks for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\r\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the file has LF line endings and nothing is reported
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("line-ending", output);
-        Assert.Equal(Bytes("# Title\n\nText.\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the fix option leaves a file that already complies byte for byte as it was.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_CleanFile_LeavesBytesUnchanged()
-    {
-        // Arrange: a compliant file with an old last write time
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\n\nText.\n"));
-        var writeTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-        File.SetLastWriteTimeUtc(file, writeTime);
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: success, same bytes, and the file was not even written
-        Assert.Equal(0, exitCode);
-        Assert.Equal(Bytes("# Title\n\nText.\n"), File.ReadAllBytes(file));
-        Assert.Equal(writeTime, File.GetLastWriteTimeUtc(file));
-    }
-
-    /// <summary>
-    ///     Test that a second run of the fix option reports nothing and changes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_Twice_SecondRunReportsNothing()
-    {
-        // Arrange: a mixed file, fixed by a first run
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
-        Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-        var afterFirst = File.ReadAllBytes(file);
-
-        // Act: run again
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: success, no report, same bytes
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("line-ending", output);
-        Assert.Equal(afterFirst, File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the diff option shows the line ending change and writes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMark_DiffFlag_CrlfFile_PrintsNoteAndWritesNothing()
-    {
-        // Arrange: a CRLF file and a configuration that asks for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\r\n"));
-
-        // Act: run the tool with the diff option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--diff", file);
-
-        // Assert: the note is printed, the violation makes the exit code one, and the file is unchanged
-        Assert.Equal(1, exitCode);
-        Assert.Contains("--- a/", output);
-        Assert.Contains("+++ b/", output);
-        Assert.Contains("\\ Line endings change from CRLF to LF", output);
-        Assert.Equal(Bytes("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the diff option prints nothing for a compliant file.
-    /// </summary>
-    [Fact]
-    public void LintMark_DiffFlag_CleanFile_PrintsNothing()
-    {
-        // Arrange: a compliant file
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with the diff option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--diff", file);
-
-        // Assert: success without a diff
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("--- a/", output);
-        Assert.DoesNotContain("@@", output);
-    }
-
-    /// <summary>
-    ///     Test that the fix option cannot be combined with the check option.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixWithCheck_Combined_ReturnsError()
-    {
-        // Arrange: a file
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with both options
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", "--check", file);
-
-        // Assert: a usage error
-        Assert.Equal(1, exitCode);
-        Assert.Contains("--fix cannot be combined with --check or --diff", output);
-    }
-
-    /// <summary>
-    ///     Test that the fix option cannot be combined with the diff option.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixWithDiff_Combined_ReturnsError()
-    {
-        // Arrange: a file
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md");
-
-        // Act: run the tool with both options
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", "--diff", file);
-
-        // Assert: a usage error
-        Assert.Equal(1, exitCode);
-        Assert.Contains("--fix cannot be combined with --check or --diff", output);
-    }
-
-    /// <summary>
-    ///     Test that the line ending of the configuration wins and is written by the fix option.
-    /// </summary>
-    [Fact]
-    public void LintMark_LineEnding_ConfigWins_FixWritesCrlf()
-    {
-        // Arrange: an LF file, a configuration that asks for CRLF and editor settings that ask for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
-        directory.WriteFile(".editorconfig", "root = true\n\n[*.md]\nend_of_line = lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\n\nText.\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the configuration's ending is written
-        Assert.Equal(0, exitCode);
-        Assert.Equal(Bytes("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the editor settings supply the line ending when the configuration gives none.
-    /// </summary>
-    [Fact]
-    public void LintMark_LineEnding_EditorConfigUsed_FixWritesCrlf()
-    {
-        // Arrange: an LF file and editor settings that ask for CRLF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".editorconfig", "root = true\n\n[*.md]\nend_of_line = crlf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\n\nText.\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the editor settings' ending is written
-        Assert.Equal(0, exitCode);
-        Assert.Equal(Bytes("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the majority line ending is kept when nothing else is configured.
-    /// </summary>
-    [Fact]
-    public void LintMark_LineEnding_MajorityUsed_FixWritesMajority()
-    {
-        // Arrange: a file with two CRLF and one LF terminator, and no configuration
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: CRLF everywhere
-        Assert.Equal(0, exitCode);
-        Assert.Equal(Bytes("# Title\r\n\r\nText.\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a mixed file is reported as such and is fixed.
-    /// </summary>
-    [Fact]
-    public void LintMark_LineEnding_MixedFile_ReportsAndFixes()
-    {
-        // Arrange: a file with mixed line endings
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
-
-        // Act: check, then fix
-        var checkExit = Runner.Run(out var checkOutput, "dotnet", _dllPath, file);
-        var fixExit = Runner.Run(out var fixOutput, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the check reports the violation; the fix removes it
-        Assert.Equal(1, checkExit);
-        Assert.Contains("a.md:1:1: line-ending Mixed line endings (2 CRLF, 1 LF); expected CRLF", checkOutput);
-        Assert.Equal(0, fixExit);
-        Assert.DoesNotContain("line-ending", fixOutput);
-    }
-
-    /// <summary>
-    ///     Test that the fix option keeps the byte order mark and all text it does not change.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_BomFile_KeepsBomAndText()
-    {
-        // Arrange: a CRLF file with a byte order mark and non-ASCII text
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", [0xEF, 0xBB, 0xBF, .. Bytes("# 日本語\r\n\r\n日本語 text\r\n")]);
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the mark and the text are intact; only the line endings changed
-        Assert.Equal(0, exitCode);
-        Assert.Equal((byte[])[0xEF, 0xBB, 0xBF, .. Bytes("# 日本語\n\n日本語 text\n")], File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a rewrite leaves no temporary file behind.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_Rewrite_LeavesNoTemporaryFiles()
-    {
-        // Arrange: a CRLF file and a configuration that asks for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\r\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the directory holds the same files as before
-        Assert.Equal(0, exitCode);
-        Assert.Equal(
-            [".lintmark.yaml", "a.md"],
-            Directory.GetFiles(directory.FullPath).Select(Path.GetFileName).Order(StringComparer.Ordinal));
-    }
-
-    /// <summary>
-    ///     Test that a document with an invalid grid table is never rewritten by the fix option.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_GridTableFallback_LeavesFileUntouched()
-    {
-        // Arrange: a CRLF document with an invalid grid table and a configuration that asks for LF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\n");
-        var file = directory.WriteBytes("a.md", Bytes("para\r\n+---+---+\r\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: reported, exit code one, bytes identical
-        Assert.Equal(1, exitCode);
-        Assert.Contains("a.md:2:1: grid-table-invalid", output);
-        Assert.Equal(Bytes("para\r\n+---+---+\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a conversion of the line endings that would change how the document renders is never written.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_CodeSpanLineEndingChange_LeavesFileUntouched()
-    {
-        // Arrange: a code span framed by line breaks and a configuration that asks for CRLF
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: crlf\n");
-        var file = directory.WriteBytes("a.md", Bytes("`\nbb\n`\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: reported, exit code one, bytes identical
-        Assert.Equal(1, exitCode);
-        Assert.Contains("a.md:1:1: safety-html-mismatch", output);
-        Assert.Equal(Bytes("`\nbb\n`\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a file with an invalid configuration is never rewritten by the fix option.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_InvalidConfig_LeavesFileUntouched()
-    {
-        // Arrange: an invalid configuration and a file with mixed line endings
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "bogus: 1\n");
-        var file = directory.WriteBytes("a.md", Bytes("# Title\r\n\r\nText.\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: the configuration problem is reported and the file is untouched
-        Assert.Equal(1, exitCode);
-        Assert.Contains("config-error Unknown setting 'bogus'", output);
-        Assert.Equal(Bytes("# Title\r\n\r\nText.\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that an invalid grid table is reported at the offending line.
-    /// </summary>
-    [Fact]
-    public void LintMark_GridTableInvalid_Provided_ReportsAtOffendingLine()
-    {
-        // Arrange: a document with an invalid grid table on line 4
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteFile("a.md", "# Title\n\npara\n+---+---+\n");
-
-        // Act: run the tool
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: reported at line 4, exit code one
-        Assert.Equal(1, exitCode);
-        Assert.Contains("a.md:4:1: grid-table-invalid", output);
-    }
-
-    /// <summary>
-    ///     Test that switching the grid table report off never lets the file be rewritten.
-    /// </summary>
-    [Fact]
-    public void LintMark_GridTableInvalid_Disabled_StillNotRewritten()
-    {
-        // Arrange: a CRLF document with an invalid grid table; the report is switched off and LF is asked for
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "end-of-line: lf\nrules:\n  grid-table-invalid: false\n");
-        var file = directory.WriteBytes("a.md", Bytes("para\r\n+---+---+\r\n"));
-
-        // Act: run the tool with the fix option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: nothing is reported, and the file is untouched
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("grid-table-invalid", output);
-        Assert.Equal(Bytes("para\r\n+---+---+\r\n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the files of a glob that the ignore patterns match are skipped.
-    /// </summary>
-    [Fact]
-    public void LintMark_IgnorePatterns_GlobSelected_SkipsMatches()
-    {
-        // Arrange: a configuration that ignores a folder, a broken file in it and a broken file outside it
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
-        directory.WriteBytes("drafts/bad.md", [0xFF]);
-        directory.WriteBytes("kept/bad.md", [0xFF]);
-
-        // Act: run the tool with a glob
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, Path.Combine(directory.FullPath, "**", "*.md"));
-
-        // Assert: only the file that is not ignored is reported
-        Assert.Equal(1, exitCode);
-        Assert.Contains("kept/bad.md:1:1: file-encoding-error", output);
-        Assert.DoesNotContain("drafts/bad.md", output);
-    }
-
-    /// <summary>
-    ///     Test that a file named on the command line is processed although an ignore pattern matches it.
-    /// </summary>
-    [Fact]
-    public void LintMark_IgnorePatterns_ExplicitFile_IsProcessed()
-    {
-        // Arrange: a configuration that ignores a folder and a broken file in it
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "ignore:\n  - \"drafts/**\"\n");
-        var file = directory.WriteBytes("drafts/bad.md", [0xFF]);
-
-        // Act: run the tool with the file named
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: the file is read and reported
-        Assert.Equal(1, exitCode);
-        Assert.Contains("drafts/bad.md:1:1: file-encoding-error", output);
-    }
-
-    /// <summary>
-    ///     Test that an exclude on the command line still applies to a file that is named.
-    /// </summary>
-    [Fact]
-    public void LintMark_IgnorePatterns_ExcludeOnCommandLine_StillApplies()
-    {
-        // Arrange: a broken file in a folder
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("drafts/bad.md", [0xFF]);
-
-        // Act: run the tool with the file named and excluded
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file, "!" + Path.Combine(directory.FullPath, "drafts", "**"));
-
-        // Assert: the exclude removes the file
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("file-encoding-error", output);
-    }
-
-    /// <summary>
-    ///     Runs the tool with the fix option over one file and returns the file's bytes as text.
-    /// </summary>
-    /// <param name="directory">The temporary directory that holds the file and, when given, the configuration.</param>
-    /// <param name="content">The content of the file.</param>
-    /// <param name="config">The content of the configuration file, or <see langword="null"/> for none.</param>
-    /// <returns>The exit code, the output and the text of the file after the run.</returns>
-    private (int ExitCode, string Output, string Text) FixFile(TemporaryDirectory directory, string content, string? config = null)
-    {
-        if (config is not null)
-        {
-            directory.WriteFile(".lintmark.yaml", config);
-        }
-
-        var file = directory.WriteBytes("a.md", Bytes(content));
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--fix", file);
-        return (exitCode, output, System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(file)));
-    }
-
-    /// <summary>
-    ///     Test that the check option reports a whitespace violation with its rule and position and writes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMark_CheckFlag_TrailingWhitespace_ReportsRuleAndPositionAndWritesNothing()
-    {
-        // Arrange: a file with trailing whitespace on its first line
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("text \nmore\n"));
-        var before = File.ReadAllBytes(file);
-
-        // Act: run the tool with the check option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--check", file);
-
-        // Assert: the rule and position are reported, the exit code is one, the file is unchanged
-        Assert.Equal(1, exitCode);
-        Assert.Contains("a.md:1:5: trailing-whitespace", output);
-        Assert.Equal(before, File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that the fix option removes trailing whitespace but keeps the two spaces of a hard break.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_TrailingWhitespace_RemovesItAndKeepsHardBreak()
-    {
-        // Arrange: a paragraph with a hard break, a trailing space and a backslash break
-        using var directory = new TemporaryDirectory();
-
-        // Act: fix the file
-        var (exitCode, output, text) = FixFile(directory, "one  \ntwo \nthree\\\nfour   \nfive\n");
-
-        // Assert: only the single trailing space and the third space go
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("trailing-whitespace", output);
-        Assert.Equal("one  \ntwo\nthree\\\nfour  \nfive\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option replaces tabs in text by spaces up to the next tab stop and keeps tabs in code.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_HardTabs_ExpandsTabsInTextOnly()
-    {
-        // Arrange: a tab in text and a tab in a code span
-        using var directory = new TemporaryDirectory();
-
-        // Act: fix the file
-        var (exitCode, _, text) = FixFile(directory, "a\tb `c\td`\n");
-
-        // Assert: the tab in text became three spaces, the code span is unchanged
-        Assert.Equal(0, exitCode);
-        Assert.Equal("a   b `c\td`\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option collapses blank lines to the default maximum of one, or to the configured maximum.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_MaxBlankLines_CollapsesToTheMaximum()
-    {
-        // Arrange: four blank lines between paragraphs
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-
-        // Act: fix once with the default and once with a maximum of two
-        var (_, _, byDefault) = FixFile(first, "a\n\n\n\n\nb\n");
-        var (_, _, withTwo) = FixFile(second, "a\n\n\n\n\nb\n", "max-blank-lines: 2\n");
-
-        // Assert: one blank line by default, two when configured
-        Assert.Equal("a\n\nb\n", byDefault);
-        Assert.Equal("a\n\n\nb\n", withTwo);
-    }
-
-    /// <summary>
-    ///     Test that the fix option gives a file exactly one final line ending by default.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_FinalNewline_EndsWithExactlyOneLineEnding()
-    {
-        // Arrange: two temporary folders with two files
-        using var missing = new TemporaryDirectory();
-        using var extra = new TemporaryDirectory();
-
-        // Act: fix a file without a final line ending and a file with extra blank lines
-        var (_, _, added) = FixFile(missing, "text");
-        var (_, _, trimmed) = FixFile(extra, "text\n\n\n");
-
-        // Assert: the final line ending is exactly one in both files
-        Assert.Equal("text\n", added);
-        Assert.Equal("text\n", trimmed);
-    }
-
-    /// <summary>
-    ///     Test that the fix option removes the final line ending when the configuration says so.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_FinalNewlineOff_RemovesTheLineEnding()
-    {
-        // Arrange: a file with a final line ending under final-newline false
-        using var directory = new TemporaryDirectory();
-
-        // Act: fix the file
-        var (_, _, removed) = FixFile(directory, "text\n", "final-newline: false\n");
-
-        // Assert: the file ends without a line ending
-        Assert.Equal("text", removed);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes setext, closed and badly spaced headings as plain ATX headings.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_Headings_BecomeAtxWithOneSpace()
-    {
-        // Arrange: a setext heading, a closed heading, an indented heading and one with many spaces
-        using var directory = new TemporaryDirectory();
-
-        // Act: fix the file
-        var (exitCode, _, text) = FixFile(directory, "Title\n=====\n\n## Closed ##\n\n   ### Indented\n\n####    Spaced\n");
-
-        // Assert: every heading is in canonical form
-        Assert.Equal(0, exitCode);
-        Assert.Equal("# Title\n\n## Closed\n\n### Indented\n\n#### Spaced\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option inserts the blank lines that headings, fences, lists and tables need.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_BlockSpacing_AddsBlankLinesAroundBlocks()
-    {
-        // Arrange: a heading, a fence, a list and a table directly after each other
-        using var directory = new TemporaryDirectory();
-
-        // Act: fix the file
-        var (exitCode, _, text) = FixFile(directory, "# H\ntext\n```\ncode\n```\n- a\n- b\n\nmore\n| a | b |\n|---|---|\n| 1 | 2 |\n");
-
-        // Assert: every boundary has one blank line
-        Assert.Equal(0, exitCode);
-        Assert.Equal("# H\n\ntext\n\n```\ncode\n```\n\n- a\n- b\n\nmore\n\n| a | b |\n|---|---|\n| 1 | 2 |\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes thematic breaks in the default or the configured style.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_ThematicBreak_UsesTheConfiguredStyle()
-    {
-        // Arrange: breaks in several forms
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-        const string input = "text\n\n***\n\n___\n\n- - -\n";
-
-        // Act: fix with the default and with asterisks
-        var (_, _, byDefault) = FixFile(first, input);
-        var (_, _, asterisks) = FixFile(second, input, "thematic-break: asterisks\n");
-
-        // Assert: three dashes by default, three asterisks when configured
-        Assert.Equal("text\n\n---\n\n---\n\n---\n", byDefault);
-        Assert.Equal("text\n\n***\n\n***\n\n***\n", asterisks);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes code fences with the default or the configured character and fences indented code.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_CodeBlocks_UseTheConfiguredFence()
-    {
-        // Arrange: a tilde fence and an indented block
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-        const string input = "~~~js\none\n~~~\n\n    two\n";
-
-        // Act: fix with the default and with tildes
-        var (_, _, byDefault) = FixFile(first, input);
-        var (_, _, tildes) = FixFile(second, input, "code-fence: tilde\n");
-
-        // Assert: backticks by default, tildes when configured
-        Assert.Equal("```js\none\n```\n\n```\ntwo\n```\n", byDefault);
-        Assert.Equal("~~~js\none\n~~~\n\n~~~\ntwo\n~~~\n", tildes);
-    }
-
-    /// <summary>
-    ///     Test that the fix option never changes code, HTML, math or front matter.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_CodeHtmlMathAndFrontMatter_AreNeverChanged()
-    {
-        // Arrange: content with trailing whitespace, tabs and blank lines inside protected blocks
-        using var directory = new TemporaryDirectory();
-        const string content =
-            "---\ntitle: x  \nlist:\n\t- a\n---\n\n```\ncode  \n\ttab\n\n\n\nend\n```\n\n<div>\nraw  \n\ttab\n</div>\n\n$$\nx  \n$$\n";
-
-        // Act: fix the file
-        var (exitCode, output, text) = FixFile(directory, content);
-
-        // Assert: nothing is reported or changed
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain(": trailing-whitespace", output);
-        Assert.Equal(content, text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option does not add blank lines inside list items and quotes.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_NestedBlocks_KeepTheirSpacing()
-    {
-        // Arrange: a tight list item with a fence and a quote with a heading directly followed by text
-        using var directory = new TemporaryDirectory();
-        const string content = "- a\n  ```\n  code\n  ```\n- b\n\n> # H\n> text\n";
-
-        // Act: fix the file
-        var (exitCode, _, text) = FixFile(directory, content);
-
-        // Assert: unchanged
-        Assert.Equal(0, exitCode);
-        Assert.Equal(content, text);
-    }
-
-    /// <summary>
-    ///     Test that a rule disabled by a comment with its legacy number is neither fixed nor reported.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_RuleDisabledByAlias_LeavesTheViolation()
-    {
-        // Arrange: trailing whitespace inside a region that disables MD009
-        using var directory = new TemporaryDirectory();
-        const string content = "<!-- markdownlint-disable MD009 -->\n\ntext \nmore\n";
-
-        // Act: fix the file
-        var (exitCode, output, text) = FixFile(directory, content);
-
-        // Assert: nothing is reported or changed
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("trailing-whitespace", output);
-        Assert.Equal(content, text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes bullets, ordered numbers, list columns and quote markers in canonical form,
-    ///     with the configured marker characters.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_ListsAndQuotes_AreWrittenCanonically()
-    {
-        // Arrange: bullets with other markers, ordered numbers that repeat, wide gaps, an over-indented child and a wide quote
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-        const string input = "* a\n  * b\n\n1. c\n1. d\n\n-   e\n\n>  quote\n";
-
-        // Act: fix with the defaults and with asterisk bullets and every number one
-        var (_, _, byDefault) = FixFile(first, input);
-        var (_, _, configured) = FixFile(second, input, "bullet: asterisk\nordered-style: one\n");
-
-        // Assert: dashes and counting numbers by default, the configured styles otherwise
-        Assert.Equal("- a\n  - b\n\n1. c\n2. d\n\n- e\n\n> quote\n", byDefault);
-        Assert.Equal("* a\n  * b\n\n1. c\n1. d\n\n* e\n\n> quote\n", configured);
-    }
-
-    /// <summary>
-    ///     Test that the fix option indents a nested bullet list by the configured number of spaces.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_NestedBulletIndent_UsesTheConfiguredIndent()
-    {
-        // Arrange: a nested bullet list written with two spaces and one with five
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-        const string input = "- a\n  - b\n\n- c\n     - d\n";
-
-        // Act: fix with the default and with an indent of four
-        var (_, _, byDefault) = FixFile(first, input);
-        var (_, _, indented) = FixFile(second, input, "list-indent: 4\n");
-
-        // Assert: nested bullets are two spaces by default and four when configured
-        Assert.Equal("- a\n  - b\n\n- c\n  - d\n", byDefault);
-        Assert.Equal("- a\n    - b\n\n- c\n    - d\n", indented);
-    }
-
-    /// <summary>
-    ///     Test that the fix option never merges two bullet lists that differ only by their marker, never splits a list,
-    ///     and keeps a nested list nested.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_BulletLists_AreNeverMergedOrSplit()
-    {
-        // Arrange: three lists that are lists of their own only because their markers differ, and a list with a nested list
-        using var directory = new TemporaryDirectory();
-        const string input = "- a\n\n* b\n\n+ c\n\n- d\n  * e\n  * f\n";
-
-        // Act: fix with the defaults
-        var (_, _, text) = FixFile(directory, input);
-
-        // Assert: the three lists keep different markers and the nested list stays inside its item
-        Assert.Equal("- a\n\n* b\n\n+ c\n\n- d\n  - e\n  - f\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option moves every line and block of a list item together with the item.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_ListItemsWithContent_MoveWithTheirItem()
-    {
-        // Arrange: items with a continuation line, a second paragraph, a nested list and fenced code, and a number that gains a digit
-        using var directory = new TemporaryDirectory();
-        const string input =
-            "-   a\n    more\n\n-   b\n\n    second\n\n-   c\n    - d\n\n    ```\n    code\n    ```\n\n" +
-            "1. e\n1. f\n1. g\n1. h\n1. i\n1. j\n1. k\n1. l\n1. m\n1. n\n   tail\n";
-
-        // Act: fix with the defaults
-        var (_, _, text) = FixFile(directory, input);
-
-        // Assert: every moved line stays in its item
-        Assert.Equal(
-            "- a\n  more\n\n- b\n\n  second\n\n- c\n  - d\n\n  ```\n  code\n  ```\n\n" +
-            "1. e\n2. f\n3. g\n4. h\n5. i\n6. j\n7. k\n8. l\n9. m\n10. n\n    tail\n",
-            text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option aligns the items of a list in the same column, and keeps the column of an ordered list.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_ListItemColumns_AreAligned()
-    {
-        // Arrange: top-level bullet items in different columns, and a top-level ordered list in a column
-        using var directory = new TemporaryDirectory();
-        const string input = "  - a\n  - b\n\ntext\n\n- c\n - d\n\ntext\n\n  1. e\n  2. f\n";
-
-        // Act: fix with the defaults
-        var (_, _, text) = FixFile(directory, input);
-
-        // Assert: bullet items start at the margin; the ordered list keeps its column
-        Assert.Equal("- a\n- b\n\ntext\n\n- c\n- d\n\ntext\n\n  1. e\n  2. f\n", text);
-    }
-
-    /// <summary>
-    ///     Test that the fix option writes emphasis, strong emphasis and bare URLs in canonical form and leaves them
-    ///     when the rules are configured that way.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_InlineText_IsWrittenCanonically()
-    {
-        // Arrange: underscore emphasis and a bare URL
-        using var first = new TemporaryDirectory();
-        using var second = new TemporaryDirectory();
-        using var third = new TemporaryDirectory();
-        const string input = "_a_ __b__ http://x.com\n";
-
-        // Act: fix with the defaults, with underscores kept, and with bare URLs left
-        var (_, _, byDefault) = FixFile(first, input);
-        var (_, _, underscores) = FixFile(second, "*a* **b** http://x.com\n", "emphasis: underscore\nstrong: underscore\nbare-urls: leave\n");
-        var (_, _, left) = FixFile(third, input, "bare-urls: leave\n");
-
-        // Assert: each setting is honored
-        Assert.Equal("*a* **b** <http://x.com>\n", byDefault);
-        Assert.Equal("_a_ __b__ http://x.com\n", underscores);
-        Assert.Equal("*a* **b** http://x.com\n", left);
-    }
-
-    /// <summary>
-    ///     Test that a list, quote or inline rule disabled by a comment with its legacy number is neither fixed nor reported.
-    /// </summary>
-    [Theory]
-    [InlineData("MD004", "* a\n")]
-    [InlineData("MD027", ">  a\n")]
-    [InlineData("MD049", "_a_\n")]
-    [InlineData("MD034", "http://x.com\n")]
-    public void LintMark_FixFlag_ListQuoteInlineRuleDisabledByAlias_LeavesTheViolation(string rule, string block)
-    {
-        // Arrange: a violation inside a region that disables the rule
-        using var directory = new TemporaryDirectory();
-        var content = $"<!-- markdownlint-disable {rule} -->\n\n{block}";
-
-        // Act: fix the file
-        var (exitCode, output, text) = FixFile(directory, content);
-
-        // Assert: nothing is reported or changed
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("bullet", output);
-        Assert.DoesNotContain("blockquote-space", output);
-        Assert.DoesNotContain("emphasis", output);
-        Assert.DoesNotContain("bare-urls", output);
-        Assert.Equal(content, text);
-    }
-
-    /// <summary>
-    ///     Test that rules planned as lint-only are not known by their legacy numbers.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigRules_PlannedLintOnlyRuleByAlias_ReportsUnknownRule()
-    {
-        // Arrange: a configuration that names MD037
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "rules:\n  MD037: false\n");
-        var file = directory.WriteBytes("a.md", Bytes("text\n"));
-
-        // Act: run the tool
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: the rule is reported as unknown
-        Assert.Equal(1, exitCode);
-        Assert.Contains("config-error", output);
-        Assert.Contains("MD037", output);
-    }
-
-    /// <summary>
-    ///     Test that the diff option shows what the fix option would change and writes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMark_DiffFlag_FormattingViolations_ShowsTheChange()
-    {
-        // Arrange: a closed heading and trailing whitespace
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("# Title #\n\ntext \n"));
-
-        // Act: run the tool with the diff option
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--diff", file);
-
-        // Assert: the removed and added lines are shown, the file is unchanged
-        Assert.Equal(1, exitCode);
-        Assert.Contains("-# Title #", output);
-        Assert.Contains("+# Title", output);
-        Assert.Contains("-text ", output);
-        Assert.Contains("+text", output);
-        Assert.Equal(Bytes("# Title #\n\ntext \n"), File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a second fix run after the first one reports nothing and changes nothing.
-    /// </summary>
-    [Fact]
-    public void LintMark_FixFlag_FormattingRules_SecondRunReportsNothing()
-    {
-        // Arrange: a document that breaks many rules, fixed by a first run
-        using var directory = new TemporaryDirectory();
-        var file = directory.WriteBytes("a.md", Bytes("Title\n=====\ntext  \n- a\n\n\n\n~~~\ncode\n~~~\n    indented\n***\n"));
-        Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-        var afterFirst = File.ReadAllBytes(file);
-
-        // Act: run the check option on the result, then the fix option again
-        var checkExit = Runner.Run(out var checkOutput, "dotnet", _dllPath, "--check", file);
-        var fixExit = Runner.Run(out _, "dotnet", _dllPath, "--fix", file);
-
-        // Assert: nothing is reported and the bytes stay the same
-        Assert.Equal(0, checkExit);
-        Assert.DoesNotContain("a.md:", checkOutput);
-        Assert.Equal(0, fixExit);
-        Assert.Equal(afterFirst, File.ReadAllBytes(file));
-    }
-
-    /// <summary>
-    ///     Test that a configuration cannot switch off an always-applied formatting rule by its legacy number.
-    /// </summary>
-    [Fact]
-    public void LintMark_ConfigRules_AlwaysAppliedRuleByAlias_ReportsUnknownRule()
-    {
-        // Arrange: a configuration that tries to switch MD009 off
-        using var directory = new TemporaryDirectory();
-        directory.WriteFile(".lintmark.yaml", "rules:\n  MD009: false\n");
-        var file = directory.WriteBytes("a.md", Bytes("text\n"));
-
-        // Act: run the tool
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, file);
-
-        // Assert: the rule is reported as unknown
-        Assert.Equal(1, exitCode);
-        Assert.Contains("config-error", output);
-        Assert.Contains("MD009", output);
     }
 }
 

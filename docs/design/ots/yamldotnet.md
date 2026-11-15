@@ -22,8 +22,7 @@ the platforms LintMark supports and exposes its low-level parser.
 - The anchor and tag of an event and alias events, which the schema rejects
 - Document start events, used to reject a second document and to treat a stream with no document, or a lone
   document marker, as "no settings"
-- `YamlException`, whose start mark gives the position of a syntax error and whose message carries no position
-  prefix
+- `YamlException`, whose start mark gives the position of a syntax error and whose message carries no position prefix
 - CRLF input, which yields the same line numbers as LF input
 
 Not used: object mapping, serialization, deserialization, schema or type converters, merge keys, and any rendering.

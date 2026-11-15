@@ -21,6 +21,7 @@
 using System.Collections.Immutable;
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Formatting.Blocks;
 using DemaConsulting.LintMark.Formatting.Inline;
 using DemaConsulting.LintMark.Linting;
 
@@ -86,6 +87,16 @@ internal sealed class DocumentFormatter
     private readonly InlineNormalizer? _inline;
 
     /// <summary>
+    ///     The formatter that wraps paragraphs that overflow the line length, or <see langword="null"/> for none.
+    /// </summary>
+    private readonly ParagraphFormatter? _paragraphs;
+
+    /// <summary>
+    ///     The refactorer that converts long inline links to reference links, or <see langword="null"/> for none.
+    /// </summary>
+    private readonly LinkRefactorer? _links;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="DocumentFormatter"/> class.
     /// </summary>
     /// <param name="formatters">
@@ -96,38 +107,39 @@ internal sealed class DocumentFormatter
     ///     The inline normalizer that is asked for each paragraph that no block formatter claims, or
     ///     <see langword="null"/> for none (then no inline rule is applied).
     /// </param>
-    /// <exception cref="ArgumentNullException">Thrown when an element of <paramref name="formatters"/> is null.</exception>
-    public DocumentFormatter(IReadOnlyList<IBlockFormatter>? formatters = null, InlineNormalizer? inline = null)
+    /// <param name="paragraphs">
+    ///     The formatter that wraps the paragraphs that overflow the line length, or <see langword="null"/> for none
+    ///     (then nothing is wrapped and no <c>line-length</c> finding is reported).
+    /// </param>
+    /// <param name="links">
+    ///     The refactorer that converts long inline links to reference links when the configuration asks for it, or
+    ///     <see langword="null"/> for none (then no link is converted).
+    /// </param>
+    public DocumentFormatter(
+        IReadOnlyList<IBlockFormatter>? formatters = null,
+        InlineNormalizer? inline = null,
+        ParagraphFormatter? paragraphs = null,
+        LinkRefactorer? links = null)
     {
-        // Copy to an immutable array so a caller cannot change the list afterwards, and reject null elements up front
-        ImmutableArray<IBlockFormatter> copy = formatters is null ? [] : ImmutableArray.CreateRange(formatters);
-        if (copy.Any(static formatter => formatter is null))
-        {
-            throw new ArgumentNullException(nameof(formatters), "The formatters must not contain null.");
-        }
-
-        _formatters = copy;
+        _formatters = formatters is null ? [] : [.. formatters];
         _inline = inline;
+        _paragraphs = paragraphs;
+        _links = links;
     }
 
     /// <summary>
     ///     Formats a document.
     /// </summary>
-    /// <param name="document">The parsed document. Must not be null.</param>
-    /// <param name="config">The effective configuration of the file. Must not be null.</param>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
     /// <returns>The edits, the line ending to write and the formatting violations found.</returns>
     /// <remarks>
     ///     Pure: nothing is written and the document is not changed. The edits are not applied here, so the
-    ///     caller can still verify the result before anything reaches a file.
+    ///     caller can still inspect the result before anything reaches a file.
     /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when two formatters propose conflicting edits (a defect of a formatter).</exception>
     public FormatResult Format(ParsedDocument document, LintMarkConfig config)
     {
-        // Validate input
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(config);
-
         // A document that cannot be trusted is never touched
         var source = document.Source;
         if (document.IsFormatUnsafe)
@@ -137,7 +149,7 @@ internal sealed class DocumentFormatter
 
         // Find out which lines a block formatter claims, which are protected, and which lie in containers
         var layout = new LineLayout(source);
-        var ownership = LineOwnership.Build(document, layout, block => FindFormatter(block) is not null);
+        var ownership = LineOwnership.Build(document, layout);
 
         // The passes handle what no block formatter claims: whitespace, inline text, blank lines, block spacing and the end of the
         // file. They run first, so that a block formatter that depends on the lines around its block sees their edits too
@@ -156,7 +168,7 @@ internal sealed class DocumentFormatter
         {
             var block = document.Blocks[i];
             var formatter = FindFormatter(block);
-            if (formatter is null || IsSuppressed(document, block, formatter))
+            if (formatter is null or ListFormatter || IsSuppressed(document, block, formatter))
             {
                 continue;
             }
@@ -164,10 +176,299 @@ internal sealed class DocumentFormatter
             formatter.Format(context, block, edits);
         }
 
-        // The line ending is the configured one, or else the one the file uses most
+        // Lists are planned last but one, on the text that every rule above produces, so that the lines around a list are final
         var target = config.EndOfLine ?? source.MajorityLineEnding;
-        var result = edits.ToImmutable();
-        return new FormatResult(result, target, [.. CheckLineEndings(source, target), .. ReportEdits(source, result)]);
+        var result = FormatLists(document, config, edits.ToImmutable());
+        var reported = ReportEdits(source, result);
+
+        // Long inline links become reference links before anything is wrapped, so that the wrap reads the final text
+        var (refactored, refactorDiagnostics) = RefactorLinks(document, config, result);
+
+        // Paragraphs that are still too wide after every other rule are wrapped last, on the text those rules produce
+        var (wrapped, wrapDiagnostics) = WrapParagraphs(document, config, layout, refactored);
+        return new FormatResult(wrapped, target, [.. CheckLineEndings(source, target), .. reported, .. refactorDiagnostics, .. wrapDiagnostics]);
+    }
+
+    /// <summary>
+    ///     Plans the lists on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>The edits against the original text, those of the other rules composed with the edits of the lists; unchanged when there is no list to change.</returns>
+    /// <remarks>
+    ///     A list moves items, and whether a move is safe depends on the lines around the list: whether the line after an item
+    ///     would become part of it, and what the other rules have already done to those lines (a code block that is rewritten
+    ///     as a fence is no danger, a paragraph that is rewrapped may be). The lists therefore read the text the other rules produce and are
+    ///     composed with their edits afterwards (see <see cref="EditRebaser"/>), so the result does not depend on the order
+    ///     in which the rules run and a second run finds nothing more to do.
+    /// </remarks>
+    private ImmutableArray<TextEdit> FormatLists(ParsedDocument document, LintMarkConfig config, ImmutableArray<TextEdit> edits)
+    {
+        if (!_formatters.Any(static formatter => formatter is ListFormatter))
+        {
+            return edits;
+        }
+
+        // The text the other rules produce is the document the lists are read from
+        var source = document.Source;
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, edits)));
+        if (current.IsFormatUnsafe)
+        {
+            return edits;
+        }
+
+        var layout = new LineLayout(current.Source);
+        var context = new FormatContext(current, config, layout, LineOwnership.Build(current, layout));
+        var lists = new EditSet();
+        for (var i = current.Blocks.Length - 1; i >= 0; i--)
+        {
+            var block = current.Blocks[i];
+            if (FindFormatter(block) is ListFormatter formatter && !IsSuppressed(current, block, formatter))
+            {
+                formatter.Format(context, block, lists);
+            }
+        }
+
+        return lists.IsEmpty ? edits : EditRebaser.Rebase(edits, lists.ToImmutable());
+    }
+
+    /// <summary>
+    ///     Converts the long inline links to reference links on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>
+    ///     The edits against the original text (those of the other rules composed with the conversions, and the new layout of
+    ///     every table whose links were converted) and one formatting finding for each converted link; the edits unchanged and
+    ///     no finding when the feature is off or nothing is converted.
+    /// </returns>
+    /// <remarks>
+    ///     The conversions are decided on the text that the other rules produce (a tab or an emphasis delimiter that they
+    ///     change can change the width of a link) and composed with their edits afterwards (see <see cref="EditRebaser"/>).
+    ///     A table whose cells changed is laid out again, because the layout of a table (aligned or compact) depends on its
+    ///     cells, and the second run must not change it. Every wrap works on the result.
+    /// </remarks>
+    private (ImmutableArray<TextEdit> Edits, ImmutableArray<Diagnostic> Diagnostics) RefactorLinks(
+        ParsedDocument document,
+        LintMarkConfig config,
+        ImmutableArray<TextEdit> edits)
+    {
+        if (_links is null || !LinkRefactorer.IsEnabled(config))
+        {
+            return (edits, []);
+        }
+
+        // The text the other rules produce is the document the links are read from
+        var source = document.Source;
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, edits)));
+        if (current.IsFormatUnsafe)
+        {
+            return (edits, []);
+        }
+
+        var plan = _links.Plan(current, config);
+        if (plan.IsEmpty)
+        {
+            return (edits, []);
+        }
+
+        // Compose the conversions with the other edits, and lay out the tables whose cells changed on the text that results
+        var composed = EditRebaser.Rebase(edits, plan.Edits);
+        if (plan.ChangesTables)
+        {
+            var produced = DocumentParser.Parse(SourceDocument.FromText(source.Path, SourcePatcher.Apply(source, composed)));
+            if (!produced.IsFormatUnsafe)
+            {
+                composed = EditRebaser.Rebase(composed, FormatTables(produced, config));
+            }
+        }
+
+        var map = EditRebaser.CreateOffsetMapper(edits);
+        var diagnostics = plan.Conversions.Select(conversion =>
+        {
+            var (line, column) = source.PositionOf(map(conversion.Offset));
+            return new Diagnostic(RuleCatalog.LinkRefactorRuleId, DiagnosticKind.Formatting, source.Path, line, column, conversion.Message);
+        });
+        return (composed, [.. diagnostics]);
+    }
+
+    /// <summary>
+    ///     Proposes the edits that bring the tables of a document into the layout of the configuration.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <returns>The edits of the table formatters against the text of the document; none for a table that is already laid out.</returns>
+    private ImmutableArray<TextEdit> FormatTables(ParsedDocument document, LintMarkConfig config)
+    {
+        var layout = new LineLayout(document.Source);
+        var context = new FormatContext(document, config, layout, LineOwnership.Build(document, layout));
+        var edits = new EditSet();
+        foreach (var block in document.Blocks.Where(static block => block.Kind == BlockKind.Table))
+        {
+            var formatter = FindFormatter(block);
+            if (formatter is not null && !IsSuppressed(document, block, formatter))
+            {
+                formatter.Format(context, block, edits);
+            }
+        }
+
+        return edits.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Wraps the paragraphs that are wider than the line length, on the text that the other rules produce.
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="edits">The edits of every other rule, against the original text.</param>
+    /// <returns>
+    ///     The edits against the original text (those of the other rules, with the ones that a wrap replaces absorbed, and the
+    ///     wraps) and the <c>line-length</c> findings; the edits unchanged and no finding when nothing is wrapped or reported.
+    /// </returns>
+    /// <remarks>
+    ///     The other rules (a list that moves, a quote that loses a space, emphasis that changes its delimiter) change the
+    ///     lines that a wrap reads, and their edits overlap the lines it rewrites. The wrap therefore reads the text that
+    ///     those edits produce, and its edits are composed with theirs afterwards (see <see cref="EditRebaser"/>), so the
+    ///     result is the same as running the rules one after the other. The text is parsed again only when some line of it
+    ///     is wider than the line length.
+    /// </remarks>
+    private (ImmutableArray<TextEdit> Edits, ImmutableArray<Diagnostic> Diagnostics) WrapParagraphs(
+        ParsedDocument document,
+        LintMarkConfig config,
+        LineLayout layout,
+        ImmutableArray<TextEdit> edits)
+    {
+        // Wrapping needs the formatter, the settings that ask for it, and some line that is wider than the line length
+        if (_paragraphs is null || !ParagraphFormatter.IsEnabled(config))
+        {
+            return (edits, []);
+        }
+
+        var source = document.Source;
+        var produced = SourcePatcher.Apply(source, edits);
+        if (!ParagraphFormatter.IsLayoutEnforced(config) && !HasLineWiderThan(produced, config.LineLength))
+        {
+            return (edits, []);
+        }
+
+        // The text the other rules produce is the document the paragraphs are read from
+        var current = edits.IsEmpty ? document : DocumentParser.Parse(SourceDocument.FromText(source.Path, produced));
+        if (current.IsFormatUnsafe)
+        {
+            return (edits, []);
+        }
+
+        var currentLayout = edits.IsEmpty ? layout : new LineLayout(current.Source);
+        var context = new FormatContext(current, config, currentLayout, LineOwnership.Build(current, currentLayout));
+        var outcomes = current.Blocks
+            .Where(static block => block.Kind == BlockKind.Paragraph)
+            .Select(block => _paragraphs.Format(context, block))
+            .Where(static outcome => outcome.HasFinding)
+            .ToList();
+
+        // The wraps that stand are composed with the edits of the other rules; every paragraph with a line that is too wide is reported
+        var wraps = new EditSet();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        var map = EditRebaser.CreateOffsetMapper(edits);
+        foreach (var outcome in outcomes)
+        {
+            if (outcome.Edit is { } wrap)
+            {
+                wraps.Add(wrap);
+            }
+
+            AddLineLengthDiagnostics(source, map, config.LineLength, outcome, diagnostics);
+        }
+
+        return (EditRebaser.Rebase(edits, wraps.ToImmutable()), diagnostics.ToImmutable());
+    }
+
+    /// <summary>
+    ///     Adds the <c>line-length</c> findings of one paragraph.
+    /// </summary>
+    /// <param name="source">The original document, for the path and the positions.</param>
+    /// <param name="map">Translates an offset of the text that the other rules produce to an offset of the original text.</param>
+    /// <param name="limit">The line length.</param>
+    /// <param name="outcome">What the paragraph formatter found out about the paragraph.</param>
+    /// <param name="diagnostics">Receives the findings.</param>
+    /// <remarks>
+    ///     A wrap is a formatting violation that rewriting removes; a line that could be broken and stays too wide is
+    ///     reported as a problem that rewriting cannot fix, in addition when a wrap is proposed.
+    /// </remarks>
+    private static void AddLineLengthDiagnostics(
+        SourceDocument source,
+        Func<int, int> map,
+        int limit,
+        ParagraphOutcome outcome,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        // A paragraph that is not in the layout of the wrap mode is one finding, fixed by the edit when there is one
+        if (outcome.WrapOffset >= 0)
+        {
+            var (wrapLine, wrapColumn) = source.PositionOf(map(outcome.WrapOffset));
+            const string description = "Paragraph is not wrapped per the configured sentence or semantic style";
+            diagnostics.Add(outcome.Edit is not null
+                ? new Diagnostic(RuleCatalog.ParagraphWrapRuleId, DiagnosticKind.Formatting, source.Path, wrapLine, wrapColumn, description)
+                : Diagnostic.LintOnly(
+                    source.Path,
+                    RuleCatalog.ParagraphWrapRuleId,
+                    wrapLine,
+                    wrapColumn,
+                    description + " and the paragraph cannot be wrapped automatically"));
+        }
+
+        if (outcome.OverflowOffset < 0)
+        {
+            return;
+        }
+
+        var (line, column) = source.PositionOf(map(outcome.OverflowOffset));
+        var message = $"Line is {outcome.OverflowWidth} columns wide; the limit is {limit}";
+        if (outcome.Edit is not null)
+        {
+            diagnostics.Add(new Diagnostic(RuleCatalog.LineLengthRuleId, DiagnosticKind.Formatting, source.Path, line, column, message));
+        }
+
+        if (outcome.HasResidualOverflow)
+        {
+            diagnostics.Add(Diagnostic.LintOnly(
+                source.Path,
+                RuleCatalog.LineLengthRuleId,
+                line,
+                column,
+                message + " and the paragraph cannot be wrapped automatically"));
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether some line of a text is wider than the line length.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="limit">The line length; at least 1.</param>
+    /// <returns><see langword="true"/> when a line, without its trailing blanks, is wider than <paramref name="limit"/> display columns.</returns>
+    /// <remarks>
+    ///     A prefilter: a line of printable ASCII is as wide as it is long, and a line of at most half the limit cannot be
+    ///     too wide (no character is wider than two columns per character), so most lines are not measured.
+    /// </remarks>
+    private static bool HasLineWiderThan(string text, int limit)
+    {
+        var remaining = text.AsSpan();
+        while (!remaining.IsEmpty)
+        {
+            var end = remaining.IndexOf('\n');
+            var line = (end < 0 ? remaining : remaining[..end]).TrimEnd(" \t");
+            if (line.Length * 2 > limit && (line.IndexOfAnyExceptInRange(' ', '~') >= 0 ? TextWidth.Of(line.ToString()) : line.Length) > limit)
+            {
+                return true;
+            }
+
+            remaining = end < 0 ? default : remaining[(end + 1)..];
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -356,4 +657,96 @@ internal sealed class DocumentFormatter
     /// <param name="ending">The line ending.</param>
     /// <returns><c>CRLF</c> or <c>LF</c>.</returns>
     private static string Describe(LineEnding ending) => ending == LineEnding.CrLf ? "CRLF" : "LF";
+}
+
+/// <summary>
+///     What a block formatter needs to know about the document and the settings it formats under.
+/// </summary>
+/// <param name="Document">The parsed document the block belongs to. Never format-unsafe.</param>
+/// <param name="Config">The effective configuration of the file.</param>
+/// <param name="Layout">The line arithmetic of the document (where a line starts and ends, which lines are blank).</param>
+/// <param name="Ownership">Which lines belong to which leaf block, which are protected and which lie inside a container.</param>
+/// <remarks>
+///     Immutable and shared by every formatter of one document. The line arithmetic and the line ownership map
+///     are the same objects that the document-level passes use, so a formatter of a container (a list or a block
+///     quote) knows which lines hold code or other protected content.
+/// </remarks>
+internal sealed record FormatContext(ParsedDocument Document, LintMarkConfig Config, LineLayout Layout, LineOwnership Ownership)
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FormatContext"/> class with its own line arithmetic and a
+    ///     line ownership map in which no block formatter has claimed a line.
+    /// </summary>
+    /// <param name="document">The parsed document the block belongs to.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    public FormatContext(ParsedDocument document, LintMarkConfig config)
+        : this(document, config, new LineLayout(document.Source))
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FormatContext"/> class with the line arithmetic of the document.
+    /// </summary>
+    /// <param name="document">The parsed document the block belongs to.</param>
+    /// <param name="config">The effective configuration of the file.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    private FormatContext(ParsedDocument document, LintMarkConfig config, LineLayout layout)
+        : this(document, config, layout, LineOwnership.Build(document, layout))
+    {
+    }
+}
+
+/// <summary>
+///     The outcome of formatting one document: the text edits, the line ending to write, and the formatting
+///     violations that rewriting would remove.
+/// </summary>
+/// <param name="Edits">The edits to the LF-normalized text, ordered and conflict-free; empty when nothing changes.</param>
+/// <param name="LineEnding">The line ending the file is written with.</param>
+/// <param name="Diagnostics">The formatting violations found (the findings that applying the result removes).</param>
+internal sealed record FormatResult(ImmutableArray<TextEdit> Edits, LineEnding LineEnding, ImmutableArray<Diagnostic> Diagnostics);
+
+/// <summary>
+///     Formats one kind of block by proposing edits to the document text.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The interface is the extension point of the formatting subsystem: <see cref="DocumentFormatter"/>
+///         walks the blocks of a document and hands each block to the first formatter that accepts it. A block
+///         that no formatter accepts is left to the document-level rules that apply to every document
+///         (whitespace, blank lines, block spacing, the end of the file), which never touch protected content such
+///         as code. The text of a document is only ever changed through edits, so everything that no edit touches
+///         is preserved by construction.
+///     </para>
+///     <para>
+///         A formatter must be a pure function of the block, the document and the configuration: no state kept
+///         between calls and no side effects other than adding edits, so that formatting is deterministic and
+///         it can be run again, for instance by the verification tool. Implementations must be safe for concurrent use, because one
+///         instance serves every worker thread.
+///     </para>
+/// </remarks>
+internal interface IBlockFormatter
+{
+    /// <summary>
+    ///     Gets the identifiers of the rules that this formatter enforces.
+    /// </summary>
+    /// <remarks>
+    ///     A block is left verbatim when any of these rules is suppressed anywhere inside the block, so that a
+    ///     suppression comment is honored at block granularity.
+    /// </remarks>
+    ImmutableArray<string> RuleIds { get; }
+
+    /// <summary>
+    ///     Determines whether this formatter formats a block.
+    /// </summary>
+    /// <param name="block">The block to test.</param>
+    /// <returns><see langword="true"/> when <see cref="Format"/> should be called for the block.</returns>
+    bool CanFormat(BlockInfo block);
+
+    /// <summary>
+    ///     Proposes the edits that bring a block into canonical form.
+    /// </summary>
+    /// <param name="context">The document and settings.</param>
+    /// <param name="block">The block to format; <see cref="CanFormat"/> returned true for it.</param>
+    /// <param name="edits">Receives the edits; adding an edit that conflicts with another throws <see cref="InvalidOperationException"/>.</param>
+    void Format(FormatContext context, BlockInfo block, EditSet edits);
 }

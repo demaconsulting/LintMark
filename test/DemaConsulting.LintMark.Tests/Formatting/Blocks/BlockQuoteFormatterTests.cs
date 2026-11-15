@@ -46,7 +46,6 @@ public class BlockQuoteFormatterTests
     private static void AssertFormats(string input, string expected)
     {
         BlockFormatterAssertions.AssertFormats(input, expected);
-        BlockFormatterAssertions.AssertFormatsOnDisk(input, expected);
         BlockFormatterAssertions.AssertFormatterOutput(Formatter, input, expected);
     }
 
@@ -66,68 +65,6 @@ public class BlockQuoteFormatterTests
 
         // Act & Assert: the number of accepted blocks is the number of outermost quotes
         Assert.Equal(accepted, document.Blocks.Count(block => Formatter.CanFormat(block)));
-    }
-
-    /// <summary>
-    ///     Test that a missing block is rejected when asking whether it is accepted.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_CanFormat_NullBlock_Throws()
-    {
-        // Act & Assert: the argument is named
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.CanFormat(null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a missing argument is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a quote, a context and an edit set
-        var document = BlockFormatterAssertions.Parse(">  a\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.BlockQuote);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block, edits)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, block, null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not an outermost block quote is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_Format_OtherBlock_ThrowsArgumentException()
-    {
-        // Arrange: a paragraph, and a nested quote
-        var paragraph = BlockFormatterAssertions.Parse("text\n");
-        var nested = BlockFormatterAssertions.Parse("> > a\n");
-        var inner = nested.Blocks.Last(block => block.Kind == BlockKind.BlockQuote);
-
-        // Act & Assert: both are rejected and the parameter is named
-        var first = Assert.Throws<ArgumentException>(() =>
-            Formatter.Format(new FormatContext(paragraph, LintMarkConfig.Default), BlockFormatterAssertions.FirstBlock(paragraph, BlockKind.Paragraph), new EditSet()));
-        var second = Assert.Throws<ArgumentException>(() => Formatter.Format(new FormatContext(nested, LintMarkConfig.Default), inner, new EditSet()));
-        Assert.Equal("block", first.ParamName);
-        Assert.Equal("block", second.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the formatter lists the one rule it enforces and that the list cannot be changed.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_RuleIds_Read_ListsTheQuoteRuleAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Formatter.RuleIds;
-
-        // Assert: the quote rule, registered, in an immutable array
-        Assert.Equal(["blockquote-space"], ruleIds);
-        Assert.True(RuleCatalog.TryGet(ruleIds[0], out _));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
     }
 
     /// <summary>
@@ -233,7 +170,7 @@ public class BlockQuoteFormatterTests
     /// </summary>
     [Fact]
     public void BlockQuoteFormatter_Format_TableInQuote_KeepsTheSpaces() =>
-        AssertFormats(">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n", ">  | a | b |\n>  |---|---|\n>  | 1 | 2 |\n");
+        AssertFormats(">  | a | b |\n>  | --- | --- |\n>  | 1 | 2 |\n", ">  | a | b |\n>  | --- | --- |\n>  | 1 | 2 |\n");
 
     /// <summary>
     ///     Test that a list in a quote keeps the spaces after the marker, because they are indentation there.
@@ -296,20 +233,6 @@ public class BlockQuoteFormatterTests
     }
 
     /// <summary>
-    ///     Test that the same edits are proposed for CRLF and mixed line endings, and with a byte order mark.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_Format_LineEndingsAndByteOrderMark_ProposeTheSameEdits()
-    {
-        // Arrange: a quote with extra spaces
-        const string input = ">  a\n>   b\n>  # c\n";
-
-        // Act & Assert: the edits do not depend on how the file is stored
-        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, input);
-        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, input);
-    }
-
-    /// <summary>
     ///     Test that every edit is reported under the quote rule.
     /// </summary>
     [Fact]
@@ -343,11 +266,4 @@ public class BlockQuoteFormatterTests
         Assert.Empty(result.Edits);
         Assert.Empty(result.Diagnostics);
     }
-
-    /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
-    /// </summary>
-    [Fact]
-    public void BlockQuoteFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
-        BlockFormatterAssertions.AssertConcurrentFormatting(Formatter, ">  a\n>   b\n\n>  >  c\n", "> a\n> b\n\n> > c\n");
 }

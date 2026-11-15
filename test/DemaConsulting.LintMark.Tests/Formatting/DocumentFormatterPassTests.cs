@@ -38,6 +38,16 @@ public class DocumentFormatterPassTests
     /// <param name="expected">The expected output.</param>
     /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
     private static void AssertPasses(string input, string expected, LintMarkConfig? config = null) =>
+        BlockFormatterAssertions.AssertFormats(input, expected, config, new DocumentFormatter());
+
+    /// <summary>
+    ///     Asserts that a formatter without block formatters turns the input into the expected text, and that the result renders the same,
+    ///     keeps its structure and is stable.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <param name="expected">The expected output.</param>
+    /// <param name="config">The configuration, or <see langword="null"/> for the defaults.</param>
+    private static void AssertPassesSafely(string input, string expected, LintMarkConfig? config = null) =>
         Assert.Equal(expected, BlockFormatterAssertions.AssertSafeAndStable(input, config, new DocumentFormatter()));
 
     /// <summary>
@@ -208,6 +218,8 @@ public class DocumentFormatterPassTests
     [InlineData("- a\tb\n", "- a b\n")]
     [InlineData("a\t\tb\n", "a       b\n")]
     [InlineData("text\nmore\ttext\n", "text\nmore    text\n")]
+    [InlineData("[a\tb](http://x)\n", "[a  b](http://x)\n")]
+    [InlineData("[a\tb][r]\n\n[r]: http://x\n", "[a  b][r]\n\n[r]: http://x\n")]
     public void DocumentFormatter_Format_TabInText_ExpandsToTheTabStop(string input, string expected) =>
         AssertPasses(input, expected);
 
@@ -218,6 +230,7 @@ public class DocumentFormatterPassTests
     [InlineData("text\n\tmore\n")]
     [InlineData("a `b\tc` d\n")]
     [InlineData("[a](http://x\t\"t\")\n")]
+    [InlineData("[a\tb][]\n\n[a b]: http://x\n")]
     [InlineData("| a\tb |\n|---|\n| 1 | 2 |\n")]
     [InlineData("+-\t--+\n")]
     [InlineData("```\na\tb\n```\n")]
@@ -236,6 +249,90 @@ public class DocumentFormatterPassTests
     [InlineData("\n\n\ntext\n", 1, "\ntext\n")]
     public void DocumentFormatter_Format_BlankRuns_CollapseToTheConfiguredMaximum(string input, int maximum, string expected) =>
         AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = maximum });
+
+    /// <summary>
+    ///     Test that a run of blank lines after an empty list item is kept: the parser ends the list at two blank lines
+    ///     there, so shortening the run would join the lists. Whitespace on the lines is still removed.
+    /// </summary>
+    [Theory]
+    [InlineData("- t\n-\n\n\n- v\n", "- t\n-\n\n\n- v\n")]
+    [InlineData("- t\n- \n  \n   \n- v\n", "- t\n-\n\n\n- v\n")]
+    [InlineData("1. t\n1.\n\n\n\n1. v\n", "1. t\n1.\n\n\n\n1. v\n")]
+    [InlineData("- t\n\n-\n\n\n- v\n", "- t\n\n-\n\n\n- v\n")]
+    [InlineData("- t\n  -\n\n\n  - v\n", "- t\n  -\n\n\n  - v\n")]
+    [InlineData("> - t\n> -\n>\n>\n> - v\n", "> - t\n> -\n>\n>\n> - v\n")]
+    [InlineData("+ t\n+\n\n\n+ v\n", "+ t\n+\n\n\n+ v\n")]
+    [InlineData("* t\n*\n\n\n* v\n", "* t\n*\n\n\n* v\n")]
+    public void DocumentFormatter_Format_BlankRunAfterEmptyListItem_IsKept(string input, string expected) =>
+        AssertPassesSafely(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that blank lines after a line that only looks like an empty item are still shortened.
+    /// </summary>
+    [Theory]
+    [InlineData("a\n-x\n\n\n\nb\n", "a\n-x\n\nb\n")]
+    [InlineData("a\n12345678901.\n\n\nb\n", "a\n12345678901.\n\nb\n")]
+    [InlineData("a\n\n    -\n\n\n\nb\n", "a\n\n    -\n\nb\n")]
+    [InlineData("a\n1.x\n\n\nb\n", "a\n1.x\n\nb\n")]
+    [InlineData("a\n\n- - -\n\n\n\nb\n", "a\n\n- - -\n\nb\n")]
+    [InlineData("a\n\n* * *\n\n\n\nb\n", "a\n\n* * *\n\nb\n")]
+    [InlineData("* - - -\n\n\n\n- a\n", "* - - -\n\n- a\n")]
+    public void DocumentFormatter_Format_BlankRunAfterNonItemLine_IsShortened(string input, string expected) =>
+        AssertPassesSafely(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that a thematic break written with markers in a list item is not taken for an empty item: its blank lines are
+    ///     shortened in the same run that rewrites the break (a second run finds nothing to do).
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_BlankRunAfterThematicBreakInItem_SettlesInOneRun() =>
+        BlockFormatterAssertions.AssertFormatsSafely("* - - -\n\n\n\n- a\n", "* ---\n\n- a\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that blank lines next to a paragraph or list that holds a line shaped like the border of a grid table are neither
+    ///     removed nor inserted: the parser reads the text after such a line by the rules of the grid table extension.
+    /// </summary>
+    [Theory]
+    [InlineData("   + ---\n       +    text\n\n\n   2. - z\n")]
+    [InlineData("+ +   ---\n     +  x\n ===\n")]
+    public void DocumentFormatter_Format_BorderShapedLineInParagraphOrList_KeepsTheBlankLines(string input) =>
+        BlockFormatterAssertions.AssertFormatsSafely(input, input, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that a run of blank lines inside an item whose marker line is empty is kept (the parser ends the list at two blank
+    ///     lines there too).
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_BlankRunInItemWithEmptyMarkerLine_IsKept() =>
+        AssertPassesSafely("  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", "  9.\n        001.   a b c\n\n\n  2.  |-|-|\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that no blank line is inserted at the blank line before a paragraph that the parser reports as starting there (a
+    ///     paragraph that looks like a grid table border): formatting again would insert another one.
+    /// </summary>
+    [Fact]
+    public void DocumentFormatter_Format_ParagraphReportedToStartAtABlankLine_GetsNoBlankLine() =>
+        AssertPassesSafely("   + [x]: /u\n\n   +---+\n", "   + [x]: /u\n\n   +---+\n");
+
+    /// <summary>
+    ///     Test that the blank lines at the end of the file are kept after a line shaped like the border of a grid table, because the
+    ///     parser reads the blank line by the rules of the grid table extension (it makes the list before it loose).
+    /// </summary>
+    [Theory]
+    [InlineData("001.    |-|-|\n        - ===\n        2.  [x]: /u\n        +---+\n\n")]
+    [InlineData("para\n+---+\n\n\n")]
+    public void DocumentFormatter_Format_BlankLinesAfterBorderShapedLastLine_AreKept(string input) =>
+        BlockFormatterAssertions.AssertFormats(input, input, LintMarkConfig.Default);
+
+    /// <summary>
+    ///     Test that the blank lines at the end of the file are still removed after a real grid table and after an indented code line
+    ///     that is shaped like a border.
+    /// </summary>
+    [Theory]
+    [InlineData("+---+---+\n| a | b |\n+---+---+\n\n\n", "+---+---+\n| a | b |\n+---+---+\n")]
+    [InlineData("text\n\n    +---+\n\n\n", "text\n\n```\n+---+\n```\n")]
+    public void DocumentFormatter_Format_BlankLinesAfterGridTableOrCode_AreRemoved(string input, string expected) =>
+        BlockFormatterAssertions.AssertFormats(input, expected, LintMarkConfig.Default);
 
     /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
@@ -329,6 +426,15 @@ public class DocumentFormatterPassTests
     [InlineData("text\n2. a\n")]
     [InlineData("text\n    not code\n")]
     public void DocumentFormatter_Format_TextBeforeListLookalike_IsNotSeparated(string input) =>
+        AssertPasses(input, input);
+
+    /// <summary>
+    ///     Test that a footnote definition next to a heading is not separated from it.
+    /// </summary>
+    [Theory]
+    [InlineData("# t\n[^1]: note\n\ntext[^1]\n")]
+    [InlineData("text[^1]\n\n[^1]: note\n# t\n")]
+    public void DocumentFormatter_Format_FootnoteNextToHeading_IsNotSeparated(string input) =>
         AssertPasses(input, input);
 
     /// <summary>

@@ -121,6 +121,12 @@ internal static partial class DocumentParser
     private const string FootnoteBodyIndent = "    ";
 
     /// <summary>
+    ///     The deepest nesting of inline elements (emphasis, links) that a document may have; the parser's own limit for nested
+    ///     blocks is the same number, and real text nests a handful of levels at most.
+    /// </summary>
+    internal const int MaxInlineDepth = 128;
+
+    /// <summary>
     ///     Gets the fixed Markdown pipeline.
     /// </summary>
     /// <remarks>
@@ -149,30 +155,90 @@ internal static partial class DocumentParser
     ///     parse failures. Safe to call concurrently for different documents.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is null.</exception>
+    /// <exception cref="InvalidDataException">Thrown when inline elements are nested deeper than <see cref="MaxInlineDepth"/>.</exception>
     public static ParsedDocument Parse(SourceDocument source)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(source);
 
         // Parse LF-normalized text with the fixed pipeline, then derive the corrected views
-        var ast = Markdown.Parse(source.Text, Pipeline);
+        var ast = ParseChecked(source.Text, Pipeline);
         var blocks = new Flattener(source).Flatten(ast);
 
         // The grid table parser mishandles a table that turns out to be invalid; when the blocks do not
         // nest, locate the offending line in the damaged reading and parse again without the grid table
         // parser. The document is then marked format-unsafe: the second reading can turn valid grid tables
-        // into paragraphs, which rendered-output comparison cannot see, so it must never be rewritten
+        // into paragraphs, which a comparison of pages cannot see, so it must never be rewritten
         GridTableFallback? fallback = null;
         if (!NestsCorrectly(blocks))
         {
             fallback = LocateOffendingGridLine(source, blocks);
-            ast = Markdown.Parse(source.Text, PipelineWithoutGridTables);
+            ast = ParseChecked(source.Text, PipelineWithoutGridTables);
             blocks = new Flattener(source).Flatten(ast);
         }
 
         var suppressions = SuppressionMap.Build(source, blocks, ast, ResolveRuleName);
         var references = ReferenceIndex.Build(source, blocks);
         return new ParsedDocument(source, ast, blocks.ToImmutableArray(), suppressions, references, fallback);
+    }
+
+    /// <summary>
+    ///     Parses text and rejects a tree whose inline elements are nested deeper than <see cref="MaxInlineDepth"/>.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <param name="pipeline">The pipeline to parse with.</param>
+    /// <returns>The syntax tree.</returns>
+    /// <remarks>
+    ///     The parser bounds the nesting of blocks (and of links) itself and fails with an <see cref="ArgumentException"/>, but
+    ///     it does not bound nested emphasis: a run of ten thousand <c>*</c> on both sides of a word becomes a tree ten thousand
+    ///     levels deep, and every recursive walk over the inlines of the tool would exhaust the stack, which ends the process
+    ///     without a chance to report the file. Checking the depth once, here and without recursion, makes every later walk
+    ///     safe, and the document fails like any other file the parser cannot read.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">Thrown when inline elements are nested deeper than <see cref="MaxInlineDepth"/>.</exception>
+    private static MarkdownDocument ParseChecked(string text, MarkdownPipeline pipeline)
+    {
+        var ast = Markdown.Parse(text, pipeline);
+
+        // Walk with an explicit stack: blocks only lead to the inline tree of their leaves, whose depth starts at zero
+        var pending = new Stack<(MarkdownObject Node, int Depth)>();
+        pending.Push((ast, 0));
+        while (pending.Count > 0)
+        {
+            var (node, depth) = pending.Pop();
+            switch (node)
+            {
+                case ContainerBlock container:
+                    foreach (var child in container.Where(static child => child is not null))
+                    {
+                        pending.Push((child, 0));
+                    }
+
+                    break;
+
+                case LeafBlock { Inline: { } inline }:
+                    pending.Push((inline, 0));
+                    break;
+
+                case ContainerInline inline:
+                    if (depth > MaxInlineDepth)
+                    {
+                        throw new InvalidDataException($"Inline elements are nested more than {MaxInlineDepth} levels deep");
+                    }
+
+                    for (var child = inline.FirstChild; child is not null; child = child.NextSibling)
+                    {
+                        if (child is ContainerInline nested)
+                        {
+                            pending.Push((nested, depth + 1));
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        return ast;
     }
 
     /// <summary>
@@ -262,21 +328,16 @@ internal static partial class DocumentParser
     ///     link) or that carry no inline (a setext underline) fall back to stripping one quote marker per
     ///     enclosing block quote and then whitespace. Each continuation line is flagged lazy when its
     ///     container prefix is shorter than the one the container requires (see
-    ///     <see cref="GetContinuationPrefix"/>). The kind and range of <paramref name="leaf"/> are
-    ///     validated; that it is one of the blocks of <paramref name="document"/> is a precondition that
-    ///     is not verified (checking would cost a search of the block list on every call).
+    ///     <see cref="GetContinuationPrefix"/>). That <paramref name="leaf"/> is a paragraph or heading of
+    ///     <paramref name="document"/> is a precondition that is not verified.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
-    ///     inside the text of <paramref name="document"/>.
-    /// </exception>
     public static IReadOnlyList<LeafLine> GetLines(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
-        ValidateLeaf(document, leaf);
+
 
         var source = document.Source;
         var text = source.Text;
@@ -326,16 +387,12 @@ internal static partial class DocumentParser
     ///     Same preconditions as <see cref="GetLines"/>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="leaf"/> is not a paragraph or heading, or its range does not lie
-    ///     inside the text of <paramref name="document"/>.
-    /// </exception>
     public static string GetContinuationPrefix(ParsedDocument document, BlockInfo leaf)
     {
         // Validate input
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(leaf);
-        ValidateLeaf(document, leaf);
+
 
         // Take the text before the block on its first line
         var source = document.Source;
@@ -351,29 +408,6 @@ internal static partial class DocumentParser
         }
 
         return BlankMarkers(prefix);
-    }
-
-    /// <summary>
-    ///     Checks the preconditions shared by <see cref="GetLines"/> and <see cref="GetContinuationPrefix"/>.
-    /// </summary>
-    /// <param name="document">The parsed document.</param>
-    /// <param name="leaf">The block to check.</param>
-    /// <exception cref="ArgumentException">
-    ///     Thrown when the block is not a paragraph or heading or its range is outside the document text.
-    /// </exception>
-    private static void ValidateLeaf(ParsedDocument document, BlockInfo leaf)
-    {
-        if (leaf.Kind is not (BlockKind.Paragraph or BlockKind.Heading))
-        {
-            throw new ArgumentException($"The block must be a paragraph or heading, not {leaf.Kind}.", nameof(leaf));
-        }
-
-        if (leaf.Start < 0 || leaf.Start > leaf.EndInclusive || leaf.EndInclusive >= document.Source.Text.Length)
-        {
-            throw new ArgumentException(
-                $"The block range [{leaf.Start}..{leaf.EndInclusive}] is outside the document text.",
-                nameof(leaf));
-        }
     }
 
     /// <summary>
@@ -617,6 +651,20 @@ internal static partial class DocumentParser
     /// <returns><see langword="true"/> when it has fewer quote markers or a smaller visual width.</returns>
     private static bool IsShorterPrefix(string actual, string expected) =>
         actual.Count(c => c == '>') < expected.Count(c => c == '>') || VisualWidth(actual) < VisualWidth(expected);
+
+    /// <summary>
+    ///     Determines whether an actual continuation prefix is longer than the expected one (a line indented more than its container needs).
+    /// </summary>
+    /// <param name="actual">The text before the content of a continuation line. Must not be null.</param>
+    /// <param name="expected">The prefix the container requires (see <see cref="GetContinuationPrefix"/>). Must not be null.</param>
+    /// <returns><see langword="true"/> when, with the optional space after each quote marker removed, the actual prefix is wider.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public static bool IsLongerPrefix(string actual, string expected)
+    {
+        ArgumentNullException.ThrowIfNull(actual);
+        ArgumentNullException.ThrowIfNull(expected);
+        return VisualWidth(RemoveOptionalQuoteSpaces(actual)) > VisualWidth(RemoveOptionalQuoteSpaces(expected));
+    }
 
     /// <summary>
     ///     Measures the visual width of a prefix, advancing tabs to the next multiple of four.

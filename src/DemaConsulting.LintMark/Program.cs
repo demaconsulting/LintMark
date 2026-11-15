@@ -163,11 +163,14 @@ internal static class Program
         context.WriteLine("  -v, --version              Display version information");
         context.WriteLine("  -?, -h, --help             Display this help message");
         context.WriteLine("  --check                    Report problems without writing any file (default)");
-        context.WriteLine("  --fix                      Rewrite files into canonical form when every safety check passes,");
+        context.WriteLine("  --fix                      Rewrite files into canonical form,");
         context.WriteLine("                             then report the problems that remain (not with --check or --diff)");
         context.WriteLine("  --diff                     Print a unified diff of what --fix would change; writes no file");
         context.WriteLine("  --config <file>            Use this configuration file instead of discovering .lintmark.yaml");
         context.WriteLine("  --no-config                Ignore .lintmark.yaml and .editorconfig; use the built-in defaults");
+        context.WriteLine("  --enable <ids>             Force rules on (comma-separated ids or MDxxx numbers; repeatable);");
+        context.WriteLine("                             wins over the configuration");
+        context.WriteLine("  --disable <ids>            Force rules off (same syntax as --enable)");
         context.WriteLine("  --silent                   Suppress console output");
         context.WriteLine("  --validate                 Run self-validation");
         context.WriteLine("  --results <file>           Write validation results to file (.trx or .xml)");

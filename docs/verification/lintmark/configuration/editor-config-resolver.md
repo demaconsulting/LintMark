@@ -2,146 +2,60 @@
 
 #### Verification Approach
 
-`EditorConfigResolver` is verified with unit tests in `EditorConfigResolverTests.cs`. The tests use the real
-editorconfig library and real `.editorconfig` files in temporary directory trees (the `TemporaryDirectory` test
-helper), because the unit's purpose is to turn what that library reports for a Markdown file into a line ending;
-mocking the library would remove everything that is worth checking. Two seams that the resolver exposes through its
-constructor, one delegate for the library call that resolves the chain of settings files of a directory and one for
-the call that evaluates a file against a chain, are used only to provoke failures that cannot be caused reliably on
-every platform, and to count lookups: a chain lookup that throws an `IOException` whose message contains a line
-break (once with a counter, to show that the failure is determined once per directory), and an evaluation that
-throws `UnauthorizedAccessException` while the chain lookup is real. The tests assert on the returned
-`EditorConfigResult` (line ending and error message) and never on library types.
-
-Every scenario that reads settings from the file system starts its tree with a root `.editorconfig` that declares
-`root = true`, built by one helper in the test class, so the upward search for settings never reaches a file outside
-the temporary tree. Section patterns are exercised through one data-driven test whose cases are the pattern forms
-of the editor settings specification; each case is a separate test case.
-
-The behavior that is required is the tolerance of settings that cannot be used, the line ending that the settings
-give (with the order in which settings files and sections apply), the report of settings that cannot be read, the
-handling of paths, and the same results under concurrent use. The editor settings are shared with other tools, so
-the scenarios follow the rules of the editor settings format.
+`EditorConfigResolver` is verified with unit tests in `EditorConfigResolverTests.cs`. The resolver reads real
+`.editorconfig` files through the editorconfig library, so the tests build directory trees in a `TemporaryDirectory`
+whose root file declares `root = true`, resolve the line ending of a file path, and assert on the result. No mocks
+are used. The library's own behavior (pattern matching, layering, raw values) is verified as OTS evidence; here only
+LintMark's interpretation of the raw `end_of_line` text is verified: `lf` and `crlf` are accepted in any letter case,
+everything else means "not specified".
 
 #### Test Environment
 
-Temporary directories are created and removed by each test. The tests that resolve a relative path change the
-current directory and restore it afterwards, so the class runs sequentially with the other tests that touch
-process-wide state. The tests that use many threads allow up to 16 degrees of parallelism over 60 files in three folders
-and repeat every lookup ten times through one shared resolver.
+Each test creates and removes a temporary directory tree. The tests use relative paths in one scenario and so run
+sequentially with other tests that change the current directory.
 
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- `cr`, `unset`, an unknown word, an empty value, no `end_of_line` setting, and no applicable section all give "not
-  specified" without an error message.
-- Malformed lines are ignored and no error is reported.
-- Many threads get the sequential results.
-- Settings that cannot be read give a one-line message and no line ending, never an exception; the same message is
-  given for every file of the directory, and a failed lookup is made once per directory.
-- A path that cannot be resolved, or has no containing directory, gives "not specified".
-- `lf` and `crlf` are reported when a section that applies gives them, with the setting name and the
-  value in any letter case; the nearest file that gives a value wins, a value that cannot be used in a nearer file
-  hides a farther one, a file that declares `root = true` ends the search, and a later section overrides an
-  earlier one; section patterns follow the editor settings format with letter case significant on every platform;
-  relative paths, backslash separators, and paths that do not exist are accepted and null and empty paths are
-  rejected; the settings chain of a directory is read once.
+- `end_of_line = lf` and `crlf` resolve to those endings, in any letter case of key and value.
+- `cr`, `unset`, an unknown value, a missing property, and a file outside every section resolve to "not specified".
+- The nearest file that mentions the property decides; `unset` or an invalid value in a nearer file hides a farther
+  value; `root = true` stops the search.
+- Section patterns follow the specification, are relative to the file that holds them, and are case-sensitive on
+  every platform.
+- Malformed lines are ignored, a missing file in a missing folder still resolves, and paths with null characters or
+  the file-system root give "not specified".
 
 #### Test Scenarios
 
-##### Settings that cannot be used
+##### Normal operation
 
-**Value `cr` is not specified**: A section with `cr` gives the "not specified" result, with no error.
+**`lf` and `crlf` sections resolve**: Each value gives its line ending, also in upper case.
 
-**Value `unset` is not specified**: The same with `unset`.
+**Nearest file wins per property**: A nearer file overrides a farther one; a nearer file without the property
+defers to the farther one.
 
-**Unknown value is not specified**: `banana`, an empty value, and `lf crlf` each give "not specified" with no
-error.
+**Later section overrides an earlier one**: A less specific later section wins over a more specific earlier one.
 
-**File without an `end_of_line` setting is not specified**: A section that sets only another property gives the
-"not specified" result.
+**Section patterns match per specification**: Patterns for extensions, folders, and nested folders match the
+expected files and no others; the pattern case is significant.
 
-**File that no section matches is not specified**: A section for `*.txt` does not apply to a Markdown file.
+**The chain of one directory is reused**: Many files in one directory resolve from the cached chain.
 
-**Malformed lines are ignored and later sections still apply**: A file with `[[[`, a bare property name, a bare
-equals sign, and a line of text before a valid `[*.md]` section gives `crlf` and no error message.
+**Relative and backslash paths are normalized**: Both resolve against the current directory and the folder separator.
 
-##### Concurrency
+##### Boundary conditions
 
-**Many threads get the sequential results**: Nested settings files with different sections and 60 files in three
-folders are resolved ten times each from up to 16 threads through one shared resolver; every complete result (line
-ending and message) equals the result of a fresh resolver used sequentially, and both line endings occur among
-the results.
+**`root = true` stops the search**: A farther `crlf` is not seen.
 
-##### Unreadable settings, paths, and line endings
+**Nonexistent file in a missing folder still resolves**: The sections of the existing parents apply.
 
-**Unreadable settings give a one-line message and no line ending**: With the chain lookup throwing an `IOException`
-whose message contains a line break, the result has no line ending and the message "Cannot read .editorconfig
-settings: disk failure" on one line; with the evaluation throwing `UnauthorizedAccessException`, the message is
-"Cannot read .editorconfig settings: denied". Nothing is thrown.
+##### Error handling
 
-**A failed settings lookup is made once per directory and reported for every file**: With a chain lookup that fails
-and counts its calls, three files of one folder get the same message from one lookup, and a file in another folder
-causes a second lookup with the same message.
+**`cr`, `unset`, and unknown values are not specified**: `unset` in a nearer file also hides a farther value.
 
-**A path that cannot be resolved has no settings**: A path that contains a null character, and the root of the file
-system (which has no containing directory), give "not specified" without consulting the library.
+**Missing property or file outside every section is not specified**: No exception is thrown.
 
-**Section that gives `lf` resolves to `lf`**: A `[*]` section with `end_of_line = lf` gives `lf` for a Markdown file,
-with no error message.
+**Malformed lines are ignored**: Later valid sections still apply.
 
-**Section that gives `crlf` resolves to `crlf`**: The same with `crlf`.
-
-**Setting name and value are matched in any letter case**: `END_OF_LINE = CRLF`, `End_Of_Line = Crlf`,
-`end_of_line=crlf`, and a line with extra spaces all resolve to `crlf`.
-
-**Nearest file wins for the property**: `lf` in the root file and `crlf` in a nested file give `crlf` below the
-nested folder and `lf` outside it.
-
-**Farther file is used when the nearer file lacks the property**: A nested file without `root = true` that sets
-another property leaves the root file's `crlf` in effect.
-
-**Later section overrides an earlier one**: `[*.md]` with `lf` followed by `[*]` with `crlf` gives `crlf` for a
-Markdown file, although the earlier section is more specific.
-
-**Later specific section applies to its own file only**: `[*]` with `crlf` followed by `[a.md]` with `lf` gives `lf`
-for `a.md` and `crlf` for `b.md`.
-
-**Section patterns match as the specification says**: Nineteen cases cover `*`, `**`, `*.md` (at any depth), `?`,
-character sets and their negation, alternatives, numeric ranges, folder patterns (`docs/*.md` matches in `docs`
-only), a leading slash (`/top.md` matches at the top only), `**/deep/**.md`, and an escaped bracket; the section
-applies exactly when the pattern is specified to match.
-
-**Pattern with a folder is relative to the folder of its settings file**: A nested file in `docs` with the section
-`[guide/*.md]` applies to `docs/guide/a.md` and not to `guide/a.md` at the root.
-
-**Section patterns are case-sensitive on every platform**: With sections `[*.md]` and `[*.TXT]`, the files `A.MD` and
-`a.txt` get nothing and `a.TXT` gets `crlf`.
-
-**File that declares `root = true` stops the search**: A nested root file that says nothing about line endings hides
-the outer `crlf`, so the line ending is not specified below it.
-
-**`unset` in a nearer file hides a farther value**: `crlf` in the root file and `unset` in a nested file give
-nothing below the nested folder, while a file beside the root file keeps `crlf`.
-
-**Unknown value in a nearer file hides a farther valid value**: `banana` in a nested file hides the root file's
-`crlf`.
-
-**File in folders that do not exist is still resolved**: A catch-all section applies to a path in missing folders.
-
-**Relative path is resolved against the current directory**: With the temporary directory current, `sub/a.md` gets
-the nested file's `crlf`.
-
-**Backslash separators are accepted on every platform**: A path written with backslashes gets the nested file's
-`crlf`.
-
-**Chain of settings files is cached per directory**: After one file is resolved, the root settings file is changed on
-disk and another file of the same folder is resolved; the earlier line ending is still reported, which shows that
-the chain was not read again.
-
-**Null and empty arguments are rejected**: A null path throws `ArgumentNullException` and an empty path throws
-`ArgumentException`; a null chain delegate and a null evaluation delegate in the constructor each throw
-`ArgumentNullException` naming the argument.
-
-**Result rejects invalid combinations**: A result with both a line ending and an error, with a blank error, or with
-an undefined line ending throws `ArgumentException`, and an error message with a line break is stored on one line.
+**Null characters in the path and the file-system root are not specified**: No exception is thrown.

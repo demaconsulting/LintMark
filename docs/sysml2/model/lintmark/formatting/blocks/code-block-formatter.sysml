@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def CodeBlockFormatter {
-        doc /* Proposes the edits that write each code block in the canonical form, fenced with the configured fence character and never indented, with no trailing whitespace on the fence lines, and never changes the content of the code. */
+        doc /* Proposes the edits that write code blocks in the canonical form: fenced with the configured fence character (lengthened when the content would close it) and never indented at the top level, without changing the content of a block, and leaving an unclosed fence, a braced fence, and an indented block inside a container as written. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Formatting/Blocks/CodeBlockFormatter.cs");
@@ -12,31 +12,17 @@ package LintMark {
             requirementFiles = ("docs/reqstream/lintmark/formatting/blocks/code-block-formatter.yaml");
         }
 
-        // The formatter implements the block formatter contract, receives its context, and adds edits to the
-        // edit set of the document.
-        dependency CodeBlockFormatter to IBlockFormatter;
-        dependency CodeBlockFormatter to FormatContext;
+        // The formatter implements the block formatter contract, receives its context, uses the line
+        // arithmetic, the line ownership, and the front matter guard of the document formatter, and adds
+        // edits to the edit set.
+        dependency CodeBlockFormatter to DocumentFormatter;
         dependency CodeBlockFormatter to EditSet;
-        dependency CodeBlockFormatter to TextEdit;
 
-        // It reads the code block from the parsed document and its blocks, and the fence character it writes
-        // from the configuration.
-        dependency CodeBlockFormatter to ParsedDocument;
-        dependency CodeBlockFormatter to BlockInfo;
-        dependency CodeBlockFormatter to BlockKind;
-        dependency CodeBlockFormatter to SourceDocument;
-        dependency CodeBlockFormatter to LintMarkConfig;
-        dependency CodeBlockFormatter to FenceMarker;
-
-        // Each edit is tagged with a rule identifier from the rule catalog, and the fenced and indented code
-        // nodes come from the Markdown parser library.
-        dependency CodeBlockFormatter to RuleCatalog;
+        // It reads the block from the parsed document and the Markdown parser library, the fence character
+        // from the configuration, and tags each edit with a rule identifier from the rule catalog.
+        dependency CodeBlockFormatter to DocumentParser;
         dependency CodeBlockFormatter to Markdig;
-
-        // The line arithmetic and line ownership shared with the document formatter, and the guard against
-        // creating front matter.
-        dependency CodeBlockFormatter to LineLayout;
-        dependency CodeBlockFormatter to LineOwnership;
-        dependency CodeBlockFormatter to FrontMatterGuard;
+        dependency CodeBlockFormatter to LintMarkConfig;
+        dependency CodeBlockFormatter to RuleCatalog;
     }
 }

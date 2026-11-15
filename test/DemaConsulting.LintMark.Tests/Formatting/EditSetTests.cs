@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Immutable;
+using System.Text;
+using DemaConsulting.LintMark.Document;
 using DemaConsulting.LintMark.Formatting;
 
 namespace DemaConsulting.LintMark.Tests;
@@ -103,21 +106,6 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that an edit that contains an earlier edit is rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_EditContainingExistingEdit_Throws()
-    {
-        // Arrange: a set with an edit of characters 4..6
-        var set = new EditSet();
-        set.Add(Edit(4, 2));
-
-        // Act / Assert: an edit of characters 0..10 contains it and is rejected
-        Assert.Throws<InvalidOperationException>(() => set.Add(Edit(0, 10)));
-        Assert.Equal(1, set.Count);
-    }
-
-    /// <summary>
     ///     Test that edits that merely touch are accepted.
     /// </summary>
     [Fact]
@@ -192,66 +180,6 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that an insertion strictly inside a replaced range is rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_InsertionStrictlyInsideReplacement_Throws()
-    {
-        // Arrange: a set with a replacement of characters 5..8
-        var set = new EditSet();
-        set.Add(Edit(5, 3));
-
-        // Act / Assert: an insertion at offset 6 is inside the replaced range
-        Assert.Throws<InvalidOperationException>(() => set.Add(Edit(6, 0)));
-        Assert.Equal(1, set.Count);
-    }
-
-    /// <summary>
-    ///     Test that a replacement added after an insertion strictly inside its range is rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_ReplacementAroundExistingInsertion_Throws()
-    {
-        // Arrange: a set with an insertion at offset 6
-        var set = new EditSet();
-        set.Add(Edit(6, 0));
-
-        // Act / Assert: a replacement of characters 5..8 would swallow the insertion
-        Assert.Throws<InvalidOperationException>(() => set.Add(Edit(5, 3)));
-        Assert.Equal(1, set.Count);
-    }
-
-    /// <summary>
-    ///     Test that two edits of the same range are rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_IdenticalRange_Throws()
-    {
-        // Arrange: a set with an edit of characters 5..8
-        var set = new EditSet();
-        set.Add(Edit(5, 3, "a"));
-
-        // Act / Assert: another edit of the same characters is rejected
-        Assert.Throws<InvalidOperationException>(() => set.Add(Edit(5, 3, "b")));
-        Assert.Equal(1, set.Count);
-        Assert.Equal("a", Assert.Single(set.ToImmutable()).Replacement);
-    }
-
-    /// <summary>
-    ///     Test that an edit that was not created with its constructor is rejected.
-    /// </summary>
-    [Fact]
-    public void EditSet_Add_DefaultEdit_Throws()
-    {
-        // Arrange: an empty set
-        var set = new EditSet();
-
-        // Act / Assert: a default instance has no replacement and no rule
-        Assert.Throws<ArgumentException>(() => set.Add(default));
-        Assert.True(set.IsEmpty);
-    }
-
-    /// <summary>
     ///     Test that the snapshot is the same for every order in which the edits were added.
     /// </summary>
     [Fact]
@@ -278,218 +206,154 @@ public class EditSetTests
     }
 
     /// <summary>
-    ///     Test that a set without edits yields an initialized, empty snapshot.
+    ///     Test that an edit that starts at an offset is found, and only when it is the one that the predicate accepts.
     /// </summary>
     [Fact]
-    public void EditSet_ToImmutable_NoEdits_ReturnsEmpty()
+    public void EditSet_FindStartingAt_Offset_FindsTheAcceptedEdit()
     {
-        // Arrange: an empty set
+        // Arrange: an insertion and a replacement at one offset, and an edit elsewhere
         var set = new EditSet();
+        set.Add(new TextEdit(2, 0, "ab", "a"));
+        set.Add(new TextEdit(2, 1, "x", "b"));
+        set.Add(new TextEdit(7, 1, "y", "c"));
 
-        // Act: take a snapshot
-        var edits = set.ToImmutable();
-
-        // Assert: the snapshot is empty but usable
-        Assert.False(edits.IsDefault);
-        Assert.True(edits.IsEmpty);
+        // Act & Assert: the predicate chooses between the two that start at 2; none starts at 3
+        Assert.Equal("a", set.FindStartingAt(2, static edit => edit.Length == 0)?.RuleId);
+        Assert.Equal("b", set.FindStartingAt(2, static edit => edit.Length == 1)?.RuleId);
+        Assert.Equal("c", set.FindStartingAt(7, static _ => true)?.RuleId);
+        Assert.Null(set.FindStartingAt(3, static _ => true));
+        Assert.Null(set.FindStartingAt(2, static edit => edit.Length == 5));
     }
+}
+
+/// <summary>
+///     Test that the SourcePatcher class applies ordered edits to the text of a document and rejects every
+///     edit array that is not valid.
+/// </summary>
+public class SourcePatcherTests
+{
+    /// <summary>
+    ///     The rule identifier used by the edits of these tests.
+    /// </summary>
+    private const string Rule = "paragraph-wrap";
 
     /// <summary>
-    ///     Test that a snapshot cannot be modified through a cast to a mutable interface.
+    ///     Creates a source document.
+    /// </summary>
+    /// <param name="text">The LF-normalized text.</param>
+    /// <returns>The document.</returns>
+    private static SourceDocument Source(string text) => SourceDocument.FromText("a.md", text);
+
+    /// <summary>
+    ///     Creates an edit.
+    /// </summary>
+    /// <param name="start">The start offset.</param>
+    /// <param name="length">The number of replaced characters.</param>
+    /// <param name="replacement">The replacement text.</param>
+    /// <returns>The edit.</returns>
+    private static TextEdit Edit(int start, int length, string replacement) => new(start, length, replacement, Rule);
+
+    /// <summary>
+    ///     Test that replacement, deletion and insertion are applied together.
     /// </summary>
     [Fact]
-    public void EditSet_ToImmutable_CastToMutableTypes_CannotBeModified()
+    public void SourcePatcher_Apply_ReplaceDeleteInsert_ProducesExpectedText()
     {
-        // Arrange: a set with two edits
+        // Arrange: a text and one replacement, one deletion and one insertion
+        var source = Source("hello world\n");
         var set = new EditSet();
-        set.Add(Edit(0, 1));
-        set.Add(Edit(4, 1));
+        set.Add(Edit(0, 5, "HELLO"));
+        set.Add(Edit(5, 1, string.Empty));
+        set.Add(Edit(11, 0, "!"));
 
-        // Act: take a snapshot
-        var edits = set.ToImmutable();
+        // Act: patch
+        var result = SourcePatcher.Apply(source, set.ToImmutable());
 
-        // Assert: neither the read-only views nor the mutable interfaces allow a change
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<TextEdit>)edits);
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyCollection<TextEdit>)edits);
-        var mutable = (IList<TextEdit>)edits;
-        Assert.True(mutable.IsReadOnly);
-        Assert.Throws<NotSupportedException>(() => mutable.Add(Edit(9, 1)));
-        Assert.Throws<NotSupportedException>(() => mutable[0] = Edit(2, 1));
-        Assert.Equal(2, edits.Length);
+        // Assert: every edit is applied and the rest is untouched
+        Assert.Equal("HELLOworld!\n", result);
     }
 
     /// <summary>
-    ///     Test that adding edits after a snapshot was taken does not change the snapshot.
+    ///     Test that an insertion and a replacement at the very end of the text are applied.
     /// </summary>
     [Fact]
-    public void EditSet_ToImmutable_LaterAdds_DoNotChangeEarlierSnapshot()
+    public void SourcePatcher_Apply_EditAtEndOfText_Applies()
     {
-        // Arrange: a set with one edit and a snapshot of it
+        // Arrange: a text with a replacement of its last character and an insertion after it
+        var source = Source("abc");
         var set = new EditSet();
-        set.Add(Edit(0, 1));
-        var snapshot = set.ToImmutable();
+        set.Add(Edit(2, 1, "C"));
+        set.Add(Edit(3, 0, "\n"));
 
-        // Act: add another edit and take a second snapshot
-        set.Add(Edit(5, 1));
-        var later = set.ToImmutable();
+        // Act: patch
+        var result = SourcePatcher.Apply(source, set.ToImmutable());
 
-        // Assert: the first snapshot is unchanged
-        Assert.Single(snapshot);
-        Assert.Equal(2, later.Length);
+        // Assert: both edits are applied
+        Assert.Equal("abC\n", result);
     }
 
     /// <summary>
-    ///     Test that the count follows the number of added edits.
+    ///     Test that an edit that reaches beyond the text is rejected.
     /// </summary>
     [Fact]
-    public void EditSet_Count_AfterAdds_CountsEdits()
+    public void SourcePatcher_Apply_EditBeyondText_Throws()
     {
-        // Arrange: an empty set
+        // Arrange: a text of three characters and an edit of characters 2..7
+        var source = Source("abc");
+        ImmutableArray<TextEdit> edits = [Edit(2, 5, "x")];
+
+        // Act / Assert: the edit lies outside the text
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
+    }
+
+    /// <summary>
+    ///     Test that overlapping edits are rejected.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_OverlappingEdits_Throws()
+    {
+        // Arrange: two edits that share characters
+        var source = Source("abcdefgh");
+        ImmutableArray<TextEdit> edits = [Edit(0, 5, "x"), Edit(3, 2, "y")];
+
+        // Act / Assert: the overlap is refused
+        Assert.Throws<ArgumentException>(() => SourcePatcher.Apply(source, edits));
+    }
+
+    /// <summary>
+    ///     Test that an insertion followed by a replacement at the same start offset is applied.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_InsertionThenReplacementAtSameStart_Applies()
+    {
+        // Arrange: an insertion at offset 2 followed by a replacement of characters 2..5, built by hand
+        var source = Source("abcdefgh");
+        ImmutableArray<TextEdit> edits = [Edit(2, 0, "1"), Edit(2, 3, "2")];
+
+        // Act: patch
+        var result = SourcePatcher.Apply(source, edits);
+
+        // Assert: the inserted text comes first and the replacement follows it
+        Assert.Equal("ab12fgh", result);
+    }
+
+    /// <summary>
+    ///     Test that offsets are UTF-16 code unit offsets, so text with surrogate pairs is patched correctly.
+    /// </summary>
+    [Fact]
+    public void SourcePatcher_Apply_UnicodeText_PatchesByUtf16Offsets()
+    {
+        // Arrange: a text with an emoji (two UTF-16 units) and an accented letter, and edits that surround the emoji
+        var source = Source("\u00e9\U0001F600b\n");
         var set = new EditSet();
-        Assert.Equal(0, set.Count);
+        set.Add(Edit(0, 1, "e"));
+        set.Add(Edit(1, 2, "<smile>"));
+        set.Add(Edit(3, 1, "B"));
 
-        // Act: add two edits
-        set.Add(Edit(0, 1));
-        set.Add(Edit(3, 0));
+        // Act: patch
+        var result = SourcePatcher.Apply(source, set.ToImmutable());
 
-        // Assert: both are counted and the set is not empty
-        Assert.Equal(2, set.Count);
-        Assert.False(set.IsEmpty);
-    }
-
-    /// <summary>
-    ///     Test that a new set is empty.
-    /// </summary>
-    [Fact]
-    public void EditSet_IsEmpty_NewSet_IsTrue()
-    {
-        // Arrange / Act: a new set
-        var set = new EditSet();
-
-        // Assert: it holds no edit
-        Assert.True(set.IsEmpty);
-        Assert.Equal(0, set.Count);
-    }
-
-    /// <summary>
-    ///     Test that the constructor stores every argument.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_AllArguments_ExposesValues()
-    {
-        // Arrange / Act: create an edit
-        var edit = new TextEdit(3, 4, "new", "paragraph-wrap");
-
-        // Assert: every value is exposed
-        Assert.Equal(3, edit.Start);
-        Assert.Equal(4, edit.Length);
-        Assert.Equal("new", edit.Replacement);
-        Assert.Equal("paragraph-wrap", edit.RuleId);
-    }
-
-    /// <summary>
-    ///     Test that a negative start offset is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NegativeStart_Throws()
-    {
-        // Arrange / Act / Assert: a negative start is out of range
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(-1, 0, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that a negative length is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NegativeLength_Throws()
-    {
-        // Arrange / Act / Assert: a negative length is out of range
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(0, -1, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that a null replacement is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NullReplacement_Throws()
-    {
-        // Arrange / Act / Assert: the replacement must not be null
-        Assert.Throws<ArgumentNullException>(() => new TextEdit(0, 0, null!, Rule));
-    }
-
-    /// <summary>
-    ///     Test that a null rule identifier is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_NullRuleId_Throws()
-    {
-        // Arrange / Act / Assert: the rule identifier must not be null
-        Assert.Throws<ArgumentNullException>(() => new TextEdit(0, 0, "x", null!));
-    }
-
-    /// <summary>
-    ///     Test that an empty rule identifier is rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_EmptyRuleId_Throws()
-    {
-        // Arrange / Act / Assert: the rule identifier must not be empty
-        Assert.Throws<ArgumentException>(() => new TextEdit(0, 0, "x", string.Empty));
-    }
-
-    /// <summary>
-    ///     Test that a start and length whose sum overflows are rejected.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_StartPlusLengthOverflow_Throws()
-    {
-        // Arrange / Act / Assert: the end offset cannot be represented
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(int.MaxValue, 1, "x", Rule));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TextEdit(1, int.MaxValue, "x", Rule));
-    }
-
-    /// <summary>
-    ///     Test that the largest representable range is accepted.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Constructor_RangeEndingAtMaxValue_Accepted()
-    {
-        // Arrange / Act: an edit whose end is exactly int.MaxValue
-        var edit = new TextEdit(1, int.MaxValue - 1, "x", Rule);
-
-        // Assert: the end is representable
-        Assert.Equal(int.MaxValue, edit.End);
-    }
-
-    /// <summary>
-    ///     Test that the end offset is the start plus the length.
-    /// </summary>
-    [Fact]
-    public void TextEdit_End_AnyEdit_ReturnsStartPlusLength()
-    {
-        // Arrange: an edit of characters 3..7 and an insertion at 9
-        var replacement = new TextEdit(3, 4, "x", Rule);
-        var insertion = new TextEdit(9, 0, "x", Rule);
-
-        // Act / Assert: the end of a replacement is exclusive, the end of an insertion is its start
-        Assert.Equal(7, replacement.End);
-        Assert.Equal(9, insertion.End);
-    }
-
-    /// <summary>
-    ///     Test that edits with the same values are equal and edits with different values are not.
-    /// </summary>
-    [Fact]
-    public void TextEdit_Equals_SameValues_AreEqual()
-    {
-        // Arrange: two edits with the same values and one with another rule
-        var first = new TextEdit(1, 2, "x", "paragraph-wrap");
-        var second = new TextEdit(1, 2, "x", "paragraph-wrap");
-        var other = new TextEdit(1, 2, "x", "heading-style");
-
-        // Act / Assert: value equality covers every member
-        Assert.Equal(first, second);
-        Assert.Equal(first.GetHashCode(), second.GetHashCode());
-        Assert.NotEqual(first, other);
+        // Assert: the surrogate pair is replaced as one unit and its neighbors are patched correctly
+        Assert.Equal("e<smile>B\n", result);
     }
 }

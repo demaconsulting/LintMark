@@ -22,7 +22,7 @@ sections:
               - Context_Create_SilentFlag_SetsSilentTrue
               - Context_Create_LogFlag_OpensLogFile
               - Context_Create_UnknownArgument_ThrowsArgumentException
-              - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
+              - TextWidth_Of_AsciiText_ReturnsLength
               - Program_Run_WithVersionFlag_DisplaysVersionOnly
               - Validation_Run_WithSilentContext_PrintsSummary
           - id: LintMark-OTS-xUnit-Report
@@ -39,6 +39,6 @@ sections:
               - Context_Create_SilentFlag_SetsSilentTrue
               - Context_Create_LogFlag_OpensLogFile
               - Context_Create_UnknownArgument_ThrowsArgumentException
-              - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
+              - TextWidth_Of_AsciiText_ReturnsLength
               - Program_Run_WithVersionFlag_DisplaysVersionOnly
               - Validation_Run_WithSilentContext_PrintsSummary

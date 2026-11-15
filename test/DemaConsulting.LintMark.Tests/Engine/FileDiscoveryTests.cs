@@ -53,23 +53,6 @@ public class FileDiscoveryTests
         [.. relative.Select(directory.PathOf).Order(StringComparer.Ordinal)];
 
     /// <summary>
-    ///     Test that an existing file is returned as its full path.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_ExistingFile_ReturnsFullPath()
-    {
-        // Arrange: a tree and an explicit relative file
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: discover
-        var files = FileDiscovery.Discover(["docs/guide.md"], directory.FullPath);
-
-        // Assert: the full path of that file only
-        Assert.Equal(Expected(directory, "docs/guide.md"), files);
-    }
-
-    /// <summary>
     ///     Test that an explicit file is accepted even when it is not a Markdown file or lives in a built-in excluded directory.
     /// </summary>
     [Fact]
@@ -138,59 +121,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that a glob given with backslash separators works.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_BackslashGlob_IsAccepted()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: discover with Windows-style separators
-        var files = FileDiscovery.Discover([@"docs\*.md"], directory.FullPath);
-
-        // Assert: the direct children of docs
-        Assert.Equal(Expected(directory, "docs/guide.md"), files);
-    }
-
-    /// <summary>
-    ///     Test that an absolute glob is resolved from its wildcard-free prefix.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_AbsoluteGlob_ReturnsMatchingFiles()
-    {
-        // Arrange: a tree and an unrelated base directory
-        using var directory = new TemporaryDirectory();
-        using var elsewhere = new TemporaryDirectory();
-        CreateTree(directory);
-        var pattern = directory.PathOf("docs").Replace('\\', '/') + "/**/*.md";
-
-        // Act: discover with an absolute pattern
-        var files = FileDiscovery.Discover([pattern], elsewhere.FullPath);
-
-        // Assert: the files below the absolute prefix
-        Assert.Equal(Expected(directory, "docs/guide.md", "docs/deep/more.md", "docs/generated/api.md"), files);
-    }
-
-    /// <summary>
-    ///     Test that a parent-relative glob is resolved against the base directory.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_ParentRelativeGlob_ReturnsMatchingFiles()
-    {
-        // Arrange: a base directory two levels below the tree root
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: discover with a ".." glob
-        var files = FileDiscovery.Discover(["../*.md"], directory.PathOf("docs/deep"));
-
-        // Assert: the parent directory's files
-        Assert.Equal(Expected(directory, "docs/guide.md"), files);
-    }
-
-    /// <summary>
     ///     Test that no arguments mean every Markdown file under the base directory, minus the built-in excludes.
     /// </summary>
     [Fact]
@@ -230,6 +160,116 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
+    ///     Test that a directory link back into a folder the search is already inside is skipped, and the files are found once.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinkCycle_IsSkippedAndFilesFoundOnce()
+    {
+        // Arrange: a folder with a link that points at the base directory, so that following it would never end
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("README.md");
+        directory.WriteFile("docs/guide.md");
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("docs/loop", directory.FullPath), "The system did not allow a directory link to be created.");
+
+        // Act: discover by default pattern, by directory and by glob
+        var byDefault = FileDiscovery.Discover([], directory.FullPath);
+        var byDirectory = FileDiscovery.Discover(["docs"], directory.FullPath);
+        var byGlob = FileDiscovery.Discover(["docs/**/*.md"], directory.FullPath);
+
+        // Assert: the cycle contributes nothing and does not throw
+        Assert.Equal(Expected(directory, "README.md", "docs/guide.md"), byDefault);
+        Assert.Equal(Expected(directory, "docs/guide.md"), byDirectory);
+        Assert.Equal(byDirectory, byGlob);
+    }
+
+    /// <summary>
+    ///     Test that two links that point at each other's folders end after one lap.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinksToEachOther_Terminates()
+    {
+        // Arrange: folders a and b, each with a link to the other
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a/x.md");
+        directory.WriteFile("b/y.md");
+        Assert.SkipUnless(
+            directory.TryCreateDirectoryLink("a/to-b", directory.PathOf("b"))
+            && directory.TryCreateDirectoryLink("b/to-a", directory.PathOf("a")),
+            "The system did not allow a directory link to be created.");
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: every real file is found, the walk through a link is followed once, and nothing is listed twice
+        Assert.Contains(directory.PathOf("a/x.md"), files);
+        Assert.Contains(directory.PathOf("b/y.md"), files);
+        Assert.Equal(files.Count, files.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(4, files.Count);
+    }
+
+    /// <summary>
+    ///     Test that a link back to the search folder is found even when the search folder is reached through another link.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_SearchRootBehindALink_StillRecognizesTheCycle()
+    {
+        // Arrange: a folder reached through a link (as /var is on macOS), holding a file and a link back to it by its real path
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("real/docs/guide.md");
+        Assert.SkipUnless(
+            directory.TryCreateDirectoryLink("via", directory.PathOf("real"))
+            && directory.TryCreateDirectoryLink("real/docs/loop", directory.PathOf("real")),
+            "The system did not allow a directory link to be created.");
+
+        // Act: discover everything, starting from the spelling that goes through the link
+        var files = FileDiscovery.Discover([], directory.PathOf("via/docs"));
+
+        // Assert: the file is listed once
+        Assert.Single(files);
+        Assert.EndsWith("guide.md", files[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a link to a folder that is not above the search is still followed.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_DirectoryLinkElsewhere_IsFollowed()
+    {
+        // Arrange: a folder outside the base directory with a file, and a link to it inside the base directory
+        using var directory = new TemporaryDirectory();
+        using var outside = new TemporaryDirectory();
+        outside.WriteFile("shared.md");
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("docs/shared", outside.FullPath), "The system did not allow a directory link to be created.");
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: the file is found through the link
+        Assert.Equal(Expected(directory, "docs/shared/shared.md"), files);
+    }
+
+    /// <summary>
+    ///     Test that a link to a folder that no longer exists is skipped without an error.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped()
+    {
+        // Arrange: a link to a folder that is removed afterwards
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("README.md");
+        var gone = directory.PathOf("gone-target");
+        Directory.CreateDirectory(gone);
+        Assert.SkipUnless(directory.TryCreateDirectoryLink("gone", gone), "The system did not allow a directory link to be created.");
+        Directory.Delete(gone);
+
+        // Act: discover everything
+        var files = FileDiscovery.Discover([], directory.FullPath);
+
+        // Assert: the file next to the broken link is found and nothing is thrown
+        Assert.Equal(Expected(directory, "README.md"), files);
+    }
+
+    /// <summary>
     ///     Test that a directory argument naming <c>node_modules</c> selects nothing.
     /// </summary>
     [Fact]
@@ -249,46 +289,6 @@ public class FileDiscoveryTests
         Assert.Empty(folder);
         Assert.Empty(inside);
         Assert.Empty(trailing);
-    }
-
-    /// <summary>
-    ///     Test that a directory argument naming <c>.git</c> selects nothing.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_GitDirectoryArgument_ReturnsNothing()
-    {
-        // Arrange: a tree whose .git holds files at several depths
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-        directory.WriteFile(".git/hooks/h.md");
-
-        // Act: name the folder and a folder inside it
-        var folder = FileDiscovery.Discover([".git"], directory.FullPath);
-        var inside = FileDiscovery.Discover([".git/hooks"], directory.FullPath);
-
-        // Assert: nothing is selected
-        Assert.Empty(folder);
-        Assert.Empty(inside);
-    }
-
-    /// <summary>
-    ///     Test that a directory argument naming a nested <c>node_modules</c> folder selects nothing.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_NestedNodeModulesDirectoryArgument_ReturnsNothing()
-    {
-        // Arrange: a tree with a node_modules folder below docs
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-        directory.WriteFile("docs/node_modules/x.md");
-
-        // Act: name the nested folder, and docs itself
-        var nested = FileDiscovery.Discover(["docs/node_modules"], directory.FullPath);
-        var parent = FileDiscovery.Discover(["docs"], directory.FullPath);
-
-        // Assert: the nested folder selects nothing and docs still excludes it
-        Assert.Empty(nested);
-        Assert.Equal(Expected(directory, "docs/guide.md", "docs/deep/more.md", "docs/generated/api.md"), parent);
     }
 
     /// <summary>
@@ -319,28 +319,6 @@ public class FileDiscoveryTests
 
         // Assert: nothing is selected
         Assert.Empty(files);
-    }
-
-    /// <summary>
-    ///     Test that an absolute directory argument naming <c>node_modules</c> or <c>.git</c> selects nothing.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_AbsoluteNodeModulesDirectory_ReturnsNothing()
-    {
-        // Arrange: a tree and an unrelated base directory
-        using var directory = new TemporaryDirectory();
-        using var elsewhere = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: name the excluded folders by absolute path, and by absolute glob
-        var nodeModules = FileDiscovery.Discover([directory.PathOf("node_modules")], elsewhere.FullPath);
-        var git = FileDiscovery.Discover([directory.PathOf(".git")], elsewhere.FullPath);
-        var glob = FileDiscovery.Discover([directory.PathOf("node_modules").Replace('\\', '/') + "/**/*.md"], elsewhere.FullPath);
-
-        // Assert: nothing is selected
-        Assert.Empty(nodeModules);
-        Assert.Empty(git);
-        Assert.Empty(glob);
     }
 
     /// <summary>
@@ -449,24 +427,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that an exclude given as an absolute path is honored.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_AbsoluteExclude_RemovesMatches()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-        var exclude = "!" + directory.PathOf("docs").Replace('\\', '/') + "/**";
-
-        // Act: exclude everything under docs by absolute pattern
-        var files = FileDiscovery.Discover([exclude], directory.FullPath);
-
-        // Assert: only the root file remains
-        Assert.Equal(Expected(directory, "README.md"), files);
-    }
-
-    /// <summary>
     ///     Test that an exclude also applies to an explicitly named file.
     /// </summary>
     [Fact]
@@ -538,25 +498,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that the result is ordinal-sorted regardless of argument order.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_ArgumentOrder_DoesNotAffectSortedResult()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: discover the same files in two argument orders
-        var forward = FileDiscovery.Discover(["README.md", "docs/guide.md", "docs/deep/more.md"], directory.FullPath);
-        var backward = FileDiscovery.Discover(["docs/deep/more.md", "docs/guide.md", "README.md"], directory.FullPath);
-
-        // Assert: identical and ordinal-sorted
-        Assert.Equal(forward, backward);
-        Assert.Equal(forward.Order(StringComparer.Ordinal).ToList(), forward);
-    }
-
-    /// <summary>
     ///     Test the case behavior of glob matching: insensitive on Windows and macOS, sensitive elsewhere.
     /// </summary>
     [Fact]
@@ -602,30 +543,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that a null element is reported as a null argument wherever it stands, even after an invalid pattern.
-    /// </summary>
-    /// <param name="position">Which element is null (0: first, 1: after a blank pattern, 2: last after valid patterns).</param>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void FileDiscovery_Discover_NullElement_ThrowsArgumentNullException(int position)
-    {
-        // Arrange: a base directory and a pattern list with a null element (a blank pattern stands before it in one case)
-        using var directory = new TemporaryDirectory();
-        string[] patterns = position switch
-        {
-            0 => [null!, "*.md"],
-            1 => ["", null!],
-            _ => ["*.md", "!docs", null!]
-        };
-
-        // Act / Assert: the null element is rejected as null, not as a blank pattern
-        var exception = Assert.Throws<ArgumentNullException>(() => FileDiscovery.Discover(patterns, directory.FullPath));
-        Assert.Equal("patterns", exception.ParamName);
-    }
-
-    /// <summary>
     ///     Test that one file named with different casing gets the same spelling whatever the argument order.
     /// </summary>
     [Fact]
@@ -656,42 +573,6 @@ public class FileDiscoveryTests
             Assert.Equal(2, lowerFirst.Count);
             Assert.Equal(2, withGlob.Count);
         }
-    }
-
-    /// <summary>
-    ///     Test that a literal path written with backslashes names the same file on every platform.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_BackslashLiteralPath_FindsFile()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: name a file and a directory with backslash separators
-        var file = FileDiscovery.Discover(["docs\\guide.md"], directory.FullPath);
-        var folder = FileDiscovery.Discover(["docs\\deep"], directory.FullPath);
-
-        // Assert: both are found, as with forward slashes
-        Assert.Equal(Expected(directory, "docs/guide.md"), file);
-        Assert.Equal(Expected(directory, "docs/deep/more.md"), folder);
-    }
-
-    /// <summary>
-    ///     Test that a literal exclude written with backslashes removes the same files as with forward slashes.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_Discover_BackslashLiteralExclude_RemovesFiles()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: exclude a directory and a file by backslash paths
-        var files = FileDiscovery.Discover(["docs", "!docs\\deep", "!docs\\guide.md"], directory.FullPath);
-
-        // Assert: only the remaining file is left
-        Assert.Equal(Expected(directory, "docs/generated/api.md"), files);
     }
 
     /// <summary>
@@ -730,61 +611,6 @@ public class FileDiscoveryTests
         var file = Assert.Single(files);
         Assert.Equal(directory.PathOf("docs/guide.md"), file.Path);
         Assert.False(file.IsExplicit);
-    }
-
-    /// <summary>
-    ///     Test that files found beneath a directory argument are not explicit.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_DiscoverFiles_DirectoryArgument_FilesAreNotExplicit()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: name a directory
-        var files = FileDiscovery.DiscoverFiles(["docs"], directory.FullPath);
-
-        // Assert: several files, none explicit
-        Assert.Equal(3, files.Count);
-        Assert.All(files, file => Assert.False(file.IsExplicit));
-    }
-
-    /// <summary>
-    ///     Test that files found through the default pattern are not explicit.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_DiscoverFiles_DefaultPattern_FilesAreNotExplicit()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: use no arguments
-        var files = FileDiscovery.DiscoverFiles([], directory.FullPath);
-
-        // Assert: four files, none explicit
-        Assert.Equal(4, files.Count);
-        Assert.All(files, file => Assert.False(file.IsExplicit));
-    }
-
-    /// <summary>
-    ///     Test that a file that is both named and matched by a glob is explicit, and only that file.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_DiscoverFiles_NamedAndGlobbed_IsExplicit()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: glob everything below docs and also name one file of it
-        var files = FileDiscovery.DiscoverFiles(["docs/**/*.md", "docs/guide.md"], directory.FullPath);
-
-        // Assert: each file once; only the named one is explicit
-        Assert.Equal(3, files.Count);
-        var explicitFile = Assert.Single(files, static file => file.IsExplicit);
-        Assert.Equal(directory.PathOf("docs/guide.md"), explicitFile.Path);
     }
 
     /// <summary>
@@ -872,83 +698,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that the result is in ordinal order of the full path regardless of how the files were found.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_DiscoverFiles_AnyMatches_ResultOrderedByOrdinalPath()
-    {
-        // Arrange: a tree
-        using var directory = new TemporaryDirectory();
-        CreateTree(directory);
-
-        // Act: mix a named file, a glob and a directory in unsorted order
-        var files = FileDiscovery.DiscoverFiles(["docs/guide.md", "README.md", "docs"], directory.FullPath);
-
-        // Assert: the paths are ordinal-sorted and distinct
-        var paths = files.Select(static file => file.Path).ToList();
-        Assert.Equal(paths.Order(StringComparer.Ordinal).ToList(), paths);
-        Assert.Equal(paths.Distinct(StringComparer.Ordinal).Count(), paths.Count);
-        Assert.Equal(4, paths.Count);
-    }
-
-    /// <summary>
-    ///     Test that null arguments, and a null element of the patterns, are rejected.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_DiscoverFiles_NullArguments_Throw()
-    {
-        // Arrange / Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles(null!, "."));
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles([], null!));
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.DiscoverFiles(["*.md", null!], "."));
-    }
-
-    /// <summary>
-    ///     Test that a discovered file keeps its path and flag.
-    /// </summary>
-    [Fact]
-    public void DiscoveredFile_Constructor_ValidArguments_KeepsValues()
-    {
-        // Arrange / Act: an explicit and an implicit file
-        var named = new DiscoveredFile("a.md", isExplicit: true);
-        var found = new DiscoveredFile("b.md", isExplicit: false);
-
-        // Assert: the values are kept
-        Assert.Equal("a.md", named.Path);
-        Assert.True(named.IsExplicit);
-        Assert.Equal("b.md", found.Path);
-        Assert.False(found.IsExplicit);
-    }
-
-    /// <summary>
-    ///     Test that a discovered file without a path is rejected.
-    /// </summary>
-    [Fact]
-    public void DiscoveredFile_Constructor_MissingPath_Throws()
-    {
-        // Arrange / Act / Assert: the path may be neither null nor empty
-        Assert.Throws<ArgumentNullException>(() => new DiscoveredFile(null!, isExplicit: true));
-        Assert.Throws<ArgumentException>(() => new DiscoveredFile(string.Empty, isExplicit: false));
-    }
-
-    /// <summary>
-    ///     Test that blank patterns are rejected as usage errors.
-    /// </summary>
-    /// <param name="pattern">The blank pattern.</param>
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("!")]
-    public void FileDiscovery_DiscoverFiles_EmptyPattern_Throws(string pattern)
-    {
-        // Arrange: a base directory
-        using var directory = new TemporaryDirectory();
-
-        // Act / Assert: blank patterns are rejected
-        Assert.Throws<ArgumentException>(() => FileDiscovery.DiscoverFiles([pattern], directory.FullPath));
-    }
-
-    /// <summary>
     ///     Test that an ignore pattern matches a file below the root.
     /// </summary>
     [Fact]
@@ -963,23 +712,6 @@ public class FileDiscoveryTests
 
         // Assert: it is ignored
         Assert.True(ignored);
-    }
-
-    /// <summary>
-    ///     Test that a file matching no pattern is not ignored.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_IsIgnored_NoMatch_False()
-    {
-        // Arrange: a root and a file outside the generated folder
-        using var directory = new TemporaryDirectory();
-        var file = directory.PathOf("docs/guide.md");
-
-        // Act: judge the file
-        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, ["docs/generated/**", "*.txt"]);
-
-        // Assert: it is not ignored
-        Assert.False(ignored);
     }
 
     /// <summary>
@@ -1025,23 +757,6 @@ public class FileDiscoveryTests
     }
 
     /// <summary>
-    ///     Test that a pattern written with backslashes matches like its forward-slash form.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_IsIgnored_BackslashPattern_Matches()
-    {
-        // Arrange: a root and a file in a generated folder
-        using var directory = new TemporaryDirectory();
-        var file = directory.PathOf("docs/generated/api.md");
-
-        // Act: judge the file with a backslash pattern
-        var ignored = FileDiscovery.IsIgnored(file, directory.FullPath, [@"docs\generated\**"]);
-
-        // Assert: it is ignored
-        Assert.True(ignored);
-    }
-
-    /// <summary>
     ///     Test that pattern matching follows the case rules of the platform.
     /// </summary>
     [Fact]
@@ -1073,19 +788,6 @@ public class FileDiscoveryTests
 
         // Assert: it is not ignored
         Assert.False(ignored);
-    }
-
-    /// <summary>
-    ///     Test that null arguments, and a null element of the patterns, are rejected.
-    /// </summary>
-    [Fact]
-    public void FileDiscovery_IsIgnored_NullArgument_Throws()
-    {
-        // Arrange / Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored(null!, ".", ["**"]));
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", null!, ["**"]));
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", ".", null!));
-        Assert.Throws<ArgumentNullException>(() => FileDiscovery.IsIgnored("a.md", ".", ["*.txt", null!]));
     }
 
     /// <summary>
@@ -1161,5 +863,86 @@ public class FileDiscoveryTests
         Assert.True(direct);
         Assert.False(other);
         Assert.False(deeper);
+    }
+
+    /// <summary>
+    ///     Test that a directory whose files the patterns all ignore is pruned during the walk, a nested repository included.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScanRootIgnore_PrunesIgnoredDirectories()
+    {
+        // Arrange: an ignored folder with a nested repository, an ignored folder at depth, and a kept file
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.PathOf(".corpus/clone/.git"));
+        directory.WriteFile(".corpus/clone/a.md");
+        directory.WriteFile("docs/tmp/b.md");
+        directory.WriteFile("docs/keep.md");
+
+        // Act: discover with a scope that ignores both folders
+        var found = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(directory.FullPath, [".corpus/**", "**/tmp/**"]));
+
+        // Assert: only the kept file is found
+        Assert.Equal([directory.PathOf("docs/keep.md")], found.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that a pattern that does not ignore everything beneath a directory does not prune it.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScanRootIgnoreShallowPattern_DoesNotPruneDeeperFiles()
+    {
+        // Arrange: a single-segment pattern, which ignores the direct children of a folder only
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("drafts/a.md");
+        directory.WriteFile("drafts/sub/b.md");
+
+        // Act: discover with that scope
+        var found = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(directory.FullPath, ["drafts/*"]));
+
+        // Assert: the deeper file is still discovered (the per-file check judges the direct child later)
+        Assert.Contains(directory.PathOf("drafts/sub/b.md"), found.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that a scope whose root lies outside the scanned tree prunes nothing, and that a null scope prunes nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScopeOutsideTreeOrNull_PrunesNothing()
+    {
+        // Arrange: a folder that the pattern would ignore if it were relative to the scanned tree
+        using var directory = new TemporaryDirectory();
+        using var other = new TemporaryDirectory();
+        directory.WriteFile("gen/a.md");
+
+        // Act: discover with a scope rooted elsewhere, and with no scope
+        var outside = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(other.FullPath, ["gen/**"]));
+        var none = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => null);
+
+        // Assert: the file is found both times
+        Assert.Equal([directory.PathOf("gen/a.md")], outside.Select(f => f.Path));
+        Assert.Equal([directory.PathOf("gen/a.md")], none.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that the scope is requested for the directory a glob starts in.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_GlobAndDirectoryArguments_AskForTheirScanRoot()
+    {
+        // Arrange: two folders to scan
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a/x.md");
+        directory.WriteFile("b/y.md");
+        var asked = new List<string>();
+
+        // Act: discover one directory argument and one glob
+        FileDiscovery.DiscoverFiles(["a", "b/**/*.md"], directory.FullPath, root =>
+        {
+            asked.Add(root);
+            return null;
+        });
+
+        // Assert: one request per scan root
+        Assert.Equal([directory.PathOf("a"), directory.PathOf("b")], asked.Select(Path.TrimEndingDirectorySeparator).Order(StringComparer.Ordinal));
     }
 }

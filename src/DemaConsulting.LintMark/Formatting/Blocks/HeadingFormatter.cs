@@ -47,7 +47,7 @@ namespace DemaConsulting.LintMark.Formatting.Blocks;
 ///         are used only to tell plain text from code, and only after they have been matched to the line (see
 ///         the design): a heading with a tab in its text whose spans do not fit is left alone as a whole. Text that merely looks
 ///         like a heading but is a paragraph (<c>#Title</c> without a space) is not a heading to the parser and is
-///         never touched: adding the space would change how the document renders.
+///         never touched: adding the space would change how the document reads.
 ///     </para>
 ///     <para>
 ///         Thread safety: stateless; one instance serves every worker thread.
@@ -96,17 +96,12 @@ internal sealed class HeadingFormatter : IBlockFormatter
     /// <param name="block">The heading. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives the edits. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a heading.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a heading, not {block.Kind}.", nameof(block));
-        }
 
         var layout = new LineLayout(context.Document.Source);
         var heading = (HeadingBlock)block.Node!;

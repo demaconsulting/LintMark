@@ -1,90 +1,53 @@
 ## xUnit Verification
 
-This document provides the verification evidence for the xUnit OTS software item. Requirements
-for this OTS item are defined in the xUnit OTS Software Requirements document.
+This document provides the verification evidence for the xUnit OTS software item. Requirements for this OTS item
+are defined in the xUnit OTS Software Requirements document.
 
 ### Required Functionality
 
-xUnit v3 (xunit.v3 and xunit.runner.visualstudio) is the unit-testing framework used by the
-project. It discovers and runs all test methods and writes TRX result files that feed into coverage
-reporting and requirements traceability. Passing tests confirm the framework is functioning
-correctly.
+xUnit v3 (`xunit.v3` and `xunit.runner.visualstudio`) is the unit-testing framework used by the project. It
+discovers and runs all test methods and writes TRX result files that feed requirements traceability. Passing tests
+confirm that the framework is functioning correctly.
 
 ### Verification Approach
 
-xUnit is verified by self-validation evidence from the CI pipeline. Each scenario names a specific
-test method that xUnit must discover, execute, and record in a TRX result file. A passing pipeline
-run for all scenarios constitutes evidence that both requirements are satisfied.
+xUnit is verified by the self-evidence of the CI pipeline. Every test of the product, of the OTS test project, and
+of the development tools is discovered, executed, and recorded in a TRX result file by xUnit; ReqStream then
+consumes those files with `--enforce`. If xUnit failed to discover or execute tests, or wrote no results, the
+requirements would lose their test evidence and the build would fail. The scenarios below name representative tests
+that xUnit must discover, execute, and record.
 
 ### Test Scenarios
 
 #### Context_Create_NoArguments_ReturnsDefaultContext
 
-**Scenario**: xUnit discovers and runs this test; the test verifies Context default construction.
+**Scenario**: xUnit discovers and runs this test, which verifies default construction of the context.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
-
-#### Context_Create_VersionFlag_SetsVersionTrue
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that passing the --version flag
-sets the Version property to true.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
-
-#### Context_Create_SilentFlag_SetsSilentTrue
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that passing the --silent flag
-sets the Silent property to true.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
-
-#### Context_Create_LogFlag_OpensLogFile
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that passing the --log flag
-opens a log file.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
 
 #### Context_Create_UnknownArgument_ThrowsArgumentException
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that an unrecognized argument
-raises an exception.
+**Scenario**: xUnit discovers and runs this test, which verifies that an unrecognized argument raises an exception.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
-
-#### PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that SafePathCombine correctly
-joins valid path segments.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
 
 #### Program_Run_WithVersionFlag_DisplaysVersionOnly
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that the program prints only
-version information when invoked with the --version flag.
+**Scenario**: xUnit discovers and runs this test, which verifies that the program prints only the version for the
+version flag.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
 
 #### Validation_Run_WithSilentContext_PrintsSummary
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that Validation.Run prints a
-summary even when the context is configured for silent operation.
+**Scenario**: xUnit discovers and runs this test, which verifies that the validation prints its summary even when the
+context is silent.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `LintMark-OTS-xUnit-Execute`, `LintMark-OTS-xUnit-Report`.
+#### Theory rows are discovered and recorded
+
+**Scenario**: xUnit discovers and runs data-driven tests (for example the marker-check tests of the link
+refactoring options).
+
+**Expected**: Every data row is executed and recorded under the name of its test method in the TRX output.

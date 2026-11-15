@@ -107,3 +107,6 @@ versionmark-*.json
 # Agent report files
 AGENT_REPORT_*.md
 .agent-logs/
+
+# Verification corpus (fetched by tools/LintMark.Verify/fetch-corpus.ps1; never committed)
+.corpus/

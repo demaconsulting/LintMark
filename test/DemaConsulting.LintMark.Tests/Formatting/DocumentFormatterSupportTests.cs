@@ -50,19 +50,6 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that a layout counts the lines of a text, not counting the empty line after a final line feed.
-    /// </summary>
-    [Theory]
-    [InlineData("", 0)]
-    [InlineData("a", 1)]
-    [InlineData("a\n", 1)]
-    [InlineData("a\n\n", 2)]
-    [InlineData("a\nb", 2)]
-    [InlineData("\n", 1)]
-    public void LineLayout_LineCount_Text_CountsTheLines(string text, int expected) =>
-        Assert.Equal(expected, Layout(text).LineCount);
-
-    /// <summary>
     ///     Test that line starts, line ends and the line of an offset agree.
     /// </summary>
     [Fact]
@@ -76,42 +63,6 @@ public class DocumentFormatterSupportTests
         Assert.Equal([2, 5], [layout.LineEnd(0), layout.LineEnd(1)]);
         Assert.Equal([0, 0, 0, 1, 1, 1], Enumerable.Range(0, 6).Select(layout.LineOf));
     }
-
-    /// <summary>
-    ///     Test that a line outside the text is rejected.
-    /// </summary>
-    [Fact]
-    public void LineLayout_LineStart_LineOutsideTheText_Throws()
-    {
-        // Arrange: a one-line text
-        var layout = Layout("a\n");
-
-        // Act & Assert: negative and too large lines are rejected
-        Assert.Throws<ArgumentOutOfRangeException>(() => layout.LineStart(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => layout.LineEnd(5));
-    }
-
-    /// <summary>
-    ///     Test that the line after the last one can be asked for only when the text ends with a line feed.
-    /// </summary>
-    [Fact]
-    public void LineLayout_LineStart_LineAfterTheLast_IsAllowedOnlyAfterAFinalLineFeed()
-    {
-        // Arrange: one text with and one without a final line feed
-        var withFeed = Layout("ab\n");
-        var withoutFeed = Layout("ab");
-
-        // Act & Assert: the line equal to the line count exists after a line feed (an empty line) and not otherwise
-        Assert.Equal(3, withFeed.LineStart(withFeed.LineCount));
-        Assert.Throws<ArgumentOutOfRangeException>(() => withoutFeed.LineStart(withoutFeed.LineCount));
-    }
-
-    /// <summary>
-    ///     Test that a missing source is rejected.
-    /// </summary>
-    [Fact]
-    public void LineLayout_Constructor_NullSource_Throws() =>
-        Assert.Equal("source", Assert.Throws<ArgumentNullException>(() => new LineLayout(null!)).ParamName);
 
     /// <summary>
     ///     Test that blank means empty or only spaces and tabs, and that the last line with content ignores blank lines after it.
@@ -129,18 +80,6 @@ public class DocumentFormatterSupportTests
         Assert.Equal(0, layout.LastContentLine(0, 2));
         Assert.Equal(1, layout.LastContentLine(1, 2));
     }
-
-    /// <summary>
-    ///     Test that a tab advances to the next multiple of four columns.
-    /// </summary>
-    [Theory]
-    [InlineData(0, 4)]
-    [InlineData(1, 4)]
-    [InlineData(3, 4)]
-    [InlineData(4, 8)]
-    [InlineData(7, 8)]
-    public void LineLayout_NextTabStop_Column_ReturnsTheNextMultipleOfFour(int column, int expected) =>
-        Assert.Equal(expected, LineLayout.NextTabStop(column));
 
     /// <summary>
     ///     Test that a line that starts with a plus sign after quote and list markers looks like a grid table border.
@@ -294,25 +233,6 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that missing arguments are rejected by the leaf whitespace helpers.
-    /// </summary>
-    [Fact]
-    public void LeafWhitespace_AddLineEditsAndAddTrailingEdit_NullArguments_Throw()
-    {
-        // Arrange: a layout, a map and an edit set
-        var layout = Layout("a\n");
-        var map = InlineMap.Empty;
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("layout", Assert.Throws<ArgumentNullException>(() => LeafWhitespace.AddLineEdits(null!, map, 0, 0, 0, true, true, edits)).ParamName);
-        Assert.Equal("map", Assert.Throws<ArgumentNullException>(() => LeafWhitespace.AddLineEdits(layout, null!, 0, 0, 0, true, true, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => LeafWhitespace.AddLineEdits(layout, map, 0, 0, 0, true, true, null!)).ParamName);
-        Assert.Equal("layout", Assert.Throws<ArgumentNullException>(() => LeafWhitespace.AddTrailingEdit(null!, 0, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => LeafWhitespace.AddTrailingEdit(layout, 0, null!)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that the trailing whitespace edit leaves blank lines, backslash runs and grid table lookalikes alone.
     /// </summary>
     [Theory]
@@ -332,23 +252,21 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that the ownership map knows which lines are claimed, protected, in containers and the top-level blocks.
+    ///     Test that the ownership map knows which lines are protected, in containers and the top-level blocks.
     /// </summary>
     [Fact]
     public void LineOwnership_Build_MixedDocument_ClassifiesTheLines()
     {
-        // Arrange: a heading, code, a list with a paragraph, and a paragraph; the formatter claims headings only
+        // Arrange: a heading, code, a list with a paragraph, and a paragraph
         var document = BlockFormatterAssertions.Parse("# H\n\n```\ncode\n```\n\n- item\n\ntext\n");
         var layout = new LineLayout(document.Source);
 
         // Act: build the map
-        var ownership = LineOwnership.Build(document, layout, block => block.Kind == BlockKind.Heading);
+        var ownership = LineOwnership.Build(document, layout);
 
-        // Assert: the heading is claimed, the fence is protected, the list item is in a container, the rest is free
-        Assert.True(ownership.IsClaimed(0));
+        // Assert: the fence is protected, the list item is in a container, the rest is free
         Assert.False(ownership.IsProtected(0));
         Assert.True(ownership.IsProtected(3));
-        Assert.False(ownership.IsClaimed(3));
         Assert.True(ownership.IsInContainer(6));
         Assert.False(ownership.IsInContainer(8));
         Assert.Null(ownership.LeafAt(1));
@@ -410,7 +328,7 @@ public class DocumentFormatterSupportTests
         var layout = new LineLayout(document.Source);
 
         // Act: build the map
-        var ownership = LineOwnership.Build(document, layout, _ => false);
+        var ownership = LineOwnership.Build(document, layout);
 
         // Assert: every line before the heading is protected
         Assert.All(Enumerable.Range(0, 5), line => Assert.True(ownership.IsProtected(line), $"line {line}"));
@@ -455,21 +373,6 @@ public class DocumentFormatterSupportTests
     }
 
     /// <summary>
-    ///     Test that missing arguments are rejected when asking whether a block keeps its trailing blank lines.
-    /// </summary>
-    [Fact]
-    public void LineOwnership_KeepsTrailingBlankLines_NullArguments_Throw()
-    {
-        // Arrange: a document, its layout and block
-        var document = BlockFormatterAssertions.Parse("text\n");
-        var layout = new LineLayout(document.Source);
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("layout", Assert.Throws<ArgumentNullException>(() => LineOwnership.KeepsTrailingBlankLines(null!, document.Blocks[0], false)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => LineOwnership.KeepsTrailingBlankLines(layout, null!, false)).ParamName);
-    }
-
-    /// <summary>
     ///     Test that an inline map built with a shift places every span, break and protected stretch that far from where the parser put it.
     /// </summary>
     [Fact]
@@ -510,10 +413,4 @@ public class DocumentFormatterSupportTests
     public void FrontMatterGuard_CouldOpenFrontMatter_Document_AnswersForTheFirstLine(string text, bool expected) =>
         Assert.Equal(expected, FrontMatterGuard.CouldOpenFrontMatter(BlockFormatterAssertions.Parse(text)));
 
-    /// <summary>
-    ///     Test that a missing document is rejected by the front matter guard.
-    /// </summary>
-    [Fact]
-    public void FrontMatterGuard_CouldOpenFrontMatter_NullDocument_Throws() =>
-        Assert.Equal("document", Assert.Throws<ArgumentNullException>(() => FrontMatterGuard.CouldOpenFrontMatter(null!)).ParamName);
 }

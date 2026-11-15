@@ -98,24 +98,10 @@ package LintMark {
     }
 
     part def LintMarkConfig {
-        doc /* The complete, validated, deeply immutable set of settings that governs how one Markdown file is linted and formatted; its defaults come from the rule catalog (also documents the LinkRefactorOptions type and the setting enumerations). */
+        doc /* The complete, validated, deeply immutable set of settings that governs how one Markdown file is linted and formatted; its defaults come from the rule catalog (also documents the LinkRefactorOptions type and the twelve setting enumerations). */
 
         metadata info : SoftwareInfo {
-            sourceFiles = (
-                "src/DemaConsulting.LintMark/Configuration/LintMarkConfig.cs",
-                "src/DemaConsulting.LintMark/Configuration/LinkRefactorOptions.cs",
-                "src/DemaConsulting.LintMark/Configuration/WrapMode.cs",
-                "src/DemaConsulting.LintMark/Configuration/HeadingStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/BulletMarker.cs",
-                "src/DemaConsulting.LintMark/Configuration/OrderedStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/EmphasisMarker.cs",
-                "src/DemaConsulting.LintMark/Configuration/FenceMarker.cs",
-                "src/DemaConsulting.LintMark/Configuration/CodeBlockStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/HardBreakStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/ThematicBreakStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/TableStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/BareUrlStyle.cs",
-                "src/DemaConsulting.LintMark/Configuration/TrailingWhitespaceStyle.cs");
+            sourceFiles = ("src/DemaConsulting.LintMark/Configuration/LintMarkConfig.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Configuration/LintMarkConfigTests.cs");
             designFiles = ("docs/design/lintmark/configuration/lint-mark-config.md");
             verificationFiles = ("docs/verification/lintmark/configuration/lint-mark-config.md");
@@ -149,25 +135,10 @@ package LintMark {
         attribute rules_value : Boolean [0..*];
         attribute ignore : String [0..*];
 
-        // Every enumerated setting, the link conversion options and the line ending type are used
-        // directly as the types of the settings; there is no behavioral call.
-        dependency LintMarkConfig to LineEnding;
-        dependency LintMarkConfig to WrapMode;
-        dependency LintMarkConfig to HeadingStyle;
-        dependency LintMarkConfig to BulletMarker;
-        dependency LintMarkConfig to OrderedStyle;
-        dependency LintMarkConfig to EmphasisMarker;
-        dependency LintMarkConfig to FenceMarker;
-        dependency LintMarkConfig to CodeBlockStyle;
-        dependency LintMarkConfig to HardBreakStyle;
-        dependency LintMarkConfig to ThematicBreakStyle;
-        dependency LintMarkConfig to TableStyle;
-        dependency LintMarkConfig to BareUrlStyle;
-        dependency LintMarkConfig to TrailingWhitespaceStyle;
-        dependency LintMarkConfig to LinkRefactorOptions;
+        // The line ending setting uses the line ending type of the document model.
+        dependency LintMarkConfig to SourceDocument;
 
-        // The default enabled state of every rule and the complete set of configurable rule ids come from
-        // the rule catalog, which the rules map is checked against.
+        // The default enabled state of every rule comes from the rule catalog.
         dependency LintMarkConfig to RuleCatalog;
     }
 }

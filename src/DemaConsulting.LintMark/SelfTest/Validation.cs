@@ -20,7 +20,6 @@
 
 using System.Runtime.InteropServices;
 using DemaConsulting.LintMark.Cli;
-using DemaConsulting.LintMark.Utilities;
 using DemaConsulting.TestResults.IO;
 
 namespace DemaConsulting.LintMark.SelfTest;
@@ -116,7 +115,7 @@ internal static class Validation
         try
         {
             using var tempDir = new TemporaryDirectory();
-            var logFile = PathHelpers.SafePathCombine(tempDir.DirectoryPath, "version-test.log");
+            var logFile = Path.Combine(tempDir.DirectoryPath, "version-test.log");
 
             // Build command line arguments
             var args = new List<string>
@@ -188,7 +187,7 @@ internal static class Validation
         try
         {
             using var tempDir = new TemporaryDirectory();
-            var logFile = PathHelpers.SafePathCombine(tempDir.DirectoryPath, "help-test.log");
+            var logFile = Path.Combine(tempDir.DirectoryPath, "help-test.log");
 
             // Build command line arguments
             var args = new List<string>
@@ -347,7 +346,7 @@ internal static class Validation
         /// </summary>
         public TemporaryDirectory()
         {
-            DirectoryPath = PathHelpers.SafePathCombine(Path.GetTempPath(), $"lintmark_validation_{Guid.NewGuid()}");
+            DirectoryPath = Path.Combine(Path.GetTempPath(), $"lintmark_validation_{Guid.NewGuid()}");
 
             try
             {

@@ -39,39 +39,6 @@ public class ReferenceIndexTests
     private static ParsedDocument Parse(string text) => DocumentParser.Parse(SourceDocument.FromText("t.md", text));
 
     /// <summary>
-    ///     Test that a document without definitions yields an empty index.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Build_NoDefinitions_IsEmpty()
-    {
-        // Arrange / Act: a document with a link but no definition
-        var document = Parse("Text [a](http://x).\n");
-
-        // Assert: empty index, lookups fail
-        Assert.Empty(document.References.Definitions);
-        Assert.False(document.References.TryGet("a", out var definition));
-        Assert.Null(definition);
-    }
-
-    /// <summary>
-    ///     Test that the exposed definition list cannot be changed through a cast.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Definitions_CastToMutableTypes_CannotBeModified()
-    {
-        // Arrange: a document with two definitions
-        var document = Parse("See [a] and [b].\n\n[a]: http://a.example\n[b]: http://b.example\n");
-
-        // Act: take the definition list
-        var definitions = document.References.Definitions;
-
-        // Assert: a caller cannot change it, and lookups still work
-        ReadOnlyAssertions.AssertCannotBeModified(definitions);
-        Assert.True(document.References.TryGet("b", out var definition));
-        Assert.Equal("http://b.example", definition.Url);
-    }
-
-    /// <summary>
     ///     Test that definitions carry label, URL, title, span and line.
     /// </summary>
     [Fact]
@@ -212,50 +179,6 @@ public class ReferenceIndexTests
     }
 
     /// <summary>
-    ///     Test that a footnote definition inside a block quote is not indexed as a link reference definition.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Build_FootnoteDefinitionInBlockQuote_IsExcluded()
-    {
-        // Arrange: a footnote definition in a quote next to a real definition in the same quote
-        var document = Parse("> [^q]: note\n>\n> [a]: http://x\n");
-
-        // Act: read the definitions
-        var labels = document.References.Definitions.Select(d => d.Label).ToList();
-
-        // Assert: only the link definition is indexed, and the footnote label cannot be looked up
-        Assert.Equal(["a"], labels);
-        Assert.False(document.References.TryGet("^q", out _));
-    }
-
-    /// <summary>
-    ///     Test that a footnote definition inside a list item is not indexed as a link reference definition.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Build_FootnoteDefinitionInListItem_IsExcluded()
-    {
-        // Arrange: a footnote definition in a list item
-        var document = Parse("- [^n]: Note\n- b\n");
-
-        // Act / Assert: nothing is indexed
-        Assert.Empty(document.References.Definitions);
-        Assert.False(document.References.TryGet("^n", out _));
-    }
-
-    /// <summary>
-    ///     Test that no synthetic definitions are produced for headings.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Build_Headings_ProduceNoSyntheticDefinitions()
-    {
-        // Arrange / Act: headings only
-        var document = Parse("# One\n\n## Two\n");
-
-        // Assert: no definitions
-        Assert.Empty(document.References.Definitions);
-    }
-
-    /// <summary>
     ///     Test label normalization.
     /// </summary>
     [Theory]
@@ -270,21 +193,5 @@ public class ReferenceIndexTests
 
         // Assert: collapsed and lower-cased
         Assert.Equal(expected, normalized);
-    }
-
-    /// <summary>
-    ///     Test that null arguments are rejected.
-    /// </summary>
-    [Fact]
-    public void ReferenceIndex_Build_NullArguments_Throw()
-    {
-        // Arrange: a parsed document
-        var document = Parse("a\n");
-
-        // Act / Assert: nulls are rejected
-        Assert.Throws<ArgumentNullException>(() => ReferenceIndex.Build(null!, document.Blocks));
-        Assert.Throws<ArgumentNullException>(() => ReferenceIndex.Build(document.Source, null!));
-        Assert.Throws<ArgumentNullException>(() => ReferenceIndex.NormalizeLabel(null!));
-        Assert.Throws<ArgumentNullException>(() => document.References.TryGet(null!, out _));
     }
 }

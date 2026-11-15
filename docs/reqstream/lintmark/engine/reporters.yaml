@@ -1,0 +1,52 @@
+---
+# Software Unit Requirements for the Reporters Unit
+#
+# Reporters turn the results of a run into output: findings as text lines and, on request, the changes of a fix run
+# as a unified diff.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Engine Requirements
+        sections:
+          - title: Reporters Requirements
+            requirements:
+              - id: LintMark-Engine-Reporters-TextFormat
+                title: >-
+                  The Reporters unit shall write each distinct finding once as a `path:line:col: rule-id message` line,
+                  with forward-slash paths relative to the current directory, ordered by path, line, column, and rule.
+                justification: |
+                  Editors and build systems parse this line format, and a stable order with no repeats makes reports
+                  comparable between runs.
+                tests:
+                  - TextReporter_Report_Diagnostic_WritesPathLineColRuleMessage
+                  - TextReporter_Report_OutsideBaseDirectory_WritesParentRelativePath
+                  - TextReporter_Report_UnsortedInput_WritesPathThenPositionOrder
+                  - TextReporter_Report_EqualDiagnostics_WritesOnce
+                  - TextReporter_Report_MultiDigitColumns_OrderedNumerically
+                  - TextReporter_GetDisplayPath_RelativeAndOutside_ReturnsForwardSlashPaths
+
+              - id: LintMark-Engine-Reporters-DiffFormat
+                title: >-
+                  The Reporters unit shall write the change of a file as a unified diff with `---` and `+++` headers,
+                  hunks with three lines of context, and notes for line-ending and final-newline changes, with the
+                  files in path order.
+                justification: |
+                  Users who preview a fix with the diff option need a standard format that other tools can read and
+                  apply, including changes that are invisible in the text.
+                tests:
+                  - DiffReporter_Report_SingleLineChange_WritesHeadersAndHunk
+                  - DiffReporter_Report_TwoDistantChanges_WritesTwoHunks
+                  - DiffReporter_Report_NearbyChanges_MergesHunks
+                  - DiffReporter_Report_CrlfToLfOnly_WritesNoteLine
+                  - DiffReporter_Report_MissingFinalNewline_WritesMarker
+                  - DiffReporter_Report_ManyFiles_OrderedByPath
+
+              - id: LintMark-Engine-Reporters-NothingToReport
+                title: >-
+                  The Reporters unit shall write nothing when there are no findings or when a file does not change.
+                justification: |
+                  A clean run must be silent, so that scripts and users can treat any output as a sign of a problem.
+                tests:
+                  - TextReporter_Report_NoDiagnostics_WritesNothing
+                  - DiffReporter_Report_IdenticalText_WritesNothing

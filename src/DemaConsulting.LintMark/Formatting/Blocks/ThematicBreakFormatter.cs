@@ -79,17 +79,12 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
     /// <param name="block">The thematic break. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives the edits. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a thematic break.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(block);
         ArgumentNullException.ThrowIfNull(edits);
-        if (!CanFormat(block))
-        {
-            throw new ArgumentException($"The block must be a thematic break, not {block.Kind}.", nameof(block));
-        }
 
         // Find the break characters on the line: the first is at the block start, the last is followed only by blanks
         var layout = new LineLayout(context.Document.Source);
@@ -145,7 +140,9 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
     ///     <see langword="true"/> when the line has a list marker of the same character before the break (the line
     ///     would become a break on its own), for the dash form when the line starts with a plus sign (it would look
     ///     like the border of a grid table), for the dash form when the line is the first line of the file (it could
-    ///     open front matter), and for the dash form when text may be on the line above (the dashes would underline it).
+    ///     open front matter), for the dash form when the nearest line above, past blank lines, looks like a grid table
+    ///     border (the parser reads the dashes as its underline), and for the dash form when text may be on the line above
+    ///     (the dashes would underline it).
     /// </returns>
     /// <remarks>
     ///     The decision must not depend on anything that another rule changes in the same run, or formatting the
@@ -175,6 +172,18 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
             return true;
         }
 
+        // Dashes after a line that looks like a grid table border (+---+), also across blank lines, are read as an underline of it
+        var before = line - 1;
+        while (before >= 0 && IsBlankInContainer(layout, before))
+        {
+            before--;
+        }
+
+        if (before >= 0 && layout.LooksLikeGridBorder(before) && IsParagraphLine(document, layout, before))
+        {
+            return true;
+        }
+
         // The first line of the document as dashes could open front matter; the check below is for documents that already
         // start with a dashes line, this one is for a break that would become that line
         if (line == 0 && lineStart == block.Start)
@@ -197,6 +206,26 @@ internal sealed class ThematicBreakFormatter : IBlockFormatter
         // Only a block that is complete in itself may precede the dashes
         return previous.Kind is not (BlockKind.Heading or BlockKind.FencedCode or BlockKind.IndentedCode or BlockKind.ThematicBreak
             or BlockKind.List or BlockKind.BlockQuote or BlockKind.Table);
+    }
+
+    /// <summary>
+    ///     Determines whether a line belongs to a paragraph (and not to code, which another rule may rewrite in the same run).
+    /// </summary>
+    /// <param name="document">The parsed document.</param>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="line">The zero-based line.</param>
+    /// <returns><see langword="true"/> when a paragraph block covers the line.</returns>
+    private static bool IsParagraphLine(ParsedDocument document, LineLayout layout, int line)
+    {
+        foreach (var candidate in document.Blocks)
+        {
+            if (candidate.Kind == BlockKind.Paragraph && layout.LineOf(candidate.Start) <= line && line <= layout.LineOf(candidate.EndInclusive))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

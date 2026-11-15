@@ -4,93 +4,70 @@
 
 #### Purpose
 
-`SuppressionMap` resolves the suppression directives written as HTML comments in a document into offset
-ranges and answers the question "is this rule suppressed here?". Its single responsibility is the
-interpretation of directive comments; deciding which rules exist belongs to later phases.
+`SuppressionMap` turns suppression directives written as HTML comments into offset ranges and answers "is this rule
+suppressed here?" queries. It is built per file by `DocumentParser` and is the single source of truth for suppression
+for both lint (finding-level) and formatting (block-level).
 
 #### Data Model
 
-**Ranges**: `IReadOnlyList<SuppressionRange>` — The resolved ranges sorted by start offset. Ranges may
-overlap when they carry different rule sets. Backed by an immutable array, so a caller cannot change it
-even by casting the list.
-
-**SuppressionRange**: A record `(int Start, int End, RuleSet Rules)`. Offsets refer to the LF-normalized text
-and the range is half-open, `[Start, End)`. An unterminated range ends at `int.MaxValue`.
-
-**RuleSet**: Describes which rules a range suppresses, with `RuleSetKind` `All` (every rule), `Only` (the
-listed rules), or `AllExcept` (every rule but the listed ones). `Contains(ruleId)` compares rule
-identifiers ordinal-ignore-case. The listed rules (`Rules`) are held in a frozen set, so a caller cannot change
-them even by casting the collection.
-
-**Alias resolver**: An optional `Func<string, string>` applied to every rule identifier, both in directives
-and in queries, before comparison. It is the identity when none is given. `DocumentParser` supplies a resolver built on
-the rule catalog, so that rule alias resolution lives in the rule catalog and this unit does not change.
-
-Directive families (their different scoping semantics are kept distinct on purpose):
-
-- **`lintmark-disable` / `markdownlint-disable` `[rules]`**: region start, from the start of the comment.
-- **`lintmark-enable` / `markdownlint-enable` `[rules]`**: region end for the listed rules (or all).
-- **`...-disable-line [rules]`**: the line or lines the comment occupies.
-- **`...-disable-next-line [rules]`**: the line after the comment's last line (no range when the comment is on
-  the last line of the file).
-- **`...-disable-file [rules]`**: the whole file.
-- **`...-capture` / `...-restore`**: save the current region state and return to it (a stack; `restore`
-  without `capture` does nothing).
-- **`prettier-ignore`**: the next block (the first block starting after the comment), all rules.
-- **`prettier-ignore-start` / `-end`**: everything between, all rules; unterminated runs to the end of the
-  file.
-
-A directive without rules applies to all rules. After a bare `disable`, `enable` with a rule list
-re-enables only those rules, so the region continues as `AllExcept` those rules. Only block-level
-comments carry prettier directives, and inline comments carry only the lintmark and markdownlint families.
+- **Ranges** (`IReadOnlyList<SuppressionRange>`, immutable array): sorted by start, then end. Ranges may overlap when
+  their rule sets differ.
+- **SuppressionRange** (record): `Start` inclusive, `End` exclusive offsets into the LF-normalized text (`int.MaxValue`
+  when the range runs to the end of the file), and `Rules` (`RuleSet`).
+- **RuleSet**: `Kind` is `All`, `Only` (listed rules) or `AllExcept` (everything except the listed rules, which arises
+  when a region disabled everything and then re-enabled some). Rule ids compare ordinal, ignoring case, in a frozen set.
+- A private rule name resolver (`Func<string, string>`) applied to every id before comparison.
 
 #### Key Methods
 
-**Build**: Builds the map of a parsed document.
+- `Build(source, blocks, ast, canonicalize)`: collects comments, then applies them in source order.
+  - Comment sources: every comment of an HTML block of type comment (several per block are possible), and every inline
+    HTML node that is a complete comment. The text is never scanned, so comments in code spans, code blocks and front
+    matter are not directives.
+  - Directive forms (verbs are case-sensitive): `lintmark-` or `markdownlint-` followed by `disable`, `enable`,
+    `disable-line`, `disable-next-line`, `disable-file`, `capture` or `restore`, with an optional space-separated rule
+    list (an empty list means all rules); and, for block-level comments only, `prettier-ignore`,
+    `prettier-ignore-start` and `prettier-ignore-end` (always all rules).
+  - Rule names go through the resolver. `DocumentParser` supplies `RuleCatalog.TryResolve`, so a canonical id or an
+    alias such as `MD009` (any letter case) yields the canonical id; an unregistered name is kept unchanged and so
+    suppresses nothing that is registered.
+- Range semantics:
+  - `disable` starts a region at the start of its comment; the matching `enable` ends it at the start of the `enable`
+    comment, and an unterminated region runs to the end of the file. A state tracker holds the all-disabled flag and
+    the rule exceptions, so `disable` then `enable X` yields `AllExcept {X}`. Each state change emits the range of
+    the state that ends.
+  - `capture` pushes a snapshot of the state and `restore` pops it (ignored without a snapshot).
+  - `disable-file` covers `[0, end of file)`.
+  - `disable-line` covers the whole lines the comment occupies; `disable-next-line` covers the line after the comment's
+    last line (nothing when the comment is on the last line).
+  - `prettier-ignore` covers the next block, meaning the first flattened block that starts after the comment, not the
+    next line. `prettier-ignore-start` and `-end` bracket a region from the start comment through the end
+    comment; a second start is redundant, an end without a start is ignored, and an unterminated start runs to
+    the end of the file.
+- `IsSuppressedRange(start, end, ruleId)`: true when any range that intersects the query
+  (`range.Start < end` and `range.End > start`; an empty or inverted query counts as one character) selects the
+  canonicalized rule. A linear scan over the sorted ranges stops at the first range that starts at or after the end.
+- `IsSuppressed(offset, ruleId)`: the range query for the single character at `offset`.
 
-- *Parameters*: `SourceDocument source`, `IReadOnlyList<BlockInfo> blocks`, `MarkdownDocument ast`,
-  optional `Func<string, string>? canonicalizeRuleId`.
-- *Returns*: `SuppressionMap`.
-- *Preconditions*: the required arguments are not null.
-- *Postconditions*: `Ranges` is sorted by start; nothing is left open.
-
-`Build` takes the `SourceDocument` for position arithmetic. Directives are found by walking the parsed tree,
-never by scanning the text: block-level comments are HTML blocks of the comment type (a block may hold
-several comments) and inline comments are inline HTML whose text is a complete comment. Comments inside
-code spans, code blocks, and front matter are therefore not directives. The comments are processed in
-source order by a region tracker that holds the current state (all disabled, or a set of rules), emits a
-range each time the state changes, and closes every open region at the end of the file.
-
-**IsSuppressed**: Whether a rule is suppressed at an offset.
-
-- *Parameters*: `int offset`, `string ruleId`.
-- *Returns*: `bool`.
-
-**IsSuppressedRange**: Whether a rule is suppressed anywhere inside a range (used by block-granularity
-consumers to route a block that intersects a suppressed region to verbatim handling).
-
-- *Parameters*: `int start`, `int end`, `string ruleId` — an `end` not greater than `start` means one character.
-- *Returns*: `bool`.
-
-Both resolve the rule through the alias function and scan the sorted ranges until one starts at or after the
-end of the query.
+Effect of granularity: lint (`LintRuleEngine`) asks about the offset of each finding, so only findings inside the range
+disappear. The formatter asks about whole blocks (and spacing gaps or lines), so a block that intersects a suppressed
+range for any of its formatter's rules is left verbatim, even if the range covers only one of its lines.
 
 #### Error Handling
 
-`ArgumentNullException` for null arguments. Unknown directives and malformed comments are ignored rather
-than reported. All regular expressions have a match timeout. The map is immutable after `Build`.
+A comment that matches no directive is ignored, and unknown rule names suppress nothing, so no input is rejected. Spans
+outside the text are skipped. The regular expressions carry a one-second timeout; a timeout would propagate as an
+exception to the engine. `ArgumentNullException` is thrown for a null rule id. The map is immutable and safe for
+concurrent reads.
 
 #### Dependencies
 
-- **SourceDocument** — line table for the line-scoped directives.
-- **Markdig** — syntax-tree types (HTML blocks and inline HTML) used to locate comments.
-- `BlockInfo` and `BlockKind` — plain value types that the `DocumentParser` unit declares and produces. They
-  are inputs only: this unit never calls the parser, so the dependency is a cycle of types (the parser builds
-  this unit and this unit reads the parser's types) but not of behavior.
+`SourceDocument` (line table for the line directives), the `BlockInfo` list and Markdig syntax tree (comment discovery,
+next block for `prettier-ignore`), and the rule name resolver supplied by `DocumentParser` (backed by the `Linting`
+subsystem's `RuleCatalog`).
 
 #### Callers
 
-- **DocumentParser** — builds a map for every parsed document.
-- **DocumentFormatter** — asks whether a rule is suppressed inside a block (`IsSuppressedRange`).
-- **LintMarkEngine** — asks whether the `grid-table-invalid` rule is suppressed at the offending offset
-  (`IsSuppressed`).
+`DocumentParser` (builds it), `LintRuleEngine` (`IsSuppressed` per finding), `LintMarkEngine` (the `grid-table-invalid`
+finding), `DocumentFormatter`, `SpacingPasses`, `ParagraphFormatter`, `InlineNormalizer` and `LinkRefactorer`
+(`IsSuppressedRange`, and `Ranges` in `SpacingPasses`).

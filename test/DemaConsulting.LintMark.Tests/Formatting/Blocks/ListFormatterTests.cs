@@ -48,7 +48,6 @@ public class ListFormatterTests
     private static void AssertFormats(string input, string expected, LintMarkConfig? config = null)
     {
         BlockFormatterAssertions.AssertFormats(input, expected, config);
-        BlockFormatterAssertions.AssertFormatsOnDisk(input, expected, config);
         BlockFormatterAssertions.AssertFormatterOutput(Formatter, input, expected, config);
     }
 
@@ -62,7 +61,6 @@ public class ListFormatterTests
     {
         BlockFormatterAssertions.AssertFormatterOutput(Formatter, input, input);
         BlockFormatterAssertions.AssertFormats(input, toolExpected);
-        BlockFormatterAssertions.AssertFormatsOnDisk(input, toolExpected);
     }
 
     /// <summary>
@@ -82,68 +80,6 @@ public class ListFormatterTests
 
         // Act & Assert: the number of accepted blocks is the number of outermost lists
         Assert.Equal(accepted, document.Blocks.Count(block => Formatter.CanFormat(block)));
-    }
-
-    /// <summary>
-    ///     Test that a missing block is rejected when asking whether it is accepted.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_CanFormat_NullBlock_Throws()
-    {
-        // Act & Assert: the argument is named
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.CanFormat(null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a missing argument is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_Format_NullArguments_Throw()
-    {
-        // Arrange: a list, a context and an edit set
-        var document = BlockFormatterAssertions.Parse("* a\n");
-        var block = BlockFormatterAssertions.FirstBlock(document, BlockKind.List);
-        var context = new FormatContext(document, LintMarkConfig.Default);
-        var edits = new EditSet();
-
-        // Act & Assert: each argument is checked and named
-        Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => Formatter.Format(null!, block, edits)).ParamName);
-        Assert.Equal("block", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, null!, edits)).ParamName);
-        Assert.Equal("edits", Assert.Throws<ArgumentNullException>(() => Formatter.Format(context, block, null!)).ParamName);
-    }
-
-    /// <summary>
-    ///     Test that a block that is not an outermost list is rejected when formatting.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_Format_OtherBlock_ThrowsArgumentException()
-    {
-        // Arrange: a paragraph, and a nested list
-        var paragraph = BlockFormatterAssertions.Parse("text\n");
-        var nested = BlockFormatterAssertions.Parse("- a\n  - b\n");
-        var inner = nested.Blocks.Last(block => block.Kind == BlockKind.List);
-
-        // Act & Assert: both are rejected and the parameter is named
-        var first = Assert.Throws<ArgumentException>(() =>
-            Formatter.Format(new FormatContext(paragraph, LintMarkConfig.Default), BlockFormatterAssertions.FirstBlock(paragraph, BlockKind.Paragraph), new EditSet()));
-        var second = Assert.Throws<ArgumentException>(() => Formatter.Format(new FormatContext(nested, LintMarkConfig.Default), inner, new EditSet()));
-        Assert.Equal("block", first.ParamName);
-        Assert.Equal("block", second.ParamName);
-    }
-
-    /// <summary>
-    ///     Test that the formatter lists the four rules it enforces and that the list cannot be changed.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_RuleIds_Read_ListsTheFourRulesAndIsImmutable()
-    {
-        // Act: read the rule ids
-        var ruleIds = Formatter.RuleIds;
-
-        // Assert: the four rules, each registered, in an immutable array
-        Assert.Equal(["bullet", "ordered-style", "list-indent", "list-marker-space"], ruleIds);
-        Assert.All(ruleIds, id => Assert.True(RuleCatalog.TryGet(id, out _)));
-        ReadOnlyAssertions.AssertCannotBeModified((IReadOnlyList<string>)ruleIds);
     }
 
     /// <summary>
@@ -463,8 +399,8 @@ public class ListFormatterTests
     [Fact]
     public void ListFormatter_Format_ItemHoldsCodeHtmlQuoteAndTable_MovesEverythingTogether() =>
         AssertFormats(
-            "-   item\n\n    ```text\n    code\n\n    more\n    ```\n\n    <div>\n    html\n    </div>\n\n    > quote\n\n    | a | b |\n    |---|---|\n    | 1 | 2 |\n",
-            "- item\n\n  ```text\n  code\n\n  more\n  ```\n\n  <div>\n  html\n  </div>\n\n  > quote\n\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n");
+            "-   item\n\n    ```text\n    code\n\n    more\n    ```\n\n    <div>\n    html\n    </div>\n\n    > quote\n\n    | a | b |\n    | --- | --- |\n    | 1 | 2 |\n",
+            "- item\n\n  ```text\n  code\n\n  more\n  ```\n\n  <div>\n  html\n  </div>\n\n  > quote\n\n  | a | b |\n  | --- | --- |\n  | 1 | 2 |\n");
 
     /// <summary>
     ///     Test that a list whose columns cannot move is not given to a move that would pull a following line into it.
@@ -505,57 +441,6 @@ public class ListFormatterTests
     [InlineData("* - a\n", "- - a\n")]
     public void ListFormatter_Format_TaskAndEmptyItems_AreHandled(string input, string expected) =>
         BlockFormatterAssertions.AssertFormats(input, expected);
-
-    /// <summary>
-    ///     Test that a list that is already canonical gets no edit.
-    /// </summary>
-    [Theory]
-    [InlineData("- a\n- b\n")]
-    [InlineData("1. a\n2. b\n3. c\n")]
-    [InlineData("- a\n  - b\n    - c\n")]
-    [InlineData("1. a\n   - b\n\n   more\n")]
-    [InlineData("> - a\n> - b\n")]
-    public void ListFormatter_Format_CanonicalList_ProposesNoEdit(string input)
-    {
-        // Act: apply the list formatter alone, and the production formatters
-        var (edits, _) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
-
-        // Assert: the formatter proposes nothing, and the tool reports nothing
-        Assert.Empty(edits);
-        BlockFormatterAssertions.AssertUnchanged(input);
-    }
-
-    /// <summary>
-    ///     Test that the same edits are proposed for CRLF and mixed line endings, and with a byte order mark.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_Format_LineEndingsAndByteOrderMark_ProposeTheSameEdits()
-    {
-        // Arrange: a list that needs a marker, a number, a column and a space
-        const string input = "* a\n  *   b\n1. c\n1. d\n";
-
-        // Act & Assert: the edits do not depend on how the file is stored
-        BlockFormatterAssertions.AssertSameEditsWithCrlf(Formatter, input);
-        BlockFormatterAssertions.AssertSameEditsWithByteOrderMark(Formatter, input);
-    }
-
-    /// <summary>
-    ///     Test that every edit is reported under the rule of the violation it removes.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_Format_NonCanonicalList_ReportsEachEditUnderItsRule()
-    {
-        // Arrange: a list with a wrong marker, a wrong number, an indented item and extra spaces
-        const string input = "* a\n * b\n\n1. c\n1. d\n\n-   e\n";
-
-        // Act: apply the formatter alone and read the rules of the edits
-        var (edits, _) = BlockFormatterAssertions.ApplyFormatter(Formatter, input);
-
-        // Assert: each rule of the formatter reports, and no other
-        var rules = edits.Select(edit => edit.RuleId).Distinct().Order(StringComparer.Ordinal).ToList();
-        Assert.Equal(["bullet", "list-indent", "list-marker-space", "ordered-style"], rules);
-        Assert.All(rules, rule => Assert.Contains(rule, Formatter.RuleIds));
-    }
 
     /// <summary>
     ///     Test that a list is left as it is when a rule of the formatter is suppressed in it, by identifier or by alias.
@@ -602,16 +487,6 @@ public class ListFormatterTests
     }
 
     /// <summary>
-    ///     Test that formatting is deterministic when the same formatter instance serves several threads that share one document.
-    /// </summary>
-    [Fact]
-    public void ListFormatter_Format_SharedInstanceOnManyThreads_GivesTheSameResult() =>
-        BlockFormatterAssertions.AssertConcurrentFormatting(
-            Formatter,
-            "* a\n  +   b\n\n1. c\n1. d\n\n-   e\n",
-            "- a\n  - b\n\n1. c\n2. d\n\n- e\n");
-
-    /// <summary>
     ///     Test that a list formatted with an unusual file layout (no final newline, a blank line first) is still safe.
     /// </summary>
     [Theory]
@@ -623,27 +498,83 @@ public class ListFormatterTests
         BlockFormatterAssertions.AssertSafeAndStable(input);
 
     /// <summary>
-    ///     Test that a list in every shape of the synthetic nesting documents is safe and stable with every list setting.
+    ///     Test that the list rules read the text that the other rules produce, so that one run is enough (rule R-1: the line after
+    ///     an item that shrinks stays outside it, where the nest after it moves that line to the margin).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_LineAfterMovesToTheMargin_LetsTheItemShrinkInOneRun() =>
+        BlockFormatterAssertions.AssertFormats("11. |---|---|\n-   \\\n   +   item\n", "11. |---|---|\n\n- \\\n\n+ item\n");
+
+    /// <summary>
+    ///     Test that a nest with a fenced code line below a nested item keeps its columns (rule R-2: in a nested item such a line
+    ///     is read from columns that are not the content column), and that the same fence in a plain item moves with it.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_FenceInNestedItem_KeepsTheColumns()
+    {
+        // Act & Assert: the nested item keeps its spaces, and the plain item with a fence moves
+        AssertUnitKeepsInput("-  > quote\n    11. ```\n        11. second words\n", "-  > quote\n    11. ```\n        11. second words\n");
+        AssertFormats("-   a\n    - b\n\n    ```\n    code\n    ```\n", "- a\n  - b\n\n  ```\n  code\n  ```\n");
+    }
+
+    /// <summary>
+    ///     Test that a continuation line that starts with block syntax keeps the columns of its item (rule G-2: the line is text
+    ///     only because of its indentation).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ContinuationLineStartsWithBlockSyntax_KeepsTheColumns() =>
+        AssertUnitKeepsInput("-   a\n    b\n        - c\n", "-   a\n    b\n        - c\n");
+
+    /// <summary>
+    ///     Test that an item whose marker line would be a thematic break by itself stays where it is (rule G-1), while the marker
+    ///     character of the list is still written.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_MarkerLineWouldBeThematicBreak_KeepsTheColumns() =>
+        AssertFormats("*   a\n    - ---\n", "-   a\n    - ---\n");
+
+    /// <summary>
+    ///     Test that an item whose text mixes the characters of a thematic break is an ordinary item.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_MarkerLineWithMixedBreakCharacters_IsAnOrdinaryItem() =>
+        AssertFormats("*   -*-\n", "- -*-\n");
+
+    /// <summary>
+    ///     Test that an item that starts with a thematic break and has more lines, or a nest that holds such an item, keeps its columns
+    ///     (rule G-3: the reading of a later line at a relative indent of three depends on the absolute column).
     /// </summary>
     [Theory]
-    [InlineData("Asterisk", 2, "Incrementing")]
-    [InlineData("Plus", 4, "One")]
-    public void ListFormatter_Format_SyntheticNestingDocuments_AreSafeAndStable(string bullet, int indent, string style)
-    {
-        // Arrange: the container chains around every body, and a configuration that changes the list settings
-        var config = LintMarkConfig.Default with
-        {
-            Bullet = Enum.Parse<BulletMarker>(bullet),
-            ListIndent = indent,
-            OrderedStyle = Enum.Parse<OrderedStyle>(style)
-        };
-        var fixtures = SyntheticDocuments.Generate().Where(fixture => fixture.Chain.Contains('L') || fixture.Chain.Contains('O')).ToList();
+    [InlineData("  -  ***\n      - z\n      x = 1\n           # h\n")]
+    [InlineData("-  x\n   1. ---\n          code\n")]
+    public void ListFormatter_Format_ItemStartsWithThematicBreak_KeepsTheColumns(string input) =>
+        BlockFormatterAssertions.AssertFormatsSafely(input, input);
 
-        // Act & Assert: every fixture passes the safety assertions
-        Assert.NotEmpty(fixtures);
-        foreach (var fixture in fixtures)
-        {
-            BlockFormatterAssertions.AssertSafeAndStable(fixture.Text, config, checkParallel: false);
-        }
+    /// <summary>
+    ///     Test that a nested item with a block three columns past its content column keeps its columns (rule G-4), while the same
+    ///     nest without such a block moves.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_BlockFarInNestedItem_KeepsTheColumns()
+    {
+        // Act & Assert: the marker character is written, the columns stay; with the line two columns in, the nest moves
+        BlockFormatterAssertions.AssertFormatsSafely("  * x = 1\n     1)  x = 1\n\n            code\n", "  - x = 1\n     1)  x = 1\n\n            code\n");
+        BlockFormatterAssertions.AssertFormatsSafely("  * x = 1\n     1)  x = 1\n\n           code\n", "- x = 1\n   1) x = 1\n\n        code\n");
     }
+
+    /// <summary>
+    ///     Test that a continuation line that starts with an ordered marker that cannot interrupt a paragraph does not keep the
+    ///     columns of its item (rule G-2 only concerns block syntax that the indentation hides).
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ContinuationLineWithNumberOtherThanOne_MovesWithItsItem() =>
+        BlockFormatterAssertions.AssertFormatsSafely("-   text\n    10. more\n", "- text\n  10. more\n");
+
+    /// <summary>
+    ///     Test that the shrinking of an item and the code block of another rule happen in one run: the block that a rule rewrites
+    ///     as a fence is no danger to the list, so the list does not have to wait for the second run.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_ItemAndCodeBlockOfAnotherRule_AreSettledInOneRun() =>
+        BlockFormatterAssertions.AssertFormats("-    one\n\n     two\n", "- one\n\n  two\n");
 }

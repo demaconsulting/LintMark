@@ -1,150 +1,53 @@
 ---
 # Linting Subsystem Requirements
 #
-# PURPOSE:
-# - Define requirements for the LintMark Linting subsystem
-# - The Linting subsystem defines what a reported problem is (a diagnostic) and which rule identifiers exist
-#   (the rule registry)
-# - Subsystem requirements describe the vocabulary that the other subsystems share when they accept or report rules
+# The Linting subsystem holds the catalog of rules and the checks that report problems without changing text.
 
 sections:
   - title: LintMark Requirements
     sections:
       - title: Linting Requirements
         requirements:
-          - id: LintMark-Linting-DiagnosticContent
+          - id: LintMark-Linting-Catalog
             title: >-
-              The Linting subsystem shall represent each problem as a diagnostic that carries a rule
-              identifier, a path, a 1-based line and column, and a message.
+              The Linting subsystem shall provide one catalog of rules, with kind, default state, and
+              markdownlint number, and resolve rule ids, numbers, and command-line switches consistently.
             justification: |
-              Every report line is made from these parts, so each unit that reports a problem must be able
-              to state all of them.
+              Rules are named in configuration files, comments, and on the command line, and every place must
+              mean the same rule.
             children:
-              - LintMark-Linting-Diagnostic-Fields
+              - LintMark-Linting-RuleCatalog-Registry
+              - LintMark-Linting-RuleCatalog-Aliases
+              - LintMark-Linting-RuleCatalog-Overrides
             tests:
-              - LintingSubsystem_Diagnostics_RegisteredRule_CarriesAllParts
+              - LintingSubsystem_Catalog_RulesAliasesDefaultsAndOverrides_ResolveConsistently
 
-          - id: LintMark-Linting-DiagnosticValidity
+          - id: LintMark-Linting-Findings
             title: >-
-              The Linting subsystem shall refuse to create a diagnostic from parts that a report line cannot
-              carry.
+              The Linting subsystem shall represent every finding with its rule, kind, position, and one-line
+              message, and deliver the findings of a document in source order.
             justification: |
-              A diagnostic that could be built from invalid parts would produce report lines that no editor
-              or script can read.
+              Findings are the product of the tool, so each must say what is wrong and where, and the same
+              document must always give the same list.
             children:
-              - LintMark-Linting-Diagnostic-NullArguments
-              - LintMark-Linting-Diagnostic-RuleIdShape
-              - LintMark-Linting-Diagnostic-BlankPathOrMessage
-              - LintMark-Linting-Diagnostic-SingleLineMessage
-              - LintMark-Linting-Diagnostic-PositionAtLeastOne
-              - LintMark-Linting-Diagnostic-DefinedKind
+              - LintMark-Linting-RuleCatalog-Findings
+              - LintMark-Linting-LintRules-Enablement
             tests:
-              - LintingSubsystem_Diagnostics_InvalidParts_AreRefused
+              - LintingSubsystem_Findings_Document_AreLintOnlyWithPositionAndInSourceOrder
 
-          - id: LintMark-Linting-DiagnosticFixable
+          - id: LintMark-Linting-LintChecks
             title: >-
-              The Linting subsystem shall record with each diagnostic whether rewriting the file removes the
-              problem.
+              The Linting subsystem shall check headings, links, code, quotes, footnotes, emphasis, and tables for
+              the problems that rewriting cannot or should not fix, reporting only rules that are enabled and not
+              suppressed.
             justification: |
-              The fix option must know which problems rewriting removes and which remain to be reported.
+              Some problems need an author's judgment, and users must be able to turn each check on or off and
+              exempt a passage on purpose.
             children:
-              - LintMark-Linting-Diagnostic-FixableMatchesKind
+              - LintMark-Linting-LintRules-Headings
+              - LintMark-Linting-LintRules-Links
+              - LintMark-Linting-LintRules-Structure
+              - LintMark-Linting-LintRules-Tables
+              - LintMark-Linting-LintRules-Enablement
             tests:
-              - LintingSubsystem_Diagnostics_FormattingKind_IsFixable
-
-          - id: LintMark-Linting-DiagnosticEquality
-            title: >-
-              The Linting subsystem shall treat diagnostics with the same parts as the same problem.
-            justification: |
-              A problem found twice, for example through two paths to the same file, must be reported once.
-            children:
-              - LintMark-Linting-Diagnostic-ValueEquality
-            tests:
-              - LintingSubsystem_Diagnostics_SameParts_AreTheSameProblem
-
-          - id: LintMark-Linting-RuleIdentifiers
-            title: >-
-              The Linting subsystem shall provide one registry of every rule identifier that the tool accepts
-              in a configuration or reports.
-            justification: |
-              One registry that every other subsystem consults keeps the names that a configuration accepts
-              and the identifiers that a report shows from drifting apart.
-            children:
-              - LintMark-Linting-RuleCatalog-ResolveNames
-              - LintMark-Linting-RuleCatalog-ResolveAnyLetterCase
-              - LintMark-Linting-RuleCatalog-ResolveCultureIndependent
-              - LintMark-Linting-RuleCatalog-ResolveConfigurableOnly
-              - LintMark-Linting-RuleCatalog-RegisteredIds
-              - LintMark-Linting-RuleCatalog-RuleDescriptions
-              - LintMark-Linting-RuleCatalog-RuleIdDiagnosticForm
-              - LintMark-Linting-RuleCatalog-RuleIdsUnique
-              - LintMark-Linting-RuleCatalog-RegisteredIdsFixedOrder
-              - LintMark-Linting-RuleCatalog-ImmutableResults
-              - LintMark-Linting-RuleCatalog-NullArguments
-            tests:
-              - LintingSubsystem_RuleRegistry_EveryEmittedRuleId_IsRegistered
-              - LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable
-
-          - id: LintMark-Linting-RuleLegacyNumbers
-            title: >-
-              The Linting subsystem shall register the legacy rule numbers that users know rules by, including
-              those of removed rules.
-            justification: |
-              Users who come from other tools write the rule numbers they know. A number must mean the rule
-              it stood for, and the number of a removed rule must not be taken for an unknown rule.
-            children:
-              - LintMark-Linting-RuleCatalog-ResolveLegacyNumbers
-              - LintMark-Linting-RuleCatalog-DroppedAliases
-              - LintMark-Linting-RuleCatalog-FormattingRuleAliases
-            tests:
-              - LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable
-              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
-
-          - id: LintMark-Linting-RuleDefaults
-            title: >-
-              The Linting subsystem shall register whether each configurable rule is enabled by default.
-            justification: |
-              Defaults that are kept in one place can be relied on by every consumer and reviewed against
-              the documentation.
-            children:
-              - LintMark-Linting-RuleCatalog-Defaults
-            tests:
-              - LintingSubsystem_RuleRegistry_NotConfiguredRule_KeepsRegisteredState
-
-          - id: LintMark-Linting-RuleKinds
-            title: >-
-              The Linting subsystem shall register for each rule whether rewriting the file can repair its
-              problems.
-            justification: |
-              The kind of a rule decides whether the fix option removes its problems.
-            children:
-              - LintMark-Linting-RuleCatalog-RuleKinds
-            tests:
-              - LintingSubsystem_RuleRegistry_FormattingAndLintOnlyRules_AreRegistered
-
-          - id: LintMark-Linting-FormattingRulesRegistered
-            title: >-
-              The Linting subsystem shall register each formatting rule that the tool always applies, with its
-              description.
-            justification: |
-              Reports, suppression comments, and the documentation of the rules all name a rule, so every rule
-              that the formatter applies must be in the registry that they consult.
-            children:
-              - LintMark-Linting-RuleCatalog-AlwaysAppliedFormattingRules
-            tests:
-              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
-              - LintingSubsystem_RuleRegistry_EveryEmittedRuleId_IsRegistered
-
-          - id: LintMark-Linting-FormattingRulesNotConfigurable
-            title: >-
-              The Linting subsystem shall not accept the name or legacy rule number of a formatting rule that the
-              tool always applies as a rule of a configuration.
-            justification: |
-              The formatting rules define the canonical form of a file, and a configuration that switched one off
-              would give the file a form that nobody chose. A rule is switched off for a passage with a
-              suppression comment instead.
-            children:
-              - LintMark-Linting-RuleCatalog-ResolveConfigurableOnly
-            tests:
-              - LintingSubsystem_RuleRegistry_AlwaysAppliedFormattingRules_AreRegisteredFixableAndNotConfigurable
-              - LintingSubsystem_RuleRegistry_ConfigRules_AcceptAliasesAndRejectNonConfigurable
+              - LintingSubsystem_LintChecks_DisabledSuppressedAndOptionalRules_HonorEnablement

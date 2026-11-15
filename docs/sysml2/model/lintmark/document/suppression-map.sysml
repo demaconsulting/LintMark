@@ -2,27 +2,23 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def SuppressionMap {
-        doc /* Resolves suppression comments into offset ranges and answers whether a rule is suppressed at a position (also documents the SuppressionRange and RuleSet supporting types). */
+        doc /* Resolves suppression comments (disable, enable, next-line, and file-wide directives) into offset ranges and answers whether a rule is suppressed at a position (also documents the SuppressionRange, RuleSet, and RuleSetKind supporting types). */
 
         metadata info : SoftwareInfo {
-            sourceFiles = (
-                "src/DemaConsulting.LintMark/Document/SuppressionMap.cs",
-                "src/DemaConsulting.LintMark/Document/SuppressionRange.cs",
-                "src/DemaConsulting.LintMark/Document/RuleSet.cs",
-                "src/DemaConsulting.LintMark/Document/RuleSetKind.cs");
+            sourceFiles = ("src/DemaConsulting.LintMark/Document/SuppressionMap.cs");
             testFiles = ("test/DemaConsulting.LintMark.Tests/Document/SuppressionMapTests.cs");
             designFiles = ("docs/design/lintmark/document/suppression-map.md");
             verificationFiles = ("docs/verification/lintmark/document/suppression-map.md");
             requirementFiles = ("docs/reqstream/lintmark/document/suppression-map.yaml");
         }
 
-        // Positions come from the source document, and directives are found in the parser's syntax tree.
+        // Positions come from the source document, and directives are found in the syntax tree of the
+        // Markdown parser library.
         dependency SuppressionMap to SourceDocument;
         dependency SuppressionMap to Markdig;
 
-        // The block list types are owned by the DocumentParser unit; this is a type-level use only, with
-        // no behavioral call back into the parser.
-        dependency SuppressionMap to BlockInfo;
-        dependency SuppressionMap to BlockKind;
+        // The block list types are owned by the document parser; this is a type-level use only, with no
+        // behavioral call back into the parser.
+        dependency SuppressionMap to DocumentParser;
     }
 }

@@ -159,24 +159,6 @@ tests:
         xml:
           - query: "//*[local-name()='svg']"
             count: 1
-      - pattern: "docs/design/generated/CliView.svg"
-        count: 1
-        min-size: 100
-        xml:
-          - query: "//*[local-name()='svg']"
-            count: 1
-      - pattern: "docs/design/generated/SelfTestView.svg"
-        count: 1
-        min-size: 100
-        xml:
-          - query: "//*[local-name()='svg']"
-            count: 1
-      - pattern: "docs/design/generated/UtilitiesView.svg"
-        count: 1
-        min-size: 100
-        xml:
-          - query: "//*[local-name()='svg']"
-            count: 1
       - pattern: "docs/design/generated/DocumentView.svg"
         count: 1
         min-size: 100
@@ -190,6 +172,30 @@ tests:
           - query: "//*[local-name()='svg']"
             count: 1
       - pattern: "docs/design/generated/ConfigurationView.svg"
+        count: 1
+        min-size: 100
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+      - pattern: "docs/design/generated/LintingView.svg"
+        count: 1
+        min-size: 100
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+      - pattern: "docs/design/generated/FormattingView.svg"
+        count: 1
+        min-size: 100
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+      - pattern: "docs/design/generated/BlocksView.svg"
+        count: 1
+        min-size: 100
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+      - pattern: "docs/design/generated/InlineView.svg"
         count: 1
         min-size: 100
         xml:
