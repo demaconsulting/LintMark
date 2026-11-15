@@ -238,6 +238,30 @@ public class DocumentFormatterPassTests
         AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = maximum });
 
     /// <summary>
+    ///     Test that a run of blank lines after an empty list item is kept: the parser ends the list at two blank lines
+    ///     there, so shortening the run would join the lists. Whitespace on the lines is still removed.
+    /// </summary>
+    [Theory]
+    [InlineData("- t\n-\n\n\n- v\n", "- t\n-\n\n\n- v\n")]
+    [InlineData("- t\n- \n  \n   \n- v\n", "- t\n-\n\n\n- v\n")]
+    [InlineData("1. t\n1.\n\n\n\n1. v\n", "1. t\n1.\n\n\n\n1. v\n")]
+    [InlineData("- t\n\n-\n\n\n- v\n", "- t\n\n-\n\n\n- v\n")]
+    [InlineData("- t\n  -\n\n\n  - v\n", "- t\n  -\n\n\n  - v\n")]
+    [InlineData("> - t\n> -\n>\n>\n> - v\n", "> - t\n> -\n>\n>\n> - v\n")]
+    public void DocumentFormatter_Format_BlankRunAfterEmptyListItem_IsKept(string input, string expected) =>
+        AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
+    ///     Test that blank lines after a line that only looks like an empty item are still shortened.
+    /// </summary>
+    [Theory]
+    [InlineData("a\n-x\n\n\n\nb\n", "a\n-x\n\nb\n")]
+    [InlineData("a\n12345678901.\n\n\nb\n", "a\n12345678901.\n\nb\n")]
+    [InlineData("a\n1.x\n\n\nb\n", "a\n1.x\n\nb\n")]
+    public void DocumentFormatter_Format_BlankRunAfterNonItemLine_IsShortened(string input, string expected) =>
+        AssertPasses(input, expected, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
     /// </summary>
     [Theory]

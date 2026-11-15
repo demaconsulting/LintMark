@@ -33,7 +33,9 @@ namespace DemaConsulting.LintMark.Formatting;
 ///         maximum loses its surplus lines, and the lines that stay are emptied (a line of only spaces is a
 ///         blank line, but it is trailing whitespace). Inside a list, list item, block quote or footnote the
 ///         surplus lines are kept (removing a blank line there can change whether a list is loose), but their
-///         whitespace is still removed. The run at the end of the file belongs to the final newline rule. A run
+///         whitespace is still removed. A run after an empty list item (a marker with no content) is kept as it is
+///         everywhere: the parser ends a list at two blank lines after an empty item, so the number of lines is
+///         structure. The run at the end of the file belongs to the final newline rule. A run
 ///         that follows a block that keeps its trailing blank lines (an unclosed fence), or that touches a line
 ///         looking like a grid table border, is left alone.
 ///     </para>
@@ -99,7 +101,64 @@ internal static class BlankLinePass
                 continue;
             }
 
-            HandleRun(document, layout, ownership, config.MaxBlankLines, first, last, edits);
+            // Two blank lines after an empty list item end the list for the parser, so a run there is not shortened
+            var afterEmptyItem = first > 0
+                && IsEmptyItemLine(layout.Text.AsSpan(layout.LineStart(first - 1), layout.LineEnd(first - 1) - layout.LineStart(first - 1)));
+            HandleRun(document, layout, ownership, config.MaxBlankLines, first, last, afterEmptyItem, edits);
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a line is a list item that has no content: markers (after block quote markers and blanks) and nothing else.
+    /// </summary>
+    /// <param name="line">The text of the line, without its line ending.</param>
+    /// <returns>
+    ///     <see langword="true"/> for <c>-</c>, <c>1.</c>, <c>&gt; *</c> or <c>- -</c>; the parser ends a list that has an empty item
+    ///     followed by two blank lines, so the number of blank lines after such a line can change the structure.
+    /// </returns>
+    private static bool IsEmptyItemLine(ReadOnlySpan<char> line)
+    {
+        var position = 0;
+        var markers = 0;
+        while (true)
+        {
+            while (position < line.Length && line[position] is ' ' or '\t' or '>')
+            {
+                position++;
+            }
+
+            if (position == line.Length)
+            {
+                return markers > 0;
+            }
+
+            if (line[position] is '-' or '+' or '*')
+            {
+                position++;
+            }
+            else
+            {
+                // An ordered marker: up to nine digits and a dot or a parenthesis
+                var digits = 0;
+                while (position < line.Length && digits < 9 && char.IsAsciiDigit(line[position]))
+                {
+                    position++;
+                    digits++;
+                }
+
+                if (digits == 0 || position >= line.Length || line[position] is not ('.' or ')'))
+                {
+                    return false;
+                }
+
+                position++;
+            }
+
+            markers++;
+            if (position < line.Length && line[position] is not (' ' or '\t'))
+            {
+                return false;
+            }
         }
     }
 
@@ -128,6 +187,7 @@ internal static class BlankLinePass
     /// <param name="maxBlankLines">The number of blank lines that may stay.</param>
     /// <param name="first">First line of the run.</param>
     /// <param name="last">Last line of the run.</param>
+    /// <param name="keepSurplus">Whether the surplus lines stay (they follow an empty list item).</param>
     /// <param name="edits">Receives the edits.</param>
     private static void HandleRun(
         ParsedDocument document,
@@ -136,13 +196,14 @@ internal static class BlankLinePass
         int maxBlankLines,
         int first,
         int last,
+        bool keepSurplus,
         EditSet edits)
     {
         // Surplus lines are removed completely, line feed included; not inside a container
         var kept = last - first + 1;
         var start = layout.LineStart(first);
         var end = layout.LineEnd(last);
-        if (kept > maxBlankLines && !ownership.IsInContainer(first)
+        if (kept > maxBlankLines && !keepSurplus && !ownership.IsInContainer(first)
             && !IsSuppressed(document, start, end, RuleCatalog.MaxBlankLinesRuleId))
         {
             kept = maxBlankLines;
