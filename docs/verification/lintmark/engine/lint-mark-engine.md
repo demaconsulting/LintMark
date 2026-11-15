@@ -31,6 +31,8 @@ and so run sequentially. The scaling scenario uses a generated large document an
   after it was read is never overwritten.
 - Grid-table fallback documents and documents with an invalid configuration are never rewritten.
 - Ignored files are neither read nor changed; explicitly named files are processed.
+- The ignore list of the configuration that applies at each scan root prunes discovery for everything beneath it,
+  nested repositories included, while each file keeps the settings of its own nearest configuration.
 - Processing time grows in proportion to document size.
 
 #### Test Scenarios
@@ -51,6 +53,15 @@ line, also for CRLF files.
 
 **Nearest configuration, explicit configuration, and ignore patterns apply per file**: The line ending from the
 configuration wins over `.editorconfig`; ignored files are not read.
+
+**Ignore lists prune at the scan root, nested repositories included**: A folder of clones, each with its own `.git` and
+no configuration, is skipped when the root configuration ignores it (`...IgnoredFolderHoldsNestedRepository_Pruned`); a
+nested repository that is not ignored still uses its own configuration (`...NestedRepositoryNotIgnored_UsesOwnConfig`);
+a file named on the command line inside an ignored nested repository is processed
+(`...ExplicitFileInIgnoredNestedRepository_IsProcessed`); a directory argument prunes by the configuration at that
+directory (`...DirectoryArgumentBelowConfig_PrunesIgnoredNestedRepository`); `--no-config` prunes with the built-in
+defaults (`...NoConfig_BuiltInIgnorePrunesNestedRepository`); `--config` prunes relative to the given file's folder
+(`...ExplicitConfig_PrunesNestedRepositoryBelowItsFolder`).
 
 **Enable and disable options win over the configuration**: Rules can be switched on or off by option.
 

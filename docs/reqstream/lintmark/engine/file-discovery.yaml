@@ -79,3 +79,17 @@ sections:
                   - FileDiscovery_Discover_GlobCase_FollowsPlatformComparison
                   - FileDiscovery_Discover_CaseVariantSpellings_ReturnSameSpellingForAnyOrder
                   - FileDiscovery_IsIgnored_CaseRules_FollowPlatform
+
+              - id: LintMark-Engine-FileDiscovery-ScanRootPruning
+                title: >-
+                  The FileDiscovery unit shall not enter a directory below a scan root that the ignore patterns
+                  supplied for that root ignore as a whole, including a directory that holds a nested repository.
+                justification: |
+                  A nested repository (a clone, a submodule, vendored code) ends the search for a configuration, so its
+                  files never see the ignore list of the repository around it. Pruning from the ignore list that applies
+                  at the scan root keeps ignored folders out, and avoids walking them at all.
+                tests:
+                  - FileDiscovery_DiscoverFiles_ScanRootIgnore_PrunesIgnoredDirectories
+                  - FileDiscovery_DiscoverFiles_ScanRootIgnoreShallowPattern_DoesNotPruneDeeperFiles
+                  - FileDiscovery_DiscoverFiles_ScopeOutsideTreeOrNull_PrunesNothing
+                  - FileDiscovery_DiscoverFiles_GlobAndDirectoryArguments_AskForTheirScanRoot

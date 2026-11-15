@@ -21,6 +21,8 @@ sections:
               - LintMark-Engine-FileDiscovery-Exclusions
               - LintMark-Engine-FileDiscovery-SkippedFolders
               - LintMark-Engine-FileDiscovery-DistinctOrdered
+              - LintMark-Engine-FileDiscovery-ScanRootPruning
+              - LintMark-Engine-LintMarkEngine-ScanRootIgnore
             tests:
               - EngineSubsystem_Discovery_PatternsExclusionsAndExplicitFiles_SelectTheFilesToProcess
 

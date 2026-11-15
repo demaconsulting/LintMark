@@ -89,3 +89,21 @@ sections:
                   - LintMarkEngine_Run_IgnoreNearestConfig_EachDirectoryUsesItsOwn
                   - LintMarkEngine_Run_EnableAndDisableOptions_SwitchRules
                   - LintMarkEngine_Run_OptionsAndConfiguration_OptionsWin
+
+              - id: LintMark-Engine-LintMarkEngine-ScanRootIgnore
+                title: >-
+                  The LintMarkEngine unit shall prune discovery with the ignore patterns of the configuration that
+                  applies at each scan root, nested repositories included, while every file keeps the settings of its
+                  own nearest configuration and a file named on the command line is still processed.
+                justification: |
+                  Files inside a nested repository (a clone, a submodule, vendored code) never see the ignore list of
+                  the repository around it, yet users expect an ignored folder to stay ignored, as in other linters.
+                  Deciding by the configuration at the scan root, which is the built-in defaults for a run without
+                  configuration and the given file for an explicit configuration, is predictable and cheap.
+                tests:
+                  - LintMarkEngine_Run_IgnoredFolderHoldsNestedRepository_Pruned
+                  - LintMarkEngine_Run_NestedRepositoryNotIgnored_UsesOwnConfig
+                  - LintMarkEngine_Run_ExplicitFileInIgnoredNestedRepository_IsProcessed
+                  - LintMarkEngine_Run_DirectoryArgumentBelowConfig_PrunesIgnoredNestedRepository
+                  - LintMarkEngine_Run_NoConfig_BuiltInIgnorePrunesNestedRepository
+                  - LintMarkEngine_Run_ExplicitConfig_PrunesNestedRepositoryBelowItsFolder

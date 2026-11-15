@@ -11,7 +11,7 @@ package LintMark {
     }
 
     part def FileDiscovery {
-        doc /* Expands path, directory, glob and exclusion arguments into the list of Markdown files to process, remembering which were named explicitly, and answers whether a configuration's ignore patterns match a file (also documents the DiscoveredFile supporting type). */
+        doc /* Expands path, directory, glob and exclusion arguments into the list of Markdown files to process, remembering which were named explicitly, answers whether a configuration's ignore patterns match a file, and prunes the directories that the ignore patterns supplied for a scan root ignore, nested repositories included (also documents the DiscoveredFile and IgnoreScope supporting types). */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/Engine/FileDiscovery.cs");

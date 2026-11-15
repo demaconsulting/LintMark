@@ -210,6 +210,27 @@ ignore:
 - Patterns are judged with the configuration that applies to the file. A file in a folder with an invalid configuration
   has no usable patterns, so it is still read and checked, but never rewritten.
 
+### Ignored Folders and Nested Repositories
+
+The `ignore` list of the configuration that applies where a scan starts also decides which folders are entered at all.
+A scan starts at the current directory when no path is given, and at each directory or glob argument. Everything
+beneath such a scan root that the list ignores is skipped, **including a nested repository**: a folder with its own
+`.git` (a clone, a submodule, or vendored code) does not see the `ignore` list of the repository around it through
+configuration discovery, but it is still pruned by the list that applies at the scan root.
+
+```yaml
+ignore:
+  - ".corpus/**"
+```
+
+- A nested repository that is not ignored is linted with its own configuration for its settings and its own `ignore`
+  list, as before.
+- With `--no-config` the built-in defaults prune; with `--config <file>` the ignore list of that file prunes, relative
+  to the folder of that file.
+- A file named on the command line is still processed, even inside an ignored folder.
+- A folder is skipped only when a pattern ignores everything beneath it, as `dir/**` and `**/dir/**` do. A pattern
+  such as `dir/*` skips the direct children of `dir` but not deeper files.
+
 ## Line Endings and .editorconfig
 
 The line ending that a file is written with is decided per file, in this order:

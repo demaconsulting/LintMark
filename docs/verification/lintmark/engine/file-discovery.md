@@ -27,6 +27,9 @@ Each test creates and removes a temporary directory tree, including folders name
   the search ends; a link to another folder is followed; a broken link is skipped.
 - A blank pattern is refused; a missing literal path passes through for the engine to report.
 - Ignore patterns match relative to the configuration folder at any depth with the platform's case rule.
+- A directory below a scan root whose files the scope's ignore patterns all ignore is not entered, a nested repository
+  included; a pattern that ignores only some files beneath a directory does not prune it; a scope outside the tree, or
+  none, prunes nothing.
 
 #### Test Scenarios
 
@@ -47,6 +50,10 @@ Each test creates and removes a temporary directory tree, including folders name
 **Ignore patterns match**: Pattern matches, patterns relative to the config folder, `**` at any depth, and default
 patterns for `.git`, `node_modules`, and `generated`.
 
+**Ignored directories are pruned during the walk**: A folder with a nested repository (it holds a `.git`) and a
+folder at depth are not entered when the scope ignores them
+(`FileDiscovery_DiscoverFiles_ScanRootIgnore_PrunesIgnoredDirectories`).
+
 ##### Boundary conditions
 
 **Search root inside `node_modules` still finds its files**: The folder is skipped only below the root.
@@ -65,6 +72,13 @@ same holds when the search folder is itself reached through a link, as on macOS 
 **A broken directory link is skipped**: No exception, the other files are returned
 (`FileDiscovery_Discover_BrokenDirectoryLink_IsSkipped`). The link tests create a symbolic link, fall back to a Windows
 junction, and pass without a check when neither can be created.
+
+**A shallow pattern does not prune**: `drafts/*` leaves `drafts/sub/b.md` discoverable
+(`FileDiscovery_DiscoverFiles_ScanRootIgnoreShallowPattern_DoesNotPruneDeeperFiles`).
+
+**A scope outside the tree, or none, prunes nothing**, and the scope is requested once per scan root: a directory
+argument and the start of a glob (`FileDiscovery_DiscoverFiles_ScopeOutsideTreeOrNull_PrunesNothing`,
+`FileDiscovery_DiscoverFiles_GlobAndDirectoryArguments_AskForTheirScanRoot`).
 
 **A missing literal path passes through**: It is marked explicit.
 

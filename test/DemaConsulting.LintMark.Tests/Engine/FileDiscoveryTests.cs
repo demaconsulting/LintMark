@@ -864,4 +864,85 @@ public class FileDiscoveryTests
         Assert.False(other);
         Assert.False(deeper);
     }
+
+    /// <summary>
+    ///     Test that a directory whose files the patterns all ignore is pruned during the walk, a nested repository included.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScanRootIgnore_PrunesIgnoredDirectories()
+    {
+        // Arrange: an ignored folder with a nested repository, an ignored folder at depth, and a kept file
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.PathOf(".corpus/clone/.git"));
+        directory.WriteFile(".corpus/clone/a.md");
+        directory.WriteFile("docs/tmp/b.md");
+        directory.WriteFile("docs/keep.md");
+
+        // Act: discover with a scope that ignores both folders
+        var found = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(directory.FullPath, [".corpus/**", "**/tmp/**"]));
+
+        // Assert: only the kept file is found
+        Assert.Equal([directory.PathOf("docs/keep.md")], found.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that a pattern that does not ignore everything beneath a directory does not prune it.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScanRootIgnoreShallowPattern_DoesNotPruneDeeperFiles()
+    {
+        // Arrange: a single-segment pattern, which ignores the direct children of a folder only
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("drafts/a.md");
+        directory.WriteFile("drafts/sub/b.md");
+
+        // Act: discover with that scope
+        var found = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(directory.FullPath, ["drafts/*"]));
+
+        // Assert: the deeper file is still discovered (the per-file check judges the direct child later)
+        Assert.Contains(directory.PathOf("drafts/sub/b.md"), found.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that a scope whose root lies outside the scanned tree prunes nothing, and that a null scope prunes nothing.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_ScopeOutsideTreeOrNull_PrunesNothing()
+    {
+        // Arrange: a folder that the pattern would ignore if it were relative to the scanned tree
+        using var directory = new TemporaryDirectory();
+        using var other = new TemporaryDirectory();
+        directory.WriteFile("gen/a.md");
+
+        // Act: discover with a scope rooted elsewhere, and with no scope
+        var outside = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => new IgnoreScope(other.FullPath, ["gen/**"]));
+        var none = FileDiscovery.DiscoverFiles([], directory.FullPath, _ => null);
+
+        // Assert: the file is found both times
+        Assert.Equal([directory.PathOf("gen/a.md")], outside.Select(f => f.Path));
+        Assert.Equal([directory.PathOf("gen/a.md")], none.Select(f => f.Path));
+    }
+
+    /// <summary>
+    ///     Test that the scope is requested for the directory a glob starts in.
+    /// </summary>
+    [Fact]
+    public void FileDiscovery_DiscoverFiles_GlobAndDirectoryArguments_AskForTheirScanRoot()
+    {
+        // Arrange: two folders to scan
+        using var directory = new TemporaryDirectory();
+        directory.WriteFile("a/x.md");
+        directory.WriteFile("b/y.md");
+        var asked = new List<string>();
+
+        // Act: discover one directory argument and one glob
+        FileDiscovery.DiscoverFiles(["a", "b/**/*.md"], directory.FullPath, root =>
+        {
+            asked.Add(root);
+            return null;
+        });
+
+        // Assert: one request per scan root
+        Assert.Equal([directory.PathOf("a"), directory.PathOf("b")], asked.Select(Path.TrimEndingDirectorySeparator).Order(StringComparer.Ordinal));
+    }
 }

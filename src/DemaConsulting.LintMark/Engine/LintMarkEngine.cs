@@ -54,7 +54,10 @@ namespace DemaConsulting.LintMark.Engine;
 ///         or editor settings are invalid is still read and parsed, so its own failures are still reported, but
 ///         it is never formatted and never rewritten. A configuration problem shared by many files is reported
 ///         once. The <c>ignore</c> patterns of the configuration skip the files that were found through a
-///         directory, a glob or the default pattern; a file named on the command line is never ignored.
+///         directory, a glob or the default pattern; a file named on the command line is never ignored. The
+///         patterns of the configuration that applies at each scan root (the current directory, a directory
+///         argument, or the directory a glob starts in) also prune discovery: an ignored directory is not
+///         entered, nested repositories included, while each file still uses its own nearest configuration.
 ///     </para>
 ///     <para>
 ///         A document the parser could only read by dropping grid tables is never rewritten and its offending
@@ -179,10 +182,11 @@ internal sealed class LintMarkEngine
     {
         // Discover the files against the current directory
         var baseDirectory = Directory.GetCurrentDirectory();
-        var files = FileDiscovery.DiscoverFiles(context.Paths, baseDirectory);
-
-        // Choose the configuration sources from the command line, then process; no output happens until all workers are done
+        // Choose the configuration sources from the command line; discovery prunes by the ignore patterns that apply at each scan root
         var loader = CreateLoader(context);
+        var files = FileDiscovery.DiscoverFiles(context.Paths, baseDirectory, scanRoot => GetScanRootIgnore(loader, scanRoot, baseDirectory));
+
+        // Process; no output happens until all workers are done
         var editorConfig = context.NoConfig ? null : new EditorConfigResolver();
         var results = Process(files, loader, editorConfig, baseDirectory, context.RuleOverrides, context.Fix);
 
@@ -367,6 +371,20 @@ internal sealed class LintMarkEngine
     /// <returns>The directory of the configuration file, or the base directory for the built-in defaults.</returns>
     private static string GetIgnoreRoot(ConfigLoadResult load, string baseDirectory) =>
         load.SourcePath is null ? baseDirectory : Path.GetDirectoryName(Path.GetFullPath(load.SourcePath)) ?? baseDirectory;
+
+    /// <summary>
+    ///     Gets the <c>ignore</c> scope of the configuration that applies at a scan root.
+    /// </summary>
+    /// <param name="loader">Supplies the configuration that applies at the scan root.</param>
+    /// <param name="scanRoot">The full path of the scan root directory.</param>
+    /// <param name="baseDirectory">The directory to use when the configuration is not from a file.</param>
+    /// <returns>The patterns and the directory they are relative to; <see langword="null"/> when the configuration is invalid (its problems are reported per file).</returns>
+    private static IgnoreScope? GetScanRootIgnore(ConfigLoader loader, string scanRoot, string baseDirectory)
+    {
+        // The loader resolves per file, so ask for a hypothetical file in the scan root
+        var load = loader.Load(Path.Combine(scanRoot, "scan-root.md"));
+        return load.Config is { } config ? new IgnoreScope(GetIgnoreRoot(load, baseDirectory), config.Ignore) : null;
+    }
 
     /// <summary>
     ///     Reads, parses and formats one file, converting every expected failure into a diagnostic.

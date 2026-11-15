@@ -5,7 +5,8 @@
 #### Purpose
 
 `FileDiscovery` expands the positional path arguments of the command line into the Markdown files to process, and
-decides whether the `ignore` patterns of a configuration skip a file. It is the only unit that enumerates directories.
+decides whether the `ignore` patterns of a configuration skip a file or prune a directory. It is the only unit that
+enumerates directories. Its supporting type `IgnoreScope` carries the patterns and the directory they are relative to.
 Its supporting type `DiscoveredFile` is described in this document.
 
 #### Data Model
@@ -17,10 +18,13 @@ case on Windows and macOS, ordinal elsewhere. Built-in excluded directory names 
 true when an include argument named the file (an existing file, or a path without wildcards, even if missing). Files
 found through a directory, glob, or the default pattern are not explicit.
 
+**IgnoreScope**: sealed record `(string Root, IReadOnlyList<string> Patterns)`: the `ignore` patterns of a configuration
+and the directory they are relative to (the configuration file's directory, or the base directory for defaults).
+
 #### Key Methods
 
-**DiscoverFiles(patterns, baseDirectory)**: takes `IReadOnlyList<string>` and a string; returns
-`IReadOnlyList<DiscoveredFile>`.
+**DiscoverFiles(patterns, baseDirectory, scanRootIgnore = null)**: takes `IReadOnlyList<string>`, a string and an
+optional `Func<string, IgnoreScope?>`; returns `IReadOnlyList<DiscoveredFile>`. The two-argument form prunes nothing.
 
 1. Validate: null arguments throw `ArgumentNullException`; a blank pattern (after removing a leading `!`) throws
    `ArgumentException`. Backslashes are converted to `/` in every argument on every platform.
@@ -31,6 +35,9 @@ found through a directory, glob, or the default pattern are not explicit.
 4. A search (`Matcher` from FileSystemGlobbing) yields nothing when the root itself lies inside `node_modules` or
    `.git`, judged relative to the base directory (full path when outside it), and prunes those folders below the root.
    Explicitly named files are exempt from this built-in exclusion.
+   A search root is a scan root: the base directory (default pattern), a directory argument, or the directory named by
+   the leading wildcard-free segments of a glob. The `IgnoreScope` that `scanRootIgnore` returns for it prunes the walk
+   (see below).
 5. Apply user excludes to all candidates, explicit files included. An exclude is split like an include into a root and
    a glob; without wildcards it names a file, or a directory and everything below it. A candidate outside the root
    never matches.
@@ -45,6 +52,14 @@ skipped, so a walk ends after one lap at the latest; a link to any other folder 
 returned. A link that cannot be resolved is skipped, and a directory that cannot be read (`IOException`,
 `UnauthorizedAccessException` during enumeration) contributes nothing, instead of the failure escaping from the middle
 of the enumeration.
+
+**Scan-root pruning**: `CycleSafeDirectory` receives a predicate built once per scan root from its `IgnoreScope`.
+It is tested when a subdirectory is about to be entered (listing or named lookup), so a pruned directory is never
+read, and neither is anything beneath it, a nested repository with its own `.git` included. The scan root itself is
+never pruned. A directory is pruned only when the patterns match a probe file at depth one, two, and three below it
+(`dir/**` and `**/dir/**` prune; `dir/*` does not), which is conservative: a directory that is not pruned still has
+its ignored files skipped afterwards by `IsIgnored`. A directory outside the scope's root is never pruned. Pruning is
+by path text only, so it is deterministic and needs no extra file system access.
 
 **IsIgnored(fullPath, ignoreRoot, patterns)**: returns true when the file lies
 below `ignoreRoot` and its relative path matches an `ignore` glob. Empty patterns, or a file outside the root (`..` or
@@ -67,4 +82,4 @@ becomes a read-error diagnostic in `LintMarkEngine`.
 
 #### Callers
 
-- `LintMarkEngine.Run` calls `DiscoverFiles`; `LintMarkEngine.ProcessFile` calls `IsIgnored`.
+- `LintMarkEngine.Run` calls `DiscoverFiles` with a scope provider; `LintMarkEngine.ProcessFile` calls `IsIgnored`.

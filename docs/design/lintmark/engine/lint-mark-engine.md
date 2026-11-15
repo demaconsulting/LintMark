@@ -24,13 +24,19 @@ with `Remaining`, the findings in the rewritten text, computed only under `--fix
 
 #### Key Methods
 
-**Run(Context)**: discover with `FileDiscovery.DiscoverFiles(context.Paths, currentDirectory)`; build the
-`ConfigLoader` (`--no-config` defaults only, `--config` that one file, otherwise discovery of the nearest
-`.lintmark.yaml`, cached per directory, no merging); create an `EditorConfigResolver` unless `--no-config`; call
-`Process`. Then, with `--fix`, `WriteChanges`, otherwise take all diagnostics of all results. Add each distinct
-configuration problem (from the files and the loader's initial errors, so a bad `--config` is reported even when no
-file matches) as a `LintOnly` diagnostic. Report with `TextReporter`; with `--diff` also call `DiffReporter` for
-every result that has a change. `--check` is the default and changes nothing. Without `--fix` nothing is written.
+**Run(Context)**: build the `ConfigLoader` (`--no-config` defaults only, `--config` that one file, otherwise discovery
+of the nearest `.lintmark.yaml`, cached per directory, no merging); discover with
+`FileDiscovery.DiscoverFiles(context.Paths, currentDirectory, scanRootIgnore)`, where `scanRootIgnore` loads the
+configuration that applies at a scan root and returns its `ignore` patterns with their root directory (nothing for an
+invalid configuration, whose problems are reported per file). The ignore list that applies at each scan root therefore
+prunes discovery for everything beneath it, nested repositories included, whereas each file still uses its own nearest
+configuration for its settings and its own `ignore` check in `ProcessFile`. Under `--no-config` the built-in defaults
+prune, relative to the current directory; under `--config` the given file prunes, relative to its directory. Create an
+`EditorConfigResolver` unless `--no-config`; call `Process`. Then, with `--fix`, `WriteChanges`, otherwise take all
+diagnostics of all results. Add each distinct configuration problem (from the files and the loader's initial errors, so
+a bad `--config` is reported even when no file matches) as a `LintOnly` diagnostic. Report with `TextReporter`; with
+`--diff` also call `DiffReporter` for every result that has a change. `--check` is the default and changes nothing.
+Without `--fix` nothing is written.
 
 **Process(files, loader, editorConfig, baseDirectory, overrides, fix)**: runs `ProcessFile` with `Parallel.For`,
 each worker writing only its own result slot, and returns the results ordered by ordinal path.

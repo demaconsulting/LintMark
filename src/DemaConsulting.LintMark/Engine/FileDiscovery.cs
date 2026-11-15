@@ -39,7 +39,7 @@ namespace DemaConsulting.LintMark.Engine;
 ///         part of a glob) or found beneath the folder searched; only explicitly named files are exempt
 ///         from that built-in exclusion, and they are not exempt from user excludes. A pattern that
 ///         matches nothing is not an error. Links to folders are followed, except a link whose final target is
-///         a folder the search is already inside (a cycle), which is skipped. <see cref="DiscoverFiles"/> also reports which files were named
+///         a folder the search is already inside (a cycle), which is skipped. <see cref="DiscoverFiles(IReadOnlyList{string}, string, Func{string, IgnoreScope})"/> also reports which files were named
 ///         (are explicit), because the <c>ignore</c> patterns of a configuration, like the built-in exclusion,
 ///         do not apply to them (see <see cref="IsIgnored"/>).
 ///     </para>
@@ -76,6 +76,11 @@ internal static class FileDiscovery
     private static readonly string[] ExcludedDirectoryNames = ["node_modules", ".git"];
 
     /// <summary>
+    ///     The name of the hypothetical file used to decide whether a directory is pruned.
+    /// </summary>
+    private const string ProbeName = "__lintmark_probe__";
+
+    /// <summary>
     ///     Gets the comparison used for file names (case-insensitive on Windows and macOS).
     /// </summary>
     internal static StringComparison PathComparison { get; } =
@@ -89,7 +94,7 @@ internal static class FileDiscovery
     /// <returns>Distinct full paths in ordinal order; empty when nothing matches.</returns>
     /// <remarks>
     ///     Directory enumeration is the only side effect. Safe to call concurrently. Equivalent to the paths
-    ///     of <see cref="DiscoverFiles"/>.
+    ///     of <see cref="DiscoverFiles(IReadOnlyList{string}, string, Func{string, IgnoreScope})"/>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
@@ -112,7 +117,34 @@ internal static class FileDiscovery
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
-    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(IReadOnlyList<string> patterns, string baseDirectory)
+    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(IReadOnlyList<string> patterns, string baseDirectory) =>
+        DiscoverFiles(patterns, baseDirectory, null);
+
+    /// <summary>
+    ///     Expands path arguments into the files to process, pruning the directories that the <c>ignore</c>
+    ///     patterns of the configuration at each scan root exclude.
+    /// </summary>
+    /// <param name="patterns">The positional arguments (paths, directories, globs, <c>!</c> excludes). Must not be null.</param>
+    /// <param name="baseDirectory">Directory that relative patterns are resolved against. Must not be null.</param>
+    /// <param name="scanRootIgnore">
+    ///     Supplies, for the full path of a scan root (the base directory by default, a directory argument, or
+    ///     the directory named by the leading wildcard-free segments of a glob), the <c>ignore</c> scope of the
+    ///     configuration that applies at that root, or <see langword="null"/> when nothing is pruned.
+    ///     <see langword="null"/> prunes nothing.
+    /// </param>
+    /// <returns>As <see cref="DiscoverFiles(IReadOnlyList{string}, string)"/>.</returns>
+    /// <remarks>
+    ///     A directory beneath a scan root whose files the scope's patterns all ignore is not entered, so the
+    ///     walk never reaches (and never reads the configuration of) what is ignored, including a nested
+    ///     repository or submodule that has its own <c>.git</c> entry. The scan root itself is never pruned,
+    ///     and a file named on the command line is not subject to pruning.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="patterns"/>, is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when a pattern is empty or whitespace.</exception>
+    public static IReadOnlyList<DiscoveredFile> DiscoverFiles(
+        IReadOnlyList<string> patterns,
+        string baseDirectory,
+        Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // Validate input, every element before any is interpreted, so a null is always the null error
         ArgumentNullException.ThrowIfNull(patterns);
@@ -145,7 +177,7 @@ internal static class FileDiscovery
         var named = new HashSet<string>(StringComparer.Ordinal);
         foreach (var include in includes)
         {
-            Expand(include, root, candidates, named);
+            Expand(include, root, candidates, named, scanRootIgnore);
         }
 
         // Apply user excludes, then keep one spelling of each file: where names are case-insensitive the
@@ -226,7 +258,8 @@ internal static class FileDiscovery
     /// <param name="baseDirectory">The full base directory.</param>
     /// <param name="candidates">Receives the candidate full paths.</param>
     /// <param name="named">Receives the full paths that the argument names itself (an existing file, or a path without wildcards).</param>
-    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates, HashSet<string> named)
+    /// <param name="scanRootIgnore">Supplies the <c>ignore</c> scope that applies at a scan root, or <see langword="null"/>.</param>
+    private static void Expand(string pattern, string baseDirectory, HashSet<string> candidates, HashSet<string> named, Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // An existing file is taken as given; an existing directory means all Markdown files beneath it
         pattern = NormalizeSeparators(pattern);
@@ -240,7 +273,7 @@ internal static class FileDiscovery
 
         if (Directory.Exists(full))
         {
-            Glob(full, DefaultPattern, baseDirectory, candidates);
+            Glob(full, DefaultPattern, baseDirectory, candidates, scanRootIgnore);
             return;
         }
 
@@ -256,7 +289,7 @@ internal static class FileDiscovery
         // Search from the directory named by the leading wildcard-free segments
         if (Directory.Exists(searchRoot))
         {
-            Glob(searchRoot, relativePattern, baseDirectory, candidates);
+            Glob(searchRoot, relativePattern, baseDirectory, candidates, scanRootIgnore);
         }
     }
 
@@ -292,13 +325,15 @@ internal static class FileDiscovery
     /// <param name="relativePattern">The glob relative to <paramref name="searchRoot"/>.</param>
     /// <param name="baseDirectory">The full base directory the search root is judged against.</param>
     /// <param name="candidates">Receives the matching full paths.</param>
+    /// <param name="scanRootIgnore">Supplies the <c>ignore</c> scope that applies at the search root, or <see langword="null"/>.</param>
     /// <remarks>
     ///     The matcher's exclusions are relative to the search root, so they cannot see an excluded
     ///     folder that is, or lies above, the root itself. The root is therefore checked first: a root
     ///     that is inside <c>node_modules</c> or <c>.git</c> yields nothing (judged relative to the base
-    ///     directory, or on its full path when it lies outside the base directory).
+    ///     directory, or on its full path when it lies outside the base directory). The <c>ignore</c> scope
+    ///     of the search root prunes directories beneath it during the walk.
     /// </remarks>
-    private static void Glob(string searchRoot, string relativePattern, string baseDirectory, HashSet<string> candidates)
+    private static void Glob(string searchRoot, string relativePattern, string baseDirectory, HashSet<string> candidates, Func<string, IgnoreScope?>? scanRootIgnore)
     {
         // Nothing below an excluded folder is selected, whether the folder was named or found
         if (HasExcludedSegment(baseDirectory, searchRoot))
@@ -313,11 +348,52 @@ internal static class FileDiscovery
             matcher.AddExclude(exclude);
         }
 
-        var result = matcher.Execute(CycleSafeDirectory.Open(new DirectoryInfo(searchRoot)));
+        var prune = CreatePruner(scanRootIgnore?.Invoke(searchRoot));
+        var result = matcher.Execute(CycleSafeDirectory.Open(new DirectoryInfo(searchRoot), prune));
         foreach (var file in result.Files)
         {
             candidates.Add(Path.GetFullPath(file.Path, searchRoot));
         }
+    }
+
+    /// <summary>
+    ///     Creates the test that decides whether a directory found during the walk is pruned.
+    /// </summary>
+    /// <param name="scope">The <c>ignore</c> scope, or <see langword="null"/> for none.</param>
+    /// <returns>The test, or <see langword="null"/> when nothing can be pruned.</returns>
+    /// <remarks>
+    ///     A directory is pruned only when the patterns ignore every file beneath it, which cannot be decided
+    ///     without enumerating it; the test is conservative instead: the patterns must match a probe file at
+    ///     depth one, two and three below the directory (so <c>dir/**</c> and <c>**/dir/**</c> prune, whereas
+    ///     <c>dir/*</c> does not). A directory outside the scope's root is never pruned. Files that a pattern
+    ///     ignores in a directory that is not pruned are still skipped afterwards, per file.
+    /// </remarks>
+    private static Func<string, bool>? CreatePruner(IgnoreScope? scope)
+    {
+        if (scope is null || scope.Patterns.Count == 0)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(scope.Root);
+        var matcher = new Matcher(PathComparison);
+        foreach (var pattern in scope.Patterns)
+        {
+            matcher.AddInclude(NormalizeSeparators(pattern));
+        }
+
+        return directory =>
+        {
+            var relative = Path.GetRelativePath(root, directory);
+            if (IsOutside(relative) || relative == ".")
+            {
+                return false;
+            }
+
+            var path = relative.Replace(Path.DirectorySeparatorChar, Slash);
+            string[] probes = [$"{path}/{ProbeName}", $"{path}/{ProbeName}/{ProbeName}", $"{path}/{ProbeName}/{ProbeName}/{ProbeName}"];
+            return matcher.Match(root, probes).Files.Count() == probes.Length;
+        };
     }
 
     /// <summary>
@@ -442,22 +518,30 @@ internal static class FileDiscovery
         private readonly string[] _chain;
 
         /// <summary>
+        ///     Decides whether a subdirectory (by full path) is left out of the walk, or <see langword="null"/> to enter every one.
+        /// </summary>
+        private readonly Func<string, bool>? _prune;
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="CycleSafeDirectory"/> class.
         /// </summary>
         /// <param name="directory">The directory.</param>
         /// <param name="chain">The real paths of the directories from the file system root down to this one, this one last.</param>
-        private CycleSafeDirectory(DirectoryInfo directory, string[] chain)
+        /// <param name="prune">Decides whether a subdirectory is left out of the walk; <see langword="null"/> enters every one.</param>
+        private CycleSafeDirectory(DirectoryInfo directory, string[] chain, Func<string, bool>? prune)
             : base(directory)
         {
             _chain = chain;
+            _prune = prune;
         }
 
         /// <summary>
         ///     Opens the directory a search starts in.
         /// </summary>
         /// <param name="root">The search root.</param>
+        /// <param name="prune">Decides whether a subdirectory (by full path) is left out of the walk; <see langword="null"/> enters every one.</param>
         /// <returns>The directory.</returns>
-        public static CycleSafeDirectory Open(DirectoryInfo root)
+        public static CycleSafeDirectory Open(DirectoryInfo root, Func<string, bool>? prune)
         {
             // The folders above the search root count as directories the search is inside, so a link to one of them is a cycle too
             var real = RealPathOf(root);
@@ -467,7 +551,7 @@ internal static class FileDiscovery
                 chain.Insert(0, Path.TrimEndingDirectorySeparator(above));
             }
 
-            return new CycleSafeDirectory(root, [.. chain]);
+            return new CycleSafeDirectory(root, [.. chain], prune);
         }
 
         /// <summary>
@@ -524,9 +608,15 @@ internal static class FileDiscovery
         ///     Enters a subdirectory unless it leads back into a directory above.
         /// </summary>
         /// <param name="subdirectory">The subdirectory, as found below this directory.</param>
-        /// <returns>The safe directory; null when it is a link whose final target is this directory or one above it, or cannot be resolved.</returns>
+        /// <returns>The safe directory; null when it is pruned, or a link whose final target is this directory or one above it, or cannot be resolved.</returns>
         private CycleSafeDirectory? Descend(DirectoryInfo subdirectory)
         {
+            // A pruned directory is never entered, so what is beneath it (a nested repository included) is never read
+            if (_prune?.Invoke(subdirectory.FullName) == true)
+            {
+                return null;
+            }
+
             string real;
             try
             {
@@ -540,7 +630,7 @@ internal static class FileDiscovery
 
             return _chain.Any(above => string.Equals(above, real, PathComparison))
                 ? null
-                : new CycleSafeDirectory(subdirectory, [.. _chain, real]);
+                : new CycleSafeDirectory(subdirectory, [.. _chain, real], _prune);
         }
 
         /// <summary>
@@ -600,3 +690,13 @@ internal static class FileDiscovery
 ///     it (only <c>!</c> excludes on the command line do). Immutable value type; safe for concurrent use.
 /// </remarks>
 internal readonly record struct DiscoveredFile(string Path, bool IsExplicit);
+
+/// <summary>
+///     The <c>ignore</c> patterns of a configuration and the directory they are relative to.
+/// </summary>
+/// <param name="Root">The full path of the directory the patterns are relative to.</param>
+/// <param name="Patterns">The glob patterns (<c>*</c> and <c>**</c>).</param>
+/// <remarks>
+///     Immutable value type; safe for concurrent use.
+/// </remarks>
+internal sealed record IgnoreScope(string Root, IReadOnlyList<string> Patterns);
