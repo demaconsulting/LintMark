@@ -180,11 +180,33 @@ internal static class BlankLinePass
     ///     <see langword="true"/> when the line looks like a border and is not part of an indented code block (which
     ///     the code block formatter turns into a fence, so the line is then inside code).
     /// </returns>
-    private static bool IsBorderNeighbor(LineLayout layout, LineOwnership ownership, int line) =>
-        line >= 0
-        && line < layout.LineCount
-        && layout.LooksLikeGridBorder(line)
-        && ownership.LeafAt(line)?.Kind != BlockKind.IndentedCode;
+    private static bool IsBorderNeighbor(LineLayout layout, LineOwnership ownership, int line)
+    {
+        if (line < 0 || line >= layout.LineCount || ownership.LeafAt(line)?.Kind == BlockKind.IndentedCode)
+        {
+            return false;
+        }
+
+        if (layout.LooksLikeGridBorder(line))
+        {
+            return true;
+        }
+
+        // A paragraph with a border-shaped line is read by the grid table rules as a whole, whichever of its lines meets the run
+        if (ownership.LeafAt(line) is { Kind: BlockKind.Paragraph } paragraph)
+        {
+            var (first, last) = LineOwnership.LinesOf(layout, paragraph);
+            for (var other = first; other <= last; other++)
+            {
+                if (layout.LooksLikeGridBorder(other))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     ///     Handles one run of blank lines: removes the surplus lines and empties the lines that stay.

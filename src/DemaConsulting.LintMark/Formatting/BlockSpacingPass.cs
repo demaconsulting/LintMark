@@ -99,8 +99,7 @@ internal static class BlockSpacingPass
 
             // A blank line next to a line that looks like a grid table border could change how Pandoc reads the table
             // (an indented code block is judged after its conversion, when the line is inside a fence)
-            if ((before.Kind != BlockKind.IndentedCode && layout.LooksLikeGridBorder(beforeLast))
-                || (after.Kind != BlockKind.IndentedCode && layout.LooksLikeGridBorder(afterFirst)))
+            if (HoldsBorderLine(layout, ownership, before, beforeLast) || HoldsBorderLine(layout, ownership, after, afterFirst))
             {
                 continue;
             }
@@ -147,6 +146,37 @@ internal static class BlockSpacingPass
                 break;
             }
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a block holds a line that looks like a grid table border where it meets the next block, or anywhere in a container.
+    /// </summary>
+    /// <param name="layout">The line arithmetic of the document.</param>
+    /// <param name="ownership">Which lines belong to which block.</param>
+    /// <param name="block">The top-level block.</param>
+    /// <param name="edgeLine">The line of the block that meets the neighbor (its last line before the boundary, or its first line after it).</param>
+    /// <returns>
+    ///     <see langword="true"/> when the edge line looks like a border and is not indented code, or when the block is a list or a
+    ///     block quote and any of its lines does (outside indented code): the parser reads the text after such a line by the rules
+    ///     of the grid table extension, which can depend on the blank lines.
+    /// </returns>
+    private static bool HoldsBorderLine(LineLayout layout, LineOwnership ownership, BlockInfo block, int edgeLine)
+    {
+        if (block.Kind is BlockKind.List or BlockKind.BlockQuote)
+        {
+            var (first, last) = LineOwnership.LinesOf(layout, block);
+            for (var line = first; line <= last; line++)
+            {
+                if (layout.LooksLikeGridBorder(line) && ownership.LeafAt(line)?.Kind != BlockKind.IndentedCode)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return block.Kind != BlockKind.IndentedCode && layout.LooksLikeGridBorder(edgeLine);
     }
 
     /// <summary>

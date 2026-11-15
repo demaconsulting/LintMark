@@ -274,6 +274,16 @@ public class DocumentFormatterPassTests
         BlockFormatterAssertions.AssertFormats("* - - -\n\n\n\n- a\n", "* ---\n\n- a\n", LintMarkConfig.Default with { MaxBlankLines = 1 });
 
     /// <summary>
+    ///     Test that blank lines next to a paragraph or list that holds a line shaped like the border of a grid table are neither
+    ///     removed nor inserted: the parser reads the text after such a line by the rules of the grid table extension.
+    /// </summary>
+    [Theory]
+    [InlineData("   + ---\n       +    text\n\n\n   2. - z\n")]
+    [InlineData("+ +   ---\n     +  x\n ===\n")]
+    public void DocumentFormatter_Format_BorderShapedLineInParagraphOrList_KeepsTheBlankLines(string input) =>
+        BlockFormatterAssertions.AssertFormats(input, input, LintMarkConfig.Default with { MaxBlankLines = 1 });
+
+    /// <summary>
     ///     Test that whitespace-only lines between blocks become empty lines.
     /// </summary>
     [Theory]
