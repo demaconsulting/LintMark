@@ -21,150 +21,90 @@ its outputs, and use them][workflow]
 
 ## Features
 
-- **File Selection**: Select files by path, directory, or glob pattern with `!` exclusions; with no arguments every
-  `**/*.md` file under the current directory is used
-- **Check, Fix, and Diff**: `--check` (the default) reports problems, `--fix` rewrites each file into its canonical
-  form, and `--diff` previews the rewrite as a unified diff
-- **Formatting Rules**: 26 always-applied rules for whitespace, blank lines, headings, code blocks, thematic breaks,
-  lists, block quotes, tables, emphasis, bare URLs, code spans, the end of the file, and line endings
-- **Switchable Rules**: 27 rules that a configuration can switch on or off, 24 of them lint-only checks for headings,
-  links, images, code fences, tables, footnotes, and block quotes
-- **Paragraph Wrapping**: `fill` (only over-wide paragraphs), `sentence`, and `semantic` wrap modes at a configurable
-  line length
-- **Tables**: Tables are written compact or aligned, with pipes at both ends, and a table that cannot fit is reported
-- **Link Refactoring**: Optional conversion of long inline links to reference links
-- **Suppression**: `lintmark-disable` and `markdownlint-disable` comments leave a passage as it is
-- **Configuration**: An optional `.lintmark.yaml` (the nearest file wins) and the `end_of_line` property of
-  `.editorconfig`; every problem in a configuration is reported
-- **Deterministic Parallel Output**: Files are processed in parallel and reported in a stable order
-- **Atomic Writes**: A rewrite replaces the file in one step, keeps its permissions, and never overwrites a file that
-  changed after it was read
-- **Self-Validation**: Built-in validation tests with TRX and JUnit output
-- **Multi-Platform**: Runs on Windows, Linux, and macOS with .NET 10 and 11
-- **Continuous Compliance**: Compliance evidence is generated on every CI run, following the
-  [Continuous Compliance][link-continuous-compliance] methodology
+LintMark provides:
+
+- 🔧 **Auto-Fix Formatting**: Rewrites whitespace, headings, lists, code, and quotes canonically
+- 📏 **Line-Length Reflow**: Re-wraps only the paragraphs that overflow the line length
+- 📝 **Wrap Modes**: Chooses fill, sentence, or semantic line breaks
+- 📊 **Table Formatting**: Writes pipe tables compact or column-aligned
+- 🔎 **Lint-Only Checks**: Reports heading, link, code fence, and table problems
+- 🔗 **Link Refactoring**: Turns long inline links into reference links on request
+- ⚙️ **Flexible Configuration**: Reads `.lintmark.yaml` and the `.editorconfig` line ending
+- 🔄 **markdownlint Compatible**: Accepts MDxxx rule IDs and `markdownlint-disable` comments
+- 🙈 **Suppression Comments**: Leaves chosen passages or rules alone
+- ⚡ **Parallel Processing**: Handles many files quickly with stable, ordered output
+- ✅ **Self-Validation**: Built-in validation tests with TRX and JUnit output
+- 🖥️ **Multi-Platform Support**: Builds and runs on Windows, Linux, macOS
+- ⚙️ **Multi-Runtime Support**: Targets .NET 10 and 11 runtimes
+- 🔁 **Comprehensive CI/CD**: GitHub Actions workflows for quality checks, builds, tests
+- 🛡️ **Continuous Compliance**: CI generates evidence using [Continuous Compliance][link-continuous-compliance]
+- 📚 **Documentation Tooling**: Automates build notes, user guide, and compliance reports
 
 ## Installation
 
-Install the tool globally with the .NET CLI (.NET 10 or later is required):
+Install the tool globally using the .NET CLI:
 
 ```bash
 dotnet tool install -g DemaConsulting.LintMark
 ```
 
-## Usage
+## Getting Started
 
 ```bash
-# Check every **/*.md file under the current directory (nothing is modified)
+# Check every Markdown file under the current directory (nothing is modified)
 lintmark
 
-# Check one file, a directory, or several of them
-lintmark README.md docs
-
-# Check files selected by glob patterns, leaving some out (quote the patterns)
-lintmark "docs/**/*.md" "!docs/generated/**"
+# Report problems in specific files or directories
+lintmark --check README.md docs
 
 # Rewrite files into canonical form, then report what remains
-lintmark --fix docs
+lintmark --fix
 
-# Preview what --fix would change as a unified diff; no file is written
-lintmark --diff docs
-
-# Use an explicit configuration file, or ignore all configuration
-lintmark --config config/lintmark.yaml docs
-lintmark --no-config docs
-
-# Switch rules on or off for this run
-lintmark --enable descriptive-link-text --disable MD013 docs
+# Preview what --fix would change, as a unified diff
+lintmark --diff docs/
 ```
 
-Problems are reported on standard error, one per line, as `path:line:col: rule-id message`:
-
-```text
-docs/start.md:3:10: trailing-whitespace A line ends with trailing whitespace, or a hard break is not exactly two spaces.
-docs/start.md:4:1: bullet A bullet list item does not use the configured marker character.
-docs/start.md:4:1: list-blank-lines A list is not surrounded by blank lines.
-```
-
-## Command-Line Options
-
-```text
-lintmark [options] [paths...]
-```
-
-| Option | Description |
-| --- | --- |
-| `paths...` | Files, directories, or globs to process; `!pattern` excludes |
-| `--check` | Report problems without writing any file (the default) |
-| `--fix` | Rewrite files into canonical form |
-| `--diff` | Print a unified diff of what `--fix` would change |
-| `--config <file>` | Use this configuration file instead of discovering `.lintmark.yaml` |
-| `--no-config` | Ignore `.lintmark.yaml` and `.editorconfig`; use the built-in defaults |
-| `--enable <ids>` | Force rules on (comma-separated ids or legacy rule numbers; repeatable) |
-| `--disable <ids>` | Force rules off (same syntax as `--enable`) |
-| `-v`, `--version` | Display version information |
-| `-?`, `-h`, `--help` | Display help message |
-| `--silent` | Suppress console output |
-| `--validate` | Run self-validation |
-| `--results <file>`, `--result <file>` | Write validation results to a `.trx` (TRX) or `.xml` (JUnit) file |
-| `--depth <#>` | Set heading depth (1 to 6) for validation output (default: 1) |
-| `--log <file>` | Write output to log file |
-
-## Configuration
-
-LintMark is configured with an optional `.lintmark.yaml` file. Every setting has a built-in default, so a file lists
-only the settings it changes. For example:
+A minimal `.lintmark.yaml`:
 
 ```yaml
 line-length: 100
-bullet: asterisk
+wrap: fill
 tables: aligned
-rules:
-  MD013: false
-  descriptive-link-text: true
 ignore:
-  - "docs/generated/**"
+  - docs/generated/**
 ```
 
-The *Configuration* chapter of the User Guide lists every setting with its allowed values and default, and explains
-how the file is discovered and how the line ending is chosen.
+The exit code is `0` when nothing is left to report and `1` otherwise, so `lintmark --check` works as a CI gate.
 
-## Exit Codes
+## Learn More
 
-The exit code is `0` when every file was processed and nothing is left to report, and `1` when any problem was
-reported (including a configuration problem), when an argument is invalid, or when self-validation fails.
+The [User Guide][link-guide] covers everything else:
+
+- [Command-line options and exit codes][link-guide-usage]
+- [Configuration][link-guide-configuration]
+- [Formatting rules][link-guide-rules] and [lint rules][link-guide-lint-rules]
+- [Paragraph wrapping][link-guide-wrapping] and [tables and links][link-guide-tables-links]
+- [Suppression comments][link-guide-suppression]
+- [Migrating from markdownlint][link-guide-migrating]
 
 ## Self-Validation
 
-`lintmark --validate` runs built-in tests and prints a report; add `--results results.trx` (or `results.xml`) to save
-the results. Use `--depth <#>` to set the heading level of the report when you embed it in a larger document:
+Run the built-in validation tests, and optionally save the results as TRX or JUnit:
 
-```text
-# DEMA Consulting LintMark
-
-| Information         | Value                                              |
-| :------------------ | :------------------------------------------------- |
-| Tool Version        | <version>                                          |
-| Machine Name        | <machine-name>                                     |
-| OS Version          | <os-version>                                       |
-| DotNet Runtime      | <dotnet-runtime-version>                           |
-| Time Stamp          | <timestamp> UTC                                    |
-
-✓ LintMark_VersionDisplay - Passed
-✓ LintMark_HelpDisplay - Passed
-
-Total Tests: 2
-Passed: 2
-Failed: 0
+```bash
+lintmark --validate
+lintmark --validate --results results.trx
 ```
 
 ## Documentation
 
-The [User Guide][link-guide] covers [usage][link-guide-usage], [configuration][link-guide-configuration],
-the [formatting rules][link-guide-rules], the [lint rules][link-guide-lint-rules],
-[paragraph wrapping][link-guide-wrapping], [tables and links][link-guide-tables-links],
-[rule suppression][link-guide-suppression], and [migrating from markdownlint][link-guide-migrating].
-CI also generates build notes, code quality reports, requirements, justifications, and a trace matrix.
+Generated documentation includes:
+
+- **Build Notes**: Release information and changes
+- **User Guide**: Comprehensive usage documentation
+- **Code Quality Report**: CodeQL and SonarCloud analysis results
+- **Requirements**: Functional and non-functional requirements
+- **Verification**: Requirement-to-test mapping and verification evidence design
 
 ## Contributing
 
@@ -197,6 +137,7 @@ By contributing to this project, you agree that your contributions will be licen
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_LintMark
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_LintMark
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.LintMark
+[link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
 [link-guide]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/introduction.md
 [link-guide-usage]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/usage.md
 [link-guide-configuration]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/configuration.md
@@ -206,4 +147,3 @@ By contributing to this project, you agree that your contributions will be licen
 [link-guide-tables-links]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/tables-and-links.md
 [link-guide-suppression]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/suppression.md
 [link-guide-migrating]: https://github.com/demaconsulting/LintMark/blob/main/docs/user_guide/migrating-from-markdownlint.md
-[link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
