@@ -684,6 +684,28 @@ public class ListFormatterTests
         AssertFormats("*   a\n    - ---\n", "-   a\n    - ---\n");
 
     /// <summary>
+    ///     Test that an item that starts with a thematic break and has more lines, or a nest that holds such an item, keeps its columns
+    ///     (rule G-3: the reading of a later line at a relative indent of three depends on the absolute column).
+    /// </summary>
+    [Theory]
+    [InlineData("  -  ***\n      - z\n      x = 1\n           # h\n")]
+    [InlineData("-  x\n   1. ---\n          code\n")]
+    public void ListFormatter_Format_ItemStartsWithThematicBreak_KeepsTheColumns(string input) =>
+        AssertFormats(input, input);
+
+    /// <summary>
+    ///     Test that a nested item with a block three columns past its content column keeps its columns (rule G-4), while the same
+    ///     nest without such a block moves.
+    /// </summary>
+    [Fact]
+    public void ListFormatter_Format_BlockFarInNestedItem_KeepsTheColumns()
+    {
+        // Act & Assert: the marker character is written, the columns stay; with the line two columns in, the nest moves
+        AssertFormats("  * x = 1\n     1)  x = 1\n\n            code\n", "  - x = 1\n     1)  x = 1\n\n            code\n");
+        AssertFormats("  * x = 1\n     1)  x = 1\n\n           code\n", "- x = 1\n   1) x = 1\n\n        code\n");
+    }
+
+    /// <summary>
     ///     Test that a continuation line that starts with an ordered marker that cannot interrupt a paragraph does not keep the
     ///     columns of its item (rule G-2 only concerns block syntax that the indentation hides).
     /// </summary>

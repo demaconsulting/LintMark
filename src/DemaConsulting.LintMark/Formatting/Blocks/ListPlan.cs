@@ -139,7 +139,9 @@ internal sealed class ListPlan
     ///         line that is not indented exactly to the content column of its item reads differently once the item moves (R-2);
     ///         a line of a paragraph that starts with block syntax is text only because of its indentation (G-2); a line that
     ///         the plan changes would be a thematic break or a setext underline by itself (G-1: <c>- ---</c> at the margin); two edits
-    ///         overlap (R-3). The plan without changes of columns is dropped as well in the last case.
+    ///         overlap (R-3); an item that starts with a thematic break and has more lines moves (G-3); a nested item moves and has a
+    ///         block that starts three or more columns past its content column (G-4). The plan without changes of columns is dropped as well
+    ///         in the case of R-3.
     ///     </para>
     /// </remarks>
     public void Apply(ListModel outermost)
@@ -442,6 +444,13 @@ internal sealed class ListPlan
             return frame;
         }
 
+        // An item that starts with a thematic break is read by columns that do not follow its content column (the heading, code or
+        // paragraph reading of a later line can change at a relative indent of three), so such an item with more lines stays (G-3)
+        if (HoldsBreakItem(item))
+        {
+            _hidesMeaning = true;
+        }
+
         // A line after the item that is indented to the column where the parser lets a line continue the item is taken into the item.
         // That column is the content column, and for a list inside an item it can be as low as the width of the marker from the
         // content column of the item that holds it (the parser counts the indentation from there)
@@ -458,6 +467,33 @@ internal sealed class ListPlan
         ShiftLines(item, shift, rule, own, nested: parent is not null);
         return frame;
     }
+
+    /// <summary>
+    ///     Determines whether a line of a nested item starts a block three or more columns beyond the content column (rule G-4).
+    /// </summary>
+    /// <param name="item">The item that moves.</param>
+    /// <param name="nested">Whether the item is inside another item.</param>
+    /// <param name="line">The zero-based line, which is not blank.</param>
+    /// <param name="width">The number of leading spaces of the line.</param>
+    /// <returns>
+    ///     <see langword="true"/> for the first line of a block of a nested item that is indented at least three columns past the content
+    ///     column. The parser decides between a paragraph, a heading and indented code for such a line by columns that include the
+    ///     offset of the nested list from the item around it, so the same relative indentation can be read differently after the move.
+    /// </returns>
+    private bool StartsBlockFarIn(ListItemModel item, bool nested, int line, int width) =>
+        nested
+        && width - item.OldContentColumn >= 3
+        && _context.Ownership.LeafAt(line) is { } leaf
+        && _context.Layout.LineOf(leaf.Start) == line;
+
+    /// <summary>
+    ///     Determines whether an item, or an item of a list inside it, starts with a thematic break and has more lines (rule G-3).
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns><see langword="true"/> when such an item exists.</returns>
+    private bool HoldsBreakItem(ListItemModel item) =>
+        (item.LastLine > item.FirstLine && _context.Ownership.LeafAt(item.MarkerLine)?.Kind == BlockKind.ThematicBreak)
+        || item.Lists.Any(list => list.Items.Any(HoldsBreakItem));
 
     /// <summary>
     ///     Chooses the rule that the shift of the lines of an item is reported under.
@@ -517,7 +553,7 @@ internal sealed class ListPlan
             }
 
             // The meaning of some lines depends on their indentation relative to the content column (rules R-2 and G-2)
-            if (!blank && DependsOnIndentation(item, nested, line, start + width, end, width))
+            if (!blank && (DependsOnIndentation(item, nested, line, start + width, end, width) || StartsBlockFarIn(item, nested, line, width)))
             {
                 _hidesMeaning = true;
             }
