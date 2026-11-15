@@ -33,7 +33,7 @@ namespace DemaConsulting.LintMark.Engine;
 
 /// <summary>
 ///     Discovers the Markdown files named on the command line, processes them in parallel (read, parse,
-///     configure, format and verify), optionally rewrites them, and reports every finding in a deterministic order.
+///     configure and format), optionally rewrites them, and reports every finding in a deterministic order.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -306,7 +306,7 @@ internal sealed class LintMarkEngine
     }
 
     /// <summary>
-    ///     Processes one file: loads its configuration, skips it when ignored, and otherwise reads, parses, formats and verifies it.
+    ///     Processes one file: loads its configuration, skips it when ignored, and otherwise reads, parses and formats it.
     /// </summary>
     /// <param name="file">The file.</param>
     /// <param name="loader">Supplies the configuration that applies to the file.</param>
@@ -369,7 +369,7 @@ internal sealed class LintMarkEngine
         load.SourcePath is null ? baseDirectory : Path.GetDirectoryName(Path.GetFullPath(load.SourcePath)) ?? baseDirectory;
 
     /// <summary>
-    ///     Reads, parses, formats and verifies one file, converting every expected failure into a diagnostic.
+    ///     Reads, parses and formats one file, converting every expected failure into a diagnostic.
     /// </summary>
     /// <param name="path">Path of the file.</param>
     /// <param name="config">The configuration to format under, or <see langword="null"/> when the file must not be formatted.</param>

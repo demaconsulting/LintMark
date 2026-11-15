@@ -135,7 +135,7 @@ internal sealed class DocumentFormatter
     /// <returns>The edits, the line ending to write and the formatting violations found.</returns>
     /// <remarks>
     ///     Pure: nothing is written and the document is not changed. The edits are not applied here, so the
-    ///     caller can still verify the result before anything reaches a file.
+    ///     caller can still inspect the result before anything reaches a file.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown when two formatters propose conflicting edits (a defect of a formatter).</exception>
     public FormatResult Format(ParsedDocument document, LintMarkConfig config)

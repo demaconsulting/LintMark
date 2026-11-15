@@ -95,7 +95,7 @@ public class LinkRulesTests
 
         // Letter case does not matter, a percent-encoded fragment is decoded, and a link to another file is not checked
         Assert.Empty(LintRuleTestSupport.Findings(Rules, "# Intro\n\n[a](#INTRO) [c](other.md#nope)\n"));
-        Assert.Empty(LintRuleTestSupport.Findings(Rules, "# Über uns\n\n[b](#%C3%BCber-uns) [c](other.md#nope)\n"));
+        Assert.Empty(LintRuleTestSupport.Findings(Rules, "# \u00DC" + "ber uns\n\n[b](#%C3%BC" + "ber-uns) [c](other.md#nope)\n"));
 
         // Text in a code span is not a link
         Assert.Empty(LintRuleTestSupport.Findings(Rules, "`[x](#nope)`\n"));
@@ -109,7 +109,7 @@ public class LinkRulesTests
     [InlineData("What's new? (v2)", "whats-new-v2")]
     [InlineData("A  &  B", "a----b")]
     [InlineData("snake_case and-dash", "snake_case-and-dash")]
-    [InlineData("Ünïcode Ελληνικά 日本語", "ünïcode-ελληνικά-日本語")]
+    [InlineData("\u00DCn\u00EF" + "code \u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC 日本語", "\u00FCn\u00EF" + "code-\u03B5\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC-日本語")]
     [InlineData("`code` and *emphasis*", "code-and-emphasis")]
     public void LinkRules_Slug_HeadingText_IsSlugified(string heading, string expected)
     {

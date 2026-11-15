@@ -447,7 +447,7 @@ internal static partial class SentenceSplitter
     }
 
     /// <summary>
-    ///     Finds the atoms that follow a break, for a test on a pair of neighbours.
+    ///     Finds the atoms that follow a break, for a test on a pair of neighbors.
     /// </summary>
     /// <param name="atoms">The atoms.</param>
     /// <param name="breaksAfter">Tells whether a break lies between an atom (first argument) and the next (second argument).</param>

@@ -85,7 +85,6 @@ internal sealed class ListFormatter : IBlockFormatter
     /// <param name="block">The outermost list. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives the edits. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not accepted by <see cref="CanFormat"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {
@@ -109,9 +108,9 @@ internal sealed class ListFormatter : IBlockFormatter
 ///     <para>
 ///         The decisions are made per list and are all-or-nothing for it: the markers of a bullet list change together
 ///         or not at all, the numbers of an ordered list likewise. Marker characters and numbers that keep their width are
-///         edits that change no column (<em>tier 1</em>) and apply at any depth, also inside block quotes. A list in the
+///         edits that change no column (the <em>width-keeping edits</em>) and apply at any depth, also inside block quotes. A list in the
 ///         body of a footnote is left as written: the four-space indent of a footnote body is not a column of the list.
-///         Everything that changes a column (<em>tier 2</em>: the column of a marker, the spaces after it, a number that
+///         Everything that changes a column (the <em>column edits</em>: the column of a marker, the spaces after it, a number that
 ///         gains or loses a digit) needs the columns of the lines to mean what they say, so it is only done for a nest at
 ///         the top level of the document whose items can be moved (see <see cref="ListModel"/>).
 ///     </para>
@@ -412,7 +411,7 @@ internal sealed class ListPlan
         {
             var item = list.Items[i];
 
-            // Tier 1: the marker keeps its width
+            // Width-keeping edits: the marker keeps its width
             if (convertBullet)
             {
                 Plan(new TextEdit(item.MarkerOffset, 1, TargetBullet().ToString(), RuleCatalog.BulletRuleId));
@@ -424,7 +423,7 @@ internal sealed class ListPlan
                 Plan(new TextEdit(item.MarkerOffset, item.DigitsLength, digits, RuleCatalog.OrderedStyleRuleId));
             }
 
-            // Tier 2: columns; the lists inside the item follow the item when it moved
+            // Column edits: the lists inside the item follow the item when it moved
             Frame? inner = target is { } column ? MoveItem(list, item, column, digits, frame) : null;
             foreach (var child in item.Lists)
             {
@@ -484,7 +483,7 @@ internal sealed class ListPlan
     }
 
     /// <summary>
-    ///     Adds the tier 2 edits of one item: its marker line and the shift of its other lines.
+    ///     Adds the column edits of one item: its marker line and the shift of its other lines.
     /// </summary>
     /// <param name="list">The list of the item.</param>
     /// <param name="item">The item.</param>

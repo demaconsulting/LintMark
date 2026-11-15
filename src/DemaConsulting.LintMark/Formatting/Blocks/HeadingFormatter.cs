@@ -96,7 +96,6 @@ internal sealed class HeadingFormatter : IBlockFormatter
     /// <param name="block">The heading. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives the edits. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a heading.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {

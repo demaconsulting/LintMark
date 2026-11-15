@@ -150,7 +150,6 @@ internal sealed class ParagraphFormatter
     ///     the document is a precondition that is not verified.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a paragraph.</exception>
     public ParagraphOutcome Format(FormatContext context, BlockInfo block)
     {
         // Validate input

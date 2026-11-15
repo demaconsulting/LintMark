@@ -86,7 +86,7 @@ public class FormattingSubsystemTests
         var insert = new TextEdit(4, 0, "Y", "test");
         var conflicting = new TextEdit(1, 2, "Z", "test");
         var edited = SourcePatcher.Apply(source, [replace]);
-        var followUp = new TextEdit(3, 1, "Z", "test");
+        var followUp = new TextEdit(3, 1, "-", "test");
 
         // Act: add the edits in the opposite order, add the conflicting one, and rebase the follow-up onto the original text
         var set = new EditSet();
@@ -100,8 +100,8 @@ public class FormattingSubsystemTests
         Assert.Equal([replace, insert], set.ToImmutable());
         Assert.Equal("aXXcdYef", SourcePatcher.Apply(source, set.ToImmutable()));
         Assert.Contains("conflicts with edit", conflict.Message);
-        Assert.Equal("aXXZdef", SourcePatcher.Apply(SourceDocument.FromText("a.md", edited), [followUp]));
-        Assert.Equal("aXXZdef", SourcePatcher.Apply(source, rebased));
+        Assert.Equal("aXX-def", SourcePatcher.Apply(SourceDocument.FromText("a.md", edited), [followUp]));
+        Assert.Equal("aXX-def", SourcePatcher.Apply(source, rebased));
     }
 
     /// <summary>

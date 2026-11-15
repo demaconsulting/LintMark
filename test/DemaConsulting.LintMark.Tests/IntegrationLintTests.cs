@@ -75,7 +75,7 @@ public class IntegrationLintTests
     public void LintMark_LintHeadings_HeadingProblems_AreReportedWithRuleAndPosition()
     {
         // Arrange and Act: check a document with one problem for each heading rule
-        var (exitCode, output) = Check("# One\n\n### Three\n\n## Dup\n\n## Dup\n\n## Punct.\n\n**Bold para**\n\n#NoSpace\n\n#Closed#\n");
+        var (exitCode, output) = Check("# One\n\n### Three\n\n## Dup\n\n## Dup\n\n## Ends.\n\n**Bold para**\n\n#NoSpace\n\n#Closed#\n");
 
         // Assert: one finding per rule at the start of its line
         Assert.Equal(1, exitCode);
@@ -140,7 +140,7 @@ public class IntegrationLintTests
     {
         // Arrange and Act: check a short row and a wide table, an invalid grid table and a valid grid table
         var (pipeExit, pipe) = Check(
-            "| a | b |\n| --- | --- |\n| 1 |\n\n| a | b | c |\n| --- | --- | --- |\n| averyveryverylongcellaverylong | averyveryverylongcellaverylong | averyveryverylongcellaverylong |\n",
+            "| a | b |\n| --- | --- |\n| 1 |\n\n| a | b | c |\n| --- | --- | --- |\n| wide-cell-wide-cell-wide-cell | wide-cell-wide-cell-wide-cell | wide-cell-wide-cell-wide-cell |\n",
             "line-length: 40\n");
         var (invalidExit, invalid) = Check("| a | b |\n+---+---+\n");
         var (gridExit, grid) = Check("+---+---+\n| a | b |\n+---+---+\n| 1 | 2 |\n+---+---+\n", null, "--enable", "table-grid-unformatted");

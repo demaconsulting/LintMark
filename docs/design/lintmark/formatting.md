@@ -62,7 +62,7 @@ and Markdig (OTS) for the syntax tree.
 
 **Line ownership.** Stages 2 and 3 must never edit the same characters, so `LineOwnership` is the agreement: each line
 belongs to at most one leaf block, lines of code, HTML, math, front matter, grid tables, raw-text HTML elements, and
-unmodeled blocks are protected, and container lines are marked so that a rule can tell indentation from content.
+unrecognized blocks are protected, and container lines are marked so that a rule can tell indentation from content.
 
 **Edit composition.** Stages 4 to 6 parse and measure the text that the earlier edits produce, but every result
 must be expressed against the original text. `EditRebaser` composes two edit lists after one preparation pass over

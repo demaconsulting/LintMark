@@ -588,7 +588,7 @@ public class LinkRefactorerTests
     [Theory]
     [InlineData("Long Link Text", "https://a.b/c", 40, "long-link-text")]
     [InlineData("  --Hello,   World!!  ", "https://a.b/c", 40, "hello-world")]
-    [InlineData("Ünïcode Tëxt 2", "https://a.b/c", 40, "ünïcode-tëxt-2")]
+    [InlineData("\u00DCn\u00EF" + "code T\u00EB" + "xt 2", "https://a.b/c", 40, "\u00FCn\u00EF" + "code-t\u00EB" + "xt-2")]
     [InlineData("alpha beta gamma delta", "https://a.b/c", 12, "alpha-beta")]
     [InlineData("abcdefghijklmnop", "https://a.b/c", 5, "abcde")]
     [InlineData("***", "https://www.example.com/docs/page?x=1", 40, "example-com-docs")]

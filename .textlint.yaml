@@ -20,24 +20,35 @@ enableGlobDot: true
 
 # Project-specific technical terms and tool names
 words:
+  - autolinks
   - Dema
+  - dedented
   - demaconsulting
   - filesystemglobbing
+  - fixpoint
   - Inlines
+  - intraword
+  - ivxlcdm
   - Markdig
+  - MDxxx
   - mklink
   - ncipollo
   - nestings
   - netstandard
+  - newpage
   - Rebaser
+  - Refactorer
   - sarif
   - Setext
   - shopt
   - slnx
+  - slugified
   - snupkg
   - sonarscanner
   - lintmark
+  - testresults
   - thirdparty
+  - Titlecase
   - unidirectionality
   - venv
   - yamldotnet

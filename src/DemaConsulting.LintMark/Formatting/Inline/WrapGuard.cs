@@ -78,7 +78,7 @@ internal static partial class WrapGuard
     /// <param name="lines">The lines of the paragraph as written. Must not be null or empty.</param>
     /// <param name="continuationPrefix">The prefix that every continuation line of the paragraph needs. Must not be null.</param>
     /// <param name="breakLinkText">Whether the text of a link may be broken at its blanks.</param>
-    /// <returns><see langword="true"/> when one of the rules W-1 to W-6 and W-8 applies.</returns>
+    /// <returns><see langword="true"/> when one of the rules W-1 to W-6, W-8 and W-9 applies.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     public static bool KeepsAsWritten(
         ParsedDocument document,

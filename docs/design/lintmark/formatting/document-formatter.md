@@ -36,7 +36,7 @@ whether it lies in a footnote. Built once per text by `Build`. Ranges run to the
 parser's span (which may include whitespace-only lines), so a rule never depends on whether such a line is empty. The
 exceptions are blocks whose trailing blank lines are content (unclosed fence, HTML blocks closed only by the end of the
 file) and top-level indented code. Protected are fenced, unclosed, and indented code, HTML, math, front matter, grid
-tables, multi-line link reference definitions, unreferenced footnotes, unmodeled blocks, and leaf blocks selected by
+tables, multi-line link reference definitions, unreferenced footnotes, unrecognized blocks, and leaf blocks selected by
 `RawTextElements`. `TopLevel` lists the blocks without parent; `IsContainer` is true for list, item, quote, footnote.
 
 **RawTextElements**: Finds leaf blocks inside an open `pre`, `script`, `style`, or `textarea` element that the Markdown

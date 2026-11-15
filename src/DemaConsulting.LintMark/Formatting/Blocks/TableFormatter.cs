@@ -87,7 +87,6 @@ internal sealed class TableFormatter : IBlockFormatter
     /// <param name="block">The table. Must be accepted by <see cref="CanFormat"/>.</param>
     /// <param name="edits">Receives one edit for every line that changes. Must not be null.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="block"/> is not a pipe table.</exception>
     /// <exception cref="InvalidOperationException">Thrown when an edit conflicts with another (a defect, not a property of the document).</exception>
     public void Format(FormatContext context, BlockInfo block, EditSet edits)
     {
