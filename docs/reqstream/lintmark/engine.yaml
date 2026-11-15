@@ -1,11 +1,8 @@
 ---
 # Engine Subsystem Requirements
 #
-# PURPOSE:
-# - Define requirements for the LintMark Engine subsystem
-# - The Engine subsystem selects the files to process, processes them, rewrites them when asked to, and
-#   reports problems
-# - Subsystem requirements describe the externally visible file-selection, rewriting and reporting behavior
+# The Engine subsystem runs one invocation over the selected files: it discovers the files, processes them in
+# parallel, writes or shows the rewrites, and reports the findings.
 
 sections:
   - title: LintMark Requirements
@@ -14,505 +11,58 @@ sections:
         requirements:
           - id: LintMark-Engine-Discovery
             title: >-
-              The Engine subsystem shall expand path, directory, glob, and exclusion arguments into the distinct
-              set of Markdown files to process, using every Markdown file under the current directory when no
-              selection is given.
+              The Engine subsystem shall select the files to process from the given files, directories, glob
+              patterns, and exclusions, process each file once, and skip files that the configuration ignores.
             justification: |
-              Users select files in the way that suits them: by name, by folder, or by pattern, with
-              exceptions. A file named by several arguments must be processed once, and a selection that
-              matches nothing must not be an error.
+              Users must be able to point the tool at a repository, a folder, or a handful of files, and get
+              exactly the files they meant, without duplicates and without third-party folders.
             children:
-              - LintMark-Engine-FileDiscovery-NamedFile
-              - LintMark-Engine-FileDiscovery-Directory
-              - LintMark-Engine-FileDiscovery-Glob
-              - LintMark-Engine-FileDiscovery-MissingPath
-              - LintMark-Engine-FileDiscovery-NoMatch
-              - LintMark-Engine-FileDiscovery-Default
-              - LintMark-Engine-FileDiscovery-Exclude
-              - LintMark-Engine-FileDiscovery-ExcludeDirectory
-              - LintMark-Engine-FileDiscovery-DistinctFiles
-              - LintMark-Engine-FileDiscovery-StableOrder
-              - LintMark-Engine-FileDiscovery-CaseRules
-              - LintMark-Engine-FileDiscovery-BlankArgument
-              - LintMark-Engine-FileDiscovery-NullArgument
-              - LintMark-Engine-FileDiscovery-SpellingChoice
-              - LintMark-Engine-FileDiscovery-Separators
-              - LintMark-Engine-FileDiscovery-ValidatesDiscoveredFile
+              - LintMark-Engine-FileDiscovery-Selection
+              - LintMark-Engine-FileDiscovery-Exclusions
+              - LintMark-Engine-FileDiscovery-SkippedFolders
+              - LintMark-Engine-FileDiscovery-DistinctOrdered
             tests:
-              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
-              - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
-              - EngineSubsystem_ExcludePattern_SkipsExcludedFiles
-              - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce
-
-          - id: LintMark-Engine-ThirdPartyFolders
-            title: >-
-              The Engine subsystem shall not select files from `node_modules` or `.git` folders below the
-              current directory unless the file itself is named on the command line.
-            justification: |
-              Package and version-control folders contain Markdown that the user does not own and that must
-              not be changed or reported on, even when the user points the tool at the folder or at a pattern
-              inside it. Naming a file explicitly is a deliberate choice that must still be honored.
-            children:
-              - LintMark-Engine-FileDiscovery-DefaultExcludes
-              - LintMark-Engine-FileDiscovery-ExplicitFileOverride
-            tests:
-              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
-              - EngineSubsystem_ThirdPartyFolderNamed_IsNotProcessed
-              - EngineSubsystem_ExplicitFileInThirdPartyFolder_IsProcessed
+              - EngineSubsystem_Discovery_PatternsExclusionsAndExplicitFiles_SelectTheFilesToProcess
 
           - id: LintMark-Engine-Processing
             title: >-
-              The Engine subsystem shall read and parse every selected file without a problem in one file
-              preventing the others from being processed.
+              The Engine subsystem shall read, parse, lint, and format every selected file with the settings
+              that apply to it, in parallel, and keep going when a file or a configuration is faulty.
             justification: |
-              Independent files must stay independent, so that one broken file never hides the state of
-              the rest of a documentation set.
+              Large repositories need speed, results must not depend on the order of work, and one bad file
+              must not hide the findings in the others.
             children:
-              - LintMark-Engine-LintMarkEngine-ProcessEach
-              - LintMark-Engine-LintMarkEngine-IsolatedFailures
-              - LintMark-Engine-LintMarkEngine-ImmutableResults
-              - LintMark-Engine-LintMarkEngine-ValidatesResultTypes
+              - LintMark-Engine-LintMarkEngine-Pipeline
+              - LintMark-Engine-LintMarkEngine-ConfigErrors
+              - LintMark-Engine-LintMarkEngine-FileProblems
+              - LintMark-Engine-LintMarkEngine-IgnoreAndOverrides
             tests:
-              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
-              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
+              - EngineSubsystem_Processing_ManyFilesInParallel_GiveTheSameResultsInPathOrder
 
-          - id: LintMark-Engine-FailureReport
+          - id: LintMark-Engine-Writing
             title: >-
-              The Engine subsystem shall report each file that cannot be read, decoded, processed, formatted,
-              or written on its own line as `path:line:col: rule-id message`, with a path relative to the
-              current directory using forward slashes.
+              The Engine subsystem shall rewrite a file only when asked to, only with formatting changes, in
+              one atomic step, and never over a file that changed or was replaced in the meantime.
             justification: |
-              A single, regular line format can be read by people, editors, and build systems alike.
-              Relative paths with one separator style make output reproducible across platforms and
-              machines. Every rule identifier that the engine reports must be a registered one.
+              A formatter that corrupts or loses a user's document is worse than no formatter, so writing
+              must be explicit, all-or-nothing, and safe against concurrent edits.
             children:
-              - LintMark-Engine-LintMarkEngine-ReadFailure
-              - LintMark-Engine-LintMarkEngine-EncodingFailure
-              - LintMark-Engine-LintMarkEngine-LineEndingFailure
-              - LintMark-Engine-LintMarkEngine-ProcessingFailure
-              - LintMark-Engine-LintMarkEngine-FormatFailure
-              - LintMark-Engine-LintMarkEngine-WriteFailure
-              - LintMark-Engine-LintMarkEngine-FailureFormat
-              - LintMark-Engine-LintMarkEngine-FailureOrderWithinFile
-              - LintMark-Engine-LintMarkEngine-RegisteredRuleIds
+              - LintMark-Engine-LintMarkEngine-SafeFix
+              - LintMark-Engine-AtomicFileWriter-Replacement
+              - LintMark-Engine-AtomicFileWriter-RefusesChange
             tests:
-              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
-              - EngineSubsystem_DefaultPattern_UsesCurrentDirectory
+              - EngineSubsystem_Writing_FixOption_RewritesAtomicallyAndNeverOverChangedOrUnsafeFiles
 
-          - id: LintMark-Engine-FailureExitStatus
+          - id: LintMark-Engine-Reporting
             title: >-
-              The Engine subsystem shall exit with a non-zero status when any problem was reported and with
-              zero otherwise.
+              The Engine subsystem shall report findings as text lines in a stable order, and show the changes of
+              the diff option as a unified diff, writing nothing when there is nothing to report.
             justification: |
-              Scripts and build pipelines act on the exit status alone.
+              Findings are read by people and parsed by editors and build systems, so their format and order
+              must be stable, and a clean run must be silent.
             children:
-              - LintMark-Engine-LintMarkEngine-ExitStatus
+              - LintMark-Engine-Reporters-TextFormat
+              - LintMark-Engine-Reporters-DiffFormat
+              - LintMark-Engine-Reporters-NothingToReport
             tests:
-              - EngineSubsystem_ParseFailure_ReportedWithPositionAndRule
-              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
-
-          - id: LintMark-Engine-SilentOnSuccess
-            title: >-
-              The Engine subsystem shall write nothing for files that were processed successfully, including
-              when no file is selected.
-            justification: |
-              Silence on success keeps the output of large runs readable, and an empty selection is a
-              valid outcome rather than a failure.
-            children:
-              - LintMark-Engine-LintMarkEngine-SilentOnSuccess
-            tests:
-              - EngineSubsystem_DiscoveryAndParse_DirectoryWithMarkdown_ReportsNothing
-              - EngineSubsystem_ExcludePattern_SkipsExcludedFiles
-
-          - id: LintMark-Engine-DeterministicOrder
-            title: >-
-              The Engine subsystem shall report problems ordered by path and then by position, independent of
-              the order of the arguments, the number of files processed at once, and the order in which files
-              finish.
-            justification: |
-              Reproducible output is required for comparing runs, for stable build logs, and for tests.
-              Scheduling must never be visible to the user.
-            children:
-              - LintMark-Engine-LintMarkEngine-OrderedResults
-            tests:
-              - EngineSubsystem_ParallelAndSequential_ProduceIdenticalOutput
-              - EngineSubsystem_OverlappingArguments_ReportEachFailureOnce
-
-          - id: LintMark-Engine-EffectiveConfiguration
-            title: >-
-              The Engine subsystem shall process each selected file with the configuration that applies to
-              that file.
-            justification: |
-              Different folders of one run can have different configurations, and each file must be
-              processed with its own.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigPerFile
-              - LintMark-Engine-LintMarkEngine-ImmutableConfigResults
-            tests:
-              - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-
-          - id: LintMark-Engine-ConfigurationIndependence
-            title: >-
-              The Engine subsystem shall process each selected file with the same configuration regardless of
-              the other files, the order in which files are processed, and the number processed at once.
-            justification: |
-              The settings of one file must never leak into another or depend on scheduling.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigIndependentOfScheduling
-            tests:
-              - EngineSubsystem_ConfigErrors_ParallelAndSequential_ProduceIdenticalOutput
-
-          - id: LintMark-Engine-ExplicitConfiguration
-            title: >-
-              The Engine subsystem shall process every selected file with the configuration file named on the
-              command line, when there is one, instead of a discovered configuration.
-            justification: |
-              Naming a configuration file is a deliberate choice that overrides discovery.
-            children:
-              - LintMark-Engine-LintMarkEngine-ExplicitConfig
-            tests:
-              - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles
-
-          - id: LintMark-Engine-ExplicitConfigurationProblems
-            title: >-
-              The Engine subsystem shall report the problems of the configuration file named on the command line
-              even when no file is selected.
-            justification: |
-              A problem with the named configuration matters whether or not the selection happens to
-              contain files.
-            children:
-              - LintMark-Engine-LintMarkEngine-ExplicitConfigProblems
-            tests:
-              - EngineSubsystem_ExplicitConfig_NoFilesSelected_ReportsProblem
-
-          - id: LintMark-Engine-NoConfig
-            title: >-
-              The Engine subsystem shall process every selected file with the default configuration, unaffected
-              by any configuration file or editor settings however invalid or unreadable, when the no-config
-              option is given.
-            justification: |
-              Users need a way to run the tool exactly as shipped, independent of whatever configuration
-              happens to be around, for example to rule it out as the cause of a surprise.
-            children:
-              - LintMark-Engine-LintMarkEngine-NoConfig
-            tests:
-              - EngineSubsystem_NoConfig_InvalidConfigPresent_ReportsNothing
-
-          - id: LintMark-Engine-ConfigErrorFormat
-            title: >-
-              The Engine subsystem shall report each configuration problem on its own line as
-              `path:line:col: config-error message`.
-            justification: |
-              Configuration problems are as actionable as file problems and belong in the same regular
-              report, so that editors and build systems can read them.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorFormat
-            tests:
-              - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-
-          - id: LintMark-Engine-ConfigErrorPathDisplay
-            title: >-
-              The Engine subsystem shall show the path of a configuration problem relative to the current
-              directory with forward slashes, also when the file lies outside the current directory.
-            justification: |
-              The user must be able to open the named file from where the tool was run, whatever the
-              platform separator.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorPathDisplay
-            tests:
-              - EngineSubsystem_ConfigErrors_ConfigOutsideCurrentDirectory_ReportedWithParentRelativePath
-
-          - id: LintMark-Engine-ConfigErrorOnce
-            title: >-
-              The Engine subsystem shall report a configuration problem once, however many files use the
-              configuration that has it.
-            justification: |
-              One broken configuration used by hundreds of files would otherwise bury the report.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorOnce
-            tests:
-              - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles
-
-          - id: LintMark-Engine-ConfigErrorOrder
-            title: >-
-              The Engine subsystem shall order configuration problems together with the other problems by path
-              and position.
-            justification: |
-              Reproducible output is required for comparing runs and for stable build logs.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorOrder
-            tests:
-              - EngineSubsystem_ConfigErrors_AndFileFailures_MergedInPathThenPositionOrder
-
-          - id: LintMark-Engine-ConfigErrorIsolation
-            title: >-
-              The Engine subsystem shall read and check every selected file even when the configuration that
-              applies to it is invalid.
-            justification: |
-              A configuration problem must not hide the state of the files themselves, so that one run shows
-              every problem there is to fix.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorIsolation
-            tests:
-              - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-
-          - id: LintMark-Engine-ConfigErrorExitStatus
-            title: The Engine subsystem shall exit with a non-zero status when a configuration problem was reported.
-            justification: |
-              Build pipelines act on the exit status alone, and an invalid configuration means the run did
-              not do what the user asked.
-            children:
-              - LintMark-Engine-LintMarkEngine-ConfigErrorExitStatus
-            tests:
-              - EngineSubsystem_Configuration_NearestConfigPerDirectory_ReportsEachBadConfigOnce
-              - EngineSubsystem_ExplicitConfig_InvalidFile_ReportedOnceForAllFiles
-
-          - id: LintMark-Engine-Fix
-            title: >-
-              The Engine subsystem shall rewrite, when the fix option is given, each selected file for which a
-              rewrite was proposed and passed every safety check, and leave every other file as it is.
-            justification: |
-              The fix option exists to repair files. Repairing only what has been shown safe, and
-              touching nothing else, is what lets users run it over a whole documentation set.
-            children:
-              - LintMark-Engine-LintMarkEngine-FixRewrites
-              - LintMark-Engine-LintMarkEngine-FixLeavesCompliantFiles
-              - LintMark-Engine-LintMarkEngine-AllowsHarmlessLineEndingChange
-            tests:
-              - EngineSubsystem_Fix_CrlfFile_RewritesAndReportsNothing
-
-          - id: LintMark-Engine-FixReportsRemaining
-            title: >-
-              The Engine subsystem shall report, when the fix option is given, only the problems that
-              rewriting did not remove.
-            justification: |
-              A problem that was repaired is not a problem any more. Reporting it would make a pipeline
-              that fixes and then checks fail for nothing.
-            children:
-              - LintMark-Engine-LintMarkEngine-FixReportsRemaining
-            tests:
-              - EngineSubsystem_Fix_CrlfFile_RewritesAndReportsNothing
-
-          - id: LintMark-Engine-FixKeepsByteOrderMark
-            title: The Engine subsystem shall write a rewritten file with the byte order mark that the file had.
-            justification: |
-              The byte order mark tells the author's tools how to read the file, and a rewrite that
-              added or removed it would be a change that nobody asked for.
-            children:
-              - LintMark-Engine-LintMarkEngine-FixKeepsByteOrderMark
-            tests:
-              - EngineSubsystem_Fix_BomFile_KeepsBomAndLeavesNoTemporaryFile
-
-          - id: LintMark-Engine-DeterministicFix
-            title: >-
-              The Engine subsystem shall write the same files with the same content regardless of the number
-              of files processed at once and of the order in which processing finishes.
-            justification: |
-              A rewrite that depended on scheduling could not be reviewed, compared, or trusted.
-            children:
-              - LintMark-Engine-LintMarkEngine-FixDeterministic
-            tests:
-              - EngineSubsystem_Fix_ParallelAndSequential_ProduceIdenticalOutput
-
-          - id: LintMark-Engine-Diff
-            title: >-
-              The Engine subsystem shall write, when the diff option is given, a unified diff of the rewrites
-              that the fix option would make to standard output.
-            justification: |
-              Users review a rewrite before they allow it, and the diff must show exactly what the fix
-              option would do.
-            children:
-              - LintMark-Engine-LintMarkEngine-DiffOutput
-            tests:
-              - EngineSubsystem_Diff_FormatterChange_PrintsDiffAndWritesNothing
-
-          - id: LintMark-Engine-NoWriteWithoutFix
-            title: The Engine subsystem shall write no file unless the fix option is given.
-            justification: |
-              Checking and previewing must be safe on any files. Only an explicit request may change them.
-            children:
-              - LintMark-Engine-LintMarkEngine-NoWriteWithoutFix
-            tests:
-              - EngineSubsystem_Diff_FormatterChange_PrintsDiffAndWritesNothing
-
-          - id: LintMark-Engine-LineEndingStyle
-            title: >-
-              The Engine subsystem shall give the formatting of each file the line ending of its configuration
-              and, when the configuration gives none, the line ending of the editor settings that apply to it.
-            justification: |
-              Projects decide their line ending in a configuration file or in the editor settings they
-              share with other tools. The tool's own configuration is the more specific source and wins.
-            children:
-              - LintMark-Engine-LintMarkEngine-LineEndingFromConfiguration
-              - LintMark-Engine-LintMarkEngine-LineEndingFromEditorSettings
-              - LintMark-Engine-LintMarkEngine-LineEndingUnspecified
-            tests:
-              - EngineSubsystem_EditorConfig_ConfigAndEditorSettings_ResolveLineEndingPerFile
-
-          - id: LintMark-Engine-EditorSettingsProblems
-            title: >-
-              The Engine subsystem shall report editor settings that apply to a Markdown file but cannot be
-              read as a configuration problem at line 1 and column 1 of that Markdown file.
-            justification: |
-              Settings that cannot be read leave the tool without the line ending that the project asked
-              for, and the only place to point to is the Markdown file.
-            children:
-              - LintMark-Engine-LintMarkEngine-EditorSettingsProblems
-            tests:
-              - EngineSubsystem_EditorConfig_UnreadableSettings_ReportedAtMarkdownFile
-
-          - id: LintMark-Engine-AtomicReplace
-            title: >-
-              The Engine subsystem shall replace a rewritten file in one step, leaving neither a partly written
-              file nor a temporary file behind, also when the replacement fails.
-            justification: |
-              An interrupted or failed write must not cost the user a document.
-            children:
-              - LintMark-Engine-AtomicFileWriter-ReplacesContent
-              - LintMark-Engine-AtomicFileWriter-NoPartialFile
-              - LintMark-Engine-AtomicFileWriter-NoTemporaryLeft
-              - LintMark-Engine-AtomicFileWriter-KeepsPermissions
-              - LintMark-Engine-AtomicFileWriter-WritesThroughSymlink
-              - LintMark-Engine-AtomicFileWriter-RefusesChangedFile
-              - LintMark-Engine-AtomicFileWriter-ReportsReadOnlyFile
-              - LintMark-Engine-AtomicFileWriter-ReportsMissingFile
-              - LintMark-Engine-AtomicFileWriter-ReportsMissingDirectory
-              - LintMark-Engine-AtomicFileWriter-KeepsExactBytes
-              - LintMark-Engine-AtomicFileWriter-RejectsBlankPath
-            tests:
-              - EngineSubsystem_Fix_BomFile_KeepsBomAndLeavesNoTemporaryFile
-
-          - id: LintMark-Engine-SafeRewrite
-            title: >-
-              The Engine subsystem shall leave a file exactly as it is, and report why, whenever rewriting it
-              is unsafe or fails.
-            justification: |
-              A rewrite is allowed only when its safety has been shown. Every refusal and every failure
-              leaves the user's file untouched and is reported, so that nothing is lost silently and the
-              other files are still processed. A file reached through a link that was redirected after the
-              read is not the file the rewrite was computed from, so it is refused as well.
-            children:
-              - LintMark-Engine-LintMarkEngine-RefuseHtmlChange
-              - LintMark-Engine-LintMarkEngine-RefuseLineEndingHtmlChange
-              - LintMark-Engine-LintMarkEngine-RefuseStructureChange
-              - LintMark-Engine-LintMarkEngine-RefuseUnstableFormatting
-              - LintMark-Engine-LintMarkEngine-RefuseUnreadableResult
-              - LintMark-Engine-LintMarkEngine-RefuseUndecidedCheck
-              - LintMark-Engine-LintMarkEngine-FormatFailure
-              - LintMark-Engine-LintMarkEngine-WriteFailure
-              - LintMark-Engine-LintMarkEngine-IsolatedRefusals
-              - LintMark-Engine-LintMarkEngine-NeverRewriteInvalidConfiguration
-              - LintMark-Engine-LintMarkEngine-CapturesResolvedTarget
-              - LintMark-Engine-LintMarkEngine-RefuseRedirectedLink
-              - LintMark-Engine-AtomicFileWriter-ResolvesTarget
-              - LintMark-Engine-AtomicFileWriter-RefusesRedirectedFile
-              - LintMark-Engine-AtomicFileWriter-ChecksTargetBeforeReplace
-              - LintMark-Engine-AtomicFileWriter-RejectsBlankExpectedTarget
-            tests:
-              - EngineSubsystem_Fix_BrokenFormatter_RefusesAndReports
-              - EngineSubsystem_Fix_CodeSpanLineEndingChange_RefusesAndLeavesFile
-
-          - id: LintMark-Engine-GridTableInvalid
-            title: >-
-              The Engine subsystem shall report a document that the Document subsystem flagged as unsafe to
-              rewrite because of an invalid grid table as a `grid-table-invalid` problem at the line that the
-              Document subsystem located, unless the rule is switched off or suppressed there.
-            justification: |
-              The author must be told which line to repair, and may switch the report off or suppress it
-              for a document that is meant to contain such a line.
-            children:
-              - LintMark-Engine-LintMarkEngine-GridFallbackReported
-            tests:
-              - EngineSubsystem_GridFallback_Document_ReportedAndNeverRewritten
-
-          - id: LintMark-Engine-GridTableNeverRewritten
-            title: >-
-              The Engine subsystem shall never rewrite a document that the Document subsystem flagged as unsafe
-              to rewrite, whether or not the problem is reported.
-            justification: |
-              The protection is a safety property and must not depend on whether the report is wanted.
-            children:
-              - LintMark-Engine-LintMarkEngine-GridFallbackNeverRewritten
-            tests:
-              - EngineSubsystem_GridFallback_Document_ReportedAndNeverRewritten
-
-          - id: LintMark-Engine-IgnorePatterns
-            title: >-
-              The Engine subsystem shall skip a file that was selected by a directory, a glob, or the default
-              selection and that matches an `ignore` pattern of the configuration that applies to it, without
-              reading it, with the pattern taken relative to the directory of that configuration file, or to the
-              current directory when no configuration file applies.
-            justification: |
-              Documents that a project holds but does not format are listed once in its configuration.
-              A skipped file is not read, so a missing or damaged skipped file is not a problem.
-            children:
-              - LintMark-Engine-FileDiscovery-IgnoredFiles
-              - LintMark-Engine-FileDiscovery-IgnoreRoot
-              - LintMark-Engine-FileDiscovery-IgnoreOutsideRoot
-              - LintMark-Engine-LintMarkEngine-IgnoredFilesSkipped
-              - LintMark-Engine-LintMarkEngine-IgnorePerConfiguration
-            tests:
-              - EngineSubsystem_Ignore_GlobSelected_Skipped
-
-          - id: LintMark-Engine-IgnoreExplicitFile
-            title: >-
-              The Engine subsystem shall process a file that is named on the command line even when an `ignore`
-              pattern matches it.
-            justification: |
-              Naming a file is a deliberate choice, as it already is for files in third-party folders.
-            children:
-              - LintMark-Engine-FileDiscovery-ExplicitProvenance
-              - LintMark-Engine-LintMarkEngine-IgnoreExplicitFile
-            tests:
-              - EngineSubsystem_Ignore_ExplicitFile_Processed
-
-          - id: LintMark-Engine-DefaultFormattingRulesChecked
-            title: >-
-              The Engine subsystem shall report with all the formatting rules of the tool the problems of each
-              file that it processes.
-            justification: |
-              A user who runs the tool expects every rule of the tool to apply, without having to assemble
-              the rules.
-            children:
-              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesChecked
-            tests:
-              - EngineSubsystem_Check_FormattingViolations_ReportsEachRuleAndWritesNothing
-
-          - id: LintMark-Engine-DefaultFormattingRulesPreviewed
-            title: >-
-              The Engine subsystem shall print with all the formatting rules of the tool the change that the fix
-              option would make to each file that it processes.
-            justification: |
-              A user who previews a rewrite expects it to show what every rule of the tool would change.
-            children:
-              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesPreviewed
-            tests:
-              - EngineSubsystem_Diff_FormattingViolations_PrintsTheChangeWithTheDefaultRules
-
-          - id: LintMark-Engine-DefaultFormattingRulesFixed
-            title: >-
-              The Engine subsystem shall repair each file that it processes with the fix option by all the
-              formatting rules of the tool.
-            justification: |
-              A user who repairs files expects every rule of the tool to apply, without having to assemble the
-              rules.
-            children:
-              - LintMark-Engine-LintMarkEngine-DefaultFormattingRulesFixed
-            tests:
-              - EngineSubsystem_Fix_FormattingViolations_RewritesWithTheDefaultRules
-
-          - id: LintMark-Engine-OverlongParagraphsHandled
-            title: >-
-              The Engine subsystem shall report each paragraph that is wider than the line length of the configuration
-              as a problem when it checks files, wrap it when it fixes files, and keep reporting the lines that it
-              could not shorten.
-            justification: |
-              A user who limits the length of lines expects the check to say which paragraphs are too wide, the fix to
-              repair them, and a line that the fix could not repair to stay reported, without having to assemble the
-              rules.
-            children:
-              - LintMark-Engine-LintMarkEngine-ParagraphsWrappedWhenFixing
-              - LintMark-Engine-LintMarkEngine-LineLengthReportedWhenChecking
-              - LintMark-Engine-LintMarkEngine-LineLengthStillReportedAfterFix
-            tests:
-              - EngineSubsystem_Run_OverlongParagraph_IsReportedWhenCheckingAndWrappedWhenFixing
+              - EngineSubsystem_Reporting_CheckAndDiffOptions_WriteFindingsInOrderAndUnifiedDiff

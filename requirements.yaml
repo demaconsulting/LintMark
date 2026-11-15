@@ -9,55 +9,44 @@ root-tags: [system, quality]
 includes:
   - docs/reqstream/quality.yaml
   - docs/reqstream/lintmark.yaml
+  - docs/reqstream/lintmark/platform-requirements.yaml
   - docs/reqstream/lintmark/program.yaml
-  - docs/reqstream/lintmark/cli.yaml
-  - docs/reqstream/lintmark/cli/context.yaml
+  - docs/reqstream/lintmark/context.yaml
+  - docs/reqstream/lintmark/validation.yaml
+  - docs/reqstream/lintmark/configuration.yaml
+  - docs/reqstream/lintmark/configuration/lint-mark-config.yaml
+  - docs/reqstream/lintmark/configuration/config-loader.yaml
+  - docs/reqstream/lintmark/configuration/editor-config-resolver.yaml
   - docs/reqstream/lintmark/document.yaml
   - docs/reqstream/lintmark/document/source-document.yaml
   - docs/reqstream/lintmark/document/document-parser.yaml
   - docs/reqstream/lintmark/document/suppression-map.yaml
-  - docs/reqstream/lintmark/document/reference-index.yaml
+  - docs/reqstream/lintmark/document/text-width.yaml
   - docs/reqstream/lintmark/engine.yaml
   - docs/reqstream/lintmark/engine/file-discovery.yaml
   - docs/reqstream/lintmark/engine/lint-mark-engine.yaml
   - docs/reqstream/lintmark/engine/atomic-file-writer.yaml
+  - docs/reqstream/lintmark/engine/reporters.yaml
   - docs/reqstream/lintmark/linting.yaml
-  - docs/reqstream/lintmark/linting/diagnostic.yaml
   - docs/reqstream/lintmark/linting/rule-catalog.yaml
+  - docs/reqstream/lintmark/linting/lint-rules.yaml
   - docs/reqstream/lintmark/formatting.yaml
-  - docs/reqstream/lintmark/formatting/edit-set.yaml
-  - docs/reqstream/lintmark/formatting/source-patcher.yaml
   - docs/reqstream/lintmark/formatting/document-formatter.yaml
+  - docs/reqstream/lintmark/formatting/whitespace-passes.yaml
+  - docs/reqstream/lintmark/formatting/edit-set.yaml
   - docs/reqstream/lintmark/formatting/blocks.yaml
   - docs/reqstream/lintmark/formatting/blocks/heading-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/code-block-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/thematic-break-formatter.yaml
-  - docs/reqstream/lintmark/formatting/blocks/list-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/block-quote-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/list-formatter.yaml
+  - docs/reqstream/lintmark/formatting/blocks/table-formatter.yaml
   - docs/reqstream/lintmark/formatting/blocks/paragraph-formatter.yaml
   - docs/reqstream/lintmark/formatting/inline.yaml
   - docs/reqstream/lintmark/formatting/inline/inline-normalizer.yaml
   - docs/reqstream/lintmark/formatting/inline/atom-tokenizer.yaml
   - docs/reqstream/lintmark/formatting/inline/line-wrapper.yaml
-  - docs/reqstream/lintmark/formatting/inline/block-syntax-guard.yaml
-  - docs/reqstream/lintmark/safety.yaml
-  - docs/reqstream/lintmark/safety/equivalence-result.yaml
-  - docs/reqstream/lintmark/safety/html-equivalence-checker.yaml
-  - docs/reqstream/lintmark/safety/structural-token-checker.yaml
-  - docs/reqstream/lintmark/safety/idempotency-checker.yaml
-  - docs/reqstream/lintmark/reporting.yaml
-  - docs/reqstream/lintmark/reporting/text-reporter.yaml
-  - docs/reqstream/lintmark/reporting/diff-reporter.yaml
-  - docs/reqstream/lintmark/configuration.yaml
-  - docs/reqstream/lintmark/configuration/lint-mark-config.yaml
-  - docs/reqstream/lintmark/configuration/config-loader.yaml
-  - docs/reqstream/lintmark/configuration/editor-config-resolver.yaml
-  - docs/reqstream/lintmark/self-test.yaml
-  - docs/reqstream/lintmark/self-test/validation.yaml
-  - docs/reqstream/lintmark/utilities.yaml
-  - docs/reqstream/lintmark/utilities/path-helpers.yaml
-  - docs/reqstream/lintmark/utilities/text-width.yaml
-  - docs/reqstream/lintmark/platform-requirements.yaml
+  - docs/reqstream/lintmark/formatting/inline/link-refactorer.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml
@@ -73,3 +62,4 @@ includes:
   - docs/reqstream/ots/filesystemglobbing.yaml
   - docs/reqstream/ots/yamldotnet.yaml
   - docs/reqstream/ots/editorconfig.yaml
+  - docs/reqstream/ots/testresults.yaml

@@ -1,0 +1,55 @@
+---
+# Software Unit Requirements for the WhitespacePasses Unit
+#
+# WhitespacePasses holds the document-level whitespace rules: trailing whitespace and tabs, blank-line limits, the
+# blank lines between blocks, and the end of the file.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: WhitespacePasses Requirements
+            requirements:
+              - id: LintMark-Formatting-WhitespacePasses-TrailingAndTabs
+                title: >-
+                  The WhitespacePasses unit shall remove trailing whitespace and expand tabs in text to tab stops,
+                  while keeping hard line breaks and the whitespace of code, front matter, and grid tables.
+                justification: |
+                  Invisible trailing whitespace and tabs cause noisy diffs, but a hard break and literal blocks use
+                  whitespace as content.
+                tests:
+                  - DocumentFormatter_Format_TrailingWhitespaceInParagraph_IsRemoved
+                  - DocumentFormatter_Format_TabInText_ExpandsToTheTabStop
+                  - DocumentFormatter_Format_BackslashAndMixedBreaks_AreKept
+                  - DocumentFormatter_Format_LiteralBlocks_KeepTheirWhitespace
+                  - DocumentFormatter_Format_FrontMatter_KeepsItsWhitespace
+                  - DocumentFormatter_Format_GridTable_KeepsItsWhitespace
+
+              - id: LintMark-Formatting-WhitespacePasses-BlankLines
+                title: >-
+                  The WhitespacePasses unit shall limit runs of blank lines to the configured maximum and shall
+                  separate headings, fenced code, lists, and tables from neighboring blocks by one blank line.
+                justification: |
+                  Uniform vertical spacing makes documents consistent, and the missing blank line next to these blocks
+                  is a common error that some renderers misread.
+                tests:
+                  - DocumentFormatter_Format_BlankRuns_CollapseToTheConfiguredMaximum
+                  - DocumentFormatter_Format_WhitespaceOnlyLines_BecomeEmpty
+                  - DocumentFormatter_Format_HeadingWithoutBlankLines_GetsThem
+                  - DocumentFormatter_Format_CodeBlockWithoutBlankLines_GetsThem
+                  - DocumentFormatter_Format_ListWithoutBlankLines_GetsThem
+                  - DocumentFormatter_Format_LazyContinuationOfListItem_IsNotSeparated
+
+              - id: LintMark-Formatting-WhitespacePasses-FinalNewline
+                title: >-
+                  The WhitespacePasses unit shall end a document with exactly one line ending, or with none when the
+                  final newline setting is off, and shall leave an empty document and an unclosed block alone.
+                justification: |
+                  A single final line ending is the convention of text files and keeps diffs clean, while changing the
+                  end of an unclosed block would alter its content.
+                tests:
+                  - DocumentFormatter_Format_EndOfFile_GetsExactlyOneLineEnding
+                  - DocumentFormatter_Format_FinalNewlineOff_RemovesTheLineEnding
+                  - DocumentFormatter_Format_DocumentWithoutContent_IsLeftAlone
+                  - DocumentFormatter_Format_EndOfUnclosedFence_IsLeftAlone

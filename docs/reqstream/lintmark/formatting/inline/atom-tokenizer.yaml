@@ -1,10 +1,8 @@
 ---
-# Software Unit Requirements for the AtomTokenizer Class
+# Software Unit Requirements for the AtomTokenizer Unit
 #
-# The AtomTokenizer class cuts the text of a paragraph into the words that a wrap may move (with the TokenizedParagraph,
-# ParagraphSegment, and HardBreakKind supporting types). It keeps links, images, code spans, URLs, inline HTML, math,
-# character references, footnote references, and Pandoc constructs whole, cuts the text into parts at hard line
-# breaks, and refuses a paragraph that it cannot cut safely.
+# The AtomTokenizer unit cuts a paragraph into the words a wrap may move, keeps constructs whole, honors hard breaks,
+# and refuses paragraphs it cannot cut with certainty.
 
 sections:
   - title: LintMark Requirements
@@ -15,221 +13,42 @@ sections:
             sections:
               - title: AtomTokenizer Requirements
                 requirements:
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-RejectsMissingArguments
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-AtomsWhole
                     title: >-
-                      The AtomTokenizer class shall throw an exception that names the parameter when the text, the
-                      inline tree, or a line is missing, or when no line is given.
+                      The AtomTokenizer unit shall cut a paragraph into words at whitespace and keep links, code
+                      spans, URLs, inline HTML, math, entities, and Pandoc constructs whole.
                     justification: |
-                      Missing arguments are programming errors that must be reported as such.
-                    tests:
-                      - AtomTokenizer_Tokenize_InvalidArguments_Throw
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-WordsSeparatedAtWhitespace
-                    title: >-
-                      The AtomTokenizer class shall cut plain text into words at each run of blanks and line breaks.
-                    justification: |
-                      A wrap may break a line wherever the author could have put a blank, and nowhere else.
+                      A wrap may only move whole words. Splitting inside a link, code span, or tag would change
+                      what the document says.
                     tests:
                       - AtomTokenizer_Tokenize_PlainWords_AreSeparatedAtWhitespace
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-LinksAndImagesWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each link and image, with its text, destination, and title,
-                      in one word.
-                    justification: |
-                      A line break inside a link or an image would change where the link leads or how it renders.
-                    tests:
-                      - AtomTokenizer_Tokenize_LinksAndImages_AreOneAtom
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-CodeSpansWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each code span, with the backticks that surround it, in one
-                      word.
-                    justification: |
-                      A line break inside a code span would change its content.
-                    tests:
-                      - AtomTokenizer_Tokenize_CodeSpans_AreOneAtom
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-AngleBracketLinksAndBareUrlsWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each autolink and each bare URL in one word.
-                    justification: |
-                      A line break inside an address would change the address.
-                    tests:
                       - AtomTokenizer_Tokenize_AngleBracketLinksAndBareUrls_AreOneAtom
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-InlineHtmlWhole
-                    title: >-
-                      The AtomTokenizer class shall not cut an inline HTML tag at the blanks inside it.
-                    justification: |
-                      A line break inside a tag could change the attributes of the tag or how the HTML renders.
-                    tests:
                       - AtomTokenizer_Tokenize_InlineHtml_TagsAreNotSplit
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-MathWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each inline math span in one word.
-                    justification: |
-                      A line break inside a formula could change the formula.
-                    tests:
                       - AtomTokenizer_Tokenize_InlineMath_IsOneAtom
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-EntitiesAndFootnoteRefsWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each character reference and each footnote reference whole in
-                      its word.
-                    justification: |
-                      Splitting a reference would change the character or the note that it names.
-                    tests:
-                      - AtomTokenizer_Tokenize_EntitiesAndFootnoteReferences_StayWhole
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-PandocAtomsWhole
-                    title: >-
-                      The AtomTokenizer class shall keep each Pandoc attribute group, each Pandoc citation, and each
-                      LaTeX command with a braced argument in one word.
-                    justification: |
-                      Pandoc reads these constructs as units, and a line break inside one would change the output of
-                      the document.
-                    tests:
                       - AtomTokenizer_Tokenize_PandocConstructs_AreOneAtom
+                      - AtomTokenizer_Tokenize_MultiLineCodeSpan_JoinsTheLines
 
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-EscapedCharactersKept
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-HardBreaks
                     title: >-
-                      The AtomTokenizer class shall keep an escaped character in its word.
+                      The AtomTokenizer unit shall end a segment at each hard line break, in either form, and never
+                      allow a word break where it would turn into a hard break.
                     justification: |
-                      The backslash of an escape belongs to the character after it, so a cut between them would change
-                      the meaning of the text.
-                    tests:
-                      - AtomTokenizer_Tokenize_EscapedCharacters_StayInTheirWords
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-WideCharactersAreOrdinaryWords
-                    title: >-
-                      The AtomTokenizer class shall treat words of East Asian characters, emoji, and combining marks
-                      like any other word.
-                    justification: |
-                      Text in any script is wrapped between the words that the author separated with blanks, and the
-                      width of a word is the business of the wrapper.
-                    tests:
-                      - AtomTokenizer_Tokenize_WideAndCombiningCharacters_AreOrdinaryWords
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-HardBreaksSegment
-                    title: >-
-                      The AtomTokenizer class shall end a part of a paragraph at each hard line break, written with
-                      spaces or with a backslash, recording the form of the break.
-                    justification: |
-                      A hard line break must stay where it is, so the text on either side of it is wrapped on its own
-                      and the break is written back in the form that the author used.
+                      Hard breaks are deliberate line breaks of the author and must stay where they are, and a wrap
+                      must not create a new one by moving a trailing backslash.
                     tests:
                       - AtomTokenizer_Tokenize_HardBreakWithSpaces_EndsASegment
                       - AtomTokenizer_Tokenize_HardBreakWithBackslash_EndsASegment
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-NoBreakAfterBackslash
-                    title: >-
-                      The AtomTokenizer class shall join a word that ends with an odd number of backslashes with the
-                      word after it.
-                    justification: |
-                      A backslash at the end of a line is a hard line break, so a break after such a word would create
-                      a hard break that the author did not write.
-                    tests:
                       - AtomTokenizer_Tokenize_WordEndingInBackslash_IsJoinedWithTheNextWord
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-NoBreakAfterTaskMarker
-                    title: >-
-                      The AtomTokenizer class shall join the marker of a task list item with the word after it.
-                    justification: |
-                      A task marker that ended a line would no longer be read as a marker, so the item would render
-                      differently.
-                    tests:
                       - AtomTokenizer_Tokenize_TaskMarker_IsJoinedWithTheNextWord
 
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-BreakOpportunitiesCounted
+                  - id: LintMark-Formatting-Inline-AtomTokenizer-Refusal
                     title: >-
-                      The AtomTokenizer class shall count the places where each line of the paragraph could be broken.
+                      The AtomTokenizer unit shall refuse a paragraph whose constructs it cannot cut with certainty,
+                      such as a code span broken at a blank or delimiter or lines that do not fit the parsed spans.
                     justification: |
-                      A line that has no place to break cannot be reported as one that a wrap could shorten.
-                    tests:
-                      - AtomTokenizer_Tokenize_Lines_CountTheirBreakOpportunities
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-MultiLineCodeSpanJoined
-                    title: >-
-                      The AtomTokenizer class shall keep a code span that continues on the next line in one word, with
-                      the line break written as one space, when the result is the same code span.
-                    justification: |
-                      The parser reads a line break inside a code span as a space, so the span keeps its content.
-                    tests:
-                      - AtomTokenizer_Tokenize_MultiLineCodeSpan_JoinsTheLines
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-UnstableCodeSpanRefused
-                    title: >-
-                      The AtomTokenizer class shall refuse a paragraph that holds a code span with a line break next
-                      to a blank or a backtick, or with a line break and a space on both sides.
-                    justification: |
-                      Writing the line break as a space would change the content of the span or let another rule
-                      rewrite the span afterwards, so the paragraph cannot be wrapped safely.
+                      A refusal lets the caller keep the paragraph as written, which is safer than a guess that
+                      could corrupt a construct.
                     tests:
                       - AtomTokenizer_Tokenize_MultiLineCodeSpanWithBlankOrDelimiterAtTheBreak_IsRefused
                       - AtomTokenizer_Tokenize_MultiLineCodeSpanPaddedOnBothSides_IsRefused
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-MultiLineLinkTextJoined
-                    title: >-
-                      The AtomTokenizer class shall keep the text of a link that continues on the next line in one
-                      word, with the line break written as one space.
-                    justification: |
-                      A line break and a space in the text of a link render the same, and the link is kept whole.
-                    tests:
-                      - AtomTokenizer_Tokenize_MultiLineLinkText_JoinsTheLines
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-UnsafeMultiLineConstructRefused
-                    title: >-
-                      The AtomTokenizer class shall refuse a paragraph that holds a link destination or title, an
-                      image, an inline HTML tag, or link text with a hard break that continues on another line.
-                    justification: |
-                      A line break in these constructs cannot be replaced by a space without changing the document, so
-                      the paragraph cannot be wrapped safely.
-                    tests:
-                      - AtomTokenizer_Tokenize_MultiLineConstructThatCannotBeJoined_IsRefused
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-InconsistentSpansRefused
-                    title: >-
-                      The AtomTokenizer class shall refuse a paragraph whose lines do not fit the spans of its inline
-                      tree.
-                    justification: |
-                      Words cut from lines that disagree with the parsed text could not be trusted, so the paragraph
-                      is left alone.
-                    tests:
                       - AtomTokenizer_Tokenize_LinesThatDoNotFitTheSpans_IsRefused
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-ContainerPrefixesExcluded
-                    title: >-
-                      The AtomTokenizer class shall cut the words of a paragraph in a list item or a block quote from
-                      the content of its lines, without the list indentation and the quote markers.
-                    justification: |
-                      The prefixes are written again by the caller, so they must not become words of the paragraph.
-                    tests:
-                      - AtomTokenizer_Tokenize_ContainerPrefixes_AreNotPartOfTheAtoms
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-ResultImmutable
-                    title: >-
-                      The AtomTokenizer class shall return its result in a form that its holders cannot change.
-                    justification: |
-                      A result that anyone could modify could be changed by one consumer under another.
-                    tests:
-                      - AtomTokenizer_Tokenize_Result_IsImmutable
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-SupportingTypesValidated
-                    title: >-
-                      The ParagraphSegment and TokenizedParagraph records shall refuse missing, empty, and
-                      inconsistent values.
-                    justification: |
-                      A result that was built from invalid parts would give the wrapper words that do not exist.
-                    tests:
-                      - AtomTokenizer_SupportingTypes_InvalidArguments_Throw
-
-                  - id: LintMark-Formatting-Inline-AtomTokenizer-DeterministicResult
-                    title: >-
-                      The AtomTokenizer class shall return the same result for the same paragraph when it is called
-                      from several threads at once as when it is called one after another.
-                    justification: |
-                      Files are formatted in parallel, and a result that depended on timing could not be trusted.
-                    tests:
-                      - AtomTokenizer_Tokenize_ConcurrentCalls_GiveTheSameResult

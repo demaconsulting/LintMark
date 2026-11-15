@@ -1,9 +1,8 @@
 ---
-# Software Unit Requirements for the EditSet Class
+# Software Unit Requirements for the EditSet Unit
 #
-# The EditSet class (with the TextEdit record) collects the changes that rules propose for one document and
-# hands them out as an ordered, conflict-free list. The EditRebaser class composes two such lists, the second computed
-# for the text that the first produced, into one list for the original text.
+# EditSet collects the edits that rules propose for a document, rejects conflicts, applies the edits to the text, and
+# composes the edits of successive stages.
 
 sections:
   - title: LintMark Requirements
@@ -12,231 +11,44 @@ sections:
         sections:
           - title: EditSet Requirements
             requirements:
-              - id: LintMark-Formatting-EditSet-RejectsOverlap
+              - id: LintMark-Formatting-EditSet-Composition
                 title: >-
-                  The EditSet class shall refuse a change that covers a character that another change already
-                  covers.
+                  The EditSet unit shall collect edits in a deterministic order that does not depend on the order they
+                  were added, and shall reject edits that overlap or insert at the same position.
                 justification: |
-                  Two changes to the same characters have no single correct result. Accepting them would let
-                  the text depend on which rule ran first.
+                  Formatting rules run independently, so a conflict is a defect that must be caught instead of
+                  resolved silently, and the result must not depend on which rule ran first.
                 tests:
                   - EditSet_Add_OverlappingEdit_Throws
                   - EditSet_Add_ContainedEdit_Throws
-                  - EditSet_Add_EditContainingExistingEdit_Throws
-                  - EditSet_Add_InsertionStrictlyInsideReplacement_Throws
-                  - EditSet_Add_ReplacementAroundExistingInsertion_Throws
-                  - EditSet_Add_IdenticalRange_Throws
-
-              - id: LintMark-Formatting-EditSet-RejectsSecondInsertionAtPosition
-                title: >-
-                  The EditSet class shall refuse a second insertion at a position where it already holds an
-                  insertion.
-                justification: |
-                  Two insertions at one position have no defined order, so accepting both would let the text
-                  depend on which rule ran first.
-                tests:
                   - EditSet_Add_TwoInsertionsAtSameOffset_Throws
-
-              - id: LintMark-Formatting-EditSet-AllowsAdjacent
-                title: >-
-                  The EditSet class shall accept changes that touch without sharing a character, including an
-                  insertion at the end of another change.
-                justification: |
-                  Rules that change neighboring text, for example a line and the blank line after it, must
-                  not be mistaken for conflicting.
-                tests:
                   - EditSet_Add_AdjacentEdits_Accepted
-                  - EditSet_Add_InsertionAtEndOfReplacement_Accepted
-
-              - id: LintMark-Formatting-EditSet-OrdersByPosition
-                title: >-
-                  The EditSet class shall hand out its changes in ascending order of position, whatever the order
-                  in which the changes were added.
-                justification: |
-                  The rewritten text must not depend on the order in which rules ran.
-                tests:
                   - EditSet_ToImmutable_AnyAddOrder_SameOrderedResult
-                  - EditSet_ToImmutable_NoEdits_ReturnsEmpty
 
-              - id: LintMark-Formatting-EditSet-InsertionBeforeReplacement
+              - id: LintMark-Formatting-EditSet-Patching
                 title: >-
-                  The EditSet class shall hand out an insertion before a replacement that starts at the same
-                  position.
+                  The EditSet unit shall apply a conflict-free set of edits to the text in one pass, and shall reject
+                  an edit outside the text.
                 justification: |
-                  An insertion and a replacement at one position need a fixed order, and the insertion has to
-                  come first so that it does not end up inside the replaced characters.
+                  The written file is produced from the edits, so applying them must be exact and must never run
+                  past the text.
                 tests:
-                  - EditSet_Add_InsertionBeforeReplacementAtSameStart_OrdersInsertionFirst
+                  - SourcePatcher_Apply_ReplaceDeleteInsert_ProducesExpectedText
+                  - SourcePatcher_Apply_EditAtEndOfText_Applies
+                  - SourcePatcher_Apply_EditBeyondText_Throws
+                  - SourcePatcher_Apply_OverlappingEdits_Throws
+                  - SourcePatcher_Apply_UnicodeText_PatchesByUtf16Offsets
 
-              - id: LintMark-Formatting-EditSet-SnapshotUnaffectedByLaterAdds
-                title: The EditSet class shall not let later additions alter a list of changes that it handed out.
-                justification: |
-                  A list that is being applied must not change under the applier.
-                tests:
-                  - EditSet_ToImmutable_LaterAdds_DoNotChangeEarlierSnapshot
-
-              - id: LintMark-Formatting-EditSet-ImmutableResults
-                title: The EditSet class shall hand out its changes in a form that their holders cannot change.
-                justification: |
-                  The list is passed between the formatting and the safety logic. A list that anyone could
-                  modify, even through a cast, would make the result depend on who touched it.
-                tests:
-                  - EditSet_ToImmutable_CastToMutableTypes_CannotBeModified
-
-              - id: LintMark-Formatting-EditSet-RejectsNegativeRange
-                title: The TextEdit record shall refuse a negative position or a negative length.
-                justification: |
-                  A change that cannot describe a range of the text must never exist.
-                tests:
-                  - TextEdit_Constructor_NegativeStart_Throws
-                  - TextEdit_Constructor_NegativeLength_Throws
-
-              - id: LintMark-Formatting-EditSet-RejectsRangeOverflow
-                title: The TextEdit record shall refuse a range that extends beyond the largest position.
-                justification: |
-                  A range whose end cannot be represented cannot be compared with other ranges, so it must
-                  never exist.
-                tests:
-                  - TextEdit_Constructor_StartPlusLengthOverflow_Throws
-                  - TextEdit_Constructor_RangeEndingAtMaxValue_Accepted
-
-              - id: LintMark-Formatting-EditSet-RejectsMissingReplacement
-                title: The TextEdit record shall refuse a missing replacement.
-                justification: |
-                  A change without a replacement does not say what the text becomes. A deletion uses an empty
-                  replacement.
-                tests:
-                  - TextEdit_Constructor_NullReplacement_Throws
-
-              - id: LintMark-Formatting-EditSet-RejectsMissingRuleId
-                title: The TextEdit record shall refuse a missing or empty rule identifier.
-                justification: |
-                  Every change must name the rule that proposed it so that a refusal can be traced.
-                tests:
-                  - TextEdit_Constructor_NullRuleId_Throws
-                  - TextEdit_Constructor_EmptyRuleId_Throws
-
-              - id: LintMark-Formatting-EditSet-ExposesValues
-                title: The TextEdit record shall expose the values that it was created with.
-                justification: |
-                  The applier and the diagnostics read the position, the length, the replacement, and the rule
-                  of a change as they were given.
-                tests:
-                  - TextEdit_Constructor_AllArguments_ExposesValues
-
-              - id: LintMark-Formatting-EditSet-ReportsEnd
-                title: The TextEdit record shall report the position where its range ends.
-                justification: |
-                  Overlap and adjacency are decided by the end of a range, so every user of a change must get
-                  the same end.
-                tests:
-                  - TextEdit_End_AnyEdit_ReturnsStartPlusLength
-
-              - id: LintMark-Formatting-EditSet-ReportsContents
-                title: The EditSet class shall report how many changes it holds and whether it holds none.
-                justification: |
-                  Callers skip the rewrite of a document for which no change was proposed.
-                tests:
-                  - EditSet_Count_AfterAdds_CountsEdits
-                  - EditSet_IsEmpty_NewSet_IsTrue
-
-              - id: LintMark-Formatting-EditSet-EditsRebasedOntoOriginal
+              - id: LintMark-Formatting-EditSet-Rebase
                 title: >-
-                  The EditRebaser class shall compose changes that were computed for the text that other changes
-                  produced into changes for the original text that give the same result.
+                  The EditSet unit shall compose the edits of a later stage with those of an earlier stage into edits
+                  against the original text, in time proportional to the number of edits.
                 justification: |
-                  A wrap is computed for the text that the other rules produce, and the caller needs one list of
-                  changes for the original document, so the composed list must give exactly the text that applying
-                  the two lists one after the other gives.
+                  Some rules must run on text that earlier rules already changed, yet the result must be one patch of
+                  the original, and large documents with thousands of edits must format quickly.
                 tests:
                   - EditRebaser_Rebase_EditsOutsideEachOther_AreTranslated
-                  - EditRebaser_Rebase_OneListEmpty_ReturnsTheOtherUnchanged
-                  - EditRebaser_Rebase_RandomEdits_EqualApplyingTheListsInSequence
-
-              - id: LintMark-Formatting-EditSet-RebaseAbsorbsEditsInsideReplacedRange
-                title: >-
-                  The EditRebaser class shall absorb a change of the first list whose result lies inside a range that
-                  the second list replaces into the change that replaces the range.
-                justification: |
-                  The replaced text overwrites what the first change wrote, so keeping both changes would conflict.
-                tests:
                   - EditRebaser_Rebase_FirstEditInsideReplacedRange_IsAbsorbed
-
-              - id: LintMark-Formatting-EditSet-RebaseExtendsEditsInsideOutput
-                title: >-
-                  The EditRebaser class shall extend a change of the second list that starts or ends inside text that
-                  the first list wrote to all of that text.
-                justification: |
-                  The text that the first change wrote does not exist in the original, so a change to a part of it
-                  can only be expressed as a change of the whole original range.
-                tests:
-                  - EditRebaser_Rebase_SecondEditInsideFirstOutput_IsExtendedToItsEnds
-
-              - id: LintMark-Formatting-EditSet-RebaseMergesEditsInOneOutput
-                title: >-
-                  The EditRebaser class shall merge the changes of the second list that fall in the text that one
-                  change of the first list wrote into one change.
-                justification: |
-                  Two changes to the same original range would conflict, and one change that holds both results does
-                  not.
-                tests:
-                  - EditRebaser_Rebase_TwoSecondEditsInOneFirstOutput_AreMerged
-
-              - id: LintMark-Formatting-EditSet-RebaseKeepsTouchingEdits
-                title: >-
-                  The EditRebaser class shall keep a deletion of the first list that only touches a range that the
-                  second list replaces as a separate change.
-                justification: |
-                  A deletion removes text and writes none, so a change next to it does not overlap it, and merging
-                  them would change what each of them says.
-                tests:
-                  - EditRebaser_Rebase_DeletionTouchingTheReplacedRange_StaysOutside
-
-              - id: LintMark-Formatting-EditSet-RebaseMergesTouchingInsertions
-                title: >-
-                  The EditRebaser class shall merge an insertion of the second list that touches or lies inside an
-                  insertion of the first list with it.
-                justification: |
-                  Two insertions at one position have no defined order, so they must become one insertion.
-                tests:
-                  - EditRebaser_Rebase_InsertionTouchingAnInsertion_IsMergedWithIt
-
-              - id: LintMark-Formatting-EditSet-RebaseDropsNoOps
-                title: >-
-                  The EditRebaser class shall drop a change that replaces nothing with nothing.
-                justification: |
-                  Such a change does not change the text, and it must not get in the way of an insertion at its place.
-                tests:
-                  - EditRebaser_Rebase_EditThatChangesNothing_IsDropped
-
-              - id: LintMark-Formatting-EditSet-RebaseRejectsInvalidLists
-                title: >-
-                  The EditRebaser class shall throw an ArgumentException that names the parameter when a list of
-                  changes is missing, holds a missing change, is not in order, or has conflicts, and when an offset is
-                  negative.
-                justification: |
-                  Lists that are not ordered and conflict-free are programming errors that must be reported as such,
-                  because the composition would give a wrong text from them.
-                tests:
-                  - EditRebaser_Rebase_InvalidLists_Throw
-                  - EditRebaser_MapOffset_InvalidArguments_Throw
-
-              - id: LintMark-Formatting-EditSet-OffsetsMappedToOriginal
-                title: >-
-                  The EditRebaser class shall map a position in the text that changes produced back to the position in
-                  the original text, and a position inside written text to the start of the range that it replaced.
-                justification: |
-                  A problem is reported at a place in the original document, while a wrap is found in the text that the
-                  other rules produce.
-                tests:
-                  - EditRebaser_MapOffset_OffsetsOfTheOutput_MapBackToTheOriginal
-                  - EditRebaser_MapOffset_AfterADeletion_MapsBehindTheDeletedCharacters
-
-              - id: LintMark-Formatting-EditSet-RebaseIsDeterministic
-                title: >-
-                  The EditRebaser class shall return the same changes for the same lists when it is called from several
-                  threads at once as when it is called one after another.
-                justification: |
-                  Files are formatted in parallel, and a result that depended on timing could not be trusted.
-                tests:
-                  - EditRebaser_Rebase_ConcurrentCalls_GiveTheSameEdits
+                  - EditRebaser_Rebase_RandomEdits_EqualApplyingTheListsInSequence
+                  - EditRebaser_CreateOffsetMapper_OffsetsOfTheOutput_MapBackToTheOriginal
+                  - EditRebaser_Rebase_VeryManyEdits_TakesTimeInProportionToTheirNumber

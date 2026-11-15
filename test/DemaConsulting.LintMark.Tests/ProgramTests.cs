@@ -172,6 +172,64 @@ public class ProgramTests
     }
 
     /// <summary>
+    ///     Test that Run with both the version and help flags performs only the version action.
+    /// </summary>
+    [Fact]
+    public void Program_Run_VersionAndHelpFlags_VersionTakesPriority()
+    {
+        // Arrange: setup test conditions
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            using var context = Context.Create(["--version", "--help"]);
+
+            // Act: execute the operation being tested
+            Program.Run(context);
+
+            // Assert: only the version is written, not the usage text
+            var output = outWriter.ToString();
+            Assert.Contains(Program.Version, output);
+            Assert.DoesNotContain("Usage:", output);
+            Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Main reports an invalid argument as a one-line error on standard error.
+    /// </summary>
+    [Fact]
+    public void Program_Main_WithInvalidArgs_WritesErrorMessageToStandardError()
+    {
+        // Arrange: capture the error stream
+        var originalError = Console.Error;
+        try
+        {
+            using var errWriter = new StringWriter();
+            Console.SetError(errWriter);
+
+            // Act: invoke Main with an invalid argument
+            var result = Program.Main(["--invalid-argument"]);
+
+            // Assert: the message names the problem and no stack trace is written
+            var error = errWriter.ToString();
+            Assert.Equal(1, result);
+            Assert.StartsWith("Error: ", error);
+            Assert.Contains("--invalid-argument", error);
+            Assert.DoesNotContain(" at ", error);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
+    /// <summary>
     ///     Test that Run with a path argument runs the engine on that file.
     /// </summary>
     [Fact]

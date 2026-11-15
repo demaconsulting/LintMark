@@ -1,8 +1,8 @@
 ---
-# Software Unit Requirements for the DocumentParser Class
+# Software Unit Requirements for the DocumentParser Unit
 #
-# The DocumentParser class turns a loaded document into a source-ordered list of blocks, using one fixed
-# Markdown dialect.
+# The DocumentParser unit parses a document with the tool's fixed Markdown pipeline into a flat, source-ordered
+# list of blocks whose ranges can be trusted, together with the reference definitions and suppressions.
 
 sections:
   - title: LintMark Requirements
@@ -11,274 +11,65 @@ sections:
         sections:
           - title: DocumentParser Requirements
             requirements:
-              - id: LintMark-Document-DocumentParser-BlockKinds
+              - id: LintMark-Document-DocumentParser-Blocks
                 title: >-
-                  The DocumentParser class shall classify each block of a document as a heading, paragraph,
-                  fenced code block, unclosed fenced code block, indented code block, math block, HTML block,
-                  thematic break, block quote (including alerts), list, list item, pipe table, grid table, YAML
-                  front matter, link reference definition, or footnote definition.
+                  The DocumentParser unit shall produce the blocks of a document in source order with their kind,
+                  nesting, and exact source range, ending each block on its last visible character, and shall
+                  report the lines of a paragraph or heading with their exact content ranges.
                 justification: |
-                  Pipe tables, grid tables, and front matter follow their own layout rules, and quotes, lists,
-                  and code each need different handling. Treating them all as paragraphs would make rules
-                  report or rewrite their contents incorrectly, so every later rule starts from the kind of
-                  each block.
-                children:
-                  - LintMark-OTS-Markdig-Extensions
-                tests:
-                  - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
-                  - DocumentParser_Parse_PipeTable_IsTableWithGfmCells
-                  - DocumentParser_Parse_GridTable_IsGridTable
-                  - DocumentParser_Parse_ValidGridTableOnly_IsGridTable
-                  - DocumentParser_Parse_FrontMatter_IsFrontMatterBlock
-                  - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
-
-              - id: LintMark-Document-DocumentParser-SourceOrder
-                title: >-
-                  The DocumentParser class shall list blocks in source order, with enclosing blocks before the
-                  blocks they contain.
-                justification: |
-                  Consumers walk the list from top to bottom as a reader would, and expect every block to
-                  stand for text that is actually written in the document.
-                tests:
-                  - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
-                  - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
-
-              - id: LintMark-Document-DocumentParser-ExactRanges
-                title: >-
-                  The DocumentParser class shall report for each block the range from its first to its last
-                  visible character, never including a line terminator, so that no block overlaps a block
-                  that is not nested in it.
-                justification: |
-                  Blocks are compared, reported, and rewritten by range. A range that includes a trailing
-                  line terminator, or that overlaps a neighbor, would claim text that belongs to another
-                  construct and make a rewrite change the wrong characters.
+                  Linting and rewriting locate and replace constructs by source range, so a range that is too
+                  long or too short would damage the document or misplace a finding.
                 children:
                   - LintMark-OTS-Markdig-Spans
-                tests:
-                  - DocumentParser_Parse_ListFollowedByBlankLine_EndsOnLastVisibleCharacter
-                  - DocumentParser_Parse_IndentedCodeFollowedByBlankLine_EndsOnLastVisibleCharacter
-                  - DocumentParser_Parse_Tabs_ListCodeAndTextSpansAreExact
-                  - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
-                  - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
-                  - DocumentParser_Parse_DefinitionInBlockQuoteFollowedByText_ParagraphDoesNotOverlapDefinition
-                  - DocumentParser_Parse_DefinitionsInListItemFollowedByText_ParagraphDoesNotOverlapDefinitions
-                  - DocumentParser_Parse_DefinitionFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
-                  - DocumentParser_Parse_DefinitionInContainerFollowedBySetextHeading_HeadingDoesNotOverlapDefinition
-                  - DocumentParser_Parse_DefinitionFollowedByLiteralGreaterThan_ParagraphKeepsTheCharacter
-                  - DocumentParser_Parse_FootnoteFollowedByIndentedHtmlBlock_FootnoteContainsHtmlBlock
-                  - DocumentParser_Parse_UnreferencedFootnoteBeforeDefinitionInContainer_BlocksDoNotOverlap
-                  - DocumentParser_Parse_InvalidGridTable_BlocksDoNotOverlap
-                  - DocumentParser_Parse_ValidAndInvalidGridTable_ReadsWithoutGridTables
-                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_FootnoteEndsBeforeDefinition
-                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks
-                  - DocumentParser_Parse_DroppedFootnoteBeforeFootnoteMarkerOnSameLine_BothAreReportedWithoutOverlap
-                  - DocumentParser_Parse_ReferencedFootnoteBeforeDefinitionOnSameLine_DefinitionIsChild
-                  - DocumentParser_Parse_ValidGridTableAndDroppedFootnoteBeforeDefinition_KeepsGridTable
-                  - DocumentParser_Parse_InvalidGridTableAndDroppedFootnoteBeforeDefinition_BlocksNest
-                  - DocumentParser_Parse_DefinitionWithRejectedNextLineTitle_EndsAtDestination
-
-              - id: LintMark-Document-DocumentParser-NestingDepth
-                title: >-
-                  The DocumentParser class shall report the nesting depth and the enclosing block of every block,
-                  including link reference definitions and footnote definitions inside block quotes and list
-                  items.
-                justification: |
-                  Rules and rewrites treat a construct differently depending on where it sits, for example a
-                  definition inside a quote must stay inside that quote. The position in the document
-                  structure must therefore be correct for every kind of block.
-                tests:
-                  - DocumentParser_Parse_NestedContainers_ReportsDepthAndParents
-                  - DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent
-                  - DocumentParser_Parse_DefinitionInListItem_ReportsDepthAndParent
-                  - DocumentParser_Parse_DefinitionInNestedContainers_ReportsDepthAndParent
-                  - DocumentParser_Parse_FootnoteDefinitionInListItem_ReportsDepthAndParent
-
-              - id: LintMark-Document-DocumentParser-UnclosedCode
-                title: >-
-                  The DocumentParser class shall report a fenced code block or math block that has no closing
-                  delimiter as an unclosed fenced code block extending to the end of its enclosing container, or
-                  to the end of the document at top level.
-                justification: |
-                  Everything after an opening fence is code until it is closed. If only the opening line were
-                  covered, the rest of the code would be mistaken for prose and a rewrite could damage it.
-                tests:
-                  - DocumentParser_Parse_UnclosedFence_ExtendsToEndOfDocument
-                  - DocumentParser_Parse_UnclosedFenceInQuote_EndsWithQuote
-                  - DocumentParser_Parse_UnclosedFenceInListItem_EndsWithListItem
-                  - DocumentParser_Parse_UnclosedMathBlock_ExtendsToEndOfDocument
-                  - DocumentParser_Parse_UnclosedMathBlockInListItem_EndsWithListItem
-
-              - id: LintMark-Document-DocumentParser-FootnoteDefinitions
-                title: >-
-                  The DocumentParser class shall report every footnote definition of a document as a block that
-                  starts at its `[^label]:` marker, whether or not text refers to it, whether or not its label
-                  is repeated, and whether it stands at top level or inside a block quote or list item.
-                justification: |
-                  A footnote definition is document content even when nothing refers to it or when its label
-                  is mistakenly repeated. If it were not reported, a rewrite would delete the author's text,
-                  and a footnote must never be mistaken for a link reference definition.
-                tests:
-                  - DocumentParser_Parse_UnreferencedFootnote_IsReportedWithItsRange
-                  - DocumentParser_Parse_UnreferencedFootnoteOnLaterLine_IsReported
-                  - DocumentParser_Parse_ReferencedFootnote_RangeIncludesLabelMarker
-                  - DocumentParser_Parse_DuplicateFootnoteDefinition_SecondIsReported
-                  - DocumentParser_Parse_AdjacentUnreferencedFootnotes_AreBothReported
-                  - DocumentParser_Parse_FootnoteDefinitionInBlockQuote_IsFootnoteNotLinkDefinition
-                  - DocumentParser_Parse_FootnoteDefinitionInListItem_IsFootnoteNotLinkDefinition
-                  - DocumentParser_Parse_UnreferencedFootnoteBeforeDefinitionInContainer_BlocksDoNotOverlap
-                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_FootnoteEndsBeforeDefinition
-                  - DocumentParser_Parse_DroppedFootnoteBeforeDefinitionOnSameLine_CrLfGivesSameBlocks
-                  - DocumentParser_Parse_DroppedFootnoteBeforeFootnoteMarkerOnSameLine_BothAreReportedWithoutOverlap
-                  - DocumentParser_Parse_ReferencedFootnoteBeforeDefinitionOnSameLine_DefinitionIsChild
-
-              - id: LintMark-Document-DocumentParser-FootnoteLookalikes
-                title: >-
-                  The DocumentParser class shall not report text that only looks like a footnote definition,
-                  such as a line inside code or an indented line inside a footnote, as a footnote definition.
-                justification: |
-                  Code samples and footnote bodies may contain text shaped like a definition marker. Reporting
-                  it as a definition would split the surrounding block, and a rewrite could then change text
-                  that belongs to the code or to the footnote.
-                tests:
-                  - DocumentParser_Parse_FootnoteLikeTextInCode_IsNotReported
-                  - DocumentParser_Parse_IndentedFootnoteLikeLineInFootnote_IsNotReportedAsDefinition
-
-              - id: LintMark-Document-DocumentParser-ReferenceDefinitions
-                title: >-
-                  The DocumentParser class shall report each link reference definition as its own block with its
-                  own range, wherever it appears in the document.
-                justification: |
-                  Rules about reference-style links and rewrites that move definitions need to find each
-                  definition and its exact extent, including definitions that stand next to other text or
-                  inside other blocks.
-                tests:
-                  - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
-                  - DocumentParser_Parse_DefinitionInBlockQuote_ReportsDepthAndParent
-                  - DocumentParser_Parse_DefinitionFollowedByText_ParagraphDoesNotOverlapDefinition
-                  - DocumentParser_Parse_DefinitionWithRejectedNextLineTitle_EndsAtDestination
-
-              - id: LintMark-Document-DocumentParser-InlineConstructs
-                title: >-
-                  The DocumentParser class shall recognize task list items, automatic links, strikethrough, and
-                  math in the text of a document.
-                justification: |
-                  Documents use these constructs, and later rules must treat them as what they are instead of
-                  as plain characters.
-                children:
                   - LintMark-OTS-Markdig-Extensions
                 tests:
-                  - DocumentParser_Parse_InlineConstructs_AreRecognized
+                  - DocumentParser_Parse_SimpleDocument_ReturnsBlocksInSourceOrder
+                  - DocumentParser_Parse_NestedContainers_ReportsDepthAndParents
+                  - DocumentParser_Parse_BlockConstructs_AreClassifiedWithExactSpans
+                  - DocumentParser_Parse_UnclosedFence_ExtendsToEndOfDocument
+                  - DocumentParser_Parse_ListFollowedByBlankLine_EndsOnLastVisibleCharacter
+                  - DocumentParser_GetLines_ParagraphLines_HaveExactContentRanges
 
-              - id: LintMark-Document-DocumentParser-NoGeneratedContent
+              - id: LintMark-Document-DocumentParser-References
                 title: >-
-                  The DocumentParser class shall not add identifiers, attributes, or definitions that are not
-                  written in the document.
+                  The DocumentParser unit shall report every link reference definition and footnote definition
+                  with its range, including those in quotes and list items, flag a footnote that is repeated or
+                  never referenced, and look up definitions by label ignoring case and spacing.
                 justification: |
-                  Content that is not in the file would be reported to the author or written into the file by
-                  a rewrite, and the meaning of a document must not depend on options the user cannot see.
+                  Link and footnote rules and the link rewriting need a reliable index of what is defined where.
                 tests:
-                  - DocumentParser_Parse_Headings_HaveNoAutoIdentifiers
+                  - DocumentParser_Parse_DefinitionsAndFootnotes_AppearInSourceOrderWithOwnRanges
+                  - DocumentParser_Parse_UnreferencedFootnote_IsReportedWithItsRange
+                  - DocumentParser_Parse_DuplicateFootnoteDefinition_SecondIsReported
+                  - ReferenceIndex_TryGet_CaseAndWhitespaceInsensitive_FindsDefinition
+                  - ReferenceIndex_TryGet_DuplicateLabels_FirstWinsAndBothRetained
+                  - ReferenceIndex_Build_DefinitionInBlockQuote_IsIndexed
 
-              - id: LintMark-Document-DocumentParser-ThreadSafe
+              - id: LintMark-Document-DocumentParser-GridTableFallback
                 title: >-
-                  The DocumentParser class shall allow concurrent calls for different documents and produce for
-                  each the same result as a sequential call.
+                  The DocumentParser unit shall mark a document as unsafe to format, with the position of the
+                  offending line, when a line looks like a grid table border but is not part of a valid table,
+                  while still producing its blocks for linting.
                 justification: |
-                  Files are parsed in parallel. Results that depended on how the calls interleave would make
-                  the output differ from run to run.
-                children:
-                  - LintMark-OTS-Markdig-Concurrency
-                tests:
-                  - DocumentParser_Parse_ConcurrentCalls_ProduceIdenticalBlocks
-
-              - id: LintMark-Document-DocumentParser-ImmutableBlocks
-                title: >-
-                  The DocumentParser class shall return a parsed document whose block list cannot be changed by
-                  its holders.
-                justification: |
-                  The block list is the basis of every range computation and is passed between pipeline
-                  stages. A list that a caller could modify, even through a cast of the read-only interface,
-                  would change what every other stage sees.
-                tests:
-                  - DocumentParser_Parse_Blocks_CastToMutableTypes_CannotBeModified
-
-              - id: LintMark-Document-DocumentParser-GridFallbackMarked
-                title: >-
-                  The DocumentParser class shall flag a document as unsafe to rewrite when it contains a line that
-                  looks like the border of a grid table but is not part of a valid grid table.
-                justification: |
-                  The parser can read such a document only by giving up grid tables, which changes what its
-                  blocks mean. Any rewrite based on that reading could damage the document.
+                  Such a document cannot be rewritten without risk to its tables, but it must still be checked
+                  and the author told where the table is damaged.
                 tests:
                   - DocumentParser_Parse_InvalidGridLine_MarksFormatUnsafeAtThatLine
-
-              - id: LintMark-Document-DocumentParser-GridFallbackLocation
-                title: >-
-                  The DocumentParser class shall give, for a document flagged as unsafe to rewrite, the line and
-                  column of the first line that looks like the border of a grid table without being part of a
-                  valid grid table, including a border without a closing plus sign, and line 1 and column 1 when
-                  no such line can be found.
-                justification: |
-                  The author must be told which line to repair. The text of the damaged block cannot say,
-                  because the parser reads it as a paragraph that starts at the beginning of the document.
-                tests:
-                  - DocumentParser_Parse_ValidAndInvalidGridTable_ReportsInvalidLineNotValidTableLine
-                  - DocumentParser_Parse_GridBorderWithoutTrailingPlus_Located
-                  - DocumentParser_Parse_FallbackLocationUnknown_FallsBackToLineOneColumnOne
-                  - DocumentParser_Parse_RandomDocuments_FallbackLineIsAlwaysAGridOpenerOrLineOne
-                  - GridTableFallback_Equals_SameValues_AreEqual
-
-              - id: LintMark-Document-DocumentParser-ValidGridTableNotMarked
-                title: >-
-                  The DocumentParser class shall not flag a document as unsafe to rewrite when its grid tables are
-                  valid or when it contains none.
-                justification: |
-                  Valid tables are common in documentation, and flagging them would stop the tool from
-                  rewriting those documents.
-                tests:
-                  - DocumentParser_Parse_ValidGridTableOnly_NotMarked
+                  - DocumentParser_Parse_GridTableFallback_StillProducesBlocks
+                  - DocumentParser_Parse_InvalidGridLineInsideFence_NotMarked
                   - DocumentParser_Parse_PlainDocument_NotMarked
 
-              - id: LintMark-Document-DocumentParser-LiteralBlocksNotMarked
+              - id: LintMark-Document-DocumentParser-Extensions
                 title: >-
-                  The DocumentParser class shall not flag a document as unsafe to rewrite because of a line inside
-                  fenced code, indented code, or an HTML block.
+                  The DocumentParser unit shall recognize YAML front matter at the start of a document, pipe
+                  tables, grid tables, footnotes, and math blocks, so that their content is handled as the
+                  construct and not as ordinary text.
                 justification: |
-                  Text in code and in raw HTML is literal, and a table border that appears there is an
-                  example or data, not a table that was written wrongly.
+                  Documents written for Pandoc and similar tools use these constructs, and the tool must neither
+                  report nor rewrite their content as if it were plain Markdown.
                 tests:
-                  - DocumentParser_Parse_InvalidGridLineInsideFence_NotMarked
-                  - DocumentParser_Parse_InvalidGridLineInsideOtherLiteralBlocks_NotMarked
-
-              - id: LintMark-Document-DocumentParser-GridFallbackStillProducesBlocks
-                title: >-
-                  The DocumentParser class shall still list the blocks of a document that is flagged as unsafe to
-                  rewrite.
-                justification: |
-                  Reading and checking the document must go on, so that its other problems are reported.
-                tests:
-                  - DocumentParser_Parse_GridTableFallback_StillProducesBlocks
-
-              - id: LintMark-Document-DocumentParser-ValidatesGridFallback
-                title: >-
-                  The GridTableFallback record shall refuse a line or a column below one and shall expose the
-                  position that it was created with.
-                justification: |
-                  The position tells the author which line to repair, so a position that does not exist in a
-                  document must never be created.
-                tests:
-                  - GridTableFallback_Constructor_ValidPosition_KeepsValues
-                  - GridTableFallback_Constructor_LineBelowOne_Throws
-                  - GridTableFallback_Constructor_ColumnBelowOne_Throws
-                  - GridTableFallback_Equals_SameValues_AreEqual
-
-              - id: LintMark-Document-DocumentParser-SuppressionResolvesAliases
-                title: >-
-                  The DocumentParser class shall resolve a rule that a suppression comment names by its legacy
-                  rule number to the rule that the number stands for.
-                justification: |
-                  Authors who come from other Markdown tools write suppression comments with the rule numbers
-                  they know, and such a comment must switch off the same rule as the name of the rule does.
-                tests:
-                  - DocumentParser_Parse_SuppressionCommentWithAlias_SuppressesTheCanonicalRule
-                  - DocumentParser_Parse_DisableNextLineWithAlias_SuppressesTheNextLineOnly
+                  - DocumentParser_Parse_FrontMatter_IsFrontMatterBlock
+                  - DocumentParser_Parse_PipeTable_IsTableWithGfmCells
+                  - DocumentParser_Parse_GridTable_IsGridTable
+                  - DocumentParser_Parse_UnclosedMathBlock_ExtendsToEndOfDocument
+                  - DocumentParser_Parse_InlineConstructs_AreRecognized

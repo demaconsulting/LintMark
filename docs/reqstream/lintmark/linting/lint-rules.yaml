@@ -1,0 +1,85 @@
+---
+# Software Unit Requirements for the LintRules Unit
+#
+# LintRules finds the problems of a document that rewriting cannot fix: heading, link, structure, and table problems.
+# Every rule only reports; none changes the document.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Linting Requirements
+        sections:
+          - title: LintRules Requirements
+            requirements:
+              - id: LintMark-Linting-LintRules-Headings
+                title: >-
+                  The LintRules unit shall report headings that skip a level, repeat an earlier heading, end in
+                  punctuation, or are written as emphasis only, including headings inside quotes and lists.
+                justification: |
+                  A consistent heading outline keeps documents navigable and keeps generated tables of contents and
+                  anchors correct. A fix would change what the document says, so these are reported only.
+                tests:
+                  - HeadingRules_Check_LevelSkipped_IsReportedAtTheDeeperHeading
+                  - HeadingRules_Check_RepeatedHeadingText_IsReportedAtTheLaterHeading
+                  - HeadingRules_Check_TrailingPunctuation_IsReportedExceptQuestionMarksAndEntities
+                  - HeadingRules_Check_HeadingInQuote_IsRead
+                  - HeadingRules_Check_EmphasisOnlyParagraph_IsReportedUnlessPunctuated
+
+              - id: LintMark-Linting-LintRules-Links
+                title: >-
+                  The LintRules unit shall report empty links, broken fragments, undefined and unused references,
+                  reversed link syntax, spaces inside link text, images without alternative text, and unused footnotes.
+                justification: |
+                  Broken or malformed links are invisible until a reader follows them. Each finding names the exact
+                  link so that the author can correct it.
+                tests:
+                  - LinkRules_Check_LinkWithoutDestination_IsReported
+                  - LinkRules_Check_ImageWithoutAlternativeText_IsReported
+                  - LinkRules_Check_FragmentLinks_AreCheckedAgainstHeadingsAndAnchors
+                  - LinkRules_Check_UndefinedReference_IsReportedAtTheLink
+                  - LinkRules_Check_Definitions_UnusedAndRepeatedAreReported
+                  - LinkRules_Check_ReversedLink_IsReported
+                  - LinkRules_Check_UnusedFootnote_IsReported
+
+              - id: LintMark-Linting-LintRules-Structure
+                title: >-
+                  The LintRules unit shall report fenced code without a language, unclosed fences, blank lines between
+                  block quotes, headings written without a space, and emphasis with misplaced spaces.
+                justification: |
+                  These mistakes change how a document renders, or leave the author with text that is silently
+                  treated as something else, and the correct form cannot be derived with certainty.
+                tests:
+                  - StructureRules_Check_FenceWithoutLanguage_IsReportedAtTheFence
+                  - StructureRules_Check_UnclosedFence_IsReportedAtTheFence
+                  - StructureRules_Check_BlankLineBetweenQuotes_IsReported
+                  - StructureRules_Check_HeadingWithoutSpace_IsReportedAsAParagraph
+                  - StructureRules_Check_AsymmetricSpacedEmphasis_IsReported
+                  - StructureRules_Check_LiteralAsterisksEscapesAndValidEmphasis_AreNotReported
+
+              - id: LintMark-Linting-LintRules-Tables
+                title: >-
+                  The LintRules unit shall report table rows whose cell count differs from the header, and tables whose
+                  compact layout is wider than the line length, and shall report nothing for tables it cannot read with
+                  certainty.
+                justification: |
+                  Malformed rows are dropped or misaligned by renderers, and an over-wide table cannot be wrapped. A
+                  false report on an unusual table would be worse than silence.
+                tests:
+                  - TableRules_Check_RowsWithOtherCellCounts_AreReportedAtTheRow
+                  - TableRules_Check_TableTooWideWhenCompact_IsReportedAtTheFirstWideLine
+                  - TableRules_Check_GridTable_IsReportedWithoutOtherFindings
+                  - TableRules_Check_UncertainTable_ReportsNothing
+
+              - id: LintMark-Linting-LintRules-Enablement
+                title: >-
+                  The LintRules unit shall report a finding only when its rule is switched on and the finding is not
+                  suppressed by a comment, and shall return the findings in position order.
+                justification: |
+                  Users switch rules on and off and suppress single cases. A report that ignored these choices would
+                  make the tool unusable, and a stable order makes results comparable.
+                tests:
+                  - LintRuleEngine_Run_ConfigurationOnAndOff_DecidesWhichRulesReport
+                  - LintRuleEngine_Run_RuleSwitchedOff_IsNotAsked
+                  - LintRuleEngine_Run_TableFindings_AreFilteredByConfigurationAndSuppression
+                  - LintRuleEngine_Run_DefaultEngine_ReportsTheTriggeredRulesInPositionOrder
+                  - LintRuleEngine_Run_AnyRuleOrderAndParallelUse_GivesTheSameFindings

@@ -1,0 +1,41 @@
+---
+# Software Unit Requirements for the TextWidth Unit
+#
+# The TextWidth unit measures how many terminal columns a line of text occupies, so that wrapping and table
+# layout agree with what a reader sees.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Document Requirements
+        sections:
+          - title: TextWidth Requirements
+            requirements:
+              - id: LintMark-Document-TextWidth-DisplayWidth
+                title: >-
+                  The TextWidth unit shall measure the display width of a text as one column for ordinary
+                  characters and two columns for wide East Asian characters, emoji, and flags, counting a
+                  base character with its combining marks or an emoji sequence as one character.
+                justification: |
+                  Line length and table alignment must match what readers see in a terminal or editor, and a
+                  count of code units would mis-wrap text in many languages.
+                tests:
+                  - TextWidth_Of_AsciiText_ReturnsLength
+                  - TextWidth_Of_CjkIdeographs_CountsTwoColumnsEach
+                  - TextWidth_Of_HangulSyllables_CountsTwoColumnsEach
+                  - TextWidth_Of_EmojiZwjFamilySequence_ReturnsTwoAsOneCluster
+                  - TextWidth_Of_FlagOfTwoRegionalIndicators_ReturnsTwo
+                  - TextWidth_Of_BaseWithCombiningMark_ReturnsOne
+                  - TextWidth_Of_MixedText_AddsEachClusterWidth
+
+              - id: LintMark-Document-TextWidth-ZeroWidth
+                title: >-
+                  The TextWidth unit shall give control characters, zero-width characters, and a lone combining
+                  mark a width of zero columns.
+                justification: |
+                  Invisible characters take no space on screen, and counting them would wrap lines too early.
+                tests:
+                  - TextWidth_Of_ControlCharacters_ReturnsZero
+                  - TextWidth_Of_ZeroWidthCharacters_ReturnsZero
+                  - TextWidth_Of_LoneCombiningMark_ReturnsZero
+                  - TextWidth_Of_EmptyString_ReturnsZero

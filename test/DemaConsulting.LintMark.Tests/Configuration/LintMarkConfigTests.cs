@@ -20,6 +20,7 @@
 
 using DemaConsulting.LintMark.Configuration;
 using DemaConsulting.LintMark.Document;
+using DemaConsulting.LintMark.Linting;
 
 namespace DemaConsulting.LintMark.Tests;
 
@@ -87,4 +88,74 @@ public class LintMarkConfigTests
     [InlineData("<!-- Link References -->")]
     public void LinkRefactorOptions_IsValidMarker_SingleLineHtmlComment_ReturnsTrue(string marker) =>
         Assert.True(LinkRefactorOptions.IsValidMarker(marker));
+
+    /// <summary>
+    ///     Test that the built-in default gives every setting its documented value.
+    /// </summary>
+    [Fact]
+    public void LintMarkConfig_Default_EverySetting_HasDocumentedValue()
+    {
+        // Arrange: the built-in default configuration
+        var config = LintMarkConfig.Default;
+
+        // Act and Assert: every setting has its documented default
+        Assert.Equal(120, config.LineLength);
+        Assert.Equal(WrapMode.Fill, config.Wrap);
+        Assert.Null(config.EndOfLine);
+        Assert.True(config.FinalNewline);
+        Assert.Equal(HeadingStyle.Atx, config.Headings);
+        Assert.Equal(BulletMarker.Dash, config.Bullet);
+        Assert.Equal(2, config.ListIndent);
+        Assert.Equal(OrderedStyle.Incrementing, config.OrderedStyle);
+        Assert.Equal(EmphasisMarker.Asterisk, config.Emphasis);
+        Assert.Equal(EmphasisMarker.Asterisk, config.Strong);
+        Assert.Equal(FenceMarker.Backtick, config.CodeFence);
+        Assert.Equal(CodeBlockStyle.Fenced, config.CodeBlockStyle);
+        Assert.Equal(HardBreakStyle.Spaces, config.HardBreak);
+        Assert.Equal(ThematicBreakStyle.Dashes, config.ThematicBreak);
+        Assert.Equal(TableStyle.Compact, config.Tables);
+        Assert.Equal(BareUrlStyle.Autolink, config.BareUrls);
+        Assert.Equal(1, config.MaxBlankLines);
+        Assert.Equal(TrailingWhitespaceStyle.Strip, config.TrailingWhitespace);
+        Assert.Equal(
+            [".git/**", "node_modules/**", "**/.venv/**", "**/generated/**", "**/thirdparty/**", ".agent-logs/**"],
+            config.Ignore);
+    }
+
+    /// <summary>
+    ///     Test that the default configuration holds a state for every configurable rule and that only the three
+    ///     opt-in rules are off.
+    /// </summary>
+    [Fact]
+    public void LintMarkConfig_Default_Rules_HoldEveryConfigurableRuleWithOptInRulesOff()
+    {
+        // Arrange: the built-in default configuration
+        var rules = LintMarkConfig.Default.Rules;
+
+        // Act: collect the rules that are off by default
+        var disabled = rules.Where(rule => !rule.Value).Select(rule => rule.Key).ToArray();
+
+        // Assert: the map is the catalog's complete default table, with only the opt-in rules off
+        Assert.Equal(RuleCatalog.Defaults.Count, rules.Count);
+        Assert.Equal(["descriptive-link-text", "dollar-sign-in-shell-code", "table-grid-unformatted"], disabled);
+    }
+
+    /// <summary>
+    ///     Test that the link-refactor setting is off by default with the documented option values.
+    /// </summary>
+    [Fact]
+    public void LintMarkConfig_Default_LinkRefactor_IsDisabledWithDocumentedOptions()
+    {
+        // Arrange: the built-in default configuration
+        var options = LintMarkConfig.Default.LinkRefactor;
+
+        // Act and Assert: the conversion is off and the options have their documented defaults
+        Assert.False(options.Enabled);
+        Assert.Equal(60, options.Threshold);
+        Assert.True(options.InTables);
+        Assert.False(options.BreakLinkText);
+        Assert.Equal(40, options.LabelMaxLength);
+        Assert.Equal("<!-- Link References -->", options.DefinitionsMarker);
+        Assert.True(LinkRefactorOptions.IsValidMarker(options.DefinitionsMarker));
+    }
 }

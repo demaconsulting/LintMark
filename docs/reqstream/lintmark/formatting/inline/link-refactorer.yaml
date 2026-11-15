@@ -1,0 +1,56 @@
+---
+# Software Unit Requirements for the LinkRefactorer Unit
+#
+# The LinkRefactorer unit converts long inline links and images to reference links and writes the new definitions in
+# one block at the end of the document.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Formatting Requirements
+        sections:
+          - title: Inline Requirements
+            sections:
+              - title: LinkRefactorer Requirements
+                requirements:
+                  - id: LintMark-Formatting-Inline-LinkRefactorer-Eligibility
+                    title: >-
+                      The LinkRefactorer unit shall convert an inline link or image wider than the threshold to a
+                      reference link only when the feature is enabled, and report each conversion at its position.
+                    justification: |
+                      Link conversion changes the shape of a document, so it is opt-in and limited to links where
+                      it saves width. Short links, other link forms, and suppressed text stay as written.
+                    tests:
+                      - LinkRefactorer_Format_DisabledByDefault_LeavesLongLinksAsTheyAre
+                      - LinkRefactorer_Format_LongInlineLink_BecomesReferenceWithDefinitionAtTheEnd
+                      - LinkRefactorer_Format_Image_BecomesReferenceImage
+                      - LinkRefactorer_Format_ShortAndNonInlineLinks_AreNotTouched
+                      - LinkRefactorer_Format_SuppressedParagraph_IsLeftAndTheNextOneIsConverted
+                      - LinkRefactorer_Format_ConvertedLinks_AreReportedAtTheirPosition
+
+                  - id: LintMark-Formatting-Inline-LinkRefactorer-Labels
+                    title: >-
+                      The LinkRefactorer unit shall give each converted link a label that is unique in the document,
+                      share one definition between equal destinations, and write all new definitions in one block.
+                    justification: |
+                      Labels must never collide with existing labels or bracketed text, and a single definitions
+                      block keeps the converted links easy to find and to maintain.
+                    tests:
+                      - LinkRefactorer_Format_SameDestinationTwice_ShareOneDefinition
+                      - LinkRefactorer_Format_SameDestinationOtherTitle_GetsAnotherDefinition
+                      - LinkRefactorer_Format_LabelTakenByOtherDestination_GetsTheFirstFreeNumber
+                      - LinkRefactorer_Format_ExistingDefinitionWithSameDestination_IsReused
+                      - LinkRefactorer_Format_ExistingLinkReferencesBlock_GetsTheNewDefinitionsAfterItsLastDefinition
+                      - LinkRefactorer_Format_ConfiguredMarker_IsWritten
+
+                  - id: LintMark-Formatting-Inline-LinkRefactorer-Tables
+                    title: >-
+                      The LinkRefactorer unit shall convert the links of a table row only when the row is too wide
+                      and the conversion makes it fit, and otherwise leave the table as written.
+                    justification: |
+                      A table row cannot be wrapped, so converting links is the only way to shorten it, and a
+                      conversion that does not help would only make the document harder to read.
+                    tests:
+                      - LinkRefactorer_Format_TableRowTooWide_ConvertsTheLinksOfThatRowOnly
+                      - LinkRefactorer_Format_AlignedTableThatFitsAfterConversion_IsAlignedInOneRun
+                      - LinkRefactorer_Format_TableThatCannotFitOrIsExcluded_IsLeftAsWritten

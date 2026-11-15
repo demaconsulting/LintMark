@@ -264,6 +264,24 @@ public class RuleCatalogTests
         Assert.True(RuleCatalog.TryGet(expected, out var rule));
         Assert.Equal(DiagnosticKind.LintOnly, rule.Kind);
     }
+
+    /// <summary>
+    ///     Test that a lint-only finding carries its rule, position and message, and that its message stays on one line.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_LintOnly_MultiLineMessage_CarriesFieldsOnOneLine()
+    {
+        // Act: create a lint-only finding whose message contains a line break
+        var finding = Diagnostic.LintOnly("docs/a.md", "link-empty", 3, 5, "first\nsecond");
+
+        // Assert: every field is kept and the message is on one line
+        Assert.Equal("link-empty", finding.RuleId);
+        Assert.Equal(DiagnosticKind.LintOnly, finding.Kind);
+        Assert.Equal("docs/a.md", finding.Path);
+        Assert.Equal(3, finding.Line);
+        Assert.Equal(5, finding.Column);
+        Assert.Equal("first second", finding.Message);
+    }
 }
 
 /// <summary>

@@ -1,0 +1,63 @@
+---
+# Software Unit Requirements for the Context Unit
+#
+# The Context unit parses the command line of one invocation, owns the program output (console and log file),
+# and remembers whether an error was written so that the process ends with the right exit status.
+
+sections:
+  - title: LintMark Requirements
+    sections:
+      - title: Context Requirements
+        requirements:
+          - id: LintMark-Context-Options
+            title: >-
+              The Context unit shall parse every documented option, including its short and alternative spellings,
+              and reject an unsupported argument or an option value that is missing or out of range.
+            justification: |
+              Users must be able to control the tool from the command line, and a mistyped option has to be
+              refused with a clear error instead of being ignored.
+            tests:
+              - Context_Create_NoArguments_ReturnsDefaultContext
+              - Context_Create_ShortFlags_BehaveLikeTheLongFlags
+              - Context_Create_ResultAliasFlag_SetsResultsFile
+              - Context_Create_PathsMixedWithFlags_ParsesBoth
+              - Context_Create_UnknownArgument_ThrowsArgumentException
+              - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
+              - Context_Create_ValueOutOfRange_Throws
+
+          - id: LintMark-Context-Output
+            title: >-
+              The Context unit shall write messages to standard output and errors to standard error, and shall
+              write nothing to the console when the silent option is given.
+            justification: |
+              Users need the results on the console, and scripts and quiet runs need the console to stay silent.
+            tests:
+              - Context_WriteLine_NotSilent_WritesToConsole
+              - Context_WriteError_NotSilent_WritesToConsole
+              - Context_WriteError_Silent_DoesNotWriteToConsole
+              - Context_WriteError_ConcurrentWriters_AllLinesWrittenIntact
+
+          - id: LintMark-Context-LogFile
+            title: >-
+              The Context unit shall write every message and error to the log file named by the log option,
+              replacing its previous content, even when the console output is silent, and shall reject a log file
+              that cannot be opened.
+            justification: |
+              A log keeps a complete record of a run for later review, including runs that suppress the console.
+            tests:
+              - Context_Create_LogFlag_OpensLogFile
+              - Context_Create_LogFlag_ExistingFile_TruncatesFile
+              - Context_WriteError_WritesToLogFile
+              - Context_Create_LogFlag_MissingDirectory_ThrowsInvalidOperationException
+
+          - id: LintMark-Context-ExitStatus
+            title: >-
+              The Context unit shall report exit status 0 until an error is written and exit status 1 afterwards,
+              also when the console output is silent.
+            justification: |
+              Scripts and build pipelines decide success from the exit status alone, so an error must never be
+              lost because its output was suppressed.
+            tests:
+              - Context_Create_NoArguments_ReturnsDefaultContext
+              - Context_WriteError_SetsErrorExitCode
+              - Context_WriteError_WritesToLogFile
