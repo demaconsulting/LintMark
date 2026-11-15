@@ -142,11 +142,13 @@ public class TableFormatterTests
     public void TableFormatter_Format_TableInContainer_KeepsThePrefix(string input, string expected) => AssertFormats(input, expected);
 
     /// <summary>
-    ///     Test that tables are left as written when the reading is not certain.
+    ///     Test that tables are left as written when the reading is not certain: a tab in a cell, a trailing backslash, a cell with a
+    ///     no-break space at its edge (the parser's cell is not the cell this reading finds), a grid table.
     /// </summary>
     [Theory]
     [InlineData("|a\tb|c|\n|-|-|\n")]
     [InlineData("|a|b\\\\|\n|-|-|\n|1|2|\n")]
+    [InlineData("|\u00A0a|b\u00A0|\n|-|-|\n")]
     [InlineData("+---+---+\n| a | b |\n+===+===+\n| 1 | 2 |\n+---+---+\n")]
     public void TableFormatter_Format_UncertainTable_IsLeftAsWritten(string input) =>
         Assert.Empty(BlockFormatterAssertions.ApplyFormatter(Formatter, input).Edits);
