@@ -16,7 +16,6 @@ needs-review:
   - "docs/sysml2/**/*.sysml"      # SysML2 architecture model
   - "!**/obj/**"                  # Exclude build output
   - "!**/bin/**"                  # Exclude build output
-  - "!node_modules/**"            # Exclude npm dependencies
   - "!**/.venv/**"                # Exclude Python virtual environment
   # tools/** is non-shipping development tooling (the corpus verifier LintMark.Verify and its
   # tests). It is not part of the LintMark package or system, so it has no requirement, design,

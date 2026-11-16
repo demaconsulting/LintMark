@@ -76,11 +76,6 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
-# Node.js
-node_modules/
-package-lock.json
-npm-debug.log
-
 # Python
 __pycache__/
 *.py[cod]
@@ -110,3 +105,7 @@ AGENT_REPORT_*.md
 
 # Verification corpus (fetched by tools/LintMark.Verify/fetch-corpus.ps1; never committed)
 .corpus/
+
+# OS
+.DS_Store
+Thumbs.db

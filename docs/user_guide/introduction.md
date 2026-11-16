@@ -51,7 +51,7 @@ in separate documents.
 LintMark follows the
 [Continuous Compliance](https://github.com/demaconsulting/ContinuousCompliance) methodology, which ensures
 compliance evidence is generated automatically on every CI run: requirements are linked to passing tests, a trace
-matrix is generated on each release, and markdownlint, TextLint, and yamllint are enforced before any build proceeds.
+matrix is generated on each release, and LintMark, TextLint, and yamllint are enforced before any build proceeds.
 
 ## References
 
