@@ -101,7 +101,10 @@
     },
     {
       "label": "lint yaml",
-      "command": "yamllint",
+      "command": "${workspaceFolder}/.venv/bin/yamllint",
+      "windows": {
+        "command": "${workspaceFolder}/.venv/Scripts/yamllint.exe"
+      },
       "type": "shell",
       "args": [
         "."
