@@ -36,7 +36,7 @@
     skipped. Text is copied byte for byte, so line endings (CRLF included) and BOMs are preserved. A source that
     fails is reported and skipped; the others go on.
 
-    The corpus is read-only test input and is never committed (.corpus/ is ignored by Git, markdownlint and the
+    The corpus is read-only test input and is never committed (.corpus/ is ignored by Git, LintMark and the
     spell checker).
 
 .PARAMETER Root
