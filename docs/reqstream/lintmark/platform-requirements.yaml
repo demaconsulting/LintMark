@@ -4,6 +4,10 @@
 # These requirements specify the platforms and runtimes the tool must support.
 # They ensure the tool works across the required execution environments.
 #
+# The evidence is the self-validation (--validate) run on each platform and runtime: besides the version and help
+# tests it lints a compliant and a non-compliant file, fixes a file, previews a fix, and applies a configuration, so
+# a passing run shows that the tool does its job there, not only that it starts.
+#
 # Test links can include a source filter prefix (e.g. "windows@", "ubuntu@", "dotnet10.x@") to restrict
 # which test results count as evidence for a requirement. This is critical for platform and runtime
 # requirements - removing these filters invalidates the evidence-based proof.
@@ -29,6 +33,11 @@ sections:
               # Tests link to "windows" to ensure results come from Windows platform
               - "windows@LintMark_VersionDisplay"
               - "windows@LintMark_HelpDisplay"
+              - "windows@LintMark_CleanFileNoFindings"
+              - "windows@LintMark_ViolationsReported"
+              - "windows@LintMark_FixRewritesToCanonicalForm"
+              - "windows@LintMark_DiffPreviewsFixes"
+              - "windows@LintMark_ConfigurationHonored"
 
           - id: LintMark-Platform-Linux
             title: The tool shall execute successfully on Linux platforms.
@@ -39,6 +48,11 @@ sections:
               # Tests link to "ubuntu" to ensure results come from Linux platform
               - "ubuntu@LintMark_VersionDisplay"
               - "ubuntu@LintMark_HelpDisplay"
+              - "ubuntu@LintMark_CleanFileNoFindings"
+              - "ubuntu@LintMark_ViolationsReported"
+              - "ubuntu@LintMark_FixRewritesToCanonicalForm"
+              - "ubuntu@LintMark_DiffPreviewsFixes"
+              - "ubuntu@LintMark_ConfigurationHonored"
 
           - id: LintMark-Platform-MacOS
             title: The tool shall execute successfully on macOS platforms.
@@ -49,6 +63,11 @@ sections:
               # Tests link to "macos" to ensure results come from macOS platform
               - "macos@LintMark_VersionDisplay"
               - "macos@LintMark_HelpDisplay"
+              - "macos@LintMark_CleanFileNoFindings"
+              - "macos@LintMark_ViolationsReported"
+              - "macos@LintMark_FixRewritesToCanonicalForm"
+              - "macos@LintMark_DiffPreviewsFixes"
+              - "macos@LintMark_ConfigurationHonored"
 
           - id: LintMark-Platform-Net10
             title: The tool shall support .NET 10 runtime.
@@ -59,6 +78,11 @@ sections:
             tests:
               - "dotnet10.x@LintMark_VersionDisplay"
               - "dotnet10.x@LintMark_HelpDisplay"
+              - "dotnet10.x@LintMark_CleanFileNoFindings"
+              - "dotnet10.x@LintMark_ViolationsReported"
+              - "dotnet10.x@LintMark_FixRewritesToCanonicalForm"
+              - "dotnet10.x@LintMark_DiffPreviewsFixes"
+              - "dotnet10.x@LintMark_ConfigurationHonored"
 
           - id: LintMark-Platform-Net11
             title: The tool shall support .NET 11 runtime.
@@ -69,3 +93,8 @@ sections:
             tests:
               - "dotnet11.x@LintMark_VersionDisplay"
               - "dotnet11.x@LintMark_HelpDisplay"
+              - "dotnet11.x@LintMark_CleanFileNoFindings"
+              - "dotnet11.x@LintMark_ViolationsReported"
+              - "dotnet11.x@LintMark_FixRewritesToCanonicalForm"
+              - "dotnet11.x@LintMark_DiffPreviewsFixes"
+              - "dotnet11.x@LintMark_ConfigurationHonored"

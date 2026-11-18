@@ -10,8 +10,10 @@ The LintMark system is verified at four levels:
   `IntegrationRuleTests.cs`, and `IntegrationLintTests.cs`) start the built tool as a separate process through the
   `Runner` helper, with real files in a `TemporaryDirectory`, and assert on the output text, the exit code, and the
   files on disk. They are the end-to-end tests of the command line contract.
-- **Self-validation** (`--validate`) runs two built-in tests of the shipped binary on every platform and runtime in
-  CI. It provides the platform evidence for Windows, Linux, macOS, .NET 10, and .NET 11.
+- **Self-validation** (`--validate`) runs seven built-in tests of the shipped binary on every platform and runtime in
+  CI: version and help, checking a compliant file and a file with violations, fixing, previewing a fix, and applying a
+  configuration file. It provides the platform evidence for Windows, Linux, macOS, .NET 10, and .NET 11, and the
+  evidence that users who qualify LintMark as an off-the-shelf tool rely on.
 
 Tests are written with xUnit in the `DemaConsulting.LintMark.Tests` project; the libraries that LintMark depends on
 are verified as OTS items in `OtsSoftwareTests`. No mocks are used anywhere in the product tests: the tool has no

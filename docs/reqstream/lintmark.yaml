@@ -77,6 +77,8 @@ sections:
           - LintMark-Engine-Reporting
         tests:
           - LintMark_CheckFlag_Provided_LintsWithoutWriting
+          - LintMark_CleanFileNoFindings
+          - LintMark_ViolationsReported
 
       - id: LintMark-System-Fix
         title: >-
@@ -92,6 +94,7 @@ sections:
         tests:
           - LintMark_FixFlag_CrlfFile_RewritesToLf
           - LintMark_FixFlag_Twice_SecondRunReportsNothing
+          - LintMark_FixRewritesToCanonicalForm
 
       - id: LintMark-System-Diff
         title: >-
@@ -104,6 +107,7 @@ sections:
           - LintMark-Engine-Reporting
         tests:
           - LintMark_DiffFlag_FormattingViolations_ShowsTheChange
+          - LintMark_DiffPreviewsFixes
 
       - id: LintMark-System-OptionConflicts
         title: >-
@@ -133,6 +137,7 @@ sections:
         tests:
           - LintMark_ExplicitConfig_ConfigFileGiven_ReplacesDiscovery
           - LintMark_ExplicitConfig_NoConfigGiven_UsesDefaultsAndIgnoresEditorConfig
+          - LintMark_ConfigurationHonored
 
       - id: LintMark-System-RuleSwitches
         title: >-
@@ -179,11 +184,19 @@ sections:
           summary is pasted into documents whose heading structure the user controls.
         children:
           - LintMark-Validation-SelfTests
+          - LintMark-Validation-FunctionalSelfTests
           - LintMark-Program-Dispatch
           - LintMark-Context-Options
         tests:
           - LintMark_ValidateFlag_Provided_RunsValidation
           - LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth
+          - LintMark_VersionDisplay
+          - LintMark_HelpDisplay
+          - LintMark_CleanFileNoFindings
+          - LintMark_ViolationsReported
+          - LintMark_FixRewritesToCanonicalForm
+          - LintMark_DiffPreviewsFixes
+          - LintMark_ConfigurationHonored
 
       - id: LintMark-System-ValidationResults
         title: >-
@@ -226,6 +239,7 @@ sections:
         tests:
           - LintMark_ConfigErrors_Reported_AsPathLineColRuleMessage
           - LintMark_CheckFlag_OverlongParagraph_ReportsLineLengthAtTheFirstColumnBeyondTheWidth
+          - LintMark_ViolationsReported
 
       - id: LintMark-System-ConfigDiscovery
         title: >-
@@ -239,6 +253,7 @@ sections:
           - LintMark-Configuration-Discovery
         tests:
           - LintMark_ConfigDiscovery_NearestConfigInvalid_ReportsItsErrors
+          - LintMark_ConfigurationHonored
 
       - id: LintMark-System-ConfigSettings
         title: >-
@@ -252,6 +267,7 @@ sections:
         tests:
           - LintMark_ConfigSettings_StyleValues_ChangeTheFormattedOutput
           - LintMark_ConfigSettings_NumericAndSwitchValues_ChangeWhatIsKept
+          - LintMark_ConfigurationHonored
 
       - id: LintMark-System-ConfigValidation
         title: >-
@@ -281,6 +297,7 @@ sections:
           - LintMark-Engine-Discovery
         tests:
           - LintMark_IgnorePatterns_GlobSelected_SkipsMatches
+          - LintMark_ConfigurationHonored
 
       - id: LintMark-System-LineEndings
         title: >-
