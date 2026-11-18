@@ -60,9 +60,10 @@ expected values:
   when the exit code is 0, nothing is reported, the fixable document equals its canonical form exactly (list markers
   and spacing, table layout, emphasis delimiter, trailing whitespace, and the rewrapped over-long line), the compliant
   document keeps its content and its modification time, and a second check of both reports nothing.
-- `LintMark_DiffPreviewsFixes` runs `--diff` on the same two documents; it passes when the exit code is 1, the log
-  holds the unified diff header and changed lines of the fixable document but no diff of the compliant one, and
-  neither file is changed.
+- `LintMark_DiffPreviewsFixes` runs `--diff` on the same two documents; it passes when the exit code is 1, the
+  findings are exactly those of the fixable document (`trailing-whitespace`, `bullet`, `list-blank-lines`,
+  `table-column-style`, `emphasis` and `line-length` at their expected lines and columns), the log holds the unified
+  diff header and changed lines of the fixable document but no diff of the compliant one, and neither file is changed.
 - `LintMark_ConfigurationHonored` writes `.lintmark.yaml` (`bullet: asterisk`, `heading-increment` off, `skipped/**`
   ignored) and checks the workspace with the default selection; it passes when that run reports nothing with exit
   code 0, and a run with `--no-config` reports the heading increment and bullet findings of the configured document

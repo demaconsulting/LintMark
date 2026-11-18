@@ -126,6 +126,23 @@ internal static class Validation
         "and must be rewrapped by the fixer.\n";
 
     /// <summary>
+    ///     The findings (<c>path:line:col: rule-id</c>) that checking or previewing <see cref="FixableMarkdown"/> must
+    ///     report, in report order.
+    /// </summary>
+    private static readonly string[] ExpectedFixableFindings =
+    [
+        "fixable.md:3:10: trailing-whitespace",
+        "fixable.md:4:1: bullet",
+        "fixable.md:4:1: list-blank-lines",
+        "fixable.md:5:1: bullet",
+        "fixable.md:7:1: table-column-style",
+        "fixable.md:8:1: table-column-style",
+        "fixable.md:9:1: table-column-style",
+        "fixable.md:11:9: emphasis",
+        "fixable.md:13:121: line-length"
+    ];
+
+    /// <summary>
     ///     The exact content <c>--fix</c> must write for <see cref="FixableMarkdown"/>.
     /// </summary>
     private const string FixedMarkdown =
@@ -450,8 +467,9 @@ internal static class Validation
         // Preview the fixes
         var run = RunLintMark(workspace, "--diff", "fixable.md", "clean.md");
 
-        // Expect a failure exit code for the findings, and nothing written
+        // Expect the findings of the fixable file with a failure exit code, and nothing written
         var failure = CheckExitCode(run, 1)
+                      ?? CheckFindings(run, ExpectedFixableFindings)
                       ?? CheckContent(fixable, FixableMarkdown)
                       ?? CheckContent(clean, CleanMarkdown);
         if (failure != null)
@@ -520,16 +538,19 @@ internal static class Validation
         Directory.SetCurrentDirectory(workspace.DirectoryPath);
         try
         {
-            using var runContext = Context.Create(["--silent", "--log", logFile, .. args]);
-            Program.Run(runContext);
-            exitCode = runContext.ExitCode;
+            // Dispose the context before the directory is restored, so the log file is closed and complete
+            using (var runContext = Context.Create(["--silent", "--log", logFile, .. args]))
+            {
+                Program.Run(runContext);
+                exitCode = runContext.ExitCode;
+            }
         }
         finally
         {
             Directory.SetCurrentDirectory(originalDirectory);
         }
 
-        // Read and remove the log
+        // Read and remove the closed log
         var log = File.ReadAllText(logFile);
         File.Delete(logFile);
         return new LintMarkRun(exitCode, log);

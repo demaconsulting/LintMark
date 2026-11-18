@@ -343,7 +343,8 @@ Each test proves specific functionality:
 - **`LintMark_FixRewritesToCanonicalForm`**: `--fix` rewrites a fixable file into exactly its canonical form (list
   markers and spacing, table layout, emphasis delimiter, trailing whitespace, and a rewrapped over-long line), leaves
   a compliant file untouched, and a second check of both reports nothing.
-- **`LintMark_DiffPreviewsFixes`**: `--diff` prints a unified diff of the fixable file only and writes no file.
+- **`LintMark_DiffPreviewsFixes`**: `--diff` reports exactly the expected findings of the fixable file, prints a
+  unified diff of that file only, exits with `1`, and writes no file.
 - **`LintMark_ConfigurationHonored`**: a discovered `.lintmark.yaml` that changes the bullet marker, switches
   `heading-increment` off, and ignores a folder makes the files clean, and the same files report those findings with
   `--no-config`.
