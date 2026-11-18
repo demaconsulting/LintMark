@@ -9,6 +9,11 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
+![LintMark banner: the LintMark name with the tagline 'One Markdown style. Flagged, then fixed.' and the command
+lintmark --fix README.md. Markdown docs, a README, a .lintmark.yaml, and CI and coding agents flow on curved arrows
+into the lintmark .NET tool, and arrows lead out to findings as file:line:col: rule-id, a --fix rewrite of a list
+item, a --diff preview, and a CI gate passing with exit 0][hero]
+
 LintMark is a .NET tool, distributed as a NuGet tool package, for linting and optionally reformatting markdown files
 into a preferred format, with optional tweaks via a .lintmark.yaml configuration file.
 
@@ -124,6 +129,7 @@ Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][lin
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
 
 <!-- Badge References -->
+[hero]: https://raw.githubusercontent.com/demaconsulting/LintMark/main/docs/images/hero.png
 [workflow]: https://raw.githubusercontent.com/demaconsulting/LintMark/main/docs/images/workflow.png
 [badge-forks]: https://img.shields.io/github/forks/demaconsulting/LintMark?style=plastic
 [badge-stars]: https://img.shields.io/github/stars/demaconsulting/LintMark?style=plastic
