@@ -92,7 +92,10 @@ The [User Guide][link-guide] covers everything else:
 
 ## Self-Validation
 
-Run the built-in validation tests, and optionally save the results as TRX or JUnit:
+Run the built-in validation tests, and optionally save the results as TRX or JUnit. Besides the version and help
+output, the tests check a compliant file and a file with deliberate violations, fix a file, preview a fix with
+`--diff`, and apply a `.lintmark.yaml`, each in an isolated temporary folder, so a passing run is evidence that the
+installed tool works:
 
 ```bash
 lintmark --validate

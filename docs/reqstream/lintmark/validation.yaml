@@ -23,6 +23,20 @@ sections:
               - Validation_Run_WithSilentContext_ExitCodeIsZero
               - Validation_Run_NullContext_ThrowsArgumentNullException
 
+          - id: LintMark-Validation-FunctionalSelfTests
+            title: >-
+              The Validation unit shall include self-tests that check a compliant file, check a file with
+              violations of several rule categories, fix a file, preview a fix, and apply a discovered configuration
+              file, each in its own isolated temporary workspace that is removed afterwards, and shall pass a test
+              only when the exit code, the reported findings, and the file contents are exactly as expected.
+            justification: |
+              Users who rely on the tool as qualified off-the-shelf software need self-validation evidence that the
+              installed tool finds, fixes, and configures what it should, not only that it starts. Isolating each
+              test from the machine's configuration files makes the evidence reproducible on every platform.
+            tests:
+              - Validation_Run_WithSilentContext_RunsAndPassesEverySelfTest
+              - Validation_Run_WithSilentContext_RestoresCurrentDirectory
+
           - id: LintMark-Validation-ResultsFile
             title: >-
               The Validation unit shall write the self-test results to the file named by the results option as a

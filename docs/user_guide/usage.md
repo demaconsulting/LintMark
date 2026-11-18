@@ -319,9 +319,14 @@ the test results:
 
 ✓ LintMark_VersionDisplay - Passed
 ✓ LintMark_HelpDisplay - Passed
+✓ LintMark_CleanFileNoFindings - Passed
+✓ LintMark_ViolationsReported - Passed
+✓ LintMark_FixRewritesToCanonicalForm - Passed
+✓ LintMark_DiffPreviewsFixes - Passed
+✓ LintMark_ConfigurationHonored - Passed
 
-Total Tests: 2
-Passed: 2
+Total Tests: 7
+Passed: 7
 Failed: 0
 ```
 
@@ -329,6 +334,24 @@ Each test proves specific functionality:
 
 - **`LintMark_VersionDisplay`**: `--version` outputs a valid version string.
 - **`LintMark_HelpDisplay`**: `--help` outputs usage and options information.
+- **`LintMark_CleanFileNoFindings`**: checking a compliant file reports nothing, exits with `0`, and leaves the file
+  unchanged.
+- **`LintMark_ViolationsReported`**: checking a file with deliberate violations reports exactly the expected rule
+  identifiers at the expected lines and columns (`heading-increment`, `trailing-whitespace`, `bullet`,
+  `list-blank-lines`, `heading-trailing-punctuation`, `code-fence-language`, `table-column-style`, and `emphasis`),
+  exits with `1`, and leaves the file unchanged.
+- **`LintMark_FixRewritesToCanonicalForm`**: `--fix` rewrites a fixable file into exactly its canonical form (list
+  markers and spacing, table layout, emphasis delimiter, trailing whitespace, and a rewrapped over-long line), leaves
+  a compliant file untouched, and a second check of both reports nothing.
+- **`LintMark_DiffPreviewsFixes`**: `--diff` reports exactly the expected findings of the fixable file, prints a
+  unified diff of that file only, exits with `1`, and writes no file.
+- **`LintMark_ConfigurationHonored`**: a discovered `.lintmark.yaml` that changes the bullet marker, switches
+  `heading-increment` off, and ignores a folder makes the files clean, and the same files report those findings with
+  `--no-config`.
+
+Each test writes its own files to a new temporary folder, which is removed afterwards. The folder contains an empty
+`.git` folder and an `.editorconfig` with `root = true`, so no configuration of the machine or of the current
+repository can change the results.
 
 To save the results, give `--results <file>` (or its alias `--result <file>`). The format follows the file extension:
 `.trx` for TRX (MSTest) format and `.xml` for JUnit format; any other extension is an error:

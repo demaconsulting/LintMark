@@ -2,7 +2,7 @@ package LintMark {
     private import SoftwareItemMetadata::*;
 
     part def Validation {
-        doc /* Orchestrates the self-validation test suite, runs each self-test against a temporary directory, reports pass/fail results, and writes them to a TRX or JUnit results file when asked. */
+        doc /* Orchestrates the self-validation test suite: version and help, plus functional self-tests that check, fix, preview and configure the tool against fixture files in an isolated temporary directory; reports pass/fail results, and writes them to a TRX or JUnit results file when asked. */
 
         metadata info : SoftwareInfo {
             sourceFiles = ("src/DemaConsulting.LintMark/SelfTest/Validation.cs");

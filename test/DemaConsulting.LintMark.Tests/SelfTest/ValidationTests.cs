@@ -74,6 +74,71 @@ public class ValidationTests
     }
 
     /// <summary>
+    ///     Test that Run runs every self-test, including the functional tests of linting, fixing, previewing and
+    ///     configuration, and that each one passes.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_WithSilentContext_RunsAndPassesEverySelfTest()
+    {
+        // Arrange: setup unique log file path to capture silent context output
+        var logFile = Path.Combine(Path.GetTempPath(), $"validation_test_{Guid.NewGuid()}.log");
+        string[] testNames =
+        [
+            "LintMark_VersionDisplay",
+            "LintMark_HelpDisplay",
+            "LintMark_CleanFileNoFindings",
+            "LintMark_ViolationsReported",
+            "LintMark_FixRewritesToCanonicalForm",
+            "LintMark_DiffPreviewsFixes",
+            "LintMark_ConfigurationHonored"
+        ];
+        try
+        {
+            using (var context = Context.Create(["--silent", "--log", logFile]))
+            {
+                // Act: run validation with silent context and log file
+                Validation.Run(context);
+            }
+
+            // Assert: every self-test is reported as passed and the totals agree
+            var logContent = File.ReadAllText(logFile);
+            foreach (var testName in testNames)
+            {
+                Assert.Contains($"✓ {testName} - Passed", logContent);
+            }
+
+            Assert.Contains($"Total Tests: {testNames.Length}", logContent);
+            Assert.Contains($"Passed: {testNames.Length}", logContent);
+            Assert.Contains("Failed: 0", logContent);
+            Assert.DoesNotContain("✗", logContent);
+        }
+        finally
+        {
+            if (File.Exists(logFile))
+            {
+                File.Delete(logFile);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run restores the current directory after the functional self-tests switch it.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_WithSilentContext_RestoresCurrentDirectory()
+    {
+        // Arrange: remember the current directory
+        var originalDirectory = Directory.GetCurrentDirectory();
+        using var context = Context.Create(["--silent"]);
+
+        // Act: run validation
+        Validation.Run(context);
+
+        // Assert: the current directory is unchanged
+        Assert.Equal(originalDirectory, Directory.GetCurrentDirectory());
+    }
+
+    /// <summary>
     ///     Test that Run heads the summary at the depth given by the depth option.
     /// </summary>
     [Fact]
@@ -138,6 +203,7 @@ public class ValidationTests
             Assert.True(File.Exists(trxFile));
             var content = File.ReadAllText(trxFile);
             Assert.Contains("<TestRun", content);
+            Assert.Contains("LintMark_ViolationsReported", content);
         }
         finally
         {
