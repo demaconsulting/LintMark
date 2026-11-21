@@ -1,4 +1,4 @@
-# LintMark
+# ![LintMark: Markdown linting and formatting. Reads .md files and .lintmark.yaml, reports file:line:col findings, and rewrites (--fix) or previews (--diff). Shown with the command 'lintmark --fix README.md' and the note '.NET 10 and 11, Windows, Linux, macOS'. Markdown docs, a README, a .lintmark.yaml, and CI and coding agents flow into the lintmark .NET tool, and arrows lead out to findings as file:line:col: rule-id, a --fix rewrite of a list item, a --diff preview, and a CI gate passing with exit 0][hero]
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
@@ -8,11 +8,6 @@
 [![Quality Gate][badge-quality]][link-quality]
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
-
-![LintMark banner: the LintMark name with the tagline 'One Markdown style. Flagged, then fixed.' and the command
-lintmark --fix README.md. Markdown docs, a README, a .lintmark.yaml, and CI and coding agents flow on curved arrows
-into the lintmark .NET tool, and arrows lead out to findings as file:line:col: rule-id, a --fix rewrite of a list
-item, a --diff preview, and a CI gate passing with exit 0][hero]
 
 LintMark is a .NET tool, distributed as a NuGet tool package, for linting and optionally reformatting markdown files
 into a preferred format, with optional tweaks via a .lintmark.yaml configuration file.
