@@ -9,7 +9,7 @@
     <style>
       .word { font: bold 92px sans-serif; fill: #ffffff; }
       .eyebrow { font: bold 25px sans-serif; fill: #a5b4fc; }
-      .tag { font: bold 40px sans-serif; fill: #f8fafc; }
+      .tag { font: bold 36px sans-serif; fill: #f8fafc; }
       .body { font: 25px sans-serif; fill: #cbd5e1; }
       .cmd { font: 25px monospace; fill: #e2e8f0; }
       .prompt { fill: #5eead4; }
@@ -116,16 +116,16 @@
   <text class="word" x="52" y="176">Lint</text>
   <text class="word brandText" x="220.6" y="176">Mark</text>
   <rect x="58" y="200" width="132" height="6" rx="3" fill="url(#brand)"/>
-  <text class="tag" x="56" y="266">One Markdown style.</text>
-  <text class="tag brandText" x="56" y="316">Flagged, then fixed.</text>
-  <text class="body" x="58" y="368">Checks Markdown against one style,</text>
-  <text class="body" x="58" y="402">rewrites it with --fix, previews with</text>
-  <text class="body" x="58" y="436">--diff. Configured by .lintmark.yaml.</text>
+  <text class="tag" x="56" y="266">Markdown linting</text>
+  <text class="tag" x="56" y="314" style="fill: #a5b4fc">and formatting.</text>
+  <text class="body" x="58" y="368">Reads .md files and .lintmark.yaml,</text>
+  <text class="body" x="58" y="402">reports file:line:col findings, and</text>
+  <text class="body" x="58" y="436">rewrites (--fix) or previews (--diff).</text>
   <rect x="56" y="468" width="480" height="54" rx="12" fill="#0a1022" fill-opacity="0.8" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1.5"/>
   <text class="cmd prompt" x="78" y="503">$</text>
   <text class="cmd" x="108" y="503">lintmark --fix</text>
   <text class="cmd file" x="333" y="503">README.md</text>
-  <text class="note" x="58" y="568">Replaces markdownlint. No Node.js.</text>
+  <text class="note" x="58" y="568">.NET 10 and 11 &#183; Windows, Linux, macOS</text>
 
   <!-- Input cards -->
   <g>
