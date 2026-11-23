@@ -1,5 +1,11 @@
-package LintMark {
+package LintMark_CodeBlockFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentFormatter::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import OtsDependencies::*;
 
     part def CodeBlockFormatter {
         doc /* Proposes the edits that write code blocks in the canonical form: fenced with the configured fence character (lengthened when the content would close it) and never indented at the top level, without changing the content of a block, and leaving an unclosed fence, a braced fence, and an indented block inside a container as written. */

@@ -1,5 +1,13 @@
-package LintMark {
+package LintMark_LinkRefactorer {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_LintRules::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_TableFormatter::*;
+    private import LintMark_TextWidth::*;
+    private import OtsDependencies::*;
 
     part def LinkRefactorer {
         doc /* Converts inline links and images to reference links (the opt-in link-refactor setting) with labels derived from the link text and reused for definitions with the same destination and title, keeping every definition in one block at the end of the document and leaving exempt blocks as written, and proposing the edits as one plan with the conversions it makes (also documents the LinkRefactorPlan, LinkConversion, LinkLabelAllocator, and InlineLinkTail supporting types). */
@@ -21,7 +29,7 @@ package LintMark {
         // Exempt blocks and the end of the file are found with the line arithmetic and the line ownership of
         // the document formatter, edits are added to the edit set, and each edit is tagged with a rule
         // identifier from the rule catalog.
-        dependency LinkRefactorer to DocumentFormatter;
+        dependency LinkRefactorer to LintMark_DocumentFormatter::DocumentFormatter;
         dependency LinkRefactorer to EditSet;
         dependency LinkRefactorer to RuleCatalog;
 

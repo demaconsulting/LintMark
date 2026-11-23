@@ -1,5 +1,7 @@
-package LintMark {
+package LintMark_LintMarkConfig {
     private import SoftwareItemMetadata::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
     private import ScalarValues::*;
 
     enum def WrapMode {

@@ -1,5 +1,9 @@
-package LintMark {
+package LintMark_LineWrapper {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_TextWidth::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     attribute def WrappedLines {

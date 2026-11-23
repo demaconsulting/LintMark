@@ -1,5 +1,17 @@
-package LintMark {
+package LintMark_DocumentFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_InlineNormalizer::*;
+    private import LintMark_LinkRefactorer::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_ListFormatter::*;
+    private import LintMark_ParagraphFormatter::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
+    private import LintMark_TextWidth::*;
+    private import LintMark_WhitespacePasses::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     // The block formatter contract (RuleIds, CanFormat, Format) is modeled as an interface definition

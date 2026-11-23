@@ -1,5 +1,6 @@
-package LintMark {
+package LintMark_FileDiscovery {
     private import SoftwareItemMetadata::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     attribute def DiscoveredFile {

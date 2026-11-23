@@ -1,5 +1,10 @@
-package LintMark {
+package LintMark_WhitespacePasses {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import OtsDependencies::*;
 
     part def WhitespacePasses {
         doc /* Implements the rules that concern every document and no particular block: the removal of trailing whitespace and the expansion of tabs on the lines of a leaf block, the limit on runs of blank lines and the emptying of whitespace-only lines, the blank line between blocks that must be separated, and how the file ends (also documents the InlineMap, LeafWhitespace, BlankLinePass, BlockSpacingPass, and TrailerPass supporting types). */
@@ -22,7 +27,7 @@ package LintMark {
 
         // Each pass uses the line arithmetic and the line ownership map of the document formatter, adds its
         // edits to the edit set, and tags them with rule identifiers from the rule catalog.
-        dependency WhitespacePasses to DocumentFormatter;
+        dependency WhitespacePasses to LintMark_DocumentFormatter::DocumentFormatter;
         dependency WhitespacePasses to EditSet;
         dependency WhitespacePasses to RuleCatalog;
     }

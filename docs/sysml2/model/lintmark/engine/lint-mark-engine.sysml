@@ -1,5 +1,27 @@
-package LintMark {
+package LintMark_LintMarkEngine {
     private import SoftwareItemMetadata::*;
+    private import LintMark_AtomicFileWriter::*;
+    private import LintMark_BlockQuoteFormatter::*;
+    private import LintMark_CodeBlockFormatter::*;
+    private import LintMark_ConfigLoader::*;
+    private import LintMark_Context::*;
+    private import LintMark_DocumentFormatter::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_EditorConfigResolver::*;
+    private import LintMark_FileDiscovery::*;
+    private import LintMark_HeadingFormatter::*;
+    private import LintMark_InlineNormalizer::*;
+    private import LintMark_LinkRefactorer::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_LintRules::*;
+    private import LintMark_ListFormatter::*;
+    private import LintMark_ParagraphFormatter::*;
+    private import LintMark_Reporters::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
+    private import LintMark_TableFormatter::*;
+    private import LintMark_ThematicBreakFormatter::*;
     private import ScalarValues::*;
 
     // The byte arrays of the C# type are modeled as lists of Integer values (there is no byte scalar).

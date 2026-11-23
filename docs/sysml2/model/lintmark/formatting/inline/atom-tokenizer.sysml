@@ -1,5 +1,8 @@
-package LintMark {
+package LintMark_AtomTokenizer {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_LinkRefactorer::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     enum def HardBreakKind {

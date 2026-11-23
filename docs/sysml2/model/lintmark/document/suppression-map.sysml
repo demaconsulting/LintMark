@@ -1,5 +1,7 @@
-package LintMark {
+package LintMark_SuppressionMap {
     private import SoftwareItemMetadata::*;
+    private import LintMark_SourceDocument::*;
+    private import OtsDependencies::*;
 
     part def SuppressionMap {
         doc /* Resolves suppression comments (disable, enable, next-line, and file-wide directives) into offset ranges and answers whether a rule is suppressed at a position (also documents the SuppressionRange, RuleSet, and RuleSetKind supporting types). */
@@ -19,6 +21,6 @@ package LintMark {
 
         // The block list types are owned by the document parser; this is a type-level use only, with no
         // behavioral call back into the parser.
-        dependency SuppressionMap to DocumentParser;
+        dependency SuppressionMap to LintMark_DocumentParser::DocumentParser;
     }
 }

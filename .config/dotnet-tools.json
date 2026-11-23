@@ -72,7 +72,7 @@
       "rollForward": false
     },
     "demaconsulting.sysml2tools.tool": {
-      "version": "0.3.0-beta.3",
+      "version": "0.3.0-beta.6",
       "commands": [
         "sysml2tools"
       ],
@@ -93,7 +93,7 @@
       "rollForward": false
     },
     "demaconsulting.canvasnet.tool": {
-      "version": "0.2.0-beta.11",
+      "version": "0.2.0-beta.13",
       "commands": [
         "canvasnet"
       ],

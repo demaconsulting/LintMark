@@ -1,5 +1,9 @@
-package LintMark {
+package LintMark_EngineSubsystem {
     private import SoftwareItemMetadata::*;
+    public import LintMark_AtomicFileWriter::*;
+    public import LintMark_FileDiscovery::*;
+    public import LintMark_LintMarkEngine::*;
+    public import LintMark_Reporters::*;
 
     part def EngineSubsystem {
         doc /* Runs one invocation over the selected files: discovers the files, processes them in parallel, attaches each file's settings, lints and formats each one, writes or shows the rewrites, and reports the findings and configuration problems in a deterministic order. */

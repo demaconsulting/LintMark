@@ -1,5 +1,9 @@
-package LintMark {
+package LintMark_DocumentParser {
     private import SoftwareItemMetadata::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
+    private import LintMark_SuppressionMap::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     enum def BlockKind {

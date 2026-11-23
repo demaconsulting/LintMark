@@ -1,5 +1,9 @@
-package LintMark {
+package LintMark_ConfigLoader {
     private import SoftwareItemMetadata::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     attribute def ConfigError {

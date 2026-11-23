@@ -1,4 +1,4 @@
-package LintMark {
+package LintMark_RuleCatalog {
     private import SoftwareItemMetadata::*;
     private import ScalarValues::*;
 
@@ -49,6 +49,6 @@ package LintMark {
 
         // The rules forced on or off by the command line are applied to a configuration, which is the
         // settings object of the configuration subsystem.
-        dependency RuleCatalog to LintMarkConfig;
+        dependency RuleCatalog to LintMark_LintMarkConfig::LintMarkConfig;
     }
 }

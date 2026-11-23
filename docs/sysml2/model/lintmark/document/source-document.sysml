@@ -1,4 +1,4 @@
-package LintMark {
+package LintMark_SourceDocument {
     private import SoftwareItemMetadata::*;
     private import ScalarValues::*;
 

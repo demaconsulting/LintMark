@@ -1,4 +1,4 @@
-package LintMark {
+package OtsDependencies {
     private import SoftwareItemMetadata::*;
 
     // Runtime OTS items: libraries that ship with the tool and are referenced as parts of the system.

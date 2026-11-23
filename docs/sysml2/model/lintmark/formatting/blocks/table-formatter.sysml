@@ -1,5 +1,11 @@
-package LintMark {
+package LintMark_TableFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_TextWidth::*;
+    private import OtsDependencies::*;
 
     part def TableFormatter {
         doc /* Proposes the edits that write GFM pipe tables in the canonical layout: a pipe at both ends of every line, one blank inside each pipe, and a minimal delimiter row (compact, the default) or every column padded to its widest cell in display columns (aligned), leaving grid tables and tables that cannot be rewritten safely as written (also documents the PipeTable supporting type, the reading of a pipe table into rows and cells, which the table lint rules and the link refactorer share). */
@@ -14,7 +20,7 @@ package LintMark {
 
         // The formatter implements the block formatter contract, receives its context, uses the line
         // arithmetic and the line ownership of the document formatter, and adds edits to the edit set.
-        dependency TableFormatter to DocumentFormatter;
+        dependency TableFormatter to LintMark_DocumentFormatter::DocumentFormatter;
         dependency TableFormatter to EditSet;
 
         // It reads the table and its cells from the parsed document and the Markdown parser library, the

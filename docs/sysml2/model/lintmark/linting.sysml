@@ -1,5 +1,7 @@
-package LintMark {
+package LintMark_LintingSubsystem {
     private import SoftwareItemMetadata::*;
+    public import LintMark_LintRules::*;
+    public import LintMark_RuleCatalog::*;
 
     part def LintingSubsystem {
         doc /* Knows every rule the tool has (identifiers, kinds, descriptions, aliases, and defaults), carries each finding as a diagnostic, and runs the lint-only rules for headings, links, document structure, and tables over a parsed document, keeping the findings that are switched on and not suppressed. */

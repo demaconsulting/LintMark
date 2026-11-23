@@ -1,5 +1,12 @@
-package LintMark {
+package LintMark_BlocksSubsystem {
     private import SoftwareItemMetadata::*;
+    public import LintMark_BlockQuoteFormatter::*;
+    public import LintMark_CodeBlockFormatter::*;
+    public import LintMark_HeadingFormatter::*;
+    public import LintMark_ListFormatter::*;
+    public import LintMark_ParagraphFormatter::*;
+    public import LintMark_TableFormatter::*;
+    public import LintMark_ThematicBreakFormatter::*;
 
     part def BlocksSubsystem {
         doc /* Proposes the edits that write each kind of block in the canonical form: headings, code blocks, thematic breaks, block quotes, lists, pipe tables, and the wrapping of paragraphs, each as one formatter that leaves a block alone where a change could alter its meaning or how it renders. */

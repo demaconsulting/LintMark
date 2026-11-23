@@ -1,5 +1,10 @@
-package LintMark {
+package LintMark_BlockQuoteFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentFormatter::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_RuleCatalog::*;
+    private import OtsDependencies::*;
 
     part def BlockQuoteFormatter {
         doc /* Proposes the edits that write block quotes in the canonical form, with exactly one space after each quote marker on the paragraph and ATX heading lines of a quote, claiming no lines and leaving a line as written where the change could alter its meaning (a tab in the prefix, a code-indent run of spaces, a lazy continuation, or a quote inside a list or footnote). */

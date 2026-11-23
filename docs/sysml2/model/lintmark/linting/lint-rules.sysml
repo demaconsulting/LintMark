@@ -1,5 +1,13 @@
-package LintMark {
+package LintMark_LintRules {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
+    private import LintMark_TableFormatter::*;
+    private import LintMark_TextWidth::*;
+    private import LintMark_WhitespacePasses::*;
+    private import OtsDependencies::*;
 
     part def LintRules {
         doc /* Runs the lint-only rules over a parsed document and keeps the diagnostics that are switched on and not suppressed: the rule engine and the plug-in contract and shared helpers of the rules, and the rule families for headings, links and reference definitions, document structure and stray marker characters, and tables (also documents the ILintRule contract and the RuleSupport helpers). */
@@ -39,6 +47,6 @@ package LintMark {
         dependency LintRules to TextWidth;
         dependency LintRules to TableFormatter;
         dependency LintRules to WhitespacePasses;
-        dependency LintRules to DocumentFormatter;
+        dependency LintRules to LintMark_DocumentFormatter::DocumentFormatter;
     }
 }

@@ -1,5 +1,8 @@
-package LintMark {
+package LintMark_ConfigurationSubsystem {
     private import SoftwareItemMetadata::*;
+    public import LintMark_ConfigLoader::*;
+    public import LintMark_EditorConfigResolver::*;
+    public import LintMark_LintMarkConfig::*;
 
     part def ConfigurationSubsystem {
         doc /* Finds, reads, and validates the settings that apply to each Markdown file: the nearest .lintmark.yaml, the built-in defaults, and the line ending from .editorconfig, and holds them as one immutable settings object per file. */
