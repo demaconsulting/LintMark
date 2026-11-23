@@ -48,6 +48,7 @@ words:
   - autolinks
   - Dema
   - dedented
+  - distinguishability
   - demaconsulting
   - filesystemglobbing
   - fixpoint
@@ -64,12 +65,14 @@ words:
   - Rebaser
   - Refactorer
   - sarif
+  - Sensmetry
   - Setext
   - shopt
   - slnx
   - slugified
   - snupkg
   - sonarscanner
+  - Syside
   - lintmark
   - testresults
   - thirdparty
