@@ -1,5 +1,13 @@
-package LintMark {
+package LintMark_ParagraphFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_AtomTokenizer::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LineWrapper::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_TextWidth::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     // The edit is the attribute type TextEdit; the offsets refer to the text the formatter was given, which is the
@@ -31,7 +39,7 @@ package LintMark {
         // The formatter is given the context shared by the formatters of one run, uses the line arithmetic
         // and the line ownership of the document formatter (a paragraph in a footnote or in a protected block
         // is left alone), and returns its outcome and the one edit that wraps the paragraph.
-        dependency ParagraphFormatter to DocumentFormatter;
+        dependency ParagraphFormatter to LintMark_DocumentFormatter::DocumentFormatter;
         dependency ParagraphFormatter to EditSet;
 
         // It reads the paragraph from the parsed document, the lines of the paragraph and the prefix its

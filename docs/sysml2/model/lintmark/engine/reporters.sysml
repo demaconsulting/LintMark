@@ -1,5 +1,8 @@
-package LintMark {
+package LintMark_Reporters {
     private import SoftwareItemMetadata::*;
+    private import LintMark_Context::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_SourceDocument::*;
     private import ScalarValues::*;
 
     attribute def FileDiff {

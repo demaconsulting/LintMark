@@ -1,5 +1,6 @@
-package LintMark {
+package LintMark_Context {
     private import SoftwareItemMetadata::*;
+    private import LintMark_RuleCatalog::*;
 
     part def Context {
         doc /* Command-line argument parser and I/O owner for one tool invocation: it parses the arguments and options, owns the standard output and error writers and the optional log file, and records the exit status. */

@@ -1,5 +1,8 @@
-package LintMark {
+package LintMark_Program {
     private import SoftwareItemMetadata::*;
+    private import LintMark_Context::*;
+    private import LintMark_LintMarkEngine::*;
+    private import LintMark_Validation::*;
 
     part def Program {
         doc /* Entry point and execution orchestrator: it creates the context from the command line, answers the version, help, and self-validation requests, and otherwise hands the file processing to the engine and returns the exit code. */

@@ -1,5 +1,14 @@
 package LintMark {
     private import SoftwareItemMetadata::*;
+    public import LintMark_ConfigurationSubsystem::*;
+    public import LintMark_Context::*;
+    public import LintMark_DocumentSubsystem::*;
+    public import LintMark_EngineSubsystem::*;
+    public import LintMark_FormattingSubsystem::*;
+    public import LintMark_LintingSubsystem::*;
+    public import LintMark_Program::*;
+    public import LintMark_Validation::*;
+    private import OtsDependencies::*;
 
     doc
     /*

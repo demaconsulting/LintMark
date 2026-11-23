@@ -1,5 +1,7 @@
-package LintMark {
+package LintMark_Validation {
     private import SoftwareItemMetadata::*;
+    private import LintMark_Context::*;
+    private import OtsDependencies::*;
 
     part def Validation {
         doc /* Orchestrates the self-validation test suite: version and help, plus functional self-tests that check, fix, preview and configure the tool against fixture files in an isolated temporary directory; reports pass/fail results, and writes them to a TRX or JUnit results file when asked. */
@@ -15,7 +17,7 @@ package LintMark {
         // The self-tests write their output through the context and run the tool itself through the program
         // entry point.
         dependency Validation to Context;
-        dependency Validation to Program;
+        dependency Validation to LintMark_Program::Program;
 
         // The results file is written with the test results library.
         dependency Validation to TestResults;

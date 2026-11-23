@@ -1,4 +1,4 @@
-package LintMark {
+package LintMark_AtomicFileWriter {
     private import SoftwareItemMetadata::*;
 
     part def AtomicFileWriter {

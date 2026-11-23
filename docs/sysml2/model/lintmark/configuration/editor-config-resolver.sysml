@@ -1,5 +1,7 @@
-package LintMark {
+package LintMark_EditorConfigResolver {
     private import SoftwareItemMetadata::*;
+    private import LintMark_SourceDocument::*;
+    private import OtsDependencies::*;
     private import ScalarValues::*;
 
     attribute def EditorConfigResult {

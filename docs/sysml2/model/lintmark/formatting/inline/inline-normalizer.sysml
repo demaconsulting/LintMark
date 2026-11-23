@@ -1,5 +1,10 @@
-package LintMark {
+package LintMark_InlineNormalizer {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import OtsDependencies::*;
 
     part def InlineNormalizer {
         doc /* Proposes the edits that write the emphasis, strong emphasis, bare URLs, and code spans of a paragraph in the canonical form: the configured delimiter character, URLs wrapped in angle brackets, and code spans without redundant padding, leaving a construct as written where the change could alter its meaning (also documents the InlineCandidates supporting type, the inline constructs found in one paragraph). */

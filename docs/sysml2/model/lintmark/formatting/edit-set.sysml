@@ -1,5 +1,6 @@
-package LintMark {
+package LintMark_EditSet {
     private import SoftwareItemMetadata::*;
+    private import LintMark_SourceDocument::*;
     private import ScalarValues::*;
 
     attribute def TextEdit {

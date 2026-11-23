@@ -1,5 +1,11 @@
-package LintMark {
+package LintMark_HeadingFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentFormatter::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_RuleCatalog::*;
+    private import LintMark_WhitespacePasses::*;
+    private import OtsDependencies::*;
 
     part def HeadingFormatter {
         doc /* Proposes the edits that write headings in the canonical form: ATX with exactly one space after the number signs, no closing number signs, no indentation, no trailing whitespace, and no tabs in the text, converting a single-line setext heading and leaving a multi-line or contained one as written. */

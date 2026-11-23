@@ -1,5 +1,10 @@
-package LintMark {
+package LintMark_FormattingSubsystem {
     private import SoftwareItemMetadata::*;
+    public import LintMark_BlocksSubsystem::*;
+    public import LintMark_DocumentFormatter::*;
+    public import LintMark_EditSet::*;
+    public import LintMark_InlineSubsystem::*;
+    public import LintMark_WhitespacePasses::*;
 
     part def FormattingSubsystem {
         doc /* Turns a parsed document into a conflict-free set of text edits plus the line ending to write: it applies the rules that concern every document (whitespace, blank lines, spacing between blocks, and the end of the file), the block formatters of its Blocks subsystem, and the inline normalizer, line wrapper, and link refactorer of its Inline subsystem, reports each edit as a problem, and applies edits to the source text, without ever writing a file. */

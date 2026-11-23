@@ -1,4 +1,4 @@
-package LintMark {
+package LintMark_TextWidth {
     private import SoftwareItemMetadata::*;
 
     part def TextWidth {

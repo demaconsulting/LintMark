@@ -1,5 +1,11 @@
-package LintMark {
+package LintMark_ThematicBreakFormatter {
     private import SoftwareItemMetadata::*;
+    private import LintMark_DocumentFormatter::*;
+    private import LintMark_DocumentParser::*;
+    private import LintMark_EditSet::*;
+    private import LintMark_LintMarkConfig::*;
+    private import LintMark_RuleCatalog::*;
+    private import OtsDependencies::*;
 
     part def ThematicBreakFormatter {
         doc /* Proposes the edits that write thematic breaks in the canonical form: three characters of the configured kind with no spaces between them and no trailing whitespace, leaving a break as written where the conversion could create a setext underline, front matter, or a list marker or grid table border lookalike. */
