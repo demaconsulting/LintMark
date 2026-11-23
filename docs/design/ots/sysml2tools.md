@@ -19,8 +19,8 @@ dotnet-tool restore and CI pipeline used by the other pipeline tools.
 
 ### Features Used
 
-- Model validation via `dotnet sysml2tools lint 'docs/sysml2/**/*.sysml'`, which reports syntax
-  errors and unresolved references without producing output files.
+- Model validation via `dotnet sysml2tools lint --strict-unresolved 'docs/sysml2/**/*.sysml'`, which reports
+  syntax errors and unresolved references without producing output files.
 - View rendering via `dotnet sysml2tools render` with the `common`, `model` and `views` globs
   (`docs/sysml2/common/**/*.sysml`, `docs/sysml2/model/**/*.sysml` and
   `docs/sysml2/views/design-views.sysml`) and `--output docs/design/generated --format svg`,
@@ -40,7 +40,7 @@ required.
 It is used in two places in the pipeline:
 
 - **Lint** (`lint.ps1`, all CI jobs and local pre-PR checks): `dotnet sysml2tools lint
-  'docs/sysml2/**/*.sysml'` fails the build if the model contains syntax errors or unresolved
+  --strict-unresolved 'docs/sysml2/**/*.sysml'` fails the build if the model contains syntax errors or unresolved
   references.
 - **Render** (`build.yaml`, build-docs job): `dotnet sysml2tools render` renders each declared view
   to an SVG file in `docs/design/generated/`, immediately before Pandoc compiles the Design
