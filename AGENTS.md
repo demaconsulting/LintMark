@@ -153,13 +153,23 @@ Full `build.ps1 -All` and `lint.ps1 -All` runs can take many minutes on large re
 them once, not after every edit. The scripts require a scope: with no arguments they print usage
 and exit 1.
 
-- **While iterating**, use `-Changed` (or `lint.ps1`/`fix.ps1 -Check`) so only the affected work
-  runs; add `-DryRun` to see the selection without running anything
+- **While iterating**, use `-Changed` (or `lint.ps1`/`fix.ps1 -Check`, or `build.ps1 -Project`) so only the
+  affected work runs; add `-DryRun` to see the selection without running anything
 - **Before handing back**, run the full gates your agent requires once (`build.ps1 -All`,
   `lint.ps1 -All`); re-run them only if you change files after they pass
 - **Documentation-only changes** need no build
 - Run `pwsh ./<script> -Help` for the switches of a repository; do not guess
 - Never report a targeted check as the full gate - state which full gates ran in your report
+
+# Scoped Validation (ALL Agents Must Follow)
+
+`build.ps1 -Changed` (or `-Project <names>`) builds and tests the test projects a change affects through the project
+reference graph: a change to the library selects every test project, a change to `LintMark.Verify` selects its tests
+(`LintMark.Verify.Tests` is tested although it lives under `tools/`). Use full names or unambiguous short names such as
+`Verify`; `pwsh ./build.ps1 -Help` lists the accepted names. A build-wide file (solution, project, props/targets,
+`global.json`, `.editorconfig`, `nuget.config`, tool manifest, `build.ps1`, `scripts/ProjectScripts.psm1`) runs the full
+build and tests; documentation-only changes build nothing. The tests read no repository files at run time, so
+`$RuntimeReads` in `build.ps1` is empty; keep it in step if a test starts reading one.
 
 # Scope Discipline (ALL Agents Must Follow)
 
