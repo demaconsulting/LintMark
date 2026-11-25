@@ -35,6 +35,7 @@ This user guide covers:
 
 - Installation, the selection of files, the modes `--check`, `--fix`, and `--diff`, all command-line options, the
   output format, and the exit codes (see *Usage*)
+- The built-in `lintmark help` command (see *Usage*)
 - The `.lintmark.yaml` configuration file, every setting with its default, and the line ending that comes from
   `.editorconfig` (see *Configuration*)
 - Every formatting rule that rewrites a file, with an example (see *Formatting Rules*)
