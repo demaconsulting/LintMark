@@ -69,4 +69,9 @@
     <ProjectReference Include="..\..\tools\LintMark.Verify\LintMark.Verify.csproj" />
   </ItemGroup>
 
+  <!-- Test Data -->
+  <ItemGroup>
+    <None Update="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

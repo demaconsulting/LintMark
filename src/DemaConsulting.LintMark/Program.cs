@@ -59,15 +59,28 @@ internal static class Program
     /// <returns>Exit code: 0 for success, non-zero for failure.</returns>
     /// <exception cref="Exception">Thrown when an unexpected error occurs; re-thrown after writing to stderr.</exception>
     /// <remarks>
-    ///     <see cref="ArgumentException"/> and <see cref="InvalidOperationException"/> are treated as
-    ///     expected errors: their messages are written to stderr and exit code 1 is returned without
-    ///     a stack trace. Any other exception is written to stderr and then re-thrown so that the
-    ///     runtime can record it in event logs.
+    ///     <para>
+    ///         The <c>help</c> command is answered first, by <see cref="HelpCommand"/>, before the
+    ///         command-line options are parsed: <c>help</c> is a command and not an option, so
+    ///         <see cref="Context.Create"/> would take it for a path. Its exit code is returned as is.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="ArgumentException"/> and <see cref="InvalidOperationException"/> are treated as
+    ///         expected errors: their messages are written to stderr and exit code 1 is returned without
+    ///         a stack trace. Any other exception is written to stderr and then re-thrown so that the
+    ///         runtime can record it in event logs.
+    ///     </para>
     /// </remarks>
     public static int Main(string[] args)
     {
         try
         {
+            // Answer the help command before the options are parsed
+            if (HelpCommand.Default.TryRun(args, out var helpExitCode))
+            {
+                return helpExitCode;
+            }
+
             // Create context from command-line arguments
             using var context = Context.Create(args);
 
@@ -147,12 +160,13 @@ internal static class Program
     }
 
     /// <summary>
-    ///     Prints usage information.
+    ///     Prints usage information, ending with a pointer to the built-in help topics.
     /// </summary>
     /// <param name="context">The context for output.</param>
     private static void PrintHelp(Context context)
     {
-        context.WriteLine("Usage: lintmark [options] [paths...]");
+        context.WriteLine($"Usage: {HelpCommand.ToolName} [options] [paths...]");
+        context.WriteLine($"       {HelpCommand.ToolName} help [topic]");
         context.WriteLine("");
         context.WriteLine("Paths:");
         context.WriteLine("  paths...                   Files, directories, or globs of Markdown files to process;");
@@ -176,5 +190,7 @@ internal static class Program
         context.WriteLine("  --results <file>           Write validation results to file (.trx or .xml)");
         context.WriteLine("  --depth <#>                Set heading depth for markdown output (default: 1)");
         context.WriteLine("  --log <file>               Write output to log file");
+        context.WriteLine("");
+        context.WriteLine(HelpCommand.Default.Footer);
     }
 }

@@ -14,6 +14,7 @@ needs-review:
   - "docs/verification/**/*.md"   # Verification documentation files
   - "docs/user_guide/**/*.md"     # User guide documentation
   - "docs/sysml2/**/*.sysml"      # SysML2 architecture model
+  - "src/**/Help/**"              # Built-in help cards
   - "!**/obj/**"                  # Exclude build output
   - "!**/bin/**"                  # Exclude build output
   - "!**/.venv/**"                # Exclude Python virtual environment
@@ -134,6 +135,20 @@ reviews:
       - "docs/verification/lintmark/context.md"
       - "src/**/Cli/Context.cs"
       - "test/**/Cli/ContextTests.cs"
+
+  # LintMark - HelpCommand
+  - id: LintMark-HelpCommand
+    title: Review that LintMark HelpCommand Implementation is Correct
+    context:
+      - docs/design/lintmark.md
+      - docs/reqstream/lintmark.yaml
+    paths:
+      - "docs/reqstream/lintmark/help-command.yaml"
+      - "docs/design/lintmark/help-command.md"
+      - "docs/verification/lintmark/help-command.md"
+      - "src/**/Cli/HelpCommand.cs"
+      - "src/**/Help/**"
+      - "test/**/Cli/HelpCommandTests.cs"
 
   # LintMark - Validation
   - id: LintMark-Validation
@@ -710,6 +725,13 @@ reviews:
       - "docs/design/ots/filesystemglobbing.md"
       - "docs/verification/ots/filesystemglobbing.md"
       - "test/OtsSoftwareTests/FileSystemGlobbingTests.cs"
+
+  - id: OTS-HelpCards
+    title: Review that HelpCards Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/help-cards.yaml"
+      - "docs/design/ots/help-cards.md"
+      - "docs/verification/ots/help-cards.md"
 
   - id: OTS-Markdig
     title: Review that Markdig Provides Required Functionality
