@@ -18,6 +18,7 @@ input-files:
   - docs/verification/lintmark.md
   - docs/verification/lintmark/program.md
   - docs/verification/lintmark/context.md
+  - docs/verification/lintmark/help-command.md
   - docs/verification/lintmark/validation.md
   - docs/verification/lintmark/configuration.md
   - docs/verification/lintmark/configuration/lint-mark-config.md
@@ -56,6 +57,7 @@ input-files:
   - docs/verification/ots.md
   - docs/verification/ots/editorconfig.md
   - docs/verification/ots/filesystemglobbing.md
+  - docs/verification/ots/help-cards.md
   - docs/verification/ots/markdig.md
   - docs/verification/ots/testresults.md
   - docs/verification/ots/yamldotnet.md

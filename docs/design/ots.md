@@ -8,9 +8,9 @@ OTS items are third-party tools and libraries consumed by the project. This docu
 usage design for each item. The internal design of OTS items is out of scope; only how this project integrates and
 uses each item is documented. The OTS items fall into two groups:
 
-- **Runtime libraries** that are part of the shipped tool: Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig, and
-  TestResults. They are modeled as parts in the SysML2 model and are referenced by the local software items that use
-  them.
+- **Runtime libraries** that are part of the shipped tool: Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig,
+  TestResults, and HelpCards. They are modeled as parts in the SysML2 model and are referenced by the local software
+  items that use them.
 - **Build and pipeline tools** used to build, verify, and document the tool: BuildMark, FileAssert, Pandoc, ReqStream,
   ReviewMark, SarifMark, SonarMark, SysML2Tools, VersionMark, WeasyPrint, and xUnit. They are not part of the shipped
   tool.
@@ -23,6 +23,7 @@ The following OTS items have integration design documentation:
 - EditorConfig - editor settings (`.editorconfig`) library (runtime)
 - FileAssert - document assertion tool
 - FileSystemGlobbing - glob pattern matching library (runtime)
+- HelpCards - built-in help library (runtime)
 - Markdig - Markdown parsing library (runtime)
 - Pandoc - Markdown-to-HTML conversion tool
 - ReqStream - requirements traceability tool
@@ -46,6 +47,10 @@ self-validation evidence (`--validate` results) or whose behavior is straightfor
 integration tests. Runtime libraries are chosen for a small, stable API surface, because each one is part of the
 shipped tool.
 
+HelpCards is selected because it serves the built-in `help` command from Markdown cards embedded in the tool assembly,
+and ships the test helpers that validate the cards and run their command examples against the built tool. It is the
+shared DEMA Consulting implementation, so the help command behaves the same in every tool of the toolchain.
+
 ## Version Management Policy
 
 Upgrades are initiated by Dependabot, which proposes NuGet package and GitHub Actions updates every week. The pinned
@@ -68,7 +73,9 @@ a failed lint step; the tool never continues silently with a missing or broken O
 ## Qualification Strategy
 
 Runtime libraries are qualified by integration tests in the dedicated OTS test project, which exercise every feature
-listed in the item's integration design against the packages directly. Pipeline tools are qualified by their own
+listed in the item's integration design against the packages directly. The exception is HelpCards, which is qualified
+by the help tests of the tool itself: they use the real package with the cards that the tool ships, which is the only
+configuration in which its features are used. Pipeline tools are qualified by their own
 self-validation results, saved as TRX files and traced to the OTS requirements by ReqStream, and by FileAssert
 assertions on the documents they produce. Before a version upgrade is accepted, the vendor release notes are read, the
 OTS tests and self-validations are re-run, and the integration design is updated when a feature it lists has changed.

@@ -12,6 +12,7 @@ includes:
   - docs/reqstream/lintmark/platform-requirements.yaml
   - docs/reqstream/lintmark/program.yaml
   - docs/reqstream/lintmark/context.yaml
+  - docs/reqstream/lintmark/help-command.yaml
   - docs/reqstream/lintmark/validation.yaml
   - docs/reqstream/lintmark/configuration.yaml
   - docs/reqstream/lintmark/configuration/lint-mark-config.yaml
@@ -63,3 +64,4 @@ includes:
   - docs/reqstream/ots/yamldotnet.yaml
   - docs/reqstream/ots/editorconfig.yaml
   - docs/reqstream/ots/testresults.yaml
+  - docs/reqstream/ots/help-cards.yaml

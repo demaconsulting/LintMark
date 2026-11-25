@@ -53,6 +53,16 @@ package OtsDependencies {
         }
     }
 
+    part def HelpCards {
+        doc /* DemaConsulting.HelpCards library (OTS): embeds the help cards in the tool assembly, serves the help command from them, and supplies the test helpers that validate the cards and run their examples. */
+
+        metadata info : SoftwareInfo {
+            designFiles = ("docs/design/ots/help-cards.md");
+            verificationFiles = ("docs/verification/ots/help-cards.md");
+            requirementFiles = ("docs/reqstream/ots/help-cards.yaml");
+        }
+    }
+
     // Tooling OTS items: build, documentation, and quality tools used by the pipeline. They do not ship with
     // the tool, so they are not parts of the system.
 
