@@ -10,6 +10,8 @@ Each OTS item is verified by a combination of:
 - Pipeline output assertions performed by FileAssert on documents produced by the tool
 - Integration tests in the dedicated OTS test project `test/OtsSoftwareTests` for runtime libraries that have no
   self-validation mode (Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig, and TestResults)
+- The help tests of the tool itself for HelpCards, a runtime library whose features are only used with the help cards
+  that the tool ships
 
 Internal OTS tool design is out of scope; only integration and usage evidence is documented. The OTS test project
 references the packages directly and not the LintMark project, so a library update that changes a behavior that
@@ -21,6 +23,7 @@ Runtime libraries (shipped with the tool):
 
 - EditorConfig (*editorconfig.md*) — editor settings (`.editorconfig`) evaluation library
 - FileSystemGlobbing (*filesystemglobbing.md*) — glob pattern matching library
+- HelpCards (*help-cards.md*) — built-in help library
 - Markdig (*markdig.md*) — Markdown parsing library
 - TestResults (*testresults.md*) — TRX and JUnit result file writer
 - YamlDotNet (*yamldotnet.md*) — YAML parsing library
@@ -43,13 +46,15 @@ Development and build tools (not shipped):
 
 OTS items are verified in three ways, chosen by how the item is used. Runtime libraries have no self-validation mode,
 so they are exercised by integration tests in the dedicated OTS test project, which call the same library features that
-the integration design lists. Pipeline tools that support `--validate` rely on that self-validation, run in CI and saved
+the integration design lists; HelpCards is the exception and is exercised by the help tests of the tool, with the cards
+that the tool ships. Pipeline tools that support `--validate` rely on that self-validation, run in CI and saved
 as TRX results. Tools that produce documents are also checked by FileAssert assertions on their output, which show that
 the tool ran and produced usable content.
 
 ## Qualification Evidence
 
-Evidence is collected on every CI run: the OTS test project results, the self-validation TRX files of the pipeline
+Evidence is collected on every CI run: the OTS test project results, the results of the help tests of the tool (for
+HelpCards), the self-validation TRX files of the pipeline
 tools, and the FileAssert results for the generated documents. ReqStream traces each OTS requirement to this evidence
 and fails the build when an OTS requirement has no passing test. The evidence for each item is named in its own page
 below.

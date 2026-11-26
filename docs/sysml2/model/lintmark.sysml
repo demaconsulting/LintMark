@@ -5,6 +5,7 @@ package LintMark {
     public import LintMark_DocumentSubsystem::*;
     public import LintMark_EngineSubsystem::*;
     public import LintMark_FormattingSubsystem::*;
+    public import LintMark_HelpCommand::*;
     public import LintMark_LintingSubsystem::*;
     public import LintMark_Program::*;
     public import LintMark_Validation::*;
@@ -38,6 +39,7 @@ package LintMark {
 
         part program : Program;
         part context : Context;
+        part helpCommand : HelpCommand;
         part validation : Validation;
         part configuration : ConfigurationSubsystem;
         part document : DocumentSubsystem;
@@ -49,5 +51,6 @@ package LintMark {
         part yamlDotNet : YamlDotNet;
         part editorConfig : EditorConfig;
         part testResults : TestResults;
+        part helpCards : HelpCards;
     }
 }

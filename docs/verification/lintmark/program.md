@@ -3,7 +3,8 @@
 ### Verification Approach
 
 `Program` is verified with unit tests in `ProgramTests.cs`. It has no seams to replace: it builds a real `Context`
-from argument arrays, calls the real `Validation` and the real `LintMarkEngine`, and reports through the context.
+from argument arrays, calls the real `HelpCommand`, the real `Validation`, and the real `LintMarkEngine`, and reports
+through the context.
 The tests therefore use no mocks. They pass controlled argument arrays to `Program.Run` and `Program.Main`, capture
 the console output with the real context, and assert on the text and the exit code. Scenarios that need files use
 real temporary files created by the `TemporaryDirectory` test helper. The behavior of each option is verified in
@@ -21,6 +22,8 @@ test process, so these tests run sequentially with other tests that use process-
 - A run without arguments prints the banner and exits with 0.
 - A path argument is processed by the real engine and its findings set the exit code to 1.
 - Invalid arguments never escape `Program.Main` as exceptions and give exit code 1.
+- `Program.Main` answers the `help` command before the options are parsed, and the usage information ends with the
+  pointer to the help command.
 
 ### Test Scenarios
 
@@ -28,7 +31,12 @@ test process, so these tests run sequentially with other tests that use process-
 
 **Version flag prints only the version**: `--version` prints the version text, no banner, and exits with 0.
 
-**Help flag prints the usage**: `--help` prints the usage and option list and exits with 0.
+**Help flag prints the usage**: `--help` prints the usage and option list, including the `lintmark help [topic]`
+usage line, ends with the pointer to the help command, and exits with 0
+(`Program_Run_WithHelpFlag_DisplaysUsageInformation`).
+
+**The help command is answered before the options are parsed**: `Program.Main` with `help`, which is not an option,
+prints the help topic index without the banner and returns 0 (`Program_Main_WithHelpVerb_PrintsHelpIndex`).
 
 **Validate flag runs the self-validation**: `--validate` prints the validation summary and exits with 0.
 

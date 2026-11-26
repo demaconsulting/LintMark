@@ -5,11 +5,13 @@
 ## Architecture
 
 LintMark is a .NET command-line tool (command `lintmark`, packaged as a .NET tool) that lints Markdown files and, on
-request, rewrites them into a canonical form. The system consists of three units that sit directly under it and five
+request, rewrites them into a canonical form. The system consists of four units that sit directly under it and five
 subsystems:
 
-- `Program` (unit): the entry point; dispatches version, help, self-validation, or a linting run.
+- `Program` (unit): the entry point; hands the `help` command to `HelpCommand`, otherwise dispatches version, help,
+  self-validation, or a linting run.
 - `Context` (unit): parses the command line and owns all console and log output and the exit code.
+- `HelpCommand` (unit): the built-in `help` command, answered from help cards embedded in the assembly.
 - `Validation` (unit): the built-in self-validation (`--validate`).
 - `Configuration` (subsystem): the settings model, `.lintmark.yaml` loading, and `.editorconfig` resolution.
 - `Document` (subsystem): decoding, parsing, suppression comments, and text-width measurement.
@@ -19,9 +21,11 @@ subsystems:
 
 ```mermaid
 flowchart TD
+    Program --> HelpCommand
     Program --> Context
     Program --> Validation
     Program --> Engine
+    HelpCommand --> Program
     Validation --> Program
     Validation --> Context
     Engine --> Context
@@ -49,7 +53,8 @@ the rule registry (`RuleCatalog`, used by `Document` to resolve the rule named i
 rules read the parsed document and the settings, and the table rules reuse a few read-only layout helpers of
 `Formatting`. At unit level no unit depends on a unit that depends on it, except that `LintMarkConfig` and
 `RuleCatalog` refer to each other (the default rule states and `RuleOverrides.Apply`). `Validation` uses `Program` to
-run the version and help actions of the tool; `Engine` does not use `Program`.
+run the version and help actions of the tool, and `HelpCommand` uses `Program.Version` for the version that the help
+shows; `Engine` does not use `Program`.
 
 Design principle: a document is never modified in place while it is analyzed. The `Formatting` subsystem and the
 lint rules only produce edits and diagnostics for an immutable parsed document; the `Engine` composes the edits into
@@ -58,10 +63,17 @@ parallel. Subsystem relationships are detailed in the subsystem designs; see *En
 
 ## External Interfaces
 
-- **Command line** (in): `lintmark [options] [paths...]`. A path is a file, directory, glob, or `!` exclude. Options:
+- **Command line** (in): `lintmark [options] [paths...]`, or the `help` command as the first argument (see *Help
+  command* below). A path is a file, directory, glob, or `!` exclude. Options:
   `-v/--version`, `-?/-h/--help`, `--check` (default), `--fix`, `--diff`, `--config <file>`, `--no-config`,
   `--enable <ids>`, `--disable <ids>`, `--silent`, `--validate`, `--results <file>` (also spelled `--result`),
-  `--depth <n>`, and `--log <file>`. Contradictory combinations are rejected (see *Context Design*).
+  `--depth <n>`, and `--log <file>`. Contradictory combinations are rejected (see *Context Design*). Argument errors
+  are found before `--silent` and `--log` take effect, so they are always printed and never logged.
+- **Help command** (in and out): `lintmark help` prints the topic index and `lintmark help <topic>` prints a topic
+  card with its examples, answered from help cards embedded in the tool assembly; HelpCards adds `--example`,
+  `--search`, and `--json`. The exit code is 0 for success, 2 for a wrong help argument or an unknown topic, and 70
+  for a defective card catalog. `help` must be the first argument. It is answered before the options are parsed, so
+  `--silent` and `--log` do not apply and no banner is printed.
 - **`.lintmark.yaml`** (in): a YAML mapping of settings and `rules`. The nearest file above each Markdown file is
   used and files are never merged. Unknown keys and invalid values are reported as problems with line and column (see
   *ConfigLoader Design*).
@@ -76,7 +88,8 @@ parallel. Subsystem relationships are detailed in the subsystem designs; see *En
 - **Results file** (out): `--results <file>` (or `--result <file>`) receives the self-validation results as TRX
   (`.trx`) or JUnit (`.xml`).
 - **Exit code** (out): 0 when no finding, problem, or error was reported, 1 otherwise (including an invalid command
-  line). The one exception is an unexpected internal error: `Program` writes `Unexpected error: ...` to standard error
+  line); the `help` command has its own exit codes (see *Help command*). The one exception is an unexpected internal
+  error: `Program` writes `Unexpected error: ...` to standard error
   and re-throws it, so the process ends with the failure code of the runtime.
 
 Rule identifiers are kebab-case names with legacy rule-number aliases (such as `MD013`) accepted wherever a rule is
@@ -91,6 +104,7 @@ Runtime OTS items consumed by the shipped tool:
 - YamlDotNet: event-level reading of `.lintmark.yaml` (see *YamlDotNet*).
 - EditorConfig: `.editorconfig` resolution (see *EditorConfig*).
 - TestResults: TRX and JUnit writing for self-validation (see *TestResults*).
+- HelpCards: the built-in `help` command and its help cards (see *HelpCards*).
 
 Build-time and pipeline tools are described in *OTS Software Integration Design*. The local items depend on each
 other as described in the subsystem and unit designs.
@@ -112,6 +126,7 @@ classification applies. The safeguards that exist are design measures:
 ## Data Flow
 
 ```text
+arguments --> HelpCommand (first argument "help": answer from the help cards and return its exit code)
 arguments --> Context --> Program --> Engine
 Engine: discover files (FileDiscovery)
   per file, in parallel:

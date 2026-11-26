@@ -81,7 +81,37 @@ public class ProgramTests
             Assert.Contains("Options:", output);
             Assert.Contains("--version", output);
             Assert.Contains("--help", output);
+            Assert.Contains($"{HelpCommand.ToolName} help [topic]", output);
+            Assert.EndsWith(HelpCommand.Default.Footer, output.TrimEnd());
             Assert.Equal(0, context.ExitCode);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Main answers the help verb from the help cards before the options are parsed.
+    /// </summary>
+    [Fact]
+    public void Program_Main_WithHelpVerb_PrintsHelpIndex()
+    {
+        // Arrange: capture console output
+        var originalOut = Console.Out;
+        try
+        {
+            using var outWriter = new StringWriter();
+            Console.SetOut(outWriter);
+
+            // Act: invoke Main with the help verb, which is not an option
+            var result = Program.Main(["help"]);
+
+            // Assert: the topic index is printed without the banner, and the exit code is success
+            var output = outWriter.ToString();
+            Assert.Equal(0, result);
+            Assert.Contains($"{HelpCommand.ToolName} help {HelpCommand.RootCardIds[0]}", output);
+            Assert.DoesNotContain("Copyright", output);
         }
         finally
         {

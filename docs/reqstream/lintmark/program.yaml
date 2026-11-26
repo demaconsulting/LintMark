@@ -23,6 +23,25 @@ sections:
               - Program_Run_WithValidateFlag_RunsValidation
               - Program_Run_WithPathArgument_RunsEngine
 
+          - id: LintMark-Program-HelpCommand
+            title: >-
+              The Program unit shall answer the help command before the command-line options are parsed and return
+              its exit code.
+            justification: |
+              The help command is not an option, and the option parser would take it for a path. Offering the
+              arguments to the help command first lets 'lintmark help' work while every other run continues to the
+              option parser unchanged.
+            tests:
+              - Program_Main_WithHelpVerb_PrintsHelpIndex
+
+          - id: LintMark-Program-HelpFooter
+            title: The Program unit shall end its usage information with a pointer to the help command.
+            justification: |
+              The short usage text stays short and still tells a reader where the help topics with worked examples
+              are.
+            tests:
+              - Program_Run_WithHelpFlag_DisplaysUsageInformation
+
           - id: LintMark-Program-Banner
             title: >-
               The Program unit shall print the tool name with its version and the copyright line before every

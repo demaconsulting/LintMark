@@ -20,6 +20,7 @@ input-files:
   - docs/design/lintmark.md
   - docs/design/lintmark/program.md
   - docs/design/lintmark/context.md
+  - docs/design/lintmark/help-command.md
   - docs/design/lintmark/validation.md
   - docs/design/lintmark/configuration.md
   - docs/design/lintmark/configuration/lint-mark-config.md
@@ -60,6 +61,7 @@ input-files:
   - docs/design/ots/editorconfig.md
   - docs/design/ots/fileassert.md
   - docs/design/ots/filesystemglobbing.md
+  - docs/design/ots/help-cards.md
   - docs/design/ots/markdig.md
   - docs/design/ots/pandoc.md
   - docs/design/ots/reqstream.md

@@ -1,0 +1,38 @@
+---
+# .lintmark.yaml: every setting, with its allowed values
+line-length: 100              # 0 to 100000; 0 is unlimited
+wrap: fill                    # fill, sentence, or semantic
+end-of-line: lf               # lf or crlf
+final-newline: true           # true or false
+heading-style: atx            # atx only
+bullet: asterisk              # dash, asterisk, or plus
+list-indent: 2                # 2 or 4
+ordered-style: incrementing   # incrementing or one
+emphasis: asterisk            # asterisk or underscore
+strong: asterisk              # asterisk or underscore
+code-fence: backtick          # backtick or tilde
+code-block-style: fenced      # fenced only
+hard-break: spaces            # spaces or backslash
+thematic-break: dashes        # dashes, asterisks, or underscores
+bare-urls: autolink           # autolink or leave
+tables: aligned               # compact or aligned
+max-blank-lines: 1            # 1 to 100000
+trailing-whitespace: strip    # strip only
+link-refactor:
+  enabled: false              # true or false
+  threshold: 60               # 1 to 100000
+  in-tables: true             # true or false
+  break-link-text: false      # true or false
+  label-max-length: 40        # 1 to 100000
+  definitions-marker: "<!-- Link References -->"
+rules:                        # rule id or MDxxx number: true or false
+  heading-increment: true
+  MD013: true
+  descriptive-link-text: false
+ignore:                       # replaces the built-in list
+  - ".git/**"
+  - "node_modules/**"
+  - "**/.venv/**"
+  - "**/generated/**"
+  - "**/thirdparty/**"
+  - ".agent-logs/**"

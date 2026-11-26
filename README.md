@@ -37,6 +37,7 @@ LintMark provides:
 - 🙈 **Suppression Comments**: Leaves chosen passages or rules alone
 - ⚡ **Parallel Processing**: Handles many files quickly with stable, ordered output
 - ✅ **Self-Validation**: Built-in validation tests with TRX and JUnit output
+- 💡 **Built-in Help**: `lintmark help` serves help topics with runnable examples
 - 🖥️ **Multi-Platform Support**: Builds and runs on Windows, Linux, macOS
 - ⚙️ **Multi-Runtime Support**: Targets .NET 10 and 11 runtimes
 - 🔁 **Comprehensive CI/CD**: GitHub Actions workflows for quality checks, builds, tests
@@ -65,6 +66,10 @@ lintmark --fix
 
 # Preview what --fix would change, as a unified diff
 lintmark --diff docs/
+
+# List the built-in help topics, then read one
+lintmark help
+lintmark help getting-started
 ```
 
 A minimal `.lintmark.yaml`:

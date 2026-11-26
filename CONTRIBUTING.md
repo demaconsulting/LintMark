@@ -197,6 +197,44 @@ spell-checking failure. Doing so defeats the purpose of spell-checking and reduc
   correctly, raise a **proposal** (e.g. comment in a pull request) explaining why the word should be added. The
   proposal must be reviewed and approved before the word is added to the list.
 
+### Help Cards
+
+The built-in help (`lintmark help`) is served from Markdown help cards in `src/DemaConsulting.LintMark/Help/`, which
+the DemaConsulting.HelpCards package embeds in the tool assembly. `Cli/HelpCommand.cs` is the only code that uses the
+package.
+
+- **One file per topic.** The path below `Help/`, without `.md`, is the card id. `_source.md` names the source
+  (`name:`) and sets `schema: 2`.
+- **Front matter.** Every card has a `title`, a `summary` (at most 80 characters for a topic, 100 otherwise), and
+  exactly one purpose tag: `tutorial`, `reference`, or `troubleshooting`. Add `aliases` for topic names that users
+  commonly guess, such as `examples`, so `help <name>` finds the card.
+- **New topics.** Add the id of every new top-level card to `HelpCommand.RootCardIds`, the one list of topics; a
+  missing or extra topic fails the tests.
+- **Examples.** Give every task a runnable `command` example, one command per example: no pipes, redirection, or
+  `&&`. Wrap `content` in single quotes and use double quotes inside the command, which bash, PowerShell, and cmd
+  read alike. State the result when it matters with `exit:` (default 0) and `expect:`, a short fragment that must
+  appear somewhere in the console output; `expect` cannot check a file that the command writes. Keep each
+  `description` to about 50 characters.
+- **Getting started.** Say how to install the tool for CI: the .NET version it needs (from `TargetFrameworks`), a
+  local tool manifest with `dotnet tool restore` before `dotnet lintmark`, and the global install as the alternative.
+  Mark the install commands as `snippet` examples so that the example runner does not run them.
+- **Input files.** The Markdown files that the examples check are `source` examples of their card, so a reader can
+  save them. HelpCards cannot save a `source` example under a name that ends in `.md` (it would be a card), so they
+  are saved as `.markdown`; a file named on the command line is checked whatever its extension. A dotfile cannot be a
+  `source` example either: the `.lintmark.yaml` of the `configuration` card is kept in
+  `test/DemaConsulting.LintMark.Tests/TestData/HelpExamples/configuration/` and must be identical to the sample in
+  the body of that card. The example-runner test marks each scratch folder as a repository root and copies
+  `TestData/HelpExamples/<card id>/` into it, so a staged `.lintmark.yaml` affects only its own card.
+- **Width.** A printed card may not be wider than 120 characters. Links print as full commands (`[[#name]]` as
+  about 50 characters) and `{{version}}` of a development build as about 46, so keep body lines near 75 characters
+  with at most one link each.
+- **Text.** Cards are linted and spell-checked like any Markdown file: no body line starting with `#`, no wide
+  tables, and every fenced block names its language.
+
+Run `pwsh ./build.ps1 -Changed` after changing a card. The `HelpCommand` unit tests validate every card, with
+warnings treated as errors, and check its printed width; an integration test runs every command example against
+the built tool and compares the result with the card.
+
 ## Quality Checks
 
 Before submitting a pull request, ensure all quality checks pass.

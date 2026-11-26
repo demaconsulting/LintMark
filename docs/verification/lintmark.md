@@ -55,6 +55,12 @@ change is released, never a reason to weaken a check.
 - **Operating systems**: Windows, Linux, and macOS (the CI matrix); .NET 10 and .NET 11 runtimes.
 - **Process runner**: system tests start the compiled tool with `dotnet <dll> <arguments>` and capture the standard
   output, standard error, and exit code. `Runner.Run` accepts a working directory for scenarios that depend on it.
+- **Help examples**: the command examples of the help cards are run by the example runner of HelpCards, which gives
+  each card a fresh scratch folder in the temporary directory, saves the source examples of the card there, and calls
+  the test for each command. The test marks the folder as a repository root with an empty `.git` folder, copies the
+  input files of the card from `TestData/HelpExamples/<card id>/` into it (the `configuration` card has the only
+  one, a `.lintmark.yaml` that would change the results of every other card), and runs the compiled tool there with
+  `Runner.Run`. The runner compares the exit code and the output with the `exit` and `expect` values of the example.
 - **Files**: each test creates a `TemporaryDirectory` with an empty `.git` folder, so no configuration or settings file
   above the tree is read, and removes it afterward.
 - **Concurrency**: tests that capture the console, change the current directory, or start the tool are in the
@@ -74,6 +80,8 @@ change is released, never a reason to weaken a check.
 - Before a release the corpus harness passes over the whole corpus with the default configuration and the full option
   matrix: no HTML mismatch, structure mismatch, non-idempotent result, crash, or timeout.
 - Exit code 0 means nothing was reported; exit code 1 means a finding, an error, or a usage problem.
+- The `help` command lists the topics with exit code 0, and exits with code 2 for an unknown topic.
+- Every command example in the help cards gives the exit code and output that its card states.
 - Findings are `path:line:col: rule-id message`, in a stable order.
 
 ## Test Scenarios
@@ -85,6 +93,17 @@ The scenarios are grouped by the feature of the requirements; each is an end-to-
 **Version prints only the version**: `--version` or `-v` prints the version and exits with 0.
 
 **Help lists every option**: `-?`, `-h`, and `--help` print the usage with every option.
+
+**The help command lists the topics**: `help` as the only argument prints every help topic with its command, without
+the banner, and exits with 0 (`LintMark_HelpTopics_HelpVerb_ListsTopics`).
+
+**An unknown help topic is a usage error**: `help no-such-topic` exits with 2 and the output names the topic
+(`LintMark_HelpTopics_UnknownTopic_ReturnsUsageError`).
+
+**Every help example gives its stated result**: Every command example of every card of the shipped catalog is run
+against the compiled tool in a scratch folder that holds the input files of its card; at least one command example
+exists, and each gives the exit code and the output fragments that its card states
+(`LintMark_HelpExamples_AllCommandExamples_GiveStatedResults`).
 
 **Default run lints every Markdown file below the current directory**: With no paths, the banner is printed and every
 `.md` file is checked except those in the folders that the default `ignore` setting skips (`.git`, `node_modules`,
@@ -117,7 +136,8 @@ usage error.
 and `--depth 2` makes the report heading a second-level (`##`) heading
 (`LintMark_ValidateWithDepthFlag_Provided_HeadsSummaryAtThatDepth`). A `--depth` without a value is a usage error.
 
-**Exit codes**: 0 when nothing is reported; 1 for any finding, error, or usage problem. An unexpected internal error
+**Exit codes**: 0 when nothing is reported; 1 for any finding, error, or usage problem; 2 for an unknown topic of the
+`help` command. An unexpected internal error
 is the one case outside this contract (the tool reports it and re-throws it, so the runtime sets the failure code); it
 cannot be provoked from the command line and is not covered by a system scenario.
 

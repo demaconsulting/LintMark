@@ -17,11 +17,12 @@ they are realized.
 Local items:
 
 - **LintMark**: the system, its 5 subsystems (`Configuration`, `Document`, `Engine`, `Linting`, `Formatting`), the 2
-  nested subsystems of `Formatting` (`Blocks` and `Inline`), and its 30 units.
+  nested subsystems of `Formatting` (`Blocks` and `Inline`), and its 31 units.
 
 OTS items:
 
-- **Runtime libraries** shipped with the tool: Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig, and TestResults.
+- **Runtime libraries** shipped with the tool: Markdig, FileSystemGlobbing, YamlDotNet, EditorConfig, TestResults, and
+  HelpCards.
 - **Build and pipeline tools**: BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark,
   SysML2Tools, VersionMark, WeasyPrint, and xUnit.
 
@@ -46,16 +47,16 @@ The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to
 part of the build pipeline. AI agents should query the SysML2 model directly (see the `sysml2tools-query` skill) rather
 than parsing this diagram or the prose elsewhere in this document. The model captures the shipped system's runtime
 composition: the local software items and the OTS libraries the shipped tool consumes (Markdig, FileSystemGlobbing,
-YamlDotNet, EditorConfig, and TestResults, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS items listed in
-Scope are build-time or pipeline tools, documented in `docs/design/ots.md` and not modeled as parts.
+YamlDotNet, EditorConfig, TestResults, and HelpCards, modeled in `docs/sysml2/model/ots.sysml`). The remaining OTS
+items listed in Scope are build-time or pipeline tools, documented in `docs/design/ots.md` and not modeled as parts.
 
-The system consists of three units that sit directly under it (`Program`, `Context`, and `Validation`) and five
-subsystems: `Configuration` (settings, `.lintmark.yaml`, `.editorconfig`), `Document` (decoding, parsing, suppression
-comments, and text width), `Linting` (rule registry, diagnostics, and lint-only rules), `Formatting` (the canonical
-form and edit composition), and `Engine` (discovery, per-file pipeline, writing, and reporting). `Formatting` contains
-two nested subsystems: `Blocks` (the heading, code block, thematic break, block quote, list, table, and paragraph
-formatters) and `Inline` (inline normalization, atom tokenizing, line wrapping, and link refactoring). They are the only
-nested subsystems.
+The system consists of four units that sit directly under it (`Program`, `Context`, `HelpCommand`, and `Validation`) and
+five subsystems: `Configuration` (settings, `.lintmark.yaml`, `.editorconfig`), `Document` (decoding, parsing,
+suppression comments, and text width), `Linting` (rule registry, diagnostics, and lint-only rules), `Formatting` (the
+canonical form and edit composition), and `Engine` (discovery, per-file pipeline, writing, and reporting). `Formatting`
+contains two nested subsystems: `Blocks` (the heading, code block, thematic break, block quote, list, table, and
+paragraph formatters) and `Inline` (inline normalization, atom tokenizing, line wrapping, and link refactoring). They
+are the only nested subsystems.
 
 ![Software Structure](SoftwareStructureView.svg)
 
@@ -68,8 +69,9 @@ lint-only rules then both read that parsed document as written, so what the lint
 what the formatter changes; their findings are combined. Only with `--fix` is the rewritten text parsed again and
 checked again, so that the remaining findings are reported at the positions of the new file. The `Engine` then reports
 the findings and, with `--fix`, writes the result. Look for the OTS libraries that each unit consumes and for the
-inputs and outputs at the edges. The `Validation` unit (`--validate`) is a separate path and is not shown. The SysML2
-model remains the authority on structure; this diagram only adds the data flow.
+inputs and outputs at the edges. The `Validation` unit (`--validate`) and the `HelpCommand` unit (the `help` command)
+are separate paths and are not shown. The SysML2 model remains the authority on structure; this diagram only adds the
+data flow.
 
 ![Runtime data flow of a lintmark run: the command line, Markdown files, .lintmark.yaml, and .editorconfig enter
 Program, Context, and the Engine. FileDiscovery expands the paths, then each file passes through Configuration and
@@ -83,7 +85,8 @@ FileSystemGlobbing are the OTS libraries used.](architecture.svg)
 - **src/** - source files and projects
   - **DemaConsulting.LintMark/** - main application source
     - `Program.cs` - the `Program` unit
-    - **Cli/** - `Context.cs`: the `Context` unit
+    - **Cli/** - `Context.cs`: the `Context` unit; `HelpCommand.cs`: the `HelpCommand` unit
+    - **Help/** - the built-in help cards (Markdown with front matter), embedded in the assembly
     - **SelfTest/** - `Validation.cs`: the `Validation` unit
     - **Configuration/** - `Configuration` subsystem
       - `LintMarkConfig.cs` - the `LintMarkConfig` unit (the settings record, the setting enumerations, and
@@ -112,7 +115,8 @@ FileSystemGlobbing are the OTS libraries used.](architecture.svg)
       - **Inline/** - nested `Inline` subsystem: `InlineNormalizer.cs`, `AtomTokenizer.cs`, `LineWrapper.cs` (with
         `WrapGuard.cs`), `LinkRefactorer.cs` - one unit each
 - **test/** - test projects (not covered by design documents)
-  - **DemaConsulting.LintMark.Tests/** - unit, subsystem, and system tests for the local items
+  - **DemaConsulting.LintMark.Tests/** - unit, subsystem, and system tests for the local items; the input files of
+    the help examples are in `TestData/HelpExamples/`
   - **OtsSoftwareTests/** - integration tests for the OTS libraries
 - **tools/** - non-shipping development tools (`LintMark.Verify` and its tests); not software items
 

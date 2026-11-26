@@ -15,15 +15,34 @@ The tool is then available as the `lintmark` command. To update it, run
 
 ```text
 lintmark [options] [paths...]
+lintmark help [topic]
 ```
 
 When invoked, LintMark prints a banner with its version and copyright to standard output (unless `--silent` is
 given), and then does one of the following. Only the first match applies, in this order:
 
 1. `--version` prints the version number only.
-2. `--help` prints the banner and the usage text.
+2. `--help` prints the banner and the usage text, which ends with a pointer to the built-in help.
 3. `--validate` runs self-validation (see *Self-Validation*).
 4. Otherwise the selected Markdown files are linted.
+
+The `help` command is the exception: when `help` is the first argument, LintMark prints help instead (see *Built-in
+Help*), without the banner.
+
+## Built-in Help
+
+The `help` command prints help topics that explain each task with worked examples, for people and for AI agents that
+have only the installed tool. List the topics, then print one with its examples:
+
+```bash
+lintmark help
+lintmark help getting-started
+```
+
+Add `--search <words>` to find a topic, `--example <name>` to print one example of a topic, and `--json` to get any
+help answer as JSON. `help` is a command, not an option: it must be the first argument, and `--silent` and `--log` do
+not apply to it. An unknown topic or a wrong help argument prints a hint and exits with code 2 (see *Exit Codes*). To
+check a Markdown file named `help`, write `./help`.
 
 ## Selecting Files
 
@@ -266,6 +285,7 @@ Rules* and *Lint Rules*, plus `line-ending`.
 | --- | --- |
 | `0` | Every file was processed and nothing is left to report |
 | `1` | A problem was reported (also a lint-only finding), an argument was invalid, or validation failed |
+| `2` | Unknown help topic or wrong `help` argument |
 
 There is no other exit code for problems. A `--fix` run that rewrote every file it had to and has nothing left to
 report exits with `0`. `--silent` suppresses the output but not the exit code. An unexpected internal error is written
@@ -374,7 +394,8 @@ lintmark --validate --depth 2
 ## Usage Errors
 
 An argument that LintMark cannot accept is reported on standard error as `Error: <message>`, nothing is processed, and
-the exit code is `1`; no `path:line:col` line is printed. Every argument that starts with a dash and is not a
+the exit code is `1`; no `path:line:col` line is printed. Argument errors are found before `--silent` and `--log` take
+effect, so they are always printed and never logged. Every argument that starts with a dash and is not a
 supported option is rejected, including a lone `-`; an empty argument is rejected as well:
 
 ```text
@@ -424,8 +445,8 @@ instead. Problems in the configuration itself are different: they are reported a
 | `--depth <#>` | Set the heading depth (1 to 6) of the validation report (default: 1) |
 | `--log <file>` | Write output to a log file |
 
-`lintmark --help` prints the banner, the usage line `lintmark [options] [paths...]`, and one line for each of these
-options.
+`lintmark --help` prints the banner, the usage lines `lintmark [options] [paths...]` and `lintmark help [topic]`, one
+line for each of these options, and finally the pointer `Run 'lintmark help' for topics and examples.`
 
 ## Examples
 

@@ -21,6 +21,7 @@ This document covers the verification design for the following software items.
 - **LintMark** — system verification
   - **Program** — entry point and execution orchestrator
   - **Context** — argument parser and output owner
+  - **HelpCommand** — the built-in `help` command, answered from embedded help cards
   - **Validation** — self-validation test runner
   - **Configuration** subsystem
     - **LintMarkConfig** — validated, immutable settings of one file
@@ -54,7 +55,7 @@ This document covers the verification design for the following software items.
 
 **OTS items:**
 
-- **Runtime libraries**: EditorConfig, FileSystemGlobbing, Markdig, TestResults, and YamlDotNet
+- **Runtime libraries**: EditorConfig, FileSystemGlobbing, HelpCards, Markdig, TestResults, and YamlDotNet
 - **Tools**: BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, SysML2Tools, VersionMark,
   WeasyPrint, and xUnit
 
@@ -90,7 +91,7 @@ The test folder structure mirrors the source subsystem breakdown:
 ```text
 test/
 ├── DemaConsulting.LintMark.Tests/  — unit, subsystem, and system tests
-│   ├── Cli/                        — Context tests
+│   ├── Cli/                        — Context and HelpCommand tests
 │   ├── Configuration/              — Configuration subsystem and unit tests
 │   ├── Document/                   — Document subsystem and unit tests, with test-support helpers
 │   ├── Engine/                     — Engine subsystem and unit tests
@@ -99,7 +100,8 @@ test/
 │   │   └── Inline/                 — Inline subsystem and unit tests
 │   ├── Linting/                    — Linting subsystem and unit tests
 │   ├── Reporting/                  — reporter tests, with a patch applier
-│   └── SelfTest/                   — Validation tests
+│   ├── SelfTest/                   — Validation tests
+│   └── TestData/HelpExamples/      — input files of the help examples, one folder per card
 └── OtsSoftwareTests/               — integration tests for the OTS libraries
 ```
 
