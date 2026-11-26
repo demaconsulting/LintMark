@@ -59,8 +59,8 @@ it: `line-length`, the width in display columns (default 120; 0 is
 unlimited), and `wrap`, the method (default `fill`).
 
 - **fill** rewraps only a paragraph that has a line wider than the
-  limit, filling each line as far as it goes. A paragraph that fits is
-  never touched, however its lines are broken.
+  limit, filling each line as far as it goes. A paragraph whose lines
+  all fit is left exactly as written, even when its lines are short.
 - **sentence** starts every sentence on a new line and fills a sentence
   that is wider than the limit.
 - **semantic** starts every sentence on a new line and breaks a sentence
